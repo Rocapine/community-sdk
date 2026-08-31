@@ -104,3 +104,5 @@ export { fetchInbox, markInboxSeen, unreadCount } from "./inbox-service";
 export type { InboxItem, InboxState } from "./inbox-service";
 
 export { useNotificationInbox, useUnreadNotificationCount, useMarkInboxSeen } from "./inbox-hooks";
+
+export { REQUIRED_SCHEMA_VERSION } from "./schema-check";

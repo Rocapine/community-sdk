@@ -1,5 +1,13 @@
-import { createContext, useContext, useMemo, type ReactElement, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { resolveConfig, type CommunityConfig, type ResolvedCommunityConfig } from "./config";
+import { checkSchemaVersion } from "./schema-check";
 
 const CommunityConfigContext = createContext<ResolvedCommunityConfig | null>(null);
 
@@ -9,6 +17,10 @@ export function CommunityProvider(props: {
 }): ReactElement {
   const { config, children } = props;
   const resolved = useMemo(() => resolveConfig(config), [config]);
+
+  useEffect(() => {
+    void checkSchemaVersion(resolved);
+  }, [resolved]);
 
   return (
     <CommunityConfigContext.Provider value={resolved}>{children}</CommunityConfigContext.Provider>
