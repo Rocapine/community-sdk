@@ -33,7 +33,7 @@ export const it: Record<string, string> = {
   "feed.unreachable": "La comunità non è raggiungibile in questo momento.",
   "feed.noSearchResults": "Nessun post corrisponde alla tua ricerca.",
   "feed.newsEmpty": "Gli annunci del team compariranno qui.",
-  "feed.empty": "Ancora nessun post qui. Sii la prima a condividere.",
+  "feed.empty": "Ancora nessun post qui. Condividi il primo.",
   "feed.loadMore": "Carica altri",
   "feed.newPosts.one": "{count} nuovo post",
   "feed.newPosts.other": "{count} nuovi post",
@@ -50,7 +50,7 @@ export const it: Record<string, string> = {
   "thread.comments.one": "{count} commento",
   "thread.comments.other": "{count} commenti",
   "thread.loadingComments": "Caricamento dei commenti…",
-  "thread.emptyComments": "Sii la prima a lasciare una parola gentile.",
+  "thread.emptyComments": "Lascia la prima parola gentile.",
   "thread.commentPlaceholder": "Aggiungi una parola gentile…",
 
   "composer.placeholder": "Condividi un pensiero, una storia, un incoraggiamento…",
@@ -71,7 +71,7 @@ export const it: Record<string, string> = {
   "rules.hateful":
     "Nessun contenuto offensivo, molesto o esplicito. Viene rimosso e può portare a un blocco.",
   "rules.report":
-    "Noti qualcosa che non va? Segnalalo, o blocca l'autrice. Esaminiamo ogni segnalazione.",
+    "Noti qualcosa che non va? Segnalalo, o blocca chi l'ha scritto. Esaminiamo ogni segnalazione.",
   "rules.accept": "Sono d'accordo, entriamo",
 
   "notice.errorTitle": "Qualcosa è andato storto",

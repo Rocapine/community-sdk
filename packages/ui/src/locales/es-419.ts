@@ -33,7 +33,7 @@ export const es419: Record<string, string> = {
   "feed.unreachable": "No pudimos conectar con la comunidad en este momento.",
   "feed.noSearchResults": "No hay publicaciones que coincidan con tu búsqueda.",
   "feed.newsEmpty": "Acá van a aparecer los anuncios del equipo.",
-  "feed.empty": "Todavía no hay publicaciones acá. Sé la primera en compartir.",
+  "feed.empty": "Todavía no hay publicaciones acá. Comparte la primera.",
   "feed.loadMore": "Cargar más",
   "feed.newPosts.one": "{count} publicación nueva",
   "feed.newPosts.other": "{count} publicaciones nuevas",
@@ -50,7 +50,7 @@ export const es419: Record<string, string> = {
   "thread.comments.one": "{count} comentario",
   "thread.comments.other": "{count} comentarios",
   "thread.loadingComments": "Cargando comentarios…",
-  "thread.emptyComments": "Sé la primera en dejar unas palabras lindas.",
+  "thread.emptyComments": "Deja las primeras palabras lindas.",
   "thread.commentPlaceholder": "Deja unas palabras lindas…",
 
   "composer.placeholder": "Comparte un pensamiento, una historia, un aliento…",
@@ -70,7 +70,8 @@ export const es419: Record<string, string> = {
   "rules.medical": "Sin consejos médicos. Comparte experiencias, no recetas.",
   "rules.hateful":
     "Nada de contenido de odio, acoso o contenido explícito. Se elimina y puede llevar a una suspensión.",
-  "rules.report": "¿Ves algo raro? Repórtalo o bloquea a la autora. Revisamos cada reporte.",
+  "rules.report":
+    "¿Ves algo raro? Repórtalo o bloquea a quien lo escribió. Revisamos cada reporte.",
   "rules.accept": "Acepto, quiero entrar",
 
   "notice.errorTitle": "Algo salió mal",

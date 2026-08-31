@@ -33,7 +33,7 @@ export const esES: Record<string, string> = {
   "feed.unreachable": "Ahora mismo no podemos conectar con la comunidad.",
   "feed.noSearchResults": "Ninguna publicación coincide con tu búsqueda.",
   "feed.newsEmpty": "Los anuncios del equipo aparecerán aquí.",
-  "feed.empty": "Aún no hay publicaciones aquí. Sé la primera en compartir.",
+  "feed.empty": "Aún no hay publicaciones aquí. Comparte la primera.",
   "feed.loadMore": "Cargar más",
   "feed.newPosts.one": "{count} publicación nueva",
   "feed.newPosts.other": "{count} publicaciones nuevas",
@@ -51,7 +51,7 @@ export const esES: Record<string, string> = {
   "thread.comments.one": "{count} comentario",
   "thread.comments.other": "{count} comentarios",
   "thread.loadingComments": "Cargando comentarios…",
-  "thread.emptyComments": "Sé la primera en dejar unas palabras bonitas.",
+  "thread.emptyComments": "Deja las primeras palabras bonitas.",
   "thread.commentPlaceholder": "Deja unas palabras bonitas…",
 
   "composer.placeholder": "Comparte un pensamiento, una historia, un ánimo…",
@@ -72,7 +72,7 @@ export const esES: Record<string, string> = {
   "rules.hateful":
     "Nada de contenido de odio, acoso o contenido explícito. Se retira y puede suponer una expulsión.",
   "rules.report":
-    "¿Ves algo raro? Denúncialo o bloquea a la autora. Revisamos todas las denuncias.",
+    "¿Ves algo raro? Denúncialo o bloquea a quien lo escribió. Revisamos todas las denuncias.",
   "rules.accept": "Estoy de acuerdo, quiero entrar",
 
   "notice.errorTitle": "Algo ha salido mal",

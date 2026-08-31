@@ -32,7 +32,7 @@ export const ptBR: Record<string, string> = {
   "feed.unreachable": "Não foi possível acessar a comunidade agora.",
   "feed.noSearchResults": "Nenhuma publicação corresponde à sua busca.",
   "feed.newsEmpty": "Os anúncios da equipe vão aparecer aqui.",
-  "feed.empty": "Ainda não tem publicações por aqui. Seja a primeira a compartilhar.",
+  "feed.empty": "Ainda não tem publicações por aqui. Compartilhe a primeira.",
   "feed.loadMore": "Carregar mais",
   "feed.newPosts.one": "{count} publicação nova",
   "feed.newPosts.other": "{count} publicações novas",
@@ -49,7 +49,7 @@ export const ptBR: Record<string, string> = {
   "thread.comments.one": "{count} comentário",
   "thread.comments.other": "{count} comentários",
   "thread.loadingComments": "Carregando comentários…",
-  "thread.emptyComments": "Seja a primeira a deixar uma palavra de carinho.",
+  "thread.emptyComments": "Deixe a primeira palavra de carinho.",
   "thread.commentPlaceholder": "Deixe uma palavra de carinho…",
 
   "composer.placeholder": "Compartilhe um pensamento, uma história, uma palavra de ânimo…",
@@ -69,7 +69,8 @@ export const ptBR: Record<string, string> = {
   "rules.medical": "Nada de conselhos médicos. Compartilhe experiências, não receitas.",
   "rules.hateful":
     "Nada de conteúdo de ódio, assédio ou conteúdo explícito. Esse conteúdo é removido e pode levar a banimento.",
-  "rules.report": "Viu algo estranho? Denuncie ou bloqueie a autora. Nós analisamos cada denúncia.",
+  "rules.report":
+    "Viu algo estranho? Denuncie ou bloqueie quem escreveu. Nós analisamos cada denúncia.",
   "rules.accept": "Concordo, quero participar",
 
   "notice.errorTitle": "Algo deu errado",
@@ -77,9 +78,9 @@ export const ptBR: Record<string, string> = {
   "notice.errorBody":
     "Não conseguimos acessar a comunidade agora. Verifique sua conexão e tente de novo.",
   "notice.rejectedPostBody":
-    "Sua publicação não pôde ser compartilhada porque vai contra as regras da nossa comunidade. Este é um espaço de bondade, encorajamento e graça. Obrigada por ajudar a mantê-lo seguro para todas.",
+    "Sua publicação não pôde ser compartilhada porque vai contra as regras da nossa comunidade. Este é um espaço de bondade, encorajamento e graça. Agradecemos por ajudar a mantê-lo seguro para todas.",
   "notice.rejectedCommentBody":
-    "Seu comentário não pôde ser compartilhado porque vai contra as regras da nossa comunidade. Este é um espaço de bondade, encorajamento e graça. Obrigada por ajudar a mantê-lo seguro para todas.",
+    "Seu comentário não pôde ser compartilhado porque vai contra as regras da nossa comunidade. Este é um espaço de bondade, encorajamento e graça. Agradecemos por ajudar a mantê-lo seguro para todas.",
   "notice.gotIt": "Entendi",
 
   "menu.cancel": "Cancelar",
@@ -103,7 +104,7 @@ export const ptBR: Record<string, string> = {
   "report.reasons.other": "Outro motivo",
   "report.detailsPlaceholder": "Tem algo que a gente deva saber? (opcional)",
   "report.send": "Enviar denúncia",
-  "report.sentTitle": "Obrigada",
+  "report.sentTitle": "Agradecemos",
   "report.sentBody": "Sua denúncia foi enviada. Nossa equipe analisa cada denúncia.",
   "report.errorTitle": "Não deu para enviar a denúncia",
   "report.errorBody": "Verifique sua conexão e tente de novo.",
