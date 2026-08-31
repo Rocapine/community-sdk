@@ -2,6 +2,11 @@
 -- Community SDK — 04 dashboard support: what the Rocactopus dashboard needs
 -- to moderate this app (admin allow-list, audit log, aggregation view,
 -- metrics RPC). The review/resolution columns live in core/001_tables.sql.
+--
+-- admin_user_stats and admin_daily_metrics are service-role/dashboard only:
+-- the view runs with security_invoker=off (so it can see every row) and both
+-- expose PII (amplitude_id, revenuecat_id, is_banned) — client roles must
+-- never be able to select/execute them.
 
 create table public.admin_users (
   email text primary key,
@@ -36,6 +41,8 @@ select
   (select count(*) from reports  where reported_user_id = p.id) as reports_received,
   (select count(*) from blocks   where blocked_id = p.id) as blocked_by_count
 from profiles p;
+
+revoke select on public.admin_user_stats from public, anon, authenticated;
 
 -- Daily series for /overview in one call. Adoption metrics exclude house accounts.
 create or replace function public.admin_daily_metrics(from_date date, to_date date)
@@ -91,3 +98,5 @@ as $$
     'topics', (select coalesce(jsonb_agg(jsonb_build_object('topic',topic,'count',n) order by n desc),'[]'::jsonb) from topics),
     'reply_rate', (select coalesce(rate,0) from reply_rate));
 $$;
+
+revoke execute on function public.admin_daily_metrics(date, date) from public, anon, authenticated;

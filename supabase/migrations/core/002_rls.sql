@@ -42,6 +42,18 @@ create policy "update own profile"
 revoke update on table public.profiles from authenticated;
 grant update (username, amplitude_id, revenuecat_id) on table public.profiles to authenticated;
 
+-- Column-scoped select: the RLS policy above only decides which ROWS are
+-- visible, not which COLUMNS — PostgREST otherwise happily returns every
+-- column, including amplitude_id/revenuecat_id/is_banned/is_house, to any
+-- authenticated (or anon, before the policy's `to authenticated` even
+-- applies at the grant level) caller. The client only ever reads the public
+-- identity surface (service.ts FEED_SELECT/PROFILE_SELECT, plus the
+-- update-profile Edge Function payloads) — is_official stays readable, it's
+-- the UI's "official" seal.
+revoke select on public.profiles from anon, authenticated;
+grant select (id, username, handle, bio, avatar_url, is_official, created_at)
+  on public.profiles to anon, authenticated;
+
 -- ============ POSTS ============
 -- The heart of blocking: blocked authors' posts vanish from every query.
 create policy "read visible posts, minus blocked authors"
