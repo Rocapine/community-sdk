@@ -21,3 +21,6 @@ export { ReportSheet } from "./components/ReportSheet";
 
 export { CommunityFeedScreen } from "./screens/CommunityFeedScreen";
 export { ThreadSheet } from "./screens/ThreadSheet";
+export { ProfileScreen } from "./screens/ProfileScreen";
+export { ProfileEditSheet } from "./screens/ProfileEditSheet";
+export { NotificationInboxScreen } from "./screens/NotificationInboxScreen";

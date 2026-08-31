@@ -63,6 +63,9 @@ importers:
       expo-image:
         specifier: ^57.0.3
         version: 57.0.3(expo@57.0.18)(react-native@0.81.6(@babel/core@7.29.7)(@types/react@19.2.18)(react@19.0.0))(react@19.0.0)
+      expo-image-picker:
+        specifier: ^57.0.3
+        version: 57.0.14(expo@57.0.18)
       phosphor-react-native:
         specifier: ^3.0.6
         version: 3.0.6(react-native-svg@15.15.5(react-native@0.81.6(@babel/core@7.29.7)(@types/react@19.2.18)(react@19.0.0))(react@19.0.0))(react-native@0.81.6(@babel/core@7.29.7)(@types/react@19.2.18)(react@19.0.0))(react@19.0.0)
@@ -1833,6 +1836,16 @@ packages:
 
   expo-haptics@57.0.2:
     resolution: {integrity: sha512-vPths6zTxxaGaemC7D1GKbw1iOnOAAL5oAcCFVSgVNWnuLCBefL1LkhRBaJsepiMXRh2y3vwPiXkPaf6d16blA==}
+    peerDependencies:
+      expo: '*'
+
+  expo-image-loader@57.0.1:
+    resolution: {integrity: sha512-uhrZKLT/cTl2mXyR28kPpVkS5O+PK9N1QA/07IFM4f5T4g0lTW1JHT3NEWwEEsGFldPmVX4j7LwUVVZxE+woug==}
+    peerDependencies:
+      expo: '*'
+
+  expo-image-picker@57.0.14:
+    resolution: {integrity: sha512-NK9XBQqOtscbB/uRts1Gm7Oki6odMN3FQPWD6fSKmNUfKM69O6kcgU25lEXFTSLZ7sLl+AopHa2X0uILd8rjaQ==}
     peerDependencies:
       expo: '*'
 
@@ -5456,6 +5469,15 @@ snapshots:
   expo-haptics@57.0.2(expo@57.0.18):
     dependencies:
       expo: 57.0.18(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(react-native@0.81.6(@babel/core@7.29.7)(@types/react@19.2.18)(react@19.0.0))(react@19.0.0)(typescript@5.9.3)
+
+  expo-image-loader@57.0.1(expo@57.0.18):
+    dependencies:
+      expo: 57.0.18(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(react-native@0.81.6(@babel/core@7.29.7)(@types/react@19.2.18)(react@19.0.0))(react@19.0.0)(typescript@5.9.3)
+
+  expo-image-picker@57.0.14(expo@57.0.18):
+    dependencies:
+      expo: 57.0.18(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(react-native@0.81.6(@babel/core@7.29.7)(@types/react@19.2.18)(react@19.0.0))(react@19.0.0)(typescript@5.9.3)
+      expo-image-loader: 57.0.1(expo@57.0.18)
 
   expo-image@57.0.3(expo@57.0.18)(react-native@0.81.6(@babel/core@7.29.7)(@types/react@19.2.18)(react@19.0.0))(react@19.0.0):
     dependencies:

@@ -135,6 +135,7 @@ export const en: Record<string, string> = {
   "profile.usernameTaken": "This username is already taken.",
   "profile.usernameInvalid": "Only lowercase letters, numbers and dashes, 3 to 20 characters.",
   "profile.genericError": "Something went wrong. Please try again.",
+  "profile.save": "Save",
 
   "inbox.title": "Notifications",
   "inbox.empty":
