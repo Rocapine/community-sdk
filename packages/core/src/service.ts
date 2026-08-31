@@ -408,41 +408,11 @@ export async function setReaction(cfg: ResolvedCommunityConfig, postId: string):
 export type ReportReason = "spam" | "harassment" | "hate" | "inappropriate" | "other";
 
 export interface ReportInput {
-  /**
-   * Optional (mold/Eve callers that already know the author still pass it
-   * directly). When omitted, `reportContent` resolves it itself from
-   * `postId`/`commentId` — added so a caller that only has `{ kind, id }`
-   * (e.g. `ReportSheet`'s target, Task 11) does not need a separate
-   * "look up the author" round trip of its own.
-   */
-  reportedUserId?: string;
+  reportedUserId: string;
   postId?: string;
   commentId?: string;
   reason: ReportReason;
   details?: string;
-}
-
-async function resolveReportedUserId(client: SupabaseClient, input: ReportInput): Promise<string> {
-  if (input.reportedUserId) return input.reportedUserId;
-  if (input.postId) {
-    const { data, error } = await client
-      .from("posts")
-      .select("author_id")
-      .eq("id", input.postId)
-      .single();
-    if (error) throw error;
-    return data.author_id as string;
-  }
-  if (input.commentId) {
-    const { data, error } = await client
-      .from("comments")
-      .select("author_id")
-      .eq("id", input.commentId)
-      .single();
-    if (error) throw error;
-    return data.author_id as string;
-  }
-  throw new Error("reportContent requires reportedUserId, postId, or commentId");
 }
 
 export async function reportContent(
@@ -451,10 +421,9 @@ export async function reportContent(
 ): Promise<void> {
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
-  const reportedUserId = await resolveReportedUserId(client, input);
   const { error } = await client.from("reports").insert({
     reporter_id: uid,
-    reported_user_id: reportedUserId,
+    reported_user_id: input.reportedUserId,
     post_id: input.postId ?? null,
     comment_id: input.commentId ?? null,
     reason: input.reason,

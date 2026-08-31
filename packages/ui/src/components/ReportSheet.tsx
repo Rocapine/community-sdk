@@ -2,15 +2,21 @@
 // (`sdk/client/components/community/ReportSheet.tsx`), rebuilt on this
 // package's `CommunitySheet`/theme/i18n.
 //
-// Signature change from both sources (task brief): `target` is
-// `{ kind: "post" | "comment"; id: string } | null` instead of the mold's
-// `{ reportedUserId, postId?, commentId? }` — this sheet no longer needs the
-// author id up front. `useReport`'s `ReportInput.reportedUserId` was widened
-// to optional in `@rocapine/community-core` (packages/core/src/service.ts,
-// this task) precisely for this: `reportContent` resolves the author itself
-// from `postId`/`commentId` when it is omitted, so a caller that only knows
-// "which post/comment" (exactly what `target` carries) can still report it
-// without a separate lookup round trip of its own.
+// Signature change from the mold (task brief, refined in review — see
+// task-11-report.md's fix-up section): `target` is
+// `{ kind: "post" | "comment"; id: string; authorId: string } | null`
+// instead of the mold's flat `{ reportedUserId, postId?, commentId? }`.
+// `authorId` is required on the target (not resolved by a lookup): the
+// screen that renders the "Report" menu item always already holds the full
+// post/comment object (mold/Eve pattern — `onMenu(post)` on `CommunityPost`,
+// Task 10), so it can pass `post.authorId`/`comment.authorId` straight
+// through. An earlier version of this file had `reportContent` resolve the
+// author itself via a `select author_id` on `posts`/`comments`, but that
+// lookup is RLS-gated the same as the feed (`status = 'visible'`, author not
+// blocked) — reporting moderation-hidden content or a just-blocked author
+// would throw PGRST116 there, surfacing as a misleading network error
+// instead of ever reaching the actual report insert. Requiring `authorId` up
+// front avoids that lookup entirely.
 //
 // `visible` and `target` are kept as two separate props per the brief
 // (rather than deriving visibility from `target !== null` like the mold) so
@@ -32,7 +38,7 @@ export function ReportSheet({
   onClose,
 }: {
   visible: boolean;
-  target: { kind: "post" | "comment"; id: string } | null;
+  target: { kind: "post" | "comment"; id: string; authorId: string } | null;
   onClose: () => void;
 }) {
   const theme = useCommunityTheme();
@@ -61,6 +67,7 @@ export function ReportSheet({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     report.mutate(
       {
+        reportedUserId: target.authorId,
         postId: target.kind === "post" ? target.id : undefined,
         commentId: target.kind === "comment" ? target.id : undefined,
         reason,

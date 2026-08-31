@@ -36,7 +36,7 @@ import {
 } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
 import { ChartBarHorizontal, Plus, X } from "phosphor-react-native";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -54,7 +54,6 @@ export function ComposerCard({
   const cfg = useCommunityConfig();
   const styles = useThemedStyles(makeStyles);
   const createPost = useCreatePost();
-  const inputRef = useRef<TextInput>(null);
 
   const topics = cfg.composeTopics();
   const [topic, setTopic] = useState<string>(defaultTopic ?? topics[0]?.id ?? "general");
@@ -144,7 +143,6 @@ export function ComposerCard({
       )}
 
       <TextInput
-        ref={inputRef}
         value={text}
         onChangeText={setText}
         onFocus={() => setInputFocused(true)}

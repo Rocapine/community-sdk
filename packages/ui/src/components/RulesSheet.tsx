@@ -43,8 +43,10 @@ export function RulesSheet({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     try {
       await cfg.host.rulesAcceptance.set();
-    } catch {
-      // A broken host adapter must never trap someone behind this gate.
+    } catch (e) {
+      // A broken host adapter must never trap someone behind this gate — but
+      // silently swallowing it would hide a real integration bug, so warn.
+      console.warn("[@rocapine/community-ui] rulesAcceptance.set failed", e);
     }
     emitEvent(cfg, COMMUNITY_EVENTS.rulesAccepted);
     onAccepted();
