@@ -197,4 +197,93 @@ describe("runInit", () => {
     expect(output).toContain("OPENAI_API_KEY");
     expect(output).toMatch(/functions deploy/i);
   });
+
+  it("fails loudly instead of hanging when stdin is not a TTY and flags are missing", async () => {
+    const originalIsTTY = process.stdin.isTTY;
+    process.stdin.isTTY = false;
+    try {
+      await expect(
+        runInit(
+          baseOptions({
+            modules: ["core"],
+            projectUrl: undefined,
+            anonKey: undefined,
+            prompt: undefined,
+          }),
+        ),
+      ).rejects.toThrow(/--project-url.*--anon-key|not a TTY/i);
+
+      // Nothing should have been written: the check must fire before any copy.
+      expect(fs.existsSync(path.join(cwd, "supabase"))).toBe(false);
+      expect(readManifest(cwd)).toBeNull();
+    } finally {
+      process.stdin.isTTY = originalIsTTY;
+    }
+  });
+
+  it("does not block on a non-TTY stdin when a prompt function is injected", async () => {
+    const originalIsTTY = process.stdin.isTTY;
+    process.stdin.isTTY = false;
+    try {
+      const prompt = vi.fn().mockResolvedValueOnce(projectUrl).mockResolvedValueOnce(anonKey);
+      const result = await runInit(
+        baseOptions({ modules: ["core"], projectUrl: undefined, anonKey: undefined, prompt }),
+      );
+      expect(prompt).toHaveBeenCalledTimes(2);
+      expect(result.manifest.modules).toEqual(["core"]);
+    } finally {
+      process.stdin.isTTY = originalIsTTY;
+    }
+  });
+
+  it("rejects a --dir that escapes the project root", async () => {
+    await expect(runInit(baseOptions({ modules: ["core"], dir: "../escape" }))).rejects.toThrow(
+      /--dir/,
+    );
+    // Nothing should have been written outside (or inside) the temp root.
+    expect(fs.existsSync(path.join(cwd, "..", "escape"))).toBe(false);
+  });
+
+  it("rolls back partially written files and names the source file when a mid-install copy fails", async () => {
+    const brokenTemplatesDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "community-sdk-broken-templates-"),
+    );
+    try {
+      const migrationsRoot = path.join(brokenTemplatesDir, "migrations");
+      fs.mkdirSync(path.join(migrationsRoot, "core"), { recursive: true });
+      fs.mkdirSync(path.join(migrationsRoot, "push"), { recursive: true });
+      fs.mkdirSync(path.join(brokenTemplatesDir, "functions"), { recursive: true });
+
+      fs.writeFileSync(path.join(migrationsRoot, "core", "001_a.sql"), "select 1;\n");
+      fs.writeFileSync(path.join(migrationsRoot, "core", "002_b.sql"), "select 2;\n");
+      // This file carries a placeholder substitutePlaceholders doesn't know
+      // how to fill, so it throws partway through the push module — after
+      // two core migrations have already been written to disk.
+      fs.writeFileSync(
+        path.join(migrationsRoot, "push", "001_broken.sql"),
+        "-- __SUPABASE_BROKEN__ placeholder\n",
+      );
+
+      let caught: unknown;
+      try {
+        await runInit(
+          baseOptions({ modules: ["core", "push"], templatesDir: brokenTemplatesDir }),
+        );
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(caught).toBeInstanceOf(Error);
+      const message = (caught as Error).message;
+      expect(message).toContain("__SUPABASE");
+      expect(message).toContain("push/001_broken.sql");
+
+      // Rollback: the migrations dir we created fresh must be gone entirely,
+      // and no manifest should exist for a retry to trip over.
+      expect(fs.existsSync(path.join(cwd, "supabase", "migrations"))).toBe(false);
+      expect(readManifest(cwd)).toBeNull();
+    } finally {
+      fs.rmSync(brokenTemplatesDir, { recursive: true, force: true });
+    }
+  });
 });

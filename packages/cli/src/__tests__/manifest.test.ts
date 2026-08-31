@@ -49,4 +49,9 @@ describe("manifest", () => {
       installedFiles: ["a"],
     });
   });
+
+  it("throws a clear error when community-sdk.json is corrupt", () => {
+    fs.writeFileSync(path.join(dir, "community-sdk.json"), "{ not valid json");
+    expect(() => readManifest(dir)).toThrow(/corrupt/i);
+  });
 });

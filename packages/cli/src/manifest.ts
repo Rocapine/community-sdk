@@ -24,7 +24,11 @@ export function readManifest(dir: string): Manifest | null {
   const file = manifestPath(dir);
   if (!fs.existsSync(file)) return null;
   const raw = fs.readFileSync(file, "utf8");
-  return JSON.parse(raw) as Manifest;
+  try {
+    return JSON.parse(raw) as Manifest;
+  } catch {
+    throw new Error(`community-sdk: ${file} is corrupt (invalid JSON)`);
+  }
 }
 
 export function writeManifest(dir: string, manifest: Manifest): void {

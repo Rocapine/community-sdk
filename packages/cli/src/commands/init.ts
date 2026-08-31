@@ -65,7 +65,14 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
   const canonicalModules = resolveModules(options.modules, onWarn);
 
   const dirRel = options.dir ?? "supabase";
-  const dir = path.join(cwd, dirRel);
+  const cwdResolved = path.resolve(cwd);
+  const dir = path.resolve(cwdResolved, dirRel);
+  if (dir !== cwdResolved && !dir.startsWith(cwdResolved + path.sep)) {
+    throw new Error(
+      `community-sdk: --dir must resolve to a directory inside the project root, got "${dirRel}" -> ${dir}`,
+    );
+  }
+
   const templatesDir = options.templatesDir ?? defaultTemplatesDir();
 
   const migrationsSrcRoot = path.join(templatesDir, "migrations");
@@ -76,6 +83,7 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
     );
   }
 
+  const usingDefaultPrompt = !options.prompt;
   const prompt = options.prompt ?? defaultPrompt;
   let projectUrl = options.projectUrl;
   let anonKey = options.anonKey;
@@ -83,6 +91,19 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
   if (!projectUrl) {
     projectUrl = deriveProjectUrlFromConfig(dir) ?? undefined;
   }
+
+  const stillMissingFlags: string[] = [];
+  if (!projectUrl) stillMissingFlags.push("--project-url");
+  if (!anonKey) stillMissingFlags.push("--anon-key");
+
+  if (stillMissingFlags.length > 0 && usingDefaultPrompt && !process.stdin.isTTY) {
+    throw new Error(
+      `community-sdk: missing required flag(s) ${stillMissingFlags.join(", ")}. stdin is not a TTY, so init cannot prompt for ${
+        stillMissingFlags.length > 1 ? "them" : "it"
+      } — pass ${stillMissingFlags.length > 1 ? "them" : "it"} explicitly.`,
+    );
+  }
+
   if (!projectUrl) {
     projectUrl = (await prompt("Supabase project URL (https://<ref>.supabase.co): ")).trim();
   }
@@ -91,45 +112,74 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
   }
 
   const now = options.now ?? new Date();
-  const installedFiles: string[] = [];
 
-  // ---- migrations ----
+  // ---- migrations + functions, staged atomically: on any failure partway
+  // through, every file this run wrote (which may already contain the real
+  // project URL / anon key) is removed before the error propagates, so a
+  // retry starts clean instead of finding stale/duplicate files and no
+  // manifest to explain them. The manifest itself is written last, only once
+  // every file below has landed successfully.
   const migrationsDestRoot = path.join(dir, "migrations");
-  fs.mkdirSync(migrationsDestRoot, { recursive: true });
-
-  let fileIndex = 0;
-  for (const moduleName of canonicalModules) {
-    const moduleSrcDir = path.join(migrationsSrcRoot, moduleName);
-    const filenames = fs
-      .readdirSync(moduleSrcDir)
-      .filter((f) => f.endsWith(".sql"))
-      .sort();
-
-    for (const filename of filenames) {
-      const name = filename.replace(/\.sql$/, "").replace(/^\d+_/, "");
-      const timestamp = formatTimestamp(addSeconds(now, fileIndex));
-      fileIndex += 1;
-
-      const destFilename = `${timestamp}_community_${moduleName}_${name}.sql`;
-      const rawSql = fs.readFileSync(path.join(moduleSrcDir, filename), "utf8");
-      const substituted = substitutePlaceholders(rawSql, { projectUrl, anonKey });
-
-      const destPath = path.join(migrationsDestRoot, destFilename);
-      fs.writeFileSync(destPath, substituted, "utf8");
-      installedFiles.push(toRelativePosix(cwd, destPath));
-    }
-  }
-
-  // ---- functions ----
   const functionsDestRoot = path.join(dir, "functions");
-  fs.mkdirSync(functionsDestRoot, { recursive: true });
+  const migrationsDestRootExisted = fs.existsSync(migrationsDestRoot);
+  const functionsDestRootExisted = fs.existsSync(functionsDestRoot);
+  const writtenPaths: string[] = [];
 
-  for (const fnName of functionsForModules(canonicalModules)) {
-    const srcDir = path.join(functionsSrcRoot, fnName);
-    if (!fs.existsSync(srcDir)) continue;
-    const destDir = path.join(functionsDestRoot, fnName);
-    fs.cpSync(srcDir, destDir, { recursive: true });
-    installedFiles.push(...listFilesRecursive(destDir).map((f) => toRelativePosix(cwd, f)));
+  try {
+    // ---- migrations ----
+    fs.mkdirSync(migrationsDestRoot, { recursive: true });
+
+    let fileIndex = 0;
+    for (const moduleName of canonicalModules) {
+      const moduleSrcDir = path.join(migrationsSrcRoot, moduleName);
+      const filenames = fs
+        .readdirSync(moduleSrcDir)
+        .filter((f) => f.endsWith(".sql"))
+        .sort();
+
+      for (const filename of filenames) {
+        const name = filename.replace(/\.sql$/, "").replace(/^\d+_/, "");
+        const timestamp = formatTimestamp(addSeconds(now, fileIndex));
+        fileIndex += 1;
+
+        const destFilename = `${timestamp}_community_${moduleName}_${name}.sql`;
+        const rawSql = fs.readFileSync(path.join(moduleSrcDir, filename), "utf8");
+
+        let substituted: string;
+        try {
+          substituted = substitutePlaceholders(rawSql, { projectUrl, anonKey });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          throw new Error(`${message} (source: ${moduleName}/${filename})`);
+        }
+
+        const destPath = path.join(migrationsDestRoot, destFilename);
+        fs.writeFileSync(destPath, substituted, "utf8");
+        writtenPaths.push(destPath);
+      }
+    }
+
+    // ---- functions ----
+    fs.mkdirSync(functionsDestRoot, { recursive: true });
+
+    for (const fnName of functionsForModules(canonicalModules)) {
+      const srcDir = path.join(functionsSrcRoot, fnName);
+      if (!fs.existsSync(srcDir)) continue;
+      const destDir = path.join(functionsDestRoot, fnName);
+      fs.cpSync(srcDir, destDir, { recursive: true });
+      writtenPaths.push(...listFilesRecursive(destDir));
+    }
+  } catch (err) {
+    for (const p of writtenPaths) {
+      fs.rmSync(p, { force: true });
+    }
+    if (!functionsDestRootExisted) {
+      fs.rmSync(functionsDestRoot, { recursive: true, force: true });
+    }
+    if (!migrationsDestRootExisted) {
+      fs.rmSync(migrationsDestRoot, { recursive: true, force: true });
+    }
+    throw err;
   }
 
   // ---- manifest ----
@@ -137,7 +187,7 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
     schemaVersion: 1,
     sdkVersion: readOwnPackageVersion(),
     modules: canonicalModules,
-    installedFiles: installedFiles.sort(),
+    installedFiles: writtenPaths.map((f) => toRelativePosix(cwd, f)).sort(),
   };
   writeManifest(cwd, manifest);
 
@@ -185,10 +235,19 @@ function defaultTemplatesDir(): string {
   // post-build.
   const packageRoot = path.resolve(__dirname, "..", "..");
   const packaged = path.join(packageRoot, "templates");
+  // STALENESS TRAP: once packages/cli/templates/ exists on disk (written by
+  // any prior `pnpm build`, whose `prebuild` hook runs
+  // scripts/copy-templates.mjs), it wins over the live repo-root supabase/
+  // tree below — even during local dev. Editing supabase/**/*.sql or
+  // supabase/functions/** and then running `node lib/index.js init` (or a
+  // test that doesn't pass an explicit `templatesDir`) will silently use the
+  // last-built snapshot, not your edits. Rerun `pnpm build` (or `node
+  // scripts/copy-templates.mjs` directly) to refresh packages/cli/templates/
+  // after touching supabase/.
   if (fs.existsSync(packaged)) return packaged;
 
-  // Dev/test fallback: the monorepo's own supabase/ source of truth, before
-  // `prebuild` has copied it into packages/cli/templates.
+  // Dev/test fallback: the monorepo's own supabase/ source of truth, used
+  // only while packages/cli/templates/ has never been built.
   const repoRoot = path.resolve(packageRoot, "..", "..");
   return path.join(repoRoot, "supabase");
 }
