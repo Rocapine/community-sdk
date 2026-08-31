@@ -1,0 +1,25 @@
+{
+  "name": "@rocapine/community-core",
+  "version": "0.0.0",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.json --outDir lib --noEmit false",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "@supabase/supabase-js": "^2.45.0",
+    "@tanstack/react-query": "^5.50.0"
+  },
+  "devDependencies": {
+    "react": "19.0.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "@tanstack/react-query": "^5.50.0",
+    "@types/react": "^19.0.0"
+  }
+}
