@@ -14,3 +14,6 @@ export type { PostSlots } from "./components/CommunityPost";
 export { CommunityPost } from "./components/CommunityPost";
 export { PollBlock } from "./components/PollBlock";
 export { NoticeCard } from "./components/NoticeCard";
+export { ComposerCard } from "./components/ComposerCard";
+export { RulesSheet } from "./components/RulesSheet";
+export { ReportSheet } from "./components/ReportSheet";
