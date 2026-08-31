@@ -1,6 +1,7 @@
 // Community backend service — every function is a thin wrapper around the injected
 // Supabase client (`cfg.requireClient()`), so a host with `supabase: null` degrades to
-// CommunityDisabledError instead of crashing (Nightward pattern). No React imports here.
+// CommunityDisabledError instead of crashing when no backend is configured. No React
+// imports here.
 //
 // Ported from the mold (`sdk/client/services/community.ts`) with a host app's newer
 // feed/thread composition (search, poll batching via `poll_vote_counts`, reaction batching
@@ -164,7 +165,7 @@ export async function fetchFeedPage(
     .select(FEED_SELECT)
     .eq("comments.status", "visible")
     // Others' rows are already limited to 'visible' by RLS; this also shows the
-    // author her own 'pending' posts (optimistic) while hiding her moderated-out
+    // author their own 'pending' posts (optimistic) while hiding their moderated-out
     // ones.
     .in("status", ["visible", "pending"])
     .order("pinned_at", { ascending: false, nullsFirst: false })
