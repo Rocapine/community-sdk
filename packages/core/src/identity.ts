@@ -77,7 +77,10 @@ export async function syncProfileFromHost(cfg: ResolvedCommunityConfig): Promise
 
   const update: Record<string, unknown> = {};
   if (name && name !== lastSyncedUsername) update.username = name;
-  if (locale !== lastSyncedLocale) update.locale = locale;
+  // profiles.locale only exists when the push module's migration ran
+  // (push/001_push.sql) — writing it on a core-only install fails the
+  // update with an unknown-column error.
+  if (cfg.modules.push && locale !== lastSyncedLocale) update.locale = locale;
   if (analyticsKey !== lastSyncedAnalyticsKey) {
     update.amplitude_id = amplitudeId ?? null;
     update.revenuecat_id = revenuecatId ?? null;
