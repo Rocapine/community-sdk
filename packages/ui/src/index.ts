@@ -7,3 +7,10 @@ export { makeT } from "./i18n";
 export { en } from "./locales/en";
 
 export { CommunityUIProvider, useCommunityTheme, useT } from "./ThemeProvider";
+
+export { CommunitySheet } from "./Sheet";
+
+export type { PostSlots } from "./components/CommunityPost";
+export { CommunityPost } from "./components/CommunityPost";
+export { PollBlock } from "./components/PollBlock";
+export { NoticeCard } from "./components/NoticeCard";
