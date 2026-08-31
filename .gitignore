@@ -8,3 +8,7 @@ packages/cli/templates/
 .turbo/
 coverage/
 .superpowers/
+.env
+.env.local
+.expo/
+examples/*/.env

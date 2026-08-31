@@ -3,3 +3,19 @@ packages:
   - "examples/*"
 allowBuilds:
   esbuild: true
+minimumReleaseAgeExclude:
+  - expo-modules-core@55.0.26
+  - expo@55.0.31
+# Force a single physical `react`/`react-native` across the workspace. Without
+# this, pnpm resolves a second copy of each (keyed by packages/core|ui's own
+# devDependency-pinned react@19.0.0 / react-native@0.81.6, used only for their
+# own typecheck+vitest) alongside the example app's react@19.2.0 /
+# react-native@0.83.10 — and since @tanstack/react-query's node_modules copy
+# is itself peer-keyed by which `react` resolves it, that produced a SECOND
+# QueryClient React Context: examples/expo-app/App.tsx's <QueryClientProvider>
+# wrote into one context instance, while community-core's compiled lib/hooks.js
+# read `useQueryClient()` from the other, throwing "No QueryClient set" at
+# runtime in Expo Go despite the provider tree being wired correctly.
+overrides:
+  react: "19.2.0"
+  react-native: "0.83.10"

@@ -156,7 +156,18 @@ export function CommunityFeedScreen({
     () => (searchActive ? (searchFeed.data ?? []) : (categoryFeed.data?.pages.flat() ?? [])),
     [searchActive, searchFeed.data, categoryFeed.data],
   );
-  const isPending = searchActive ? searchFeed.isPending : categoryFeed.isPending;
+  // `isPending` alone (TanStack Query v5: `status === "pending"`) stays true
+  // forever for a query that never runs — both `useCommunityFeed` and
+  // `useSearchPosts` set `enabled: cfg.supabase !== null && ...`, so in
+  // degraded mode (no `supabase` client, task brief §"degraded mode") the
+  // query sits at `status: "pending"` / `fetchStatus: "idle"` permanently.
+  // Gating on `fetchStatus !== "idle"` too means "never asked to fetch"
+  // falls through to the plain empty-state text below instead of spinning
+  // forever — required for the degraded-mode acceptance test (empty state,
+  // not an infinite spinner).
+  const isPending = searchActive
+    ? searchFeed.isPending && searchFeed.fetchStatus !== "idle"
+    : categoryFeed.isPending && categoryFeed.fetchStatus !== "idle";
   const isError = searchActive ? searchFeed.isError : categoryFeed.isError;
   const isRefetching = searchActive ? searchFeed.isRefetching : categoryFeed.isRefetching;
   const hasNextPage = !searchActive && !!categoryFeed.hasNextPage;

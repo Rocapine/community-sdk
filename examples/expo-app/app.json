@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Community SDK Demo",
+    "slug": "community-sdk-demo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rocapine.communitysdkdemo"
+    },
+    "android": {
+      "package": "com.rocapine.communitysdkdemo"
+    }
+  }
+}
