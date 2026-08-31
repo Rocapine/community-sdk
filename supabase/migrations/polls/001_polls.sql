@@ -5,8 +5,8 @@
 -- only by its owner, aggregate counts go through the security-definer
 -- poll_vote_counts(). Skip this module if the app does not ship polls
 -- (and set the app's dashboard feature flag accordingly).
--- References core module tables (public.posts, public.profiles) — the core
--- module must be installed first.
+-- References core module tables (public.posts, public.profiles,
+-- public.current_user_banned()) — the core module must be installed first.
 
 -- ============ POLL OPTIONS ============
 create table public.poll_options (

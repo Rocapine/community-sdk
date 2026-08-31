@@ -90,11 +90,7 @@ function copyFor(locale: string | null | undefined) {
 }
 
 async function flushPost(postId: string) {
-  const { data: post } = await supabase
-    .from("posts")
-    .select("author_id")
-    .eq("id", postId)
-    .single();
+  const { data: post } = await supabase.from("posts").select("author_id").eq("id", postId).single();
   if (!post) return;
 
   const { data: recipient } = await supabase
@@ -142,7 +138,11 @@ async function flushPost(postId: string) {
     .select("username")
     .eq("id", contributors[0].user_id)
     .single();
-  const name = actor?.username?.trim() || copy.fallbackName || FALLBACK_ACTOR_NAME;
+  // COMMUNITY_FALLBACK_NAME (the deployer-set env var, shared with
+  // notify-like/notify-comment and meant to match the client's
+  // anonymousAuthorFallback — see docs/backend-runbook.md) takes precedence
+  // over the locale table's own fallbackName default.
+  const name = actor?.username?.trim() || FALLBACK_ACTOR_NAME || copy.fallbackName;
   const title =
     contributors.length === 1
       ? REACTION_PUSH_TEXT.replace("{name}", name)

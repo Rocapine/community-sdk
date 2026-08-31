@@ -38,7 +38,11 @@ const EXCLUDED_CATEGORIES = new Set(
 export const SCORE_HIDE = CATEGORIES_TO_HIDE.filter((c) => !EXCLUDED_CATEGORIES.has(c));
 
 const parsedThreshold = Number(Deno.env.get("MODERATION_SCORE_THRESHOLD"));
-export const SCORE_THRESHOLD = Number.isFinite(parsedThreshold) ? parsedThreshold : 0.5;
+// Number("") is 0, and Number.isFinite(0) is true — without the > 0 guard an
+// unset/blank env var silently sets the threshold to 0, which hides every
+// piece of content instead of falling back to the 0.5 default.
+export const SCORE_THRESHOLD =
+  Number.isFinite(parsedThreshold) && parsedThreshold > 0 ? parsedThreshold : 0.5;
 
 export interface ModerationResult {
   categories: Record<string, boolean>;
