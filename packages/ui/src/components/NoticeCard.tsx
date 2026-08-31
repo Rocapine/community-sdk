@@ -10,9 +10,15 @@
 // `"network"` — since a host consuming this SDK does not necessarily know
 // which kind of content was rejected by the time it needs to show the
 // notice. `"rejected"` reads the catalog's post-rejection copy
-// (`notice.rejectedPostBody`); a host that must distinguish post vs. comment
-// rejections can still do so by rendering its own copy through
-// `translations.overrides` on `CommunityUIProvider`.
+// (`notice.rejectedPostBody`) by default.
+//
+// `target` (added in Task 12's review round, cross-file touch explicitly
+// authorized there): optional, defaults to `"post"`. When a caller *does*
+// know it was a comment that got rejected (`ThreadSheet`'s own comment
+// composer always does), passing `target="comment"` swaps in
+// `notice.rejectedCommentBody` instead — narrower than forcing every comment-
+// rejection caller to reach for `translations.overrides` just to get the
+// mold's existing comment copy.
 
 import { ShieldWarning } from "phosphor-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -23,9 +29,11 @@ import type { CommunityTheme } from "../theme";
 
 export function NoticeCard({
   kind,
+  target = "post",
   onDismiss,
 }: {
   kind: "rejected" | "network";
+  target?: "post" | "comment";
   onDismiss(): void;
 }) {
   const theme = useCommunityTheme();
@@ -33,7 +41,12 @@ export function NoticeCard({
   const styles = useThemedStyles(makeStyles);
 
   const title = kind === "network" ? t("notice.errorTitle") : t("notice.rejectedTitle");
-  const body = kind === "network" ? t("notice.errorBody") : t("notice.rejectedPostBody");
+  const body =
+    kind === "network"
+      ? t("notice.errorBody")
+      : target === "comment"
+        ? t("notice.rejectedCommentBody")
+        : t("notice.rejectedPostBody");
 
   const handleDismiss = () => {
     Haptics.selectionAsync().catch(() => {});

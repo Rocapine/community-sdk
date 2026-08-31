@@ -66,12 +66,10 @@ import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots } from "../components/CommunityPost";
 import { NoticeCard } from "../components/NoticeCard";
-import { ReportSheet } from "../components/ReportSheet";
+import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 
 const COMMENT_CLAMP_LINES = 5;
 const HANDOFF_DELAY_MS = 320;
-
-type ReportTarget = { kind: "post" | "comment"; id: string; authorId: string };
 
 const noop = () => {};
 
@@ -105,13 +103,26 @@ function findCachedPost(queryClient: QueryClient, postId: string): FeedPost | nu
   return null;
 }
 
+/** Re-renders the caller whenever a `["community", ...]` query changes.
+ * Gated on `postId !== null`: `ThreadSheet` is mounted by its host for its
+ * entire lifetime (postId flips between a value and `null`, the component
+ * itself never unmounts), so an unconditional subscription here would listen
+ * to the whole shared `QueryClient` — every query any other feature in the
+ * host app runs — for as long as the sheet has never been opened. Once a
+ * thread has been opened, `shownId` (the caller's `postId` argument) never
+ * goes back to `null` (see the "keep last known id" note above), so the
+ * subscription then lives for the rest of the sheet's mount — same as
+ * before, just no longer paying for it before the first open. */
 function useCachedPost(postId: string | null): FeedPost | null {
   const queryClient = useQueryClient();
   const [, forceUpdate] = useState(0);
   useEffect(() => {
-    const unsubscribe = queryClient.getQueryCache().subscribe(() => forceUpdate((n) => n + 1));
+    if (!postId) return;
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      if (event.query.queryKey[0] === "community") forceUpdate((n) => n + 1);
+    });
     return unsubscribe;
-  }, [queryClient]);
+  }, [queryClient, postId]);
   return postId ? findCachedPost(queryClient, postId) : null;
 }
 
@@ -130,6 +141,7 @@ export function ThreadSheet({
   const t = useT();
   const cfg = useCommunityConfig();
   const styles = useThemedStyles(makeStyles);
+  const queryClient = useQueryClient();
 
   const createComment = useCreateComment();
   const blockUser = useBlockUser();
@@ -148,16 +160,23 @@ export function ThreadSheet({
   const comments = thread.data ?? [];
 
   useEffect(() => {
-    if (postId) {
-      emitEvent(cfg, COMMUNITY_EVENTS.threadOpened, {
-        postId,
-        commentCount: post?.commentCount ?? 0,
-      });
-    }
-    // Fires once per newly-opened thread; intentionally not re-run as `post`/
-    // `cfg` identities change underneath an already-open sheet.
+    if (!postId) return;
+    // Look the post up directly by the effect's own `postId`, not the
+    // render-time `post`/`shownId` above: `shownId` only catches up to
+    // `postId` in a *separate* effect (`setShownId`, above), so on the render
+    // where `postId` first goes non-null, `post` is still derived from the
+    // previous (stale) `shownId` — reading `post.commentCount` here always
+    // observed 0 (or the previous thread's count). Reading the cache fresh at
+    // the moment this effect fires sidesteps that ordering entirely.
+    const cached = findCachedPost(queryClient, postId);
+    emitEvent(cfg, COMMUNITY_EVENTS.threadOpened, {
+      postId,
+      commentCount: cached?.commentCount ?? 0,
+    });
+    // Fires once per newly-opened thread; intentionally not re-run as `cfg`'s
+    // identity changes underneath an already-open sheet.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postId]);
+  }, [postId, queryClient]);
 
   const [text, setText] = useState("");
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
@@ -331,7 +350,7 @@ export function ThreadSheet({
         </View>
       </CommunitySheet>
 
-      {notice && <NoticeCard kind={notice} onDismiss={() => setNotice(null)} />}
+      {notice && <NoticeCard kind={notice} target="comment" onDismiss={() => setNotice(null)} />}
 
       <ReportSheet
         visible={reportTarget !== null}

@@ -53,13 +53,15 @@
 //    ("SKIP Eve's prayer-sheet flow — that's an app-side slot concern"); a
 //    host wanting that can build it as a `renderReactionButton`/
 //    `renderPostFooter` slot via `PostSlots`.
-//  - Post creation's "rejected by moderation" notice has no equivalent here:
-//    `ComposerCard.submit()` calls `useCreatePost().mutate(...)` with no
-//    success/error callback (Task 11), so this screen has no signal to key a
-//    `NoticeCard` off. Reopening that (adding an `onRejected`/`onError` slot
-//    to `ComposerCard`) would touch a file outside this task's list — flagged
-//    as a known gap, not fixed here. (`ThreadSheet`'s own comment composer,
-//    written fresh in this task, does not have this gap.)
+//  - Post creation's "rejected by moderation" notice: `ComposerCard.submit()`
+//    originally called `useCreatePost().mutate(...)` with no success/error
+//    callback (Task 11), leaving this screen with no signal to key a
+//    `NoticeCard` off — a regression from both sources, which show one.
+//    Fixed in Task 12's review round (cross-file touch to `ComposerCard.tsx`
+//    explicitly authorized there): `ComposerCard` now takes an optional
+//    `onModerationRejected?: (kind: "post") => void`, called from its own
+//    `mutate(...)`'s `onSuccess` when the verdict is `"rejected"`; this
+//    screen wires it to `setNotice("rejected")` and renders `NoticeCard`.
 //  - `onOpenInbox`: not in either source (Eve's bell lives on its Home tab,
 //    outside the community screen entirely). Rendered as an optional bell
 //    button next to the search toggle, shown only when both the prop is
@@ -80,7 +82,7 @@ import {
 } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
 import { Bell, MagnifyingGlass, X } from "phosphor-react-native";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -98,10 +100,9 @@ import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots } from "../components/CommunityPost";
 import { ComposerCard } from "../components/ComposerCard";
-import { ReportSheet } from "../components/ReportSheet";
+import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
+import { NoticeCard } from "../components/NoticeCard";
 import { ThreadSheet } from "./ThreadSheet";
-
-type ReportTarget = { kind: "post" | "comment"; id: string; authorId: string };
 
 export function CommunityFeedScreen({
   onOpenProfile,
@@ -124,6 +125,7 @@ export function CommunityFeedScreen({
   const [searchTerm, setSearchTerm] = useState("");
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const [notice, setNotice] = useState<"rejected" | null>(null);
 
   const blockUser = useBlockUser();
   const deleteContent = useDeleteContent();
@@ -145,10 +147,15 @@ export function CommunityFeedScreen({
   // `useCommunityFeed` is an infinite query (`.data.pages`); `useSearchPosts`
   // is a single flat query (`.data`) — Task 5 ruling, search is unpaginated
   // at the service layer. Branch on every derived field instead of forcing
-  // both into one variable of a shared (and untrue) shape.
-  const posts: FeedPost[] = searchActive
-    ? (searchFeed.data ?? [])
-    : (categoryFeed.data?.pages.flat() ?? []);
+  // both into one variable of a shared (and untrue) shape. Memoized (both
+  // source apps did too — `useMemo(() => feed.data?.pages.flat() ?? [], [feed.data])`):
+  // without it, `posts` is a brand-new array identity on every render (e.g.
+  // every 5s new-post poll tick), which would defeat `FlatList`'s own
+  // `data`-identity diffing and the `renderItem`/`CommunityPost` memoization below.
+  const posts: FeedPost[] = useMemo(
+    () => (searchActive ? (searchFeed.data ?? []) : (categoryFeed.data?.pages.flat() ?? [])),
+    [searchActive, searchFeed.data, categoryFeed.data],
+  );
   const isPending = searchActive ? searchFeed.isPending : categoryFeed.isPending;
   const isError = searchActive ? searchFeed.isError : categoryFeed.isError;
   const isRefetching = searchActive ? searchFeed.isRefetching : categoryFeed.isRefetching;
@@ -191,49 +198,74 @@ export function CommunityFeedScreen({
     });
   };
 
-  const openThread = (postId: string) => {
+  // Memoized: passed straight through to `renderItem` below, which is itself
+  // memoized — an unmemoized callback here would still force `FlatList` to
+  // reconcile every visible row on each unrelated re-render (e.g. every 5s
+  // new-post poll tick, or a keystroke in the search bar).
+  const openThread = useCallback((postId: string) => {
     Haptics.selectionAsync().catch(() => {});
     setActivePostId(postId);
-  };
+  }, []);
 
-  const openPostMenu = (post: FeedPost) => {
-    Haptics.selectionAsync().catch(() => {});
-    if (post.isOwn) {
-      Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
-        { text: t("menu.cancel"), style: "cancel" },
+  const openPostMenu = useCallback(
+    (post: FeedPost) => {
+      Haptics.selectionAsync().catch(() => {});
+      if (post.isOwn) {
+        Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
+          { text: t("menu.cancel"), style: "cancel" },
+          {
+            text: t("menu.delete"),
+            style: "destructive",
+            onPress: () => deleteContent.mutate({ kind: "post", id: post.id, postId: post.id }),
+          },
+        ]);
+        return;
+      }
+      Alert.alert(post.authorName, undefined, [
         {
-          text: t("menu.delete"),
-          style: "destructive",
-          onPress: () => deleteContent.mutate({ kind: "post", id: post.id, postId: post.id }),
+          text: t("menu.reportPost"),
+          onPress: () => setReportTarget({ kind: "post", id: post.id, authorId: post.authorId }),
         },
+        {
+          text: t("menu.blockUser", { name: post.authorName }),
+          style: "destructive",
+          onPress: () =>
+            Alert.alert(
+              t("menu.blockUserConfirmTitle", { name: post.authorName }),
+              t("menu.blockUserConfirmBody"),
+              [
+                { text: t("menu.cancel"), style: "cancel" },
+                {
+                  text: t("menu.block"),
+                  style: "destructive",
+                  onPress: () => blockUser.mutate({ userId: post.authorId }),
+                },
+              ],
+            ),
+        },
+        { text: t("menu.cancel"), style: "cancel" },
       ]);
-      return;
-    }
-    Alert.alert(post.authorName, undefined, [
-      {
-        text: t("menu.reportPost"),
-        onPress: () => setReportTarget({ kind: "post", id: post.id, authorId: post.authorId }),
-      },
-      {
-        text: t("menu.blockUser", { name: post.authorName }),
-        style: "destructive",
-        onPress: () =>
-          Alert.alert(
-            t("menu.blockUserConfirmTitle", { name: post.authorName }),
-            t("menu.blockUserConfirmBody"),
-            [
-              { text: t("menu.cancel"), style: "cancel" },
-              {
-                text: t("menu.block"),
-                style: "destructive",
-                onPress: () => blockUser.mutate({ userId: post.authorId }),
-              },
-            ],
-          ),
-      },
-      { text: t("menu.cancel"), style: "cancel" },
-    ]);
-  };
+    },
+    [t, deleteContent, blockUser],
+  );
+
+  // Memoized so `FlatList` only reconciles the visible window when one of
+  // these actually changes, not on every parent re-render (poll ticks,
+  // search typing, …). `slots` is out of our control — a host that passes a
+  // fresh object literal on every render defeats this, same as any other
+  // memoized-child pattern.
+  const renderItem = useCallback(
+    ({ item }: { item: FeedPost }) => (
+      <CommunityPost
+        post={item}
+        onOpenThread={openThread}
+        onOpenProfile={onOpenProfile}
+        onMenu={openPostMenu}
+        {...slots}
+      />
+    ),
+    [openThread, onOpenProfile, openPostMenu, slots],
+  );
 
   // An `officialOnly` filter (e.g. "News") must never become the composer's
   // preselected topic — regular users cannot post there.
@@ -308,16 +340,13 @@ export function CommunityFeedScreen({
           ref={listRef}
           data={posts}
           keyExtractor={(p) => p.id}
-          renderItem={({ item }) => (
-            <CommunityPost
-              post={item}
-              onOpenThread={openThread}
-              onOpenProfile={onOpenProfile}
-              onMenu={openPostMenu}
-              {...slots}
+          renderItem={renderItem}
+          ListHeaderComponent={
+            <ComposerCard
+              defaultTopic={composeDefaultTopic}
+              onModerationRejected={() => setNotice("rejected")}
             />
-          )}
-          ListHeaderComponent={<ComposerCard defaultTopic={composeDefaultTopic} />}
+          }
           ListEmptyComponent={
             isPending ? (
               <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
@@ -370,6 +399,7 @@ export function CommunityFeedScreen({
         target={reportTarget}
         onClose={() => setReportTarget(null)}
       />
+      {notice && <NoticeCard kind={notice} onDismiss={() => setNotice(null)} />}
     </View>
   );
 }

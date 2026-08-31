@@ -24,6 +24,15 @@
 // The topic chips only appear while composing (focus, text or an open poll)
 // so they don't duplicate a feed's own filter chips sitting above this card
 // (same reasoning as the Eve source).
+//
+// `onModerationRejected` (added in Task 12's review round, cross-file touch
+// explicitly authorized there): this card's own `createPost.mutate(...)` call
+// originally had no success/error callback at all, so `CommunityFeedScreen`
+// had no signal to show a `NoticeCard` on a rejected post — the mold/Eve both
+// show one. Kept minimal: only the "rejected" case is surfaced (a network/
+// mutation error stays silent here, same as before — the optimistic post
+// simply rolls back, matching `useCreatePost`'s own `onError`), since that's
+// the only gap the review flagged.
 
 import {
   displayName,
@@ -45,9 +54,13 @@ import { RulesSheet } from "./RulesSheet";
 export function ComposerCard({
   defaultTopic,
   renderComposerExtra,
+  onModerationRejected,
 }: {
   defaultTopic?: string;
   renderComposerExtra?: ReactNode;
+  /** Called when a submitted post's moderation verdict comes back rejected —
+   * a host can use this to show its own `NoticeCard`. */
+  onModerationRejected?: (kind: "post") => void;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -100,12 +113,19 @@ export function ComposerCard({
     if (!canPost) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     const authorName = displayName(cfg.host.getDisplayName(), cfg.anonymousAuthorFallback);
-    createPost.mutate({
-      topic,
-      text: text.trim(),
-      authorName,
-      pollOptions: pollDraft !== null ? filledPollOptions : undefined,
-    });
+    createPost.mutate(
+      {
+        topic,
+        text: text.trim(),
+        authorName,
+        pollOptions: pollDraft !== null ? filledPollOptions : undefined,
+      },
+      {
+        onSuccess: (result) => {
+          if (result.verdict.status === "rejected") onModerationRejected?.("post");
+        },
+      },
+    );
     setText("");
     setPollDraft(null);
     Keyboard.dismiss();

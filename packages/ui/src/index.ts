@@ -16,6 +16,7 @@ export { PollBlock } from "./components/PollBlock";
 export { NoticeCard } from "./components/NoticeCard";
 export { ComposerCard } from "./components/ComposerCard";
 export { RulesSheet } from "./components/RulesSheet";
+export type { ReportTarget } from "./components/ReportSheet";
 export { ReportSheet } from "./components/ReportSheet";
 
 export { CommunityFeedScreen } from "./screens/CommunityFeedScreen";

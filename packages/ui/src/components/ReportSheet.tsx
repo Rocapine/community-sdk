@@ -32,13 +32,18 @@ import type { CommunityTheme } from "../theme";
 
 const REASONS: ReportReason[] = ["spam", "harassment", "hate", "inappropriate", "other"];
 
+/** Exported so callers building a report target (`CommunityFeedScreen`,
+ * `ThreadSheet`, …) share one type instead of each redeclaring an identical
+ * inline shape. */
+export type ReportTarget = { kind: "post" | "comment"; id: string; authorId: string };
+
 export function ReportSheet({
   visible,
   target,
   onClose,
 }: {
   visible: boolean;
-  target: { kind: "post" | "comment"; id: string; authorId: string } | null;
+  target: ReportTarget | null;
   onClose: () => void;
 }) {
   const theme = useCommunityTheme();
