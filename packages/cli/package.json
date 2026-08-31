@@ -4,17 +4,22 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "templates"
   ],
   "bin": {
     "community": "lib/index.js"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "prebuild": "node scripts/copy-templates.mjs",
     "build": "tsc -p tsconfig.json --outDir lib --noEmit false",
     "test": "vitest run"
   },
   "dependencies": {
     "commander": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0"
   }
 }

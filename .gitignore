@@ -1,6 +1,7 @@
 node_modules/
 lib/
 dist/
+packages/cli/templates/
 *.tsbuildinfo
 .DS_Store
 *.log
