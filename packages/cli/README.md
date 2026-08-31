@@ -75,7 +75,7 @@ subsequent `upgrade` will still seed any Edge Function source not yet
 present in the repo (for review before deploy), since `adopt` never writes
 function files. If `--schema-version` doesn't match the CLI's current
 schema version, it warns that `installedTemplates` was reconstructed from
-the *current* template set and points at `docs/compat.md` to check/adjust
+the _current_ template set and points at `docs/compat.md` to check/adjust
 `community-sdk.json` by hand for a historical schema.
 
 ## The manifest (`community-sdk.json`)

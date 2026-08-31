@@ -1,10 +1,17 @@
 {
   "name": "@rocapine/community-core",
   "version": "0.1.0",
+  "description": "Headless Supabase-backed community backend: identity, feed/thread/moderation services, and React Query hooks.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rocapine/community-sdk"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "LICENSE"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",

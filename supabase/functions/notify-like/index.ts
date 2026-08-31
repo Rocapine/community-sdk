@@ -13,11 +13,7 @@ const COOLDOWN_MS = 10 * 60 * 1000;
 /** Notify the author for a single post's currently-unnotified likes, then
  *  stamp them. Assumes the cooldown decision is already made. */
 async function flushPost(postId: string) {
-  const { data: post } = await supabase
-    .from("posts")
-    .select("author_id")
-    .eq("id", postId)
-    .single();
+  const { data: post } = await supabase.from("posts").select("author_id").eq("id", postId).single();
   if (!post) return;
 
   const { data: pref } = await supabase

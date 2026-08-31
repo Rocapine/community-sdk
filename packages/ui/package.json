@@ -1,10 +1,17 @@
 {
   "name": "@rocapine/community-ui",
   "version": "0.1.0",
+  "description": "Drop-in React Native screens and components (feed, thread, profile, moderation) for @rocapine/community-core.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rocapine/community-sdk"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "LICENSE"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -22,7 +29,7 @@
     "react-native-reanimated": ">=3.16.0",
     "expo-image": ">=1.10.0",
     "expo-haptics": ">=13.0.0",
-    "expo-image-picker": ">=15.0.0",
+    "expo-image-picker": ">=16.0.0",
     "phosphor-react-native": ">=2.0.0"
   },
   "devDependencies": {

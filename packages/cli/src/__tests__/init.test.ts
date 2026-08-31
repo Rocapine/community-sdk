@@ -69,7 +69,9 @@ describe("runInit", () => {
     await runInit(baseOptions({ modules: ["core"] }));
 
     const migrationsDir = path.join(cwd, "supabase", "migrations");
-    const moderationFile = fs.readdirSync(migrationsDir).find((f) => f.includes("_moderation.sql"))!;
+    const moderationFile = fs
+      .readdirSync(migrationsDir)
+      .find((f) => f.includes("_moderation.sql"))!;
     const content = fs.readFileSync(path.join(migrationsDir, moderationFile), "utf8");
 
     expect(content).toContain(projectUrl);
@@ -164,10 +166,14 @@ describe("runInit", () => {
     fs.writeFileSync(path.join(supabaseDir, "config.toml"), 'project_id = "my-proj-ref"\n');
 
     const prompt = vi.fn().mockResolvedValue(anonKey);
-    await runInit(baseOptions({ modules: ["core"], projectUrl: undefined, anonKey: undefined, prompt }));
+    await runInit(
+      baseOptions({ modules: ["core"], projectUrl: undefined, anonKey: undefined, prompt }),
+    );
 
     const migrationsDir = path.join(supabaseDir, "migrations");
-    const moderationFile = fs.readdirSync(migrationsDir).find((f) => f.includes("_moderation.sql"))!;
+    const moderationFile = fs
+      .readdirSync(migrationsDir)
+      .find((f) => f.includes("_moderation.sql"))!;
     const content = fs.readFileSync(path.join(migrationsDir, moderationFile), "utf8");
 
     expect(content).toContain("https://my-proj-ref.supabase.co");
@@ -266,9 +272,7 @@ describe("runInit", () => {
 
       let caught: unknown;
       try {
-        await runInit(
-          baseOptions({ modules: ["core", "push"], templatesDir: brokenTemplatesDir }),
-        );
+        await runInit(baseOptions({ modules: ["core", "push"], templatesDir: brokenTemplatesDir }));
       } catch (err) {
         caught = err;
       }

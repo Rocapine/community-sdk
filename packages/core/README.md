@@ -23,8 +23,8 @@ const config: CommunityConfig = {
   supabase: mySupabaseClient, // or `null` for degraded mode, see below
 
   // Product vocabulary
-  appName: "My App",                    // pushes, inbox, broadcast fallback title
-  anonymousAuthorFallback: "Someone",   // shown when an author has no username yet
+  appName: "My App", // pushes, inbox, broadcast fallback title
+  anonymousAuthorFallback: "Someone", // shown when an author has no username yet
 
   // Topics — nothing hardcoded. `id` resolves to `topics.<id>` in the UI
   // package's i18n catalog (see packages/ui/README.md); the app supplies
@@ -45,7 +45,10 @@ const config: CommunityConfig = {
     getDisplayName: () => myUserStore.firstName,
     getAnalyticsIds: () => ({ amplitudeId: "...", revenuecatId: "..." }),
     onEvent: (name, props) => myAnalytics.track(name, props),
-    rulesAcceptance: { get: async () => myStore.acceptedRules, set: async () => myStore.setAcceptedRules(true) },
+    rulesAcceptance: {
+      get: async () => myStore.acceptedRules,
+      set: async () => myStore.setAcceptedRules(true),
+    },
     onContentPublished: () => myReviewGate.arm(),
     getLocale: () => "en",
   },
@@ -66,14 +69,14 @@ backend configured — the pattern `examples/expo-app` uses when
 
 All optional, all default to a no-op:
 
-| Field | Signature | Purpose |
-|---|---|---|
-| `getDisplayName` | `() => string \| null` | Feeds the display name shown for the current user before their community username is set |
-| `getAnalyticsIds` | `() => { amplitudeId?: string; revenuecatId?: string }` | Cross-referencing ids attached where the host wants them |
-| `onEvent` | `(name: string, props: Record<string, unknown>) => void` | **The only analytics seam.** Every product event goes through this; the SDK never depends on any analytics provider. Never throws through to the UI even if the adapter itself throws |
-| `rulesAcceptance` | `{ get(): Promise<boolean>; set(): Promise<void> }` | Persists whether the user has accepted the one-time community guidelines sheet |
-| `onContentPublished` | `() => void` | Fired after a post/comment is successfully published (e.g. to arm a review-gate) |
-| `getLocale` | `() => string` | Selects which locale-specific behavior the *host* wants (distinct from the UI package's own `translations.locale` prop) |
+| Field                | Signature                                                | Purpose                                                                                                                                                                               |
+| -------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getDisplayName`     | `() => string \| null`                                   | Feeds the display name shown for the current user before their community username is set                                                                                              |
+| `getAnalyticsIds`    | `() => { amplitudeId?: string; revenuecatId?: string }`  | Cross-referencing ids attached where the host wants them                                                                                                                              |
+| `onEvent`            | `(name: string, props: Record<string, unknown>) => void` | **The only analytics seam.** Every product event goes through this; the SDK never depends on any analytics provider. Never throws through to the UI even if the adapter itself throws |
+| `rulesAcceptance`    | `{ get(): Promise<boolean>; set(): Promise<void> }`      | Persists whether the user has accepted the one-time community guidelines sheet                                                                                                        |
+| `onContentPublished` | `() => void`                                             | Fired after a post/comment is successfully published (e.g. to arm a review-gate)                                                                                                      |
+| `getLocale`          | `() => string`                                           | Selects which locale-specific behavior the _host_ wants (distinct from the UI package's own `translations.locale` prop)                                                               |
 
 ### Event names (`COMMUNITY_EVENTS`)
 

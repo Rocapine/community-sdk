@@ -6,7 +6,11 @@
 // deletes rows. App criticism is not a category (stays visible).
 
 import { adminClient } from "../_shared/client.ts";
-import { assertModerationConfigured, flaggedCategories, type ModerationResult } from "../_shared/moderation.ts";
+import {
+  assertModerationConfigured,
+  flaggedCategories,
+  type ModerationResult,
+} from "../_shared/moderation.ts";
 import { postToSlack } from "../_shared/slack.ts";
 
 assertModerationConfigured();
@@ -18,7 +22,11 @@ interface Item {
   content: string;
   author_id: string;
   status: string;
-  profiles: { username: string | null; amplitude_id: string | null; revenuecat_id: string | null } | null;
+  profiles: {
+    username: string | null;
+    amplitude_id: string | null;
+    revenuecat_id: string | null;
+  } | null;
   table: "posts" | "comments";
 }
 
@@ -32,7 +40,9 @@ function toOne<T>(v: T | T[] | null | undefined): T | null {
 Deno.serve(async () => {
   const { data: posts, error: postsError } = await supabase
     .from("posts")
-    .select("id, content, author_id, status, poll_options(idx, label), profiles!posts_author_id_fkey(username, amplitude_id, revenuecat_id)")
+    .select(
+      "id, content, author_id, status, poll_options(idx, label), profiles!posts_author_id_fkey(username, amplitude_id, revenuecat_id)",
+    )
     .is("moderated_at", null)
     .in("status", ["pending", "visible"]);
   const { data: comments, error: commentsError } = await supabase
@@ -60,7 +70,11 @@ Deno.serve(async () => {
       ].join("\n"),
       table: "posts" as const,
     })),
-    ...(comments ?? []).map((c) => ({ ...c, profiles: toOne(c.profiles), table: "comments" as const })),
+    ...(comments ?? []).map((c) => ({
+      ...c,
+      profiles: toOne(c.profiles),
+      table: "comments" as const,
+    })),
   ];
   if (items.length === 0) {
     return new Response(JSON.stringify({ checked: 0, hidden: 0, failed_batches: 0 }));
@@ -152,6 +166,10 @@ Deno.serve(async () => {
   await postToSlack({ text: summaryText });
 
   return new Response(
-    JSON.stringify({ checked: processed.length, hidden: flagged.length, failed_batches: failedBatches }),
+    JSON.stringify({
+      checked: processed.length,
+      hidden: flagged.length,
+      failed_batches: failedBatches,
+    }),
   );
 });

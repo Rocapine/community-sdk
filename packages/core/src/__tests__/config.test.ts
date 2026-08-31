@@ -18,7 +18,11 @@ it("requireClient throws CommunityDisabledError and warns exactly once when supa
 });
 
 it("composeTopics excludes officialOnly topics", () => {
-  expect(resolveConfig({ ...base }).composeTopics().map((t) => t.id)).toEqual(["general"]);
+  expect(
+    resolveConfig({ ...base })
+      .composeTopics()
+      .map((t) => t.id),
+  ).toEqual(["general"]);
 });
 
 it("isOfficialTopic", () => {

@@ -31,7 +31,7 @@ Work through the phases in order.
    Sign In / Up → allow anonymous. Manual; no migration does this for you.
    Without it every community call resolves a null identity. See
    `docs/backend-runbook.md` for the CLI equivalent (`supabase config
-   push` with `enable_anonymous_sign_ins = true` in `config.toml`).
+push` with `enable_anonymous_sign_ins = true` in `config.toml`).
 2. From the app repo root:
 
    ```bash
@@ -44,12 +44,14 @@ Work through the phases in order.
    URL/anon-key placeholders the three affected migrations carry (prompted
    interactively, or pass `--project-url`/`--anon-key`), and writes
    `community-sdk.json`.
+
 3. Review the copied migrations, then:
 
    ```bash
    supabase link --project-ref <ref>
    supabase db push
    ```
+
 4. Set secrets and deploy:
 
    ```bash
@@ -89,7 +91,7 @@ This single object replaces every seam the old mold had you edit by hand:
    `anonymousAuthorFallback`. Keep any `id` you plan to make `officialOnly`
    consistent with what you'll insert official posts under. `news` is a
    reasonable convention but not reserved by the code — RLS enforces
-   `officialOnly` per the ids *you* mark, not a fixed name.
+   `officialOnly` per the ids _you_ mark, not a fixed name.
 2. **Modules** — mirror exactly what you installed on the backend in Phase
    1 (`modules.push`/`modules.polls`/`modules.inbox` booleans,
    `modules.reaction: { key: "..." } | false`).
@@ -186,6 +188,6 @@ Run through on a simulator/device against your real (or a scratch) project:
   ships as a new migration file, always.
 - If you're adopting a backend that predates this SDK (built from the old
   mold, or hand-rolled), use `npx @rocapine/community adopt
-  --schema-version <n> --modules <...>` instead of `init` — it registers the
+--schema-version <n> --modules <...>` instead of `init` — it registers the
   manifest without copying any file. See `packages/cli/README.md` and
   `docs/compat.md`.

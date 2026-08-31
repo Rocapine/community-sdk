@@ -47,21 +47,41 @@ against theme identity (avoids rebuilding style objects on every render).
 ```ts
 type CommunityTheme = {
   colors: {
-    background: string; surface: string; surfaceMuted: string;
-    border: string; borderStrong: string; hairline: string;
-    textPrimary: string; textSecondary: string; textMuted: string; textFaint: string;
+    background: string;
+    surface: string;
+    surfaceMuted: string;
+    border: string;
+    borderStrong: string;
+    hairline: string;
+    textPrimary: string;
+    textSecondary: string;
+    textMuted: string;
+    textFaint: string;
     textInverse: string;
-    accent: string; accentSoft: string;
-    danger: string; success: string;
-    like: string; official: string; pinned: string;
+    accent: string;
+    accentSoft: string;
+    danger: string;
+    success: string;
+    like: string;
+    official: string;
+    pinned: string;
   };
   fonts: {
-    regular: string | undefined; medium: string | undefined; bold: string | undefined;
-    serifBold: string | undefined; serifBoldItalic: string | undefined;
+    regular: string | undefined;
+    medium: string | undefined;
+    bold: string | undefined;
+    serifBold: string | undefined;
+    serifBoldItalic: string | undefined;
   };
   radius: { sm: number; md: number; lg: number; pill: number };
   spacing: (n: number) => number; // default: n * 4
-  shadow: { shadowColor: string; shadowOpacity: number; shadowRadius: number; shadowOffset: { width: number; height: number }; elevation: number };
+  shadow: {
+    shadowColor: string;
+    shadowOpacity: number;
+    shadowRadius: number;
+    shadowOffset: { width: number; height: number };
+    elevation: number;
+  };
 };
 ```
 
@@ -123,13 +143,13 @@ you can wrap, replace, or ignore it:
 
 ## Screens
 
-| Screen | Key props |
-|---|---|
-| `CommunityFeedScreen` | `onOpenProfile(userId)`, `onOpenInbox?()`, `header?: ReactNode`, `slots?: PostSlots` |
-| `ThreadSheet` | `postId: string \| null`, `onClose()`, `onOpenProfile(userId)` — self-contained sheet, render it once and drive it by `postId` |
-| `ProfileScreen` | `userId: string`, `onOpenThread(postId)`, `onBack?()` |
-| `ProfileEditSheet` | `visible: boolean`, `onClose()` |
-| `NotificationInboxScreen` | `onOpenPost(postId)`, `renderInboxRow?` (see Slots above) |
+| Screen                    | Key props                                                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `CommunityFeedScreen`     | `onOpenProfile(userId)`, `onOpenInbox?()`, `header?: ReactNode`, `slots?: PostSlots`                                           |
+| `ThreadSheet`             | `postId: string \| null`, `onClose()`, `onOpenProfile(userId)` — self-contained sheet, render it once and drive it by `postId` |
+| `ProfileScreen`           | `userId: string`, `onOpenThread(postId)`, `onBack?()`                                                                          |
+| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                |
+| `NotificationInboxScreen` | `onOpenPost(postId)`, `renderInboxRow?` (see Slots above)                                                                      |
 
 Plus standalone components you can use directly: `CommunityPost`,
 `PollBlock`, `NoticeCard`, `ComposerCard`, `RulesSheet`, `ReportSheet`, and

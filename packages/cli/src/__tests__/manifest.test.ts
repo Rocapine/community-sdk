@@ -34,7 +34,12 @@ describe("manifest", () => {
   });
 
   it("overwrites a previous manifest on a second write", () => {
-    writeManifest(dir, { schemaVersion: 1, sdkVersion: "0.0.0", modules: ["core"], installedFiles: [] });
+    writeManifest(dir, {
+      schemaVersion: 1,
+      sdkVersion: "0.0.0",
+      modules: ["core"],
+      installedFiles: [],
+    });
     writeManifest(dir, {
       schemaVersion: 1,
       sdkVersion: "0.1.0",

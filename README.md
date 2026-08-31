@@ -9,11 +9,11 @@ notifications, and blocks/reports.
 
 It ships as three npm packages plus a versioned Supabase backend:
 
-| Package | What it is | Peer deps |
-|---|---|---|
-| [`@rocapine/community-core`](packages/core/README.md) | Headless: config, models, Supabase queries, React Query hooks, anonymous identity, analytics event names | `react`, `@supabase/supabase-js`, `@tanstack/react-query` |
-| [`@rocapine/community-ui`](packages/ui/README.md) | Themable screens and components (feed, thread, profile, inbox) | the above, plus `react-native`, `react-native-reanimated`, `expo-image`, `expo-haptics`, `expo-image-picker`, `phosphor-react-native` |
-| [`@rocapine/community`](packages/cli/README.md) (CLI, `npx @rocapine/community`) | Installs/upgrades the Supabase backend: migrations + Edge Functions | none (Node CLI) |
+| Package                                                                          | What it is                                                                                               | Peer deps                                                                                                                             |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@rocapine/community-core`](packages/core/README.md)                            | Headless: config, models, Supabase queries, React Query hooks, anonymous identity, analytics event names | `react`, `@supabase/supabase-js`, `@tanstack/react-query`                                                                             |
+| [`@rocapine/community-ui`](packages/ui/README.md)                                | Themable screens and components (feed, thread, profile, inbox)                                           | the above, plus `react-native`, `react-native-reanimated`, `expo-image`, `expo-haptics`, `expo-image-picker`, `phosphor-react-native` |
+| [`@rocapine/community`](packages/cli/README.md) (CLI, `npx @rocapine/community`) | Installs/upgrades the Supabase backend: migrations + Edge Functions                                      | none (Node CLI)                                                                                                                       |
 
 Why two runtime packages instead of one: a host that only wants the data
 layer (a custom UI, a web admin, a bot) should not have to pull in
@@ -76,7 +76,10 @@ import { createClient } from "@supabase/supabase-js";
 const queryClient = new QueryClient();
 
 const config: CommunityConfig = {
-  supabase: createClient(process.env.EXPO_PUBLIC_SUPABASE_URL!, process.env.EXPO_PUBLIC_SUPABASE_KEY!),
+  supabase: createClient(
+    process.env.EXPO_PUBLIC_SUPABASE_URL!,
+    process.env.EXPO_PUBLIC_SUPABASE_KEY!,
+  ),
   appName: "My App",
   anonymousAuthorFallback: "Someone",
   topics: [{ id: "general" }, { id: "question" }, { id: "news", officialOnly: true }],
@@ -91,7 +94,11 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <CommunityProvider config={config}>
         <CommunityUIProvider theme={{ colors: { accent: "#6C4DF6" } }}>
-          <CommunityFeedScreen onOpenProfile={(userId) => {/* navigate */}} />
+          <CommunityFeedScreen
+            onOpenProfile={(userId) => {
+              /* navigate */
+            }}
+          />
         </CommunityUIProvider>
       </CommunityProvider>
     </QueryClientProvider>
@@ -112,13 +119,13 @@ overrides: [`packages/ui/README.md`](packages/ui/README.md).
 `modules` in `CommunityConfig` must mirror what the CLI installed on the
 backend (`--modules` at `init` time / `community-sdk.json`).
 
-| Module | Config field | Adds | Backend pieces |
-|---|---|---|---|
-| core | always on | feed, comments, likes, blocks/reports, moderated profiles | `supabase/migrations/core/*`, `moderate-one`, `daily-moderation`, `update-profile`, `report-to-slack` |
-| push | `modules.push: boolean` | like/comment push notifications, official-account broadcasts | `supabase/migrations/push/*`, `notify-like`, `notify-comment`, `broadcast-post` |
-| polls | `modules.polls: boolean` | 2-4 option polls on a post | `supabase/migrations/polls/*` |
-| reaction | `modules.reaction: { key: string } \| false` | one generic, private, non-retractable secondary reaction per post (label/meaning is entirely client-side via i18n + `renderReactionButton`) | `supabase/migrations/reaction/*`, `notify-reaction` |
-| inbox | `modules.inbox: boolean` | server-event notification center (likes/comments/reactions/official posts, plus custom app-defined kinds) | `supabase/migrations/inbox/*` |
+| Module   | Config field                                 | Adds                                                                                                                                        | Backend pieces                                                                                        |
+| -------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| core     | always on                                    | feed, comments, likes, blocks/reports, moderated profiles                                                                                   | `supabase/migrations/core/*`, `moderate-one`, `daily-moderation`, `update-profile`, `report-to-slack` |
+| push     | `modules.push: boolean`                      | like/comment push notifications, official-account broadcasts                                                                                | `supabase/migrations/push/*`, `notify-like`, `notify-comment`, `broadcast-post`                       |
+| polls    | `modules.polls: boolean`                     | 2-4 option polls on a post                                                                                                                  | `supabase/migrations/polls/*`                                                                         |
+| reaction | `modules.reaction: { key: string } \| false` | one generic, private, non-retractable secondary reaction per post (label/meaning is entirely client-side via i18n + `renderReactionButton`) | `supabase/migrations/reaction/*`, `notify-reaction`                                                   |
+| inbox    | `modules.inbox: boolean`                     | server-event notification center (likes/comments/reactions/official posts, plus custom app-defined kinds)                                   | `supabase/migrations/inbox/*`                                                                         |
 
 **Ordering note:** the CLI installs modules `core → push → polls → reaction →
 inbox` regardless of the order you pass to `--modules`, because inbox's
@@ -207,6 +214,6 @@ until every item below is checked.
      inbox — none of these can be exercised without at least one genuinely
      `visible` post to hang off of.
    - Android (not covered by the development-time QA pass, iOS only).
-   A scratch Supabase project used during development
-   (`community-sdk-scratch`, ref `cozfrhmbjrvotpwjnqmu`) is available for
-   reuse if still live.
+     A scratch Supabase project used during development
+     (`community-sdk-scratch`, ref `cozfrhmbjrvotpwjnqmu`) is available for
+     reuse if still live.

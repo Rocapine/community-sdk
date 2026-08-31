@@ -6,9 +6,9 @@ identified by `community_meta.schema_version` (a single integer, written by
 `core/006_meta.sql`), while the npm packages carry a normal semver. This
 table is the source of truth for which combinations are compatible.
 
-| SDK version range | Schema version | Notes |
-|---|---|---|
-| `0.1.x` | `1` | Initial public release. Modules: core, push, polls, reaction, inbox. |
+| SDK version range | Schema version | Notes                                                                |
+| ----------------- | -------------- | -------------------------------------------------------------------- |
+| `0.1.x`           | `1`            | Initial public release. Modules: core, push, polls, reaction, inbox. |
 
 ## How this is enforced
 
@@ -24,11 +24,11 @@ table is the source of truth for which combinations are compatible.
   a given app's backend was installed or adopted at, plus `sdkVersion` (the
   CLI package version that last touched it) and `installedTemplates` (which
   migration templates are known to be applied). `npx @rocapine/community
-  upgrade` uses this to compute exactly which new templates to copy in.
+upgrade` uses this to compute exactly which new templates to copy in.
 - **`npx @rocapine/community adopt --schema-version <n>`** is for a backend
   that predates this SDK or was built by hand. If `<n>` doesn't match the
   CLI's current schema version, `adopt` warns that it can only reconstruct
-  `installedTemplates` from the *current* template set (it has no way to
+  `installedTemplates` from the _current_ template set (it has no way to
   regenerate a historical snapshot) and points here — consult the table
   above, then hand-edit `community-sdk.json`'s `installedTemplates` if the
   adopted backend is actually behind.
