@@ -65,6 +65,7 @@ const makePost = (over: Partial<FeedPost> = {}): FeedPost => ({
   poll: null,
   reactionCount: 0,
   hasReacted: false,
+  lastReactorName: null,
   ...over,
 });
 
@@ -76,7 +77,9 @@ it("displayName falls back for missing usernames", () => {
 });
 
 it("displayName falls back to the configured anonymous name", () => {
-  expect(displayName({ username: null, handle: "x" } as CommunityProfile, "Wanderer")).toBe("Wanderer");
+  expect(displayName({ username: null, handle: "x" } as CommunityProfile, "Wanderer")).toBe(
+    "Wanderer",
+  );
 });
 
 it("normalizeTopic accepts known topics and keeps unknown ones visible under their raw id", () => {
@@ -108,6 +111,7 @@ it("mapPostRow extracts counts, like state and ownership", () => {
     poll: null,
     reactionCount: 0,
     hasReacted: false,
+    lastReactorName: null,
   });
 });
 
@@ -129,7 +133,13 @@ it("mapPostRow handles missing aggregates and foreign profile", () => {
 });
 
 it("mapPostRow keeps own hidden posts as hidden status", () => {
-  const post = mapPostRow(postRow({ status: "hidden" }), "u1", ANON_NAME_FALLBACK, TOPICS, new Set());
+  const post = mapPostRow(
+    postRow({ status: "hidden" }),
+    "u1",
+    ANON_NAME_FALLBACK,
+    TOPICS,
+    new Set(),
+  );
   expect(post.status).toBe("hidden");
 });
 
@@ -148,17 +158,20 @@ it("mapPostRow carries pinnedAt and tolerates a missing handle", () => {
   expect(pinned.authorHandle).toBeNull();
 });
 
-it("mapPostRow reads reaction count and hasReacted from batched reaction data", () => {
+it("mapPostRow reads reaction count, hasReacted and lastReactorName from batched reaction data", () => {
   const reacted = mapPostRow(postRow(), "u1", ANON_NAME_FALLBACK, TOPICS, new Set(), undefined, {
     counts: new Map([["p1", 4]]),
     mine: new Set(["p1"]),
+    lastReactorName: new Map([["p1", "Hannah"]]),
   });
   expect(reacted.reactionCount).toBe(4);
   expect(reacted.hasReacted).toBe(true);
+  expect(reacted.lastReactorName).toBe("Hannah");
 
   const untouched = mapPostRow(postRow(), "u1", ANON_NAME_FALLBACK, TOPICS, new Set());
   expect(untouched.reactionCount).toBe(0);
   expect(untouched.hasReacted).toBe(false);
+  expect(untouched.lastReactorName).toBeNull();
 });
 
 it("newestCreatedAt finds the max even when a pinned post sits first", () => {
@@ -346,6 +359,7 @@ it("mapProfileRow maps names, flags and nullables", () => {
     official: false,
     bio: "Walking in faith.",
     avatarUrl: null,
+    username: "Hannah",
   });
   expect(
     mapProfileRow(
@@ -366,5 +380,6 @@ it("mapProfileRow maps names, flags and nullables", () => {
     official: true,
     bio: null,
     avatarUrl: "https://cdn.example/a.jpg",
+    username: null,
   });
 });

@@ -85,13 +85,20 @@ export interface PollData {
 export const EMPTY_POLL_DATA: PollData = { counts: new Map(), myVotes: new Map() };
 
 /** Batched per-post reaction state fetched alongside a feed page (generalized from
- * a host app's prayer-style feature: prayerCount/hasPrayed -> reactionCount/hasReacted). */
+ * a host app's prayer-style feature: prayerCount/hasPrayed -> reactionCount/hasReacted).
+ * `lastReactorName` mirrors the backend's security-definer summary RPC, which returns
+ * each post's most recent reactor's display name alongside the count. */
 export interface ReactionData {
   counts: ReadonlyMap<string, number>;
   mine: ReadonlySet<string>;
+  lastReactorName: ReadonlyMap<string, string | null>;
 }
 
-export const EMPTY_REACTION_DATA: ReactionData = { counts: new Map(), mine: new Set() };
+export const EMPTY_REACTION_DATA: ReactionData = {
+  counts: new Map(),
+  mine: new Set(),
+  lastReactorName: new Map(),
+};
 
 export interface FeedPost {
   id: string;
@@ -119,6 +126,9 @@ export interface FeedPost {
   /** Generic "reaction" module count (e.g. a "pray for" tap); the label/verb is host-defined. */
   reactionCount: number;
   hasReacted: boolean;
+  /** Display name of the most recent reactor, for a "X and N others reacted" affordance;
+   * null when nobody has reacted yet or the reaction module is off. */
+  lastReactorName: string | null;
 }
 
 export interface ThreadComment {
@@ -153,7 +163,10 @@ export function displayName(
  * unknown to the app's static list), unknown topics stay visible under their raw id —
  * the topics list is now host-config-driven and may lag behind live data.
  */
-export function normalizeTopic(raw: string | null, topics: readonly CommunityTopicDef[]): string | null {
+export function normalizeTopic(
+  raw: string | null,
+  topics: readonly CommunityTopicDef[],
+): string | null {
   if (!raw) return null;
   const known = topics.find((t) => t.id === raw);
   return known ? known.id : raw;
@@ -175,8 +188,8 @@ export interface CommunityProfile {
   official: boolean;
   bio: string | null;
   avatarUrl: string | null;
-  /** Raw username, when available — not populated by mapProfileRow; present so a
-   * CommunityProfile can itself be threaded back into displayName(). */
+  /** Raw username, when available (pre-fallback, unlike `name`); populated by
+   * mapProfileRow so a CommunityProfile can itself be threaded back into displayName(). */
   username?: string | null;
 }
 
@@ -188,6 +201,9 @@ export function mapProfileRow(row: ProfileRow, fallback: string): CommunityProfi
     official: row.is_official ?? false,
     bio: row.bio ?? null,
     avatarUrl: row.avatar_url ?? null,
+    // Raw username (pre-fallback), so a mapped CommunityProfile can itself be threaded back
+    // into displayName() elsewhere — see the field doc on CommunityProfile.
+    username: row.username ?? null,
   };
 }
 
@@ -242,6 +258,7 @@ export function mapPostRow(
     poll: buildPoll(row.poll_options, pollData.counts, pollData.myVotes.get(row.id) ?? null),
     reactionCount: reactionData.counts.get(row.id) ?? 0,
     hasReacted: reactionData.mine.has(row.id),
+    lastReactorName: reactionData.lastReactorName.get(row.id) ?? null,
   };
 }
 

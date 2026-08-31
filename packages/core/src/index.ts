@@ -49,3 +49,33 @@ export { COMMUNITY_EVENTS, emitEvent } from "./events";
 export type { CommunityEventName } from "./events";
 
 export { ensureIdentity, resetIdentity, syncProfileFromHost } from "./identity";
+
+export {
+  fetchFeedPage,
+  countNewPosts,
+  fetchProfile,
+  fetchUserPosts,
+  searchPosts,
+  fetchThread,
+  createPost,
+  votePoll,
+  createComment,
+  moderateOne,
+  setLike,
+  setReaction,
+  fetchReactionSummaries,
+  reportContent,
+  blockUser,
+  deleteOwnPost,
+  deleteOwnComment,
+  updateProfile,
+  uploadAvatar,
+} from "./service";
+export type {
+  ModerationVerdict,
+  CreatePostInput,
+  ReportReason,
+  ReportInput,
+  UpdateProfileInput,
+  UpdateProfileResult,
+} from "./service";
