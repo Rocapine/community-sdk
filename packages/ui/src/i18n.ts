@@ -3,15 +3,25 @@
 // plain node.
 
 import { en } from "./locales/en";
+import { esES } from "./locales/es-ES";
+import { es419 } from "./locales/es-419";
+import { it } from "./locales/it";
+import { pl } from "./locales/pl";
+import { ptPT } from "./locales/pt-PT";
+import { ptBR } from "./locales/pt-BR";
 
 export type TFn = (key: string, params?: Record<string, string | number>) => string;
 
 type LocaleCatalog = Record<string, string>;
 
-// Only `en` ships in this task; other locales (Task 14) register here by
-// locale code, e.g. `catalog.fr = fr;`.
 const catalog: Record<string, LocaleCatalog> = {
   en,
+  "es-ES": esES,
+  "es-419": es419,
+  it,
+  pl,
+  "pt-PT": ptPT,
+  "pt-BR": ptBR,
 };
 
 function has(record: LocaleCatalog, key: string): boolean {

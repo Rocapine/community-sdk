@@ -5,6 +5,18 @@ export type { TFn } from "./i18n";
 export { makeT } from "./i18n";
 
 export { en } from "./locales/en";
+export { esES } from "./locales/es-ES";
+export { es419 } from "./locales/es-419";
+export { it } from "./locales/it";
+export { pl } from "./locales/pl";
+export { ptPT } from "./locales/pt-PT";
+export { ptBR } from "./locales/pt-BR";
+
+// Re-exported so hosts typing a `renderInboxRow` callback for
+// `NotificationInboxScreen` (whose prop signature is
+// `(item: InboxItem, defaults: ReactNode | null) => ReactNode`) don't need a
+// direct dependency on @rocapine/community-core just for this one type.
+export type { InboxItem } from "@rocapine/community-core";
 
 export { CommunityUIProvider, useCommunityTheme, useT, useThemedStyles } from "./ThemeProvider";
 

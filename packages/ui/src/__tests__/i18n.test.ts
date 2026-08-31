@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { makeT } from "../i18n";
+import { en } from "../locales/en";
+import { esES } from "../locales/es-ES";
+import { es419 } from "../locales/es-419";
+import { it as itLocale } from "../locales/it";
+import { pl } from "../locales/pl";
+import { ptPT } from "../locales/pt-PT";
+import { ptBR } from "../locales/pt-BR";
 
 describe("makeT", () => {
   it("resolves a key from the en catalog", () => {
@@ -38,4 +45,24 @@ describe("makeT", () => {
     const t = makeT("en", { "poll.votes.other": "{count} ballots" });
     expect(t("poll.votes", { count: 3 })).toBe("3 ballots");
   });
+});
+
+describe("locale catalogs", () => {
+  const catalogs: Record<string, Record<string, string>> = {
+    en,
+    "es-ES": esES,
+    "es-419": es419,
+    it: itLocale,
+    pl,
+    "pt-PT": ptPT,
+    "pt-BR": ptBR,
+  };
+
+  const enKeys = Object.keys(en).sort();
+
+  for (const [locale, catalog] of Object.entries(catalogs)) {
+    it(`${locale} has exactly the same key set as en`, () => {
+      expect(Object.keys(catalog).sort()).toEqual(enKeys);
+    });
+  }
 });
