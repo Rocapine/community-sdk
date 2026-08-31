@@ -44,3 +44,8 @@ export {
 } from "./models";
 
 export { timeAgo } from "./time";
+
+export { COMMUNITY_EVENTS, emitEvent } from "./events";
+export type { CommunityEventName } from "./events";
+
+export { ensureIdentity, resetIdentity, syncProfileFromHost } from "./identity";
