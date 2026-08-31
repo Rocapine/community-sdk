@@ -34,5 +34,9 @@ create policy "update own push row" on public.push_tokens for update to authenti
 -- (20260814150000_profile_locale.sql) — adding a language needs no migration.
 alter table public.profiles add column if not exists locale text check (char_length(locale) <= 10);
 
+-- profiles updates are column-scoped (core/002_rls.sql); grants are additive,
+-- so this just adds locale to what the client's own-profile sync may write.
+grant update (locale) on table public.profiles to authenticated;
+
 -- Like coalescing marker index (column lives in core/001_tables.sql).
 create index likes_unnotified_idx on public.likes (post_id) where notified_at is null;
