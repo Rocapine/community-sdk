@@ -25,7 +25,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { useCommunityTheme } from "./ThemeProvider";
+import { useThemedStyles } from "./ThemeProvider";
 import type { CommunityTheme } from "./theme";
 
 const OPEN_DURATION = 260;
@@ -48,10 +48,9 @@ export function CommunitySheet({
   children: ReactNode;
   snapTo?: "half" | "full";
 }) {
-  const theme = useCommunityTheme();
   const { height: screenH } = useWindowDimensions();
   const [mounted, setMounted] = useState(visible);
-  const styles = makeStyles(theme);
+  const styles = useThemedStyles(makeStyles);
 
   const translateY = useSharedValue(screenH);
   const backdropOpacity = useSharedValue(0);

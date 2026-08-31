@@ -18,7 +18,7 @@ import { ShieldWarning } from "phosphor-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { useCommunityTheme, useT } from "../ThemeProvider";
+import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 
 export function NoticeCard({
@@ -30,7 +30,7 @@ export function NoticeCard({
 }) {
   const theme = useCommunityTheme();
   const t = useT();
-  const styles = makeStyles(theme);
+  const styles = useThemedStyles(makeStyles);
 
   const title = kind === "network" ? t("notice.errorTitle") : t("notice.rejectedTitle");
   const body = kind === "network" ? t("notice.errorBody") : t("notice.rejectedPostBody");

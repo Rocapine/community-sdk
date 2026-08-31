@@ -31,3 +31,16 @@ export function useCommunityTheme(): CommunityTheme {
 export function useT(): TFn {
   return useContext(TranslationContext);
 }
+
+/**
+ * Memoized themed StyleSheet — mirrors the mold's own `useThemedStyles`
+ * (`sdk/client/components/community/theme.tsx`). Pass a module-level factory
+ * `(theme) => StyleSheet.create({...})`; it recomputes only when the theme
+ * object identity changes, not on every render. Matters for components that
+ * re-render often (e.g. `CommunityPost` inside a `FlatList`) — without this,
+ * every render would rebuild the whole style object from scratch.
+ */
+export function useThemedStyles<T>(factory: (theme: CommunityTheme) => T): T {
+  const theme = useCommunityTheme();
+  return useMemo(() => factory(theme), [theme, factory]);
+}

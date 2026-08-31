@@ -31,7 +31,7 @@ import * as Haptics from "expo-haptics";
 import { ChatCircle, DotsThree, HandHeart, Heart, PushPin, SealCheck } from "phosphor-react-native";
 import { useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useCommunityTheme, useT } from "../ThemeProvider";
+import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { PollBlock } from "./PollBlock";
 
@@ -63,7 +63,7 @@ export function CommunityPost({
   const theme = useCommunityTheme();
   const t = useT();
   const cfg = useCommunityConfig();
-  const styles = makeStyles(theme);
+  const styles = useThemedStyles(makeStyles);
 
   const toggleLike = useToggleLike();
   const reactToPost = useReactToPost();
@@ -154,7 +154,7 @@ export function CommunityPost({
   );
 
   const defaultReactionButton = (
-    <Pressable hitSlop={8} onPress={handleReact} style={styles.stat}>
+    <Pressable hitSlop={8} onPress={handleReact} disabled={post.hasReacted} style={styles.stat}>
       <HandHeart
         size={18}
         color={post.hasReacted ? theme.colors.accent : theme.colors.textFaint}

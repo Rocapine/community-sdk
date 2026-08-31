@@ -15,13 +15,13 @@
 import { pollPercent, useVotePoll, type FeedPost } from "@rocapine/community-core";
 import { CheckCircle } from "phosphor-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useCommunityTheme, useT } from "../ThemeProvider";
+import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 
 export function PollBlock({ post }: { post: FeedPost }) {
   const theme = useCommunityTheme();
   const t = useT();
-  const styles = makeStyles(theme);
+  const styles = useThemedStyles(makeStyles);
   const votePoll = useVotePoll();
 
   const poll = post.poll;

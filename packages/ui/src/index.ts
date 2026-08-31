@@ -6,7 +6,7 @@ export { makeT } from "./i18n";
 
 export { en } from "./locales/en";
 
-export { CommunityUIProvider, useCommunityTheme, useT } from "./ThemeProvider";
+export { CommunityUIProvider, useCommunityTheme, useT, useThemedStyles } from "./ThemeProvider";
 
 export { CommunitySheet } from "./Sheet";
 
