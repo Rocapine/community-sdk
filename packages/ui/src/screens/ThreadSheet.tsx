@@ -67,6 +67,7 @@ import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots } from "../components/CommunityPost";
 import { NoticeCard } from "../components/NoticeCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
+import { isQueryLoading } from "../utils/query";
 
 const COMMENT_CLAMP_LINES = 5;
 const HANDOFF_DELAY_MS = 320;
@@ -314,7 +315,7 @@ export function ThreadSheet({
             {t("thread.comments", { count: comments.length })}
           </Text>
 
-          {thread.isPending && comments.length === 0 ? (
+          {isQueryLoading(thread) && comments.length === 0 ? (
             <Text style={styles.stateText}>{t("thread.loadingComments")}</Text>
           ) : comments.length === 0 ? (
             <Text style={styles.stateText}>{t("thread.emptyComments")}</Text>

@@ -60,6 +60,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import type { TFn } from "../i18n";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
+import { isQueryLoading } from "../utils/query";
 
 const KNOWN_KINDS = new Set<InboxItem["kind"]>(["like", "comment", "reaction", "official_post"]);
 
@@ -105,7 +106,7 @@ export function NotificationInboxScreen({
     <View style={styles.root}>
       <Text style={styles.title}>{t("inbox.title")}</Text>
 
-      {inbox.isPending ? (
+      {isQueryLoading(inbox) ? (
         <ActivityIndicator color={theme.colors.accent} style={styles.loader} />
       ) : items.length === 0 ? (
         <Text style={styles.empty}>{t("inbox.empty")}</Text>

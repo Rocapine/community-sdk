@@ -68,6 +68,7 @@ import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots } from "../components/CommunityPost";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
+import { isQueryLoading } from "../utils/query";
 import { ProfileEditSheet } from "./ProfileEditSheet";
 
 // Every post rendered on this screen already belongs to `userId` — see file
@@ -214,7 +215,7 @@ export function ProfileScreen({
           )}
         </View>
 
-        {profile.isPending ? (
+        {isQueryLoading(profile) ? (
           <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
         ) : profile.isError || !profile.data ? (
           <Text style={styles.stateText}>{t("feed.unreachable")}</Text>
@@ -259,7 +260,7 @@ export function ProfileScreen({
 
             <Text style={styles.sectionLabel}>{t("profile.postsSection")}</Text>
             <View style={styles.feed}>
-              {userPosts.isPending ? (
+              {isQueryLoading(userPosts) ? (
                 <ActivityIndicator color={theme.colors.accent} style={styles.spinnerSmall} />
               ) : userPosts.isError ? (
                 <Text style={styles.stateText}>{t("feed.unreachableRetry")}</Text>

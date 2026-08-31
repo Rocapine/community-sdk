@@ -102,6 +102,7 @@ import { CommunityPost, type PostSlots } from "../components/CommunityPost";
 import { ComposerCard } from "../components/ComposerCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
+import { isQueryLoading } from "../utils/query";
 import { ThreadSheet } from "./ThreadSheet";
 
 export function CommunityFeedScreen({
@@ -161,13 +162,12 @@ export function CommunityFeedScreen({
   // `useSearchPosts` set `enabled: cfg.supabase !== null && ...`, so in
   // degraded mode (no `supabase` client, task brief §"degraded mode") the
   // query sits at `status: "pending"` / `fetchStatus: "idle"` permanently.
-  // Gating on `fetchStatus !== "idle"` too means "never asked to fetch"
-  // falls through to the plain empty-state text below instead of spinning
-  // forever — required for the degraded-mode acceptance test (empty state,
-  // not an infinite spinner).
-  const isPending = searchActive
-    ? searchFeed.isPending && searchFeed.fetchStatus !== "idle"
-    : categoryFeed.isPending && categoryFeed.fetchStatus !== "idle";
+  // `isQueryLoading` (shared with the other screens hitting the same
+  // hazard — profile/userPosts/thread/inbox) gates on `fetchStatus !==
+  // "idle"` too, so "never asked to fetch" falls through to the plain
+  // empty-state text below instead of spinning forever — required for the
+  // degraded-mode acceptance test (empty state, not an infinite spinner).
+  const isPending = searchActive ? isQueryLoading(searchFeed) : isQueryLoading(categoryFeed);
   const isError = searchActive ? searchFeed.isError : categoryFeed.isError;
   const isRefetching = searchActive ? searchFeed.isRefetching : categoryFeed.isRefetching;
   const hasNextPage = !searchActive && !!categoryFeed.hasNextPage;
