@@ -89,6 +89,13 @@ export const en: Record<string, string> = {
     "Your comment could not be shared because it goes against our community guidelines. This is a space for kindness, encouragement and grace, thank you for helping keep it safe for everyone here.",
   "notice.gotIt": "Got it",
 
+  // "menu.cancel"/"menu.delete" are new (Task 12): the mold/Eve's Alert.alert
+  // menus localized these two generic button labels through their own app-wide
+  // "common.*" i18n namespace (outside this package); CommunityFeedScreen/
+  // ThreadSheet's native block/delete/report menus need them and this
+  // package has no such namespace, so they're added here under `menu.*`.
+  "menu.cancel": "Cancel",
+  "menu.delete": "Delete",
   "menu.deletePostTitle": "Delete this post?",
   "menu.deletePostBody": "It will disappear from the community.",
   "menu.deleteCommentTitle": "Delete this comment?",
