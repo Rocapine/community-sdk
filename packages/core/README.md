@@ -123,6 +123,9 @@ runs in production and is silent in degraded mode.
 - **Inbox** (opt-in via `modules.inbox`): `fetchInbox`, `markInboxSeen`,
   `unreadCount`, and hooks `useNotificationInbox`,
   `useUnreadNotificationCount`, `useMarkInboxSeen`.
-- **`timeAgo(iso)`** — relative-time formatting used by the UI package.
+- **`timeAgo(iso)`** — hardcoded-English relative-time formatting, kept for
+  back-compat. **`timeAgoParts(iso, nowMs)`** — the language-free unit+value
+  decomposition the UI package actually localizes through its own catalog
+  (see `formatTimeAgo` in `@rocapine/community-ui`).
 
 See `src/index.ts` for the exhaustive, authoritative export list.

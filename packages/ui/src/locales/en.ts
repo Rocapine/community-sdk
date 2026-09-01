@@ -44,6 +44,16 @@ export const en: Record<string, string> = {
   "feed.newPosts.one": "{count} new post",
   "feed.newPosts.other": "{count} new posts",
 
+  // Compact relative-time labels for a post/comment's timestamp (see
+  // `formatTimeAgo` in the ui package, which localizes core's language-free
+  // `timeAgoParts`). Not pluralized (`.one`/`.other`) like the rest of this
+  // catalog: a compact abbreviation ("5h", "12 min") reads the same at any
+  // count in every one of these languages, unlike a spelled-out unit noun.
+  "time.now": "now",
+  "time.minutes": "{count}m",
+  "time.hours": "{count}h",
+  "time.days": "{count}d",
+
   "post.pinned": "Pinned",
   "post.viewMore": "View more",
   "post.viewLess": "View less",

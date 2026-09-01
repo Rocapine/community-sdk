@@ -46,7 +46,6 @@ import {
   COMMUNITY_EVENTS,
   displayName,
   emitEvent,
-  timeAgo,
   useBlockUser,
   useCommunityConfig,
   useCreateComment,
@@ -68,6 +67,7 @@ import { CommunityPost, type PostSlots } from "../components/CommunityPost";
 import { NoticeCard } from "../components/NoticeCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { isQueryLoading } from "../utils/query";
+import { formatTimeAgo } from "../utils/time";
 
 const COMMENT_CLAMP_LINES = 5;
 const HANDOFF_DELAY_MS = 320;
@@ -75,31 +75,26 @@ const HANDOFF_DELAY_MS = 320;
 const noop = () => {};
 
 /** Finds a `FeedPost` by id across every cache that can hold one — the topic
- * feeds (paginated), user-posts and search results (plain arrays) — mirroring
- * the set of caches `useReactToPost`/`useVotePoll` sweep in `core/hooks.ts`.
- * Subscribes to the query cache so the result stays live as those mutations'
- * optimistic updates land (like/react/vote), at the cost of re-rendering on
- * any community cache change while a thread is open — an accepted trade-off
- * for a bottom sheet, not a hot path. */
+ * feeds, user-posts and search results, all paginated `InfiniteData` —
+ * mirroring the set of caches `useReactToPost`/`useVotePoll` sweep in
+ * `core/hooks.ts`. Subscribes to the query cache so the result stays live as
+ * those mutations' optimistic updates land (like/react/vote), at the cost of
+ * re-rendering on any community cache change while a thread is open — an
+ * accepted trade-off for a bottom sheet, not a hot path. */
 function findCachedPost(queryClient: QueryClient, postId: string): FeedPost | null {
-  const feedEntries = queryClient.getQueriesData<InfiniteData<FeedPost[]>>({
-    queryKey: ["community", "feed"],
-  });
-  for (const [, data] of feedEntries) {
+  const entries = [
+    ...queryClient.getQueriesData<InfiniteData<FeedPost[]>>({ queryKey: ["community", "feed"] }),
+    ...queryClient.getQueriesData<InfiniteData<FeedPost[]>>({
+      queryKey: ["community", "userPosts"],
+    }),
+    ...queryClient.getQueriesData<InfiniteData<FeedPost[]>>({ queryKey: ["community", "search"] }),
+  ];
+  for (const [, data] of entries) {
     if (!data) continue;
     for (const page of data.pages) {
       const found = page.find((p) => p.id === postId);
       if (found) return found;
     }
-  }
-  const flatEntries = [
-    ...queryClient.getQueriesData<FeedPost[]>({ queryKey: ["community", "userPosts"] }),
-    ...queryClient.getQueriesData<FeedPost[]>({ queryKey: ["community", "search"] }),
-  ];
-  for (const [, data] of flatEntries) {
-    if (!data) continue;
-    const found = data.find((p) => p.id === postId);
-    if (found) return found;
   }
   return null;
 }
@@ -411,7 +406,7 @@ function CommentRow({
               @{comment.authorHandle}
             </Text>
           )}
-          <Text style={styles.cAgo}>· {timeAgo(comment.createdAt, Date.now())}</Text>
+          <Text style={styles.cAgo}>· {formatTimeAgo(t, comment.createdAt, Date.now())}</Text>
         </Pressable>
         <Text
           style={styles.cText}

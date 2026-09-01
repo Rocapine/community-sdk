@@ -99,10 +99,15 @@ e.g. `import { en, esES, es419, it, pl, ptPT, ptBR } from "@rocapine/community-u
 <CommunityUIProvider translations={{ locale: "pt-BR", overrides: { "rules.accept": "..." } }}>
 ```
 
-Lookup order for a key: `overrides` → `catalog[locale]` → `catalog.en` → the
-key itself (never a blank string). A numeric `params.count` selects
-`<key>.one` / `<key>.other` (through the same fallback chain) before falling
-back to the bare key — e.g. `t("feed.newPosts", { count: 3 })`.
+Lookup order for a key: `overrides` → `catalog[locale]` (exact match) →
+`catalog[baseLocale]` (base-language match — a locale not shipped verbatim
+falls back to its language family's designated base: `es`/any other `es-*`
+region falls back to `es-ES`, `pt`/any other `pt-*` region falls back to
+`pt-PT`, and any other language's regional variant, e.g. `it-CH`, falls back
+to its bare-language catalog, e.g. `it`) → `catalog.en` → the key itself
+(never a blank string). A numeric `params.count` selects `<key>.one` /
+`<key>.other` (through the same fallback chain) before falling back to the
+bare key — e.g. `t("feed.newPosts", { count: 3 })`.
 Interpolation uses `{name}`-style placeholders, not i18next's `{{name}}`.
 
 **Topic labels**: a topic's display label resolves through the key

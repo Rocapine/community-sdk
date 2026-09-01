@@ -38,6 +38,14 @@ export const esES: Record<string, string> = {
   "feed.newPosts.one": "{count} publicación nueva",
   "feed.newPosts.other": "{count} publicaciones nuevas",
 
+  // Compact relative-time labels (see en.ts's comment on this section for
+  // why these aren't `.one`/`.other` pluralized). "min"/"h"/"d" over a bare
+  // "m" for minutes: an unspaced "m" reads as "meters" in Spanish.
+  "time.now": "ahora",
+  "time.minutes": "{count} min",
+  "time.hours": "{count} h",
+  "time.days": "{count} d",
+
   "post.pinned": "Fijado",
   "post.viewMore": "Ver más",
   "post.viewLess": "Ver menos",

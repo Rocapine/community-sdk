@@ -63,6 +63,16 @@ export const pl: Record<string, string> = {
   "feed.newPosts.one": "{count} nowy post",
   "feed.newPosts.other": "{count} nowych postów",
 
+  // Compact relative-time labels (see en.ts's comment on this section for
+  // why these aren't `.one`/`.other` pluralized). A bare single-letter "m"/
+  // "h"/"d" abbreviation isn't natural in Polish; "min"/"godz."/"dni" are
+  // the conventional short forms and, unlike a spelled-out noun, read the
+  // same at any count.
+  "time.now": "teraz",
+  "time.minutes": "{count} min",
+  "time.hours": "{count} godz.",
+  "time.days": "{count} dni",
+
   "post.pinned": "Przypięty",
   "post.viewMore": "Pokaż więcej",
   "post.viewLess": "Pokaż mniej",

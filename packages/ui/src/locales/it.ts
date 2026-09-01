@@ -38,6 +38,14 @@ export const it: Record<string, string> = {
   "feed.newPosts.one": "{count} nuovo post",
   "feed.newPosts.other": "{count} nuovi post",
 
+  // Compact relative-time labels (see en.ts's comment on this section for
+  // why these aren't `.one`/`.other` pluralized). "g" for days ("giorni"),
+  // not "d" — Italian has no word starting with "d" for a day.
+  "time.now": "ora",
+  "time.minutes": "{count} min",
+  "time.hours": "{count} h",
+  "time.days": "{count} g",
+
   "post.pinned": "In evidenza",
   "post.viewMore": "Mostra di più",
   "post.viewLess": "Mostra meno",

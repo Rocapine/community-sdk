@@ -45,6 +45,26 @@ describe("makeT", () => {
     const t = makeT("en", { "poll.votes.other": "{count} ballots" });
     expect(t("poll.votes", { count: 3 })).toBe("3 ballots");
   });
+
+  it("resolves an unlisted es variant to the es-ES base catalog", () => {
+    const t = makeT("es-MX");
+    expect(t("rules.accept")).toBe(esES["rules.accept"]);
+  });
+
+  it("resolves an unlisted pt variant to the pt-PT base catalog", () => {
+    const t = makeT("pt-AO");
+    expect(t("rules.accept")).toBe(ptPT["rules.accept"]);
+  });
+
+  it("resolves a single-catalog language's regional variant to its bare catalog", () => {
+    const t = makeT("it-CH");
+    expect(t("rules.accept")).toBe(itLocale["rules.accept"]);
+  });
+
+  it("falls back to en for a locale whose base language has no catalog", () => {
+    const t = makeT("fr-CA");
+    expect(t("rules.accept")).toBe(en["rules.accept"]);
+  });
 });
 
 describe("locale catalogs", () => {

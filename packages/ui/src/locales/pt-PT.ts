@@ -38,6 +38,13 @@ export const ptPT: Record<string, string> = {
   "feed.newPosts.one": "{count} publicação nova",
   "feed.newPosts.other": "{count} publicações novas",
 
+  // Compact relative-time labels (see en.ts's comment on this section for
+  // why these aren't `.one`/`.other` pluralized).
+  "time.now": "agora",
+  "time.minutes": "{count} min",
+  "time.hours": "{count} h",
+  "time.days": "{count} d",
+
   "post.pinned": "Fixado",
   "post.viewMore": "Ver mais",
   "post.viewLess": "Ver menos",

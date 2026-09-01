@@ -46,7 +46,6 @@
 import {
   COMMUNITY_EVENTS,
   emitEvent,
-  timeAgo,
   unreadCount,
   useCommunityConfig,
   useMarkInboxSeen,
@@ -61,6 +60,7 @@ import type { TFn } from "../i18n";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { isQueryLoading } from "../utils/query";
+import { formatTimeAgo } from "../utils/time";
 
 const KNOWN_KINDS = new Set<InboxItem["kind"]>(["like", "comment", "reaction", "official_post"]);
 
@@ -209,7 +209,7 @@ function NotificationRow({
         ) : null}
       </View>
       <View style={styles.rowMeta}>
-        <Text style={styles.rowDate}>{timeAgo(item.createdAt, Date.now())}</Text>
+        <Text style={styles.rowDate}>{formatTimeAgo(t, item.createdAt, Date.now())}</Text>
         {unread && <View style={styles.unreadDot} />}
       </View>
     </Pressable>

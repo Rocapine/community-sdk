@@ -20,7 +20,6 @@
 //    this file.
 
 import {
-  timeAgo,
   useCommunityConfig,
   useReactToPost,
   useToggleLike,
@@ -33,6 +32,7 @@ import { useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
+import { formatTimeAgo } from "../utils/time";
 import { PollBlock } from "./PollBlock";
 
 const BODY_CLAMP_LINES = 6;
@@ -135,7 +135,7 @@ export function CommunityPost({
           )}
           <Text style={styles.meta}>
             {topicLabel ? `${topicLabel} · ` : ""}
-            {timeAgo(post.createdAt, Date.now())}
+            {formatTimeAgo(t, post.createdAt, Date.now())}
           </Text>
         </View>
       </View>

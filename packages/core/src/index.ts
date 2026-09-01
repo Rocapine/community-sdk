@@ -43,7 +43,8 @@ export {
   newestCreatedAt,
 } from "./models";
 
-export { timeAgo } from "./time";
+export type { TimeAgoParts } from "./time";
+export { timeAgo, timeAgoParts } from "./time";
 
 export { COMMUNITY_EVENTS, emitEvent } from "./events";
 export type { CommunityEventName } from "./events";
