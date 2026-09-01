@@ -159,6 +159,9 @@ Without a dashboard, moderate via SQL or the Supabase Studio table editor —
 - [`packages/core/README.md`](packages/core/README.md),
   [`packages/ui/README.md`](packages/ui/README.md),
   [`packages/cli/README.md`](packages/cli/README.md) — per-package reference.
+- Design history: [`docs/design-spec.md`](docs/design-spec.md) and
+  [`docs/implementation-plan.md`](docs/implementation-plan.md) — the spec and
+  task-by-task plan that shaped this repo, kept for provenance.
 
 ## Development
 
