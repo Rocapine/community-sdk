@@ -7,10 +7,9 @@ export const FEED_PAGE_SIZE = 20;
 
 // ============ DB-MIRRORING LIMITS (DO NOT CHANGE WITHOUT CHECKING THE DB) ============
 // Client-side mirrors of the community backend's check constraints, so the cap is an
-// invisible input limit instead of a generic insert error. Verified against the mold
-// (Rocacommu sdk/client/constants/community.ts) on 2026-08-31 — POST_MAX_LENGTH and
-// COMMENT_MAX_LENGTH differ from the task brief's placeholder values (600 / 300); the
-// mold/DB values below win.
+// invisible input limit instead of a generic insert error. Verified against the mold's
+// own constants on 2026-08-31 — POST_MAX_LENGTH and COMMENT_MAX_LENGTH differ from the
+// task brief's placeholder values (600 / 300); the mold/DB values below win.
 
 export const POST_MAX_LENGTH = 2000;
 export const COMMENT_MAX_LENGTH = 1000;

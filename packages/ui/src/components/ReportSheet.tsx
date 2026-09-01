@@ -2,8 +2,7 @@
 // (`sdk/client/components/community/ReportSheet.tsx`), rebuilt on this
 // package's `CommunitySheet`/theme/i18n.
 //
-// Signature change from the mold (task brief, refined in review — see
-// task-11-report.md's fix-up section): `target` is
+// Signature change from the mold (task brief, refined in review): `target` is
 // `{ kind: "post" | "comment"; id: string; authorId: string } | null`
 // instead of the mold's flat `{ reportedUserId, postId?, commentId? }`.
 // `authorId` is required on the target (not resolved by a lookup): the

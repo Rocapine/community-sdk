@@ -68,7 +68,8 @@ npx @rocapine/community adopt --schema-version <n> --modules core,push,... [--di
 ```
 
 For a backend that's already live in production, built by hand or migrated
-before this SDK existed (the mold precedent: Eve's Rhythm, Nightward).
+before this SDK existed (the mold precedent: Eve's Rhythm and other internal
+apps that hand-rolled their own community backend before this SDK existed).
 Writes **only** `community-sdk.json` — no migration or function file is ever
 copied — on the assumption the equivalent schema is already applied. A
 subsequent `upgrade` will still seed any Edge Function source not yet

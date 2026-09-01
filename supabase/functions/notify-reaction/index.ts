@@ -14,8 +14,8 @@
 // translations below.
 //
 // NOTE: profiles.locale is not part of the SDK's core schema yet (task 16) —
-// it must exist before this function can run. See task-17-report.md
-// "concerns" for a reference migration adding it.
+// it must exist before this function can run. See the internal port notes
+// for a reference migration adding it.
 
 import { adminClient } from "../_shared/client.ts";
 import { sendExpoPush } from "../_shared/push.ts";

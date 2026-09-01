@@ -2,7 +2,7 @@
 
 Everything ops-facing about running the Community SDK's Supabase backend:
 secrets, anonymous sign-ins, the `db push` flow, and how to verify the
-scheduled jobs actually landed. Successor to the internal Nightward
+scheduled jobs actually landed. Successor to an internal reference app's
 `docs/community-setup.md` runbook.
 
 ## 1. Anonymous sign-ins (manual, no migration does this)

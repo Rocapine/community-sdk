@@ -1,8 +1,8 @@
 // Polish catalog for @rocapine/community-ui.
 //
-// Ported from Eve's Rhythm's i18n/pl/community.json (eden-s-rythm repo —
+// Ported from Eve's Rhythm's i18n/pl/community.json (source app's repo —
 // comment only, no runtime dependency on that app), flattened to the same
-// dot-key scheme as en.ts (see task-9-report.md for the key-rename table:
+// dot-key scheme as en.ts (see the internal port notes for the key-rename table:
 // prayedForYou.* -> reaction.*, aSister -> someone, _one/_other ->
 // .one/.other). Degendered ("siostra/siostry" -> neutral phrasing) and
 // de-branded ("Eve's News" / "Eve's Rhythm" removed) to match en.ts's
@@ -13,7 +13,7 @@
 // supports a binary one/other split (count === 1 ? "one" : "other", see
 // i18n.ts). `.other` here is filled from Eve's `_many` form (correct for 0
 // and 5+, the most common non-1 counts in this UI; grammatically a step off
-// for 2-4, a known limitation of the binary scheme — see task-14-report.md).
+// for 2-4, a known limitation of the binary scheme — see the internal port notes).
 //
 // Polish gendering note: unlike the other 5 ported locales, Polish past-tense
 // verbs conjugate for the subject's grammatical gender (e.g. "polubiła" vs

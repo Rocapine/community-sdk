@@ -1,8 +1,8 @@
 // Portuguese (Portugal) catalog for @rocapine/community-ui.
 //
-// Ported from Eve's Rhythm's i18n/pt-PT/community.json (eden-s-rythm repo —
+// Ported from Eve's Rhythm's i18n/pt-PT/community.json (source app's repo —
 // comment only, no runtime dependency on that app), flattened to the same
-// dot-key scheme as en.ts (see task-9-report.md for the key-rename table:
+// dot-key scheme as en.ts (see the internal port notes for the key-rename table:
 // prayedForYou.* -> reaction.*, aSister -> someone, _one/_other ->
 // .one/.other). Degendered in-language ("irmã(s)" -> neutral phrasing) and
 // de-branded ("Eve" / "Eve's Rhythm" removed) to match en.ts's neutral

@@ -3,12 +3,13 @@
 // The `colors`/`fonts` shape is the union of two sources:
 //  1. The task brief's proposed CommunityTheme.
 //  2. The mold seam (`sdk/client/components/community/theme.tsx` in the
-//     Rocacommu repo) — the Palette/fonts contract every existing community
-//     component actually consumes. Reconciled here so Tasks 10-13 (porting
-//     those components) never hit a token this file doesn't define.
+//     internal reference implementation) — the Palette/fonts contract every
+//     existing community component actually consumes. Reconciled here so
+//     Tasks 10-13 (porting those components) never hit a token this file
+//     doesn't define.
 //
 // Every token added beyond the brief is called out below with the mold
-// field that motivated it. See task-9-report.md for the full table.
+// field that motivated it. See the internal port notes for the full table.
 
 /** Deep-partial utility used by `mergeTheme`. Functions and arrays are left
  * intact (not recursed into) so `spacing` stays a single replaceable unit. */

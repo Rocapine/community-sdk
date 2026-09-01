@@ -1,12 +1,12 @@
 // English catalog for @rocapine/community-ui.
 //
 // Ported from Eve's Rhythm's key inventory (i18n/en/community.json in the
-// eden-s-rythm repo — comment only, no runtime dependency on that app).
+// source app's repo — comment only, no runtime dependency on that app).
 // Flattened to dot keys, `{{x}}` (i18next) interpolation rewritten to this
 // package's `{x}` syntax, and `_one`/`_other` suffixes rewritten to `.one`/
 // `.other` per the plural scheme in i18n.ts.
 //
-// Every value below is degendered and de-branded — see task-9-report.md for
+// Every value below is degendered and de-branded — see the internal port notes for
 // the full old -> new table. Two categories of edit were made:
 //  1. Degendering (required by the brief): every "sister"-style phrasing
 //     rewritten neutrally, "Eve's News" -> "News".

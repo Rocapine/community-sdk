@@ -89,7 +89,7 @@ program
 program
   .command("adopt")
   .description(
-    "Register an already-live community backend (e.g. Eve, Nightward) with community-sdk.json, without copying any files",
+    "Register an already-live community backend (e.g. an app that hand-rolled its own before this SDK existed) with community-sdk.json, without copying any files",
   )
   .requiredOption(
     "--schema-version <n>",

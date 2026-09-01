@@ -2,8 +2,8 @@ import type { ResolvedCommunityConfig } from "./config";
 
 // One anonymous Supabase identity per install. signInAnonymously() runs once;
 // afterwards getSession() restores the same user (and uuid) from AsyncStorage.
-// Ported from the mold's lib/community-identity.ts — see the module doc in
-// task-4-report.md for what changed crossing the host-adapter seam.
+// Ported from the mold's lib/community-identity.ts — see the design spec for
+// what changed crossing the host-adapter seam.
 
 let inFlight: Promise<string | null> | null = null;
 let lastSyncedUsername: string | null = null;

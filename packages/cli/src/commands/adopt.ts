@@ -18,8 +18,8 @@ import {
 
 /**
  * `community adopt` is for an app whose community backend already exists in
- * production (Eve / Nightward: hand-rolled before this SDK) rather than one
- * being installed fresh. It writes ONLY community-sdk.json — no migration or
+ * production (hand-rolled before this SDK existed) rather than one being
+ * installed fresh. It writes ONLY community-sdk.json — no migration or
  * function file ever touches disk — so `installedFiles` is always `[]`.
  *
  * `installedTemplates`, however, IS populated: it's set to every migration
