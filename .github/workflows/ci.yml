@@ -9,7 +9,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      # build first: ui's typecheck resolves @rocapine/community-core via its
+      # built lib/ types, which don't exist on a fresh checkout
+      - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm build
       - run: pnpm exec prettier --check .
