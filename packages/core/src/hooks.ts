@@ -85,23 +85,25 @@ function bumpFeedCommentCount(queryClient: QueryClient, postId: string, delta: n
   );
 }
 
-type FeedCacheEntry = [readonly unknown[], InfiniteData<FeedPost[]> | undefined];
-type FlatCacheEntry = [readonly unknown[], FeedPost[] | undefined];
+type PostCacheEntry = [readonly unknown[], InfiniteData<FeedPost[]> | undefined];
 
-/** Snapshot of every post-holding cache, for optimistic-update rollback on error. */
+/**
+ * Snapshot of every post-holding cache, for optimistic-update rollback on
+ * error. The feed, user-posts and search caches are all `InfiniteData` now
+ * that user-posts and search are paginated like the feed — one flat list of
+ * entries instead of the feed/flat split this needed before.
+ */
 interface PostCacheSnapshot {
-  feed: FeedCacheEntry[];
-  flat: FlatCacheEntry[];
+  entries: PostCacheEntry[];
 }
 
 /**
- * Apply `mapPost` optimistically across every cache that can hold a `FeedPost`:
- * the topic feeds (`InfiniteData`, paginated) plus the user-posts and search
- * results (plain arrays — both are unpaginated at the service layer, unlike
- * the mold where all three were `InfiniteData`). Returns a snapshot for
- * `rollbackPostCaches` on error. Used by `useVotePoll` and `useReactToPost`,
- * the two mutations whose optimistic update must be visible from any screen
- * that renders a `FeedPost` (mirrors the mold's `POST_PAGES_KEYS` sweep).
+ * Apply `mapPost` optimistically across every cache that can hold a
+ * `FeedPost`: the topic feeds, user-posts and search results (all
+ * `InfiniteData<FeedPost[]>`). Returns a snapshot for `rollbackPostCaches` on
+ * error. Used by `useVotePoll` and `useReactToPost`, the two mutations whose
+ * optimistic update must be visible from any screen that renders a
+ * `FeedPost` (mirrors the mold's `POST_PAGES_KEYS` sweep).
  */
 async function applyOptimisticToAllPostCaches(
   queryClient: QueryClient,
@@ -112,26 +114,21 @@ async function applyOptimisticToAllPostCaches(
     queryClient.cancelQueries({ queryKey: USER_POSTS_KEY }),
     queryClient.cancelQueries({ queryKey: SEARCH_KEY }),
   ]);
-  const feed = queryClient.getQueriesData<InfiniteData<FeedPost[]>>({ queryKey: FEED_KEY });
-  const flat: FlatCacheEntry[] = [
-    ...queryClient.getQueriesData<FeedPost[]>({ queryKey: USER_POSTS_KEY }),
-    ...queryClient.getQueriesData<FeedPost[]>({ queryKey: SEARCH_KEY }),
+  const entries: PostCacheEntry[] = [
+    ...queryClient.getQueriesData<InfiniteData<FeedPost[]>>({ queryKey: FEED_KEY }),
+    ...queryClient.getQueriesData<InfiniteData<FeedPost[]>>({ queryKey: USER_POSTS_KEY }),
+    ...queryClient.getQueriesData<InfiniteData<FeedPost[]>>({ queryKey: SEARCH_KEY }),
   ];
-  queryClient.setQueriesData<InfiniteData<FeedPost[]>>({ queryKey: FEED_KEY }, (data) =>
-    data ? { ...data, pages: data.pages.map((page) => page.map(mapPost)) } : data,
-  );
-  queryClient.setQueriesData<FeedPost[]>({ queryKey: USER_POSTS_KEY }, (data) =>
-    data ? data.map(mapPost) : data,
-  );
-  queryClient.setQueriesData<FeedPost[]>({ queryKey: SEARCH_KEY }, (data) =>
-    data ? data.map(mapPost) : data,
-  );
-  return { feed, flat };
+  const applyToPages = (data: InfiniteData<FeedPost[]> | undefined) =>
+    data ? { ...data, pages: data.pages.map((page) => page.map(mapPost)) } : data;
+  queryClient.setQueriesData<InfiniteData<FeedPost[]>>({ queryKey: FEED_KEY }, applyToPages);
+  queryClient.setQueriesData<InfiniteData<FeedPost[]>>({ queryKey: USER_POSTS_KEY }, applyToPages);
+  queryClient.setQueriesData<InfiniteData<FeedPost[]>>({ queryKey: SEARCH_KEY }, applyToPages);
+  return { entries };
 }
 
 function rollbackPostCaches(queryClient: QueryClient, snapshot: PostCacheSnapshot): void {
-  for (const [key, data] of snapshot.feed) queryClient.setQueryData(key, data);
-  for (const [key, data] of snapshot.flat) queryClient.setQueryData(key, data);
+  for (const [key, data] of snapshot.entries) queryClient.setQueryData(key, data);
 }
 
 /**
@@ -155,16 +152,18 @@ export function useCommunityFeed(topic?: string, enabled = true) {
 }
 
 /**
- * Search visible posts by content. Enabled once the term has >= 2 chars.
- * Single page (service layer is unpaginated for search — Task 5 ruling), so
- * this is a plain query, not an infinite one, unlike the mold.
+ * Search visible posts by content, infinite-scrolling like the feed.
+ * Enabled once the term has >= 2 chars.
  */
 export function useSearchPosts(term: string) {
   const cfg = useCommunityConfig();
   const cleaned = term.trim();
-  return useQuery<FeedPost[]>({
+  return useInfiniteQuery({
     queryKey: [...SEARCH_KEY, cleaned],
-    queryFn: () => searchPosts(cfg, cleaned),
+    queryFn: ({ pageParam }) => searchPosts(cfg, cleaned, { cursor: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: FeedPost[], pages: FeedPost[][]) =>
+      lastPage.length === FEED_PAGE_SIZE ? pages.length : undefined,
     enabled: cfg.supabase !== null && cleaned.length >= 2,
     staleTime: 1000 * 30,
     retry: 1,
@@ -236,15 +235,16 @@ export function useProfile(userId: string | null) {
 }
 
 /**
- * One user's posts, newest first. Single page (service layer is unpaginated
- * for a profile's posts — Task 5 ruling), so this is a plain query, not an
- * infinite one, unlike the mold.
+ * One user's posts, newest first, infinite-scrolling like the feed.
  */
 export function useUserPosts(userId: string | null) {
   const cfg = useCommunityConfig();
-  return useQuery<FeedPost[]>({
+  return useInfiniteQuery({
     queryKey: userPostsKey(userId ?? "none"),
-    queryFn: () => fetchUserPosts(cfg, userId!),
+    queryFn: ({ pageParam }) => fetchUserPosts(cfg, userId!, { cursor: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: FeedPost[], pages: FeedPost[][]) =>
+      lastPage.length === FEED_PAGE_SIZE ? pages.length : undefined,
     enabled: cfg.supabase !== null && !!userId,
     staleTime: 1000 * 30,
     retry: 1,

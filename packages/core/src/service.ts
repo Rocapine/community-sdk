@@ -219,16 +219,18 @@ export async function fetchProfile(
 
 /**
  * One user's posts, newest first (no pinned ordering — a profile page is
- * strictly chronological). Same visibility rules as the main feed. Per the
- * brief's signature this is a single page (FEED_PAGE_SIZE), unlike the mold's
- * paginated version — see the task report for the scope note.
+ * strictly chronological). Same visibility rules as the main feed, same
+ * page-index cursor as `fetchFeedPage` (product decision, reversing the
+ * earlier single-page scope cut).
  */
 export async function fetchUserPosts(
   cfg: ResolvedCommunityConfig,
   userId: string,
+  opts: { cursor?: number } = {},
 ): Promise<FeedPost[]> {
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
+  const page = opts.cursor ?? 0;
   const { data, error } = await client
     .from("posts")
     .select(FEED_SELECT)
@@ -236,23 +238,26 @@ export async function fetchUserPosts(
     .eq("comments.status", "visible")
     .in("status", ["visible", "pending"])
     .order("created_at", { ascending: false })
-    .range(0, FEED_PAGE_SIZE - 1);
+    .range(page * FEED_PAGE_SIZE, page * FEED_PAGE_SIZE + FEED_PAGE_SIZE - 1);
   if (error) throw error;
   return toFeedPosts(cfg, client, (data ?? []) as unknown as PostRow[], uid);
 }
 
 /**
- * Full-text-ish search over visible post content (newest first). Single page
- * (FEED_PAGE_SIZE) per the brief's signature — see fetchUserPosts note.
+ * Full-text-ish search over visible post content (newest first), same
+ * page-index cursor as `fetchFeedPage` (product decision, reversing the
+ * earlier single-page scope cut).
  */
 export async function searchPosts(
   cfg: ResolvedCommunityConfig,
   query: string,
+  opts: { cursor?: number } = {},
 ): Promise<FeedPost[]> {
   const cleaned = query.trim();
   if (cleaned.length === 0) return [];
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
+  const page = opts.cursor ?? 0;
   const { data, error } = await client
     .from("posts")
     .select(FEED_SELECT)
@@ -260,7 +265,7 @@ export async function searchPosts(
     .eq("status", "visible")
     .ilike("content", `%${cleaned}%`)
     .order("created_at", { ascending: false })
-    .range(0, FEED_PAGE_SIZE - 1);
+    .range(page * FEED_PAGE_SIZE, page * FEED_PAGE_SIZE + FEED_PAGE_SIZE - 1);
   if (error) throw error;
   return toFeedPosts(cfg, client, (data ?? []) as unknown as PostRow[], uid);
 }

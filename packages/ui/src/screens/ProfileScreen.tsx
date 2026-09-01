@@ -29,9 +29,12 @@
 //    submitted from its own thread sheet, which no longer exists here);
 //    report/block outcomes surface through `ReportSheet`'s own `Alert`s, same
 //    as `CommunityFeedScreen`.
-//  - `useUserPosts` is a single flat query (Task 5 ruling: no pagination for
-//    a profile's posts), so there is no "load more" footer here, unlike the
-//    mold.
+//  - `useUserPosts` is an infinite query, paginated like the feed (product
+//    decision, reversing the earlier single-page scope cut): this screen
+//    keeps its `ScrollView` (the header/avatar/bio content above the post
+//    list has no natural `FlatList` home) and mirrors `CommunityFeedScreen`'s
+//    guarded `loadMore` with a "Load more" footer button instead of
+//    switching to `FlatList`.
 //  - `ProfileEditSheet` no longer takes a `profile` prop (Task 13 signature:
 //    `{ visible, onClose }` — it resolves its own identity/profile), so it's
 //    mounted here without one.
@@ -116,7 +119,12 @@ export function ProfileScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUid, isMe]);
 
-  const posts = userPosts.data ?? [];
+  const posts = userPosts.data?.pages.flat() ?? [];
+  const hasNextPage = !!userPosts.hasNextPage;
+  const isFetchingNextPage = userPosts.isFetchingNextPage;
+  const loadMore = () => {
+    if (userPosts.hasNextPage && !userPosts.isFetchingNextPage) userPosts.fetchNextPage();
+  };
 
   const openPostMenu = (post: FeedPost) => {
     Haptics.selectionAsync().catch(() => {});
@@ -280,6 +288,15 @@ export function ProfileScreen({
                   />
                 ))
               )}
+              {hasNextPage && (
+                <Pressable onPress={loadMore} style={styles.loadMore}>
+                  {isFetchingNextPage ? (
+                    <ActivityIndicator size="small" color={theme.colors.accent} />
+                  ) : (
+                    <Text style={styles.loadMoreText}>{t("feed.loadMore")}</Text>
+                  )}
+                </Pressable>
+              )}
             </View>
           </>
         )}
@@ -369,6 +386,19 @@ function makeStyles(theme: CommunityTheme) {
       marginBottom: theme.spacing(3),
     },
     feed: { marginBottom: theme.spacing(2) },
+    loadMore: {
+      alignSelf: "center",
+      backgroundColor: theme.colors.surfaceMuted,
+      borderRadius: theme.radius.pill,
+      paddingVertical: theme.spacing(2.5),
+      paddingHorizontal: theme.spacing(5),
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      marginTop: theme.spacing(1),
+      minWidth: 96,
+      alignItems: "center",
+    },
+    loadMoreText: { fontFamily: theme.fonts.medium, fontSize: 13, color: theme.colors.textMuted },
     stateText: {
       fontFamily: theme.fonts.regular,
       fontSize: 13.5,

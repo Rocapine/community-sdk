@@ -145,16 +145,21 @@ export function CommunityFeedScreen({
   const categoryFeed = useCommunityFeed(topicFilter, !searchActive);
   const searchFeed = useSearchPosts(searchActive ? searchTerm : "");
 
-  // `useCommunityFeed` is an infinite query (`.data.pages`); `useSearchPosts`
-  // is a single flat query (`.data`) — Task 5 ruling, search is unpaginated
-  // at the service layer. Branch on every derived field instead of forcing
-  // both into one variable of a shared (and untrue) shape. Memoized (both
-  // source apps did too — `useMemo(() => feed.data?.pages.flat() ?? [], [feed.data])`):
-  // without it, `posts` is a brand-new array identity on every render (e.g.
-  // every 5s new-post poll tick), which would defeat `FlatList`'s own
-  // `data`-identity diffing and the `renderItem`/`CommunityPost` memoization below.
+  // `useCommunityFeed` and `useSearchPosts` are both infinite queries
+  // (`.data.pages`) — the search branch used to be a single flat query, but
+  // pagination for user posts and search was added back (product decision,
+  // reversing the earlier scope cut), so every derived field below can now
+  // branch on `searchActive` between two values of the same shape instead of
+  // two different shapes. Memoized (both source apps did too —
+  // `useMemo(() => feed.data?.pages.flat() ?? [], [feed.data])`): without it,
+  // `posts` is a brand-new array identity on every render (e.g. every 5s
+  // new-post poll tick), which would defeat `FlatList`'s own `data`-identity
+  // diffing and the `renderItem`/`CommunityPost` memoization below.
   const posts: FeedPost[] = useMemo(
-    () => (searchActive ? (searchFeed.data ?? []) : (categoryFeed.data?.pages.flat() ?? [])),
+    () =>
+      searchActive
+        ? (searchFeed.data?.pages.flat() ?? [])
+        : (categoryFeed.data?.pages.flat() ?? []),
     [searchActive, searchFeed.data, categoryFeed.data],
   );
   // `isPending` alone (TanStack Query v5: `status === "pending"`) stays true
@@ -170,15 +175,16 @@ export function CommunityFeedScreen({
   const isPending = searchActive ? isQueryLoading(searchFeed) : isQueryLoading(categoryFeed);
   const isError = searchActive ? searchFeed.isError : categoryFeed.isError;
   const isRefetching = searchActive ? searchFeed.isRefetching : categoryFeed.isRefetching;
-  const hasNextPage = !searchActive && !!categoryFeed.hasNextPage;
-  const isFetchingNextPage = !searchActive && categoryFeed.isFetchingNextPage;
+  const activeFeed = searchActive ? searchFeed : categoryFeed;
+  const hasNextPage = !!activeFeed.hasNextPage;
+  const isFetchingNextPage = activeFeed.isFetchingNextPage;
   const refetch = () => {
     if (searchActive) searchFeed.refetch();
     else categoryFeed.refetch();
   };
   const loadMore = () => {
-    if (!searchActive && categoryFeed.hasNextPage && !categoryFeed.isFetchingNextPage) {
-      categoryFeed.fetchNextPage();
+    if (activeFeed.hasNextPage && !activeFeed.isFetchingNextPage) {
+      activeFeed.fetchNextPage();
     }
   };
 
