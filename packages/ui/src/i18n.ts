@@ -5,6 +5,8 @@
 import { en } from "./locales/en";
 import { esES } from "./locales/es-ES";
 import { es419 } from "./locales/es-419";
+import { fr } from "./locales/fr";
+import { de } from "./locales/de";
 import { it } from "./locales/it";
 import { pl } from "./locales/pl";
 import { ptPT } from "./locales/pt-PT";
@@ -18,6 +20,8 @@ const catalog: Record<string, LocaleCatalog> = {
   en,
   "es-ES": esES,
   "es-419": es419,
+  fr,
+  de,
   it,
   pl,
   "pt-PT": ptPT,
@@ -30,8 +34,10 @@ const catalog: Record<string, LocaleCatalog> = {
  * both ship two regional catalogs (`es-ES`/`es-419`, `pt-PT`/`pt-BR`), so an
  * unlisted variant (`es-MX`, `pt-AO`, or the bare `es`/`pt`) needs a pick:
  * `es-ES` and `pt-PT` win. Every other language has exactly one catalog,
- * keyed by its bare language code (`it`, `pl`) — those resolve to themselves
- * with no entry needed here (see `baseLocaleFor`).
+ * keyed by its bare language code (`fr`, `de`, `it`, `pl`) — those resolve
+ * to themselves with no entry needed here (see `baseLocaleFor`): `fr-CA`,
+ * `de-AT`, `it-CH`, etc. all fall back to their bare-language catalog by
+ * the same default this map has no override for.
  */
 const BASE_LOCALE: Record<string, string> = {
   es: "es-ES",

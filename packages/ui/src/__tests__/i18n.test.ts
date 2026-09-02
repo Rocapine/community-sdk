@@ -3,6 +3,8 @@ import { makeT } from "../i18n";
 import { en } from "../locales/en";
 import { esES } from "../locales/es-ES";
 import { es419 } from "../locales/es-419";
+import { fr } from "../locales/fr";
+import { de } from "../locales/de";
 import { it as itLocale } from "../locales/it";
 import { pl } from "../locales/pl";
 import { ptPT } from "../locales/pt-PT";
@@ -20,8 +22,18 @@ describe("makeT", () => {
   });
 
   it("falls back to en for an unknown locale", () => {
-    const t = makeT("fr");
+    const t = makeT("ja");
     expect(t("rules.accept")).toBe("I agree, take me in");
+  });
+
+  it("resolves the fr catalog", () => {
+    const t = makeT("fr");
+    expect(t("rules.accept")).toBe(fr["rules.accept"]);
+  });
+
+  it("resolves the de catalog", () => {
+    const t = makeT("de");
+    expect(t("rules.accept")).toBe(de["rules.accept"]);
   });
 
   it("returns the key itself when missing everywhere", () => {
@@ -61,8 +73,18 @@ describe("makeT", () => {
     expect(t("rules.accept")).toBe(itLocale["rules.accept"]);
   });
 
-  it("falls back to en for a locale whose base language has no catalog", () => {
+  it("resolves fr-CA to the fr bare catalog", () => {
     const t = makeT("fr-CA");
+    expect(t("rules.accept")).toBe(fr["rules.accept"]);
+  });
+
+  it("resolves de-AT to the de bare catalog", () => {
+    const t = makeT("de-AT");
+    expect(t("rules.accept")).toBe(de["rules.accept"]);
+  });
+
+  it("falls back to en for a locale whose base language has no catalog", () => {
+    const t = makeT("ja-JP");
     expect(t("rules.accept")).toBe(en["rules.accept"]);
   });
 });
@@ -72,6 +94,8 @@ describe("locale catalogs", () => {
     en,
     "es-ES": esES,
     "es-419": es419,
+    fr,
+    de,
     it: itLocale,
     pl,
     "pt-PT": ptPT,

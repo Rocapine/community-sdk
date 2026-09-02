@@ -94,9 +94,10 @@ system fonts) — no app branding. `like`/`official`/`pinned` default to
 
 ## i18n
 
-Framework-free, no i18next. 7 built-in locales ship as plain objects:
-`en`, `es-ES`, `es-419`, `it`, `pl`, `pt-PT`, `pt-BR` (all exported by name,
-e.g. `import { en, esES, es419, it, pl, ptPT, ptBR } from "@rocapine/community-ui"`).
+Framework-free, no i18next. 9 built-in locales ship as plain objects:
+`en`, `es-ES`, `es-419`, `fr`, `de`, `it`, `pl`, `pt-PT`, `pt-BR` (all
+exported by name, e.g.
+`import { en, esES, es419, fr, de, it, pl, ptPT, ptBR } from "@rocapine/community-ui"`).
 
 ```tsx
 <CommunityUIProvider translations={{ locale: "pt-BR", overrides: { "rules.accept": "..." } }}>

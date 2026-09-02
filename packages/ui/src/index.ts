@@ -7,6 +7,8 @@ export { makeT } from "./i18n";
 export { en } from "./locales/en";
 export { esES } from "./locales/es-ES";
 export { es419 } from "./locales/es-419";
+export { fr } from "./locales/fr";
+export { de } from "./locales/de";
 export { it } from "./locales/it";
 export { pl } from "./locales/pl";
 export { ptPT } from "./locales/pt-PT";
