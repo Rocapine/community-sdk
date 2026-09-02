@@ -12,3 +12,4 @@ coverage/
 .env.local
 .expo/
 examples/*/.env
+supabase/.temp/
