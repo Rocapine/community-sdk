@@ -21,6 +21,11 @@ if (!existsSync(source)) {
 
 rmSync(dest, { recursive: true, force: true });
 mkdirSync(dest, { recursive: true });
-cpSync(source, dest, { recursive: true });
+// Skip dotted entries: `supabase link` drops a local .temp/ cache (and
+// .branches/ etc.) inside supabase/ that must never ship in the tarball.
+cpSync(source, dest, {
+  recursive: true,
+  filter: (src) => !path.basename(src).startsWith("."),
+});
 
 console.log(`copy-templates: copied ${source} -> ${dest}`);
