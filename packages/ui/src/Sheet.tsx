@@ -17,7 +17,15 @@
 // All styling comes from `useCommunityTheme()` — no color/font literals.
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import Animated, {
   Easing,
   runOnJS,
@@ -88,18 +96,32 @@ export function CommunitySheet({
         <Animated.View style={[styles.backdrop, backdropAnimatedStyle]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
-        <Animated.View
-          style={[
-            styles.sheet,
-            { maxHeight: screenH * SNAP_RATIO[snapTo], paddingBottom: BOTTOM_PAD },
-            sheetAnimatedStyle,
-          ]}
+        {/* KAV wraps the animated sheet panel (not the backdrop) so its
+            keyboard-height padding pushes the whole panel up, above the
+            keyboard, while staying bottom-anchored via the root's own
+            `justifyContent: "flex-end"`. It sits OUTSIDE the `Animated.View`
+            on purpose: `transform` (the slide-up/down animation) is a
+            paint-time effect that doesn't participate in flex layout, so
+            KAV's layout-time padding and reanimated's `translateY` compose
+            without fighting — each one only ever moves the panel along an
+            axis the other doesn't touch. */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.kav}
         >
-          <View style={styles.handleZone}>
-            <View style={styles.handle} />
-          </View>
-          {children}
-        </Animated.View>
+          <Animated.View
+            style={[
+              styles.sheet,
+              { maxHeight: screenH * SNAP_RATIO[snapTo], paddingBottom: BOTTOM_PAD },
+              sheetAnimatedStyle,
+            ]}
+          >
+            <View style={styles.handleZone}>
+              <View style={styles.handle} />
+            </View>
+            {children}
+          </Animated.View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -108,6 +130,7 @@ export function CommunitySheet({
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     root: { flex: 1, justifyContent: "flex-end" },
+    kav: { width: "100%" },
     backdrop: {
       ...StyleSheet.absoluteFillObject,
       backgroundColor: "rgba(8,6,3,0.45)",

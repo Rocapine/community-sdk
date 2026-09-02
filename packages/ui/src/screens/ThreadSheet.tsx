@@ -54,10 +54,10 @@ import {
   type FeedPost,
   type ThreadComment,
 } from "@rocapine/community-core";
-import { useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CommunitySheet } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
@@ -66,6 +66,7 @@ import { CommunityPost, type PostSlots } from "../components/CommunityPost";
 import { NoticeCard } from "../components/NoticeCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { isQueryLoading } from "../utils/query";
+import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
 import { formatTimeAgo } from "../utils/time";
 
 const COMMENT_CLAMP_LINES = 5;
@@ -73,52 +74,31 @@ const HANDOFF_DELAY_MS = 320;
 
 const noop = () => {};
 
-/** Finds a `FeedPost` by id across every cache that can hold one — the topic
- * feeds, user-posts and search results, all paginated `InfiniteData` —
- * mirroring the set of caches `useReactToPost`/`useVotePoll` sweep in
- * `core/hooks.ts`. Subscribes to the query cache so the result stays live as
- * those mutations' optimistic updates land (like/react/vote), at the cost of
- * re-rendering on any community cache change while a thread is open — an
- * accepted trade-off for a bottom sheet, not a hot path. */
-function findCachedPost(queryClient: QueryClient, postId: string): FeedPost | null {
-  const entries = [
-    ...queryClient.getQueriesData<InfiniteData<FeedPost[]>>({ queryKey: ["community", "feed"] }),
-    ...queryClient.getQueriesData<InfiniteData<FeedPost[]>>({
-      queryKey: ["community", "userPosts"],
-    }),
-    ...queryClient.getQueriesData<InfiniteData<FeedPost[]>>({ queryKey: ["community", "search"] }),
-  ];
-  for (const [, data] of entries) {
-    if (!data) continue;
-    for (const page of data.pages) {
-      const found = page.find((p) => p.id === postId);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-/** Re-renders the caller whenever a `["community", ...]` query changes.
- * Gated on `postId !== null`: `ThreadSheet` is mounted by its host for its
- * entire lifetime (postId flips between a value and `null`, the component
- * itself never unmounts), so an unconditional subscription here would listen
- * to the whole shared `QueryClient` — every query any other feature in the
- * host app runs — for as long as the sheet has never been opened. Once a
- * thread has been opened, `shownId` (the caller's `postId` argument) never
- * goes back to `null` (see the "keep last known id" note above), so the
- * subscription then lives for the rest of the sheet's mount — same as
- * before, just no longer paying for it before the first open. */
+/** Re-renders the caller only when the cached `FeedPost` it reads actually
+ * changes (by reference — `useSyncExternalStore` bails out on an `Object.is`
+ * match between snapshots), instead of on every relevant cache event.
+ *
+ * This replaces a real bug: the previous version subscribed to every
+ * `["community", ...]` cache event unconditionally via a plain
+ * `queryClient.getQueryCache().subscribe(() => forceUpdate(...))` effect,
+ * which included this very screen's own `useThread(postId)` query below.
+ * Opening a thread makes `useThread` transition loading→success (and its
+ * comments query keeps emitting cache events for its own internal
+ * bookkeeping), each of which called an unconditional `forceUpdate`,
+ * re-rendering `ThreadSheet`, which re-invokes `useThread`, which emits more
+ * cache events — a `queryCache` event ⇄ render loop bounded only by React's
+ * "Maximum update depth exceeded" safety net (confirmed 22 iterations in one
+ * thread open via a simulator QA session's log registry). `findCachedPost`
+ * and `subscribeToPostListCaches` (which skips exactly those `thread` events,
+ * on top of `useSyncExternalStore`'s own reference-equality bailout) live in
+ * `../utils/postCache` — pulled out of this file so they're unit-testable
+ * without mocking React Native/expo. */
 function useCachedPost(postId: string | null): FeedPost | null {
   const queryClient = useQueryClient();
-  const [, forceUpdate] = useState(0);
-  useEffect(() => {
-    if (!postId) return;
-    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-      if (event.query.queryKey[0] === "community") forceUpdate((n) => n + 1);
-    });
-    return unsubscribe;
-  }, [queryClient, postId]);
-  return postId ? findCachedPost(queryClient, postId) : null;
+  return useSyncExternalStore(
+    (onStoreChange) => subscribeToPostListCaches(queryClient, postId, onStoreChange),
+    () => (postId ? findCachedPost(queryClient, postId) : null),
+  );
 }
 
 export function ThreadSheet({
