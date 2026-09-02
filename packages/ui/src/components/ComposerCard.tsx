@@ -44,10 +44,9 @@ import {
   useCreatePost,
 } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
-import { ChartBarHorizontal, Plus, X } from "phosphor-react-native";
 import { useEffect, useState, type ReactNode } from "react";
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { RulesSheet } from "./RulesSheet";
 
@@ -64,6 +63,7 @@ export function ComposerCard({
 }) {
   const theme = useCommunityTheme();
   const t = useT();
+  const icons = useCommunityIcons();
   const cfg = useCommunityConfig();
   const styles = useThemedStyles(makeStyles);
   const createPost = useCreatePost();
@@ -195,7 +195,7 @@ export function ComposerCard({
                     setPollDraft((prev) => (prev ? prev.filter((_, j) => j !== i) : prev))
                   }
                 >
-                  <X size={16} color={theme.colors.textFaint} weight="bold" />
+                  <icons.close size={16} color={theme.colors.textFaint} weight="bold" />
                 </Pressable>
               )}
             </View>
@@ -205,7 +205,7 @@ export function ComposerCard({
               onPress={() => setPollDraft((prev) => (prev ? [...prev, ""] : prev))}
               style={styles.pollAdd}
             >
-              <Plus size={14} color={theme.colors.accent} weight="bold" />
+              <icons.add size={14} color={theme.colors.accent} weight="bold" />
               <Text style={styles.pollAddText}>{t("composer.addOption")}</Text>
             </Pressable>
           )}
@@ -215,7 +215,7 @@ export function ComposerCard({
       <View style={styles.footer}>
         {cfg.modules.polls && (
           <Pressable onPress={togglePoll} hitSlop={6} style={styles.pollToggle}>
-            <ChartBarHorizontal size={18} color={theme.colors.accent} weight="regular" />
+            <icons.poll size={18} color={theme.colors.accent} weight="regular" />
             <Text style={styles.pollToggleText}>
               {pollDraft !== null ? t("composer.removePoll") : t("composer.poll")}
             </Text>

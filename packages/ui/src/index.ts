@@ -18,7 +18,16 @@ export { ptBR } from "./locales/pt-BR";
 // direct dependency on @rocapine/community-core just for this one type.
 export type { InboxItem } from "@rocapine/community-core";
 
-export { CommunityUIProvider, useCommunityTheme, useT, useThemedStyles } from "./ThemeProvider";
+export {
+  CommunityUIProvider,
+  useCommunityTheme,
+  useT,
+  useThemedStyles,
+  useCommunityIcons,
+} from "./ThemeProvider";
+
+export type { CommunityIconName, CommunityIconProps, CommunityIconSet } from "./icons";
+export { defaultIcons, mergeIcons } from "./icons-default";
 
 export { CommunitySheet } from "./Sheet";
 

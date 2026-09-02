@@ -32,6 +32,11 @@
     "expo-image-picker": ">=16.0.0",
     "phosphor-react-native": ">=2.0.0"
   },
+  "peerDependenciesMeta": {
+    "phosphor-react-native": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "react": "19.0.0",
     "@supabase/supabase-js": "^2.45.0",

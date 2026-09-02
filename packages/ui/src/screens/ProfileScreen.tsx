@@ -55,7 +55,6 @@ import {
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
-import { CaretLeft, DotsThree, SealCheck } from "phosphor-react-native";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -67,7 +66,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots } from "../components/CommunityPost";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
@@ -91,6 +90,7 @@ export function ProfileScreen({
 }) {
   const theme = useCommunityTheme();
   const t = useT();
+  const icons = useCommunityIcons();
   const cfg = useCommunityConfig();
   const styles = useThemedStyles(makeStyles);
 
@@ -210,7 +210,7 @@ export function ProfileScreen({
         <View style={styles.topRow}>
           {onBack ? (
             <Pressable hitSlop={10} onPress={onBack} style={styles.backBtn}>
-              <CaretLeft size={22} color={theme.colors.textPrimary} weight="bold" />
+              <icons.back size={22} color={theme.colors.textPrimary} weight="bold" />
             </Pressable>
           ) : (
             <View style={styles.topRowSpacer} />
@@ -218,7 +218,7 @@ export function ProfileScreen({
           <View style={styles.topRowSpacer} />
           {myUid != null && !isMe && (
             <Pressable hitSlop={10} onPress={openHeaderMenu} style={styles.dotsBtn}>
-              <DotsThree size={22} color={theme.colors.textPrimary} weight="bold" />
+              <icons.menu size={22} color={theme.colors.textPrimary} weight="bold" />
             </Pressable>
           )}
         </View>
@@ -246,7 +246,7 @@ export function ProfileScreen({
               <View style={styles.nameRow}>
                 <Text style={styles.name}>{profile.data.name}</Text>
                 {profile.data.official && (
-                  <SealCheck size={17} color={theme.colors.official} weight="fill" />
+                  <icons.officialSeal size={17} color={theme.colors.official} weight="fill" />
                 )}
               </View>
               {profile.data.handle != null && (

@@ -20,11 +20,10 @@
 // rejection caller to reach for `translations.overrides` just to get the
 // mold's existing comment copy.
 
-import { ShieldWarning } from "phosphor-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 
 export function NoticeCard({
@@ -38,6 +37,7 @@ export function NoticeCard({
 }) {
   const theme = useCommunityTheme();
   const t = useT();
+  const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
 
   const title = kind === "network" ? t("notice.errorTitle") : t("notice.rejectedTitle");
@@ -58,7 +58,7 @@ export function NoticeCard({
       <Pressable style={StyleSheet.absoluteFill} onPress={handleDismiss} />
       <Animated.View entering={FadeInDown.duration(220)} style={styles.card}>
         <View style={styles.icon}>
-          <ShieldWarning size={26} color={theme.colors.accent} weight="fill" />
+          <icons.warning size={26} color={theme.colors.accent} weight="fill" />
         </View>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.body}>{body}</Text>

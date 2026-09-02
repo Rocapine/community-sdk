@@ -57,11 +57,10 @@ import {
 import { useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
-import { DotsThree, PaperPlaneRight, SealCheck } from "phosphor-react-native";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CommunitySheet } from "../Sheet";
-import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots } from "../components/CommunityPost";
 import { NoticeCard } from "../components/NoticeCard";
@@ -135,6 +134,7 @@ export function ThreadSheet({
 }) {
   const theme = useCommunityTheme();
   const t = useT();
+  const icons = useCommunityIcons();
   const cfg = useCommunityConfig();
   const styles = useThemedStyles(makeStyles);
   const queryClient = useQueryClient();
@@ -337,7 +337,7 @@ export function ThreadSheet({
             maxLength={COMMENT_MAX_LENGTH}
           />
           <Pressable hitSlop={8} onPress={send} style={styles.send}>
-            <PaperPlaneRight
+            <icons.send
               size={20}
               color={text.trim() ? theme.colors.accent : theme.colors.textFaint}
               weight="fill"
@@ -372,6 +372,7 @@ function CommentRow({
 }) {
   const theme = useCommunityTheme();
   const t = useT();
+  const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
 
   const [fullLines, setFullLines] = useState<number | null>(null);
@@ -399,7 +400,7 @@ function CommentRow({
         <Pressable onPress={handleAuthor} hitSlop={4} style={styles.nameRow}>
           <Text style={styles.cName}>{comment.authorName}</Text>
           {comment.authorOfficial && (
-            <SealCheck size={13} color={theme.colors.official} weight="fill" />
+            <icons.officialSeal size={13} color={theme.colors.official} weight="fill" />
           )}
           {comment.authorHandle != null && (
             <Text style={styles.handle} numberOfLines={1}>
@@ -426,7 +427,7 @@ function CommentRow({
         )}
       </View>
       <Pressable hitSlop={8} onPress={() => onMenu(comment)} style={styles.cMenu}>
-        <DotsThree size={18} color={theme.colors.textFaint} weight="bold" />
+        <icons.menu size={18} color={theme.colors.textFaint} weight="bold" />
       </Pressable>
     </View>
   );

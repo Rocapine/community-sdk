@@ -14,8 +14,11 @@ npm install @rocapine/community-ui
 Peer dependencies (beyond `@rocapine/community-core`'s own):
 `react-native >=0.74.0`, `react-native-reanimated >=3.16.0`,
 `expo-image >=1.10.0`, `expo-haptics >=13.0.0`,
-`expo-image-picker >=15.0.0`, `phosphor-react-native >=2.0.0`. Icons are not
-injectable in v1 — `phosphor-react-native` is a hard dependency.
+`expo-image-picker >=15.0.0`, `phosphor-react-native >=2.0.0`.
+`phosphor-react-native` is an **optional** peer (`peerDependenciesMeta`) —
+skip it if you pass a complete `icons` set to `CommunityUIProvider` (see
+Icons below); the default icon set only requires it once a default icon
+actually renders.
 
 ## Provider
 
@@ -128,6 +131,42 @@ substituted). If you set this secret, pick wording that reads acceptably in
 translation, or don't set it and rely on the neutral built-in copy. The
 "and N others" multi-reactor phrasing always comes from the built-in
 per-locale table regardless — there is no secret for it.
+
+## Icons
+
+Not every app uses [phosphor-react-native](https://github.com/duongdev/phosphor-react-native),
+so the icon set is injectable — `phosphor-react-native` is an optional peer
+(see above), not a hard dependency. Every icon this package renders is
+looked up by a semantic role name (`CommunityIconName`: `like`, `comment`,
+`reaction`, `menu`, `back`, `close`, `send`, `bell`, `search`,
+`officialSeal`, `pin`, `announcement`, `checkmark`, `poll`, `add`,
+`warning`), never by a phosphor glyph name.
+
+```tsx
+import { CommunityUIProvider, type CommunityIconSet } from "@rocapine/community-ui";
+import { Feather } from "@expo/vector-icons";
+
+// Bring your own icon library — map each role to a component that accepts
+// { size?, color?, weight?: "regular" | "fill" | "bold" }.
+const icons: Partial<CommunityIconSet> = {
+  like: ({ size, color }) => <Feather name="heart" size={size} color={color} />,
+  comment: ({ size, color }) => <Feather name="message-circle" size={size} color={color} />,
+  menu: ({ size, color }) => <Feather name="more-horizontal" size={size} color={color} />,
+  // ...the rest fall back to the built-in phosphor-backed defaults
+};
+
+<CommunityUIProvider icons={icons}>{/* your screens */}</CommunityUIProvider>;
+```
+
+Unset names fall back to `defaultIcons` (exported, phosphor-backed). Supply
+every `CommunityIconName` and you never need `phosphor-react-native`
+installed at all — the default set only `require`s it lazily, inside a
+default icon's own render, so it throws a clear error (naming the fix:
+install phosphor-react-native, or pass a complete `icons` set to
+`CommunityUIProvider`) only if a default icon actually renders without it.
+Read the merged set yourself with `useCommunityIcons()` (e.g. to build your
+own slot content) — it returns the full `CommunityIconSet` (defaults merged
+with your `icons` override), not just what you passed.
 
 ## Slots
 

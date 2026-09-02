@@ -81,7 +81,6 @@ import {
   type FeedPost,
 } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
-import { Bell, MagnifyingGlass, X } from "phosphor-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
@@ -96,7 +95,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots } from "../components/CommunityPost";
 import { ComposerCard } from "../components/ComposerCard";
@@ -118,6 +117,7 @@ export function CommunityFeedScreen({
 }) {
   const theme = useCommunityTheme();
   const t = useT();
+  const icons = useCommunityIcons();
   const cfg = useCommunityConfig();
   const styles = useThemedStyles(makeStyles);
 
@@ -298,21 +298,21 @@ export function CommunityFeedScreen({
           <View style={styles.controlsSpacer} />
           {cfg.modules.inbox && onOpenInbox && (
             <Pressable hitSlop={10} onPress={onOpenInbox} style={styles.iconButton}>
-              <Bell size={20} color={theme.colors.textPrimary} weight="regular" />
+              <icons.bell size={20} color={theme.colors.textPrimary} weight="regular" />
             </Pressable>
           )}
           <Pressable hitSlop={10} onPress={toggleSearch} style={styles.iconButton}>
             {searchOpen ? (
-              <X size={20} color={theme.colors.textPrimary} weight="bold" />
+              <icons.close size={20} color={theme.colors.textPrimary} weight="bold" />
             ) : (
-              <MagnifyingGlass size={20} color={theme.colors.textPrimary} weight="regular" />
+              <icons.search size={20} color={theme.colors.textPrimary} weight="regular" />
             )}
           </Pressable>
         </View>
 
         {searchOpen ? (
           <View style={styles.searchBar}>
-            <MagnifyingGlass size={16} color={theme.colors.textFaint} weight="regular" />
+            <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
             <TextInput
               value={searchTerm}
               onChangeText={setSearchTerm}

@@ -27,10 +27,9 @@ import {
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
-import { ChatCircle, DotsThree, HandHeart, Heart, PushPin, SealCheck } from "phosphor-react-native";
 import { useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { formatTimeAgo } from "../utils/time";
 import { PollBlock } from "./PollBlock";
@@ -62,6 +61,7 @@ export function CommunityPost({
 } & PostSlots) {
   const theme = useCommunityTheme();
   const t = useT();
+  const icons = useCommunityIcons();
   const cfg = useCommunityConfig();
   const styles = useThemedStyles(makeStyles);
 
@@ -117,7 +117,7 @@ export function CommunityPost({
         <View style={styles.nameRow}>
           <Text style={styles.name}>{post.authorName}</Text>
           {post.authorOfficial && (
-            <SealCheck size={15} color={theme.colors.official} weight="fill" />
+            <icons.officialSeal size={15} color={theme.colors.official} weight="fill" />
           )}
           {post.authorHandle != null && (
             <Text style={styles.handle} numberOfLines={1}>
@@ -128,7 +128,7 @@ export function CommunityPost({
         <View style={styles.metaRow}>
           {post.pinnedAt != null && (
             <>
-              <PushPin size={11} color={theme.colors.pinned} weight="fill" />
+              <icons.pin size={11} color={theme.colors.pinned} weight="fill" />
               <Text style={styles.pinnedText}>{t("post.pinned")}</Text>
               <Text style={styles.meta}>·</Text>
             </>
@@ -144,7 +144,7 @@ export function CommunityPost({
 
   const likeButton = (
     <Pressable hitSlop={8} onPress={handleToggleLike} style={styles.stat}>
-      <Heart
+      <icons.like
         size={18}
         color={post.likedByMe ? theme.colors.like : theme.colors.textFaint}
         weight={post.likedByMe ? "fill" : "regular"}
@@ -155,7 +155,7 @@ export function CommunityPost({
 
   const defaultReactionButton = (
     <Pressable hitSlop={8} onPress={handleReact} disabled={post.hasReacted} style={styles.stat}>
-      <HandHeart
+      <icons.reaction
         size={18}
         color={post.hasReacted ? theme.colors.accent : theme.colors.textFaint}
         weight={post.hasReacted ? "fill" : "regular"}
@@ -171,14 +171,14 @@ export function CommunityPost({
 
   const commentButton = (
     <Pressable hitSlop={8} onPress={handleOpenThread} style={styles.stat}>
-      <ChatCircle size={18} color={theme.colors.textFaint} weight="regular" />
+      <icons.comment size={18} color={theme.colors.textFaint} weight="regular" />
       <Text style={styles.statText}>{post.commentCount}</Text>
     </Pressable>
   );
 
   const menuButton = (
     <Pressable hitSlop={8} onPress={handleMenu} style={[styles.stat, styles.menuButton]}>
-      <DotsThree size={20} color={theme.colors.textFaint} weight="bold" />
+      <icons.menu size={20} color={theme.colors.textFaint} weight="bold" />
     </Pressable>
   );
 

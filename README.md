@@ -9,11 +9,11 @@ notifications, and blocks/reports.
 
 It ships as three npm packages plus a versioned Supabase backend:
 
-| Package                                                                          | What it is                                                                                               | Peer deps                                                                                                                             |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@rocapine/community-core`](packages/core/README.md)                            | Headless: config, models, Supabase queries, React Query hooks, anonymous identity, analytics event names | `react`, `@supabase/supabase-js`, `@tanstack/react-query`                                                                             |
-| [`@rocapine/community-ui`](packages/ui/README.md)                                | Themable screens and components (feed, thread, profile, inbox)                                           | the above, plus `react-native`, `react-native-reanimated`, `expo-image`, `expo-haptics`, `expo-image-picker`, `phosphor-react-native` |
-| [`@rocapine/community`](packages/cli/README.md) (CLI, `npx @rocapine/community`) | Installs/upgrades the Supabase backend: migrations + Edge Functions                                      | none (Node CLI)                                                                                                                       |
+| Package                                                                          | What it is                                                                                               | Peer deps                                                                                                                                                    |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`@rocapine/community-core`](packages/core/README.md)                            | Headless: config, models, Supabase queries, React Query hooks, anonymous identity, analytics event names | `react`, `@supabase/supabase-js`, `@tanstack/react-query`                                                                                                    |
+| [`@rocapine/community-ui`](packages/ui/README.md)                                | Themable screens and components (feed, thread, profile, inbox)                                           | the above, plus `react-native`, `react-native-reanimated`, `expo-image`, `expo-haptics`, `expo-image-picker`, `phosphor-react-native` (optional — see below) |
+| [`@rocapine/community`](packages/cli/README.md) (CLI, `npx @rocapine/community`) | Installs/upgrades the Supabase backend: migrations + Edge Functions                                      | none (Node CLI)                                                                                                                                              |
 
 Why two runtime packages instead of one: a host that only wants the data
 layer (a custom UI, a web admin, a bot) should not have to pull in
@@ -111,8 +111,23 @@ empty state, one console warning is logged the first time a query needs the
 client, and nothing crashes — useful for `expo start` with no `.env` yet.
 
 Full config reference (host adapters, degraded mode, event names):
-[`packages/core/README.md`](packages/core/README.md). Theming and i18n
-overrides: [`packages/ui/README.md`](packages/ui/README.md).
+[`packages/core/README.md`](packages/core/README.md). Theming, i18n and
+icon overrides: [`packages/ui/README.md`](packages/ui/README.md).
+
+**Bring your own icons:** not every app uses `phosphor-react-native` (an
+optional peer of `@rocapine/community-ui`, not a hard dependency). Pass a
+partial `icons` map to `CommunityUIProvider` to override any of the
+package's semantic icon roles with another library, e.g.:
+
+```tsx
+import { Feather } from "@expo/vector-icons";
+
+<CommunityUIProvider
+  icons={{ like: ({ size, color }) => <Feather name="heart" size={size} color={color} /> }}
+>
+  {/* unset roles fall back to the built-in phosphor-backed defaults */}
+</CommunityUIProvider>;
+```
 
 ## Module matrix
 

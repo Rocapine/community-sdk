@@ -53,11 +53,10 @@ import {
   type InboxItem,
 } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
-import { ChatCircle, HandHeart, Heart, Megaphone } from "phosphor-react-native";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { TFn } from "../i18n";
-import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { isQueryLoading } from "../utils/query";
 import { formatTimeAgo } from "../utils/time";
@@ -137,16 +136,17 @@ export function NotificationInboxScreen({
 
 function KindIcon({ kind }: { kind: InboxItem["kind"] }) {
   const theme = useCommunityTheme();
+  const icons = useCommunityIcons();
   const color = theme.colors.accent;
   switch (kind) {
     case "like":
-      return <Heart size={19} color={color} weight="fill" />;
+      return <icons.like size={19} color={color} weight="fill" />;
     case "comment":
-      return <ChatCircle size={19} color={color} weight="fill" />;
+      return <icons.comment size={19} color={color} weight="fill" />;
     case "reaction":
-      return <HandHeart size={19} color={color} weight="fill" />;
+      return <icons.reaction size={19} color={color} weight="fill" />;
     case "official_post":
-      return <Megaphone size={19} color={color} weight="fill" />;
+      return <icons.announcement size={19} color={color} weight="fill" />;
     default:
       return null;
   }

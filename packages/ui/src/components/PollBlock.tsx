@@ -13,14 +13,14 @@
 // verdict resolves and the feed refetches.
 
 import { pollPercent, useVotePoll, type FeedPost } from "@rocapine/community-core";
-import { CheckCircle } from "phosphor-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 
 export function PollBlock({ post }: { post: FeedPost }) {
   const theme = useCommunityTheme();
   const t = useT();
+  const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
   const votePoll = useVotePoll();
 
@@ -56,7 +56,7 @@ export function PollBlock({ post }: { post: FeedPost }) {
               <Text style={[styles.label, mine && styles.labelMine]} numberOfLines={2}>
                 {option.label}
               </Text>
-              {mine && <CheckCircle size={16} color={theme.colors.accent} weight="fill" />}
+              {mine && <icons.checkmark size={16} color={theme.colors.accent} weight="fill" />}
               {showResults && <Text style={[styles.pct, mine && styles.labelMine]}>{pct}%</Text>}
             </View>
           </Pressable>
