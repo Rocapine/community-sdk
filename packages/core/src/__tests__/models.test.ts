@@ -174,6 +174,51 @@ it("mapPostRow reads reaction count, hasReacted and lastReactorName from batched
   expect(untouched.lastReactorName).toBeNull();
 });
 
+it("mapPostRow applies transformPost with the mapped post and the raw row", () => {
+  const row = postRow({ id: "p9" });
+  const post = mapPostRow(
+    row,
+    "u1",
+    ANON_NAME_FALLBACK,
+    TOPICS,
+    new Set(),
+    undefined,
+    undefined,
+    (p, r) => ({ ...p, likeCount: p.likeCount + (Number(r.seed_likes) || 0) }),
+  );
+  // `seed_likes` isn't on PostRow — a host's extraPostColumns land untyped on
+  // the raw row, which is exactly what transformPost is handed.
+  expect(post.likeCount).toBe(3); // no seed_likes key on the row -> Number(undefined) || 0
+  expect(post.id).toBe("p9");
+
+  const withSeed = mapPostRow(
+    { ...row, seed_likes: 7 } as unknown as PostRow,
+    "u1",
+    ANON_NAME_FALLBACK,
+    TOPICS,
+    new Set(),
+    undefined,
+    undefined,
+    (p, r) => ({ ...p, likeCount: p.likeCount + (Number(r.seed_likes) || 0) }),
+  );
+  expect(withSeed.likeCount).toBe(10); // row.likes[0].count (3) + seed_likes (7)
+});
+
+it("mapPostRow leaves the post unchanged when transformPost is absent", () => {
+  const withoutTransform = mapPostRow(postRow(), "u1", ANON_NAME_FALLBACK, TOPICS, new Set());
+  const withUndefinedTransform = mapPostRow(
+    postRow(),
+    "u1",
+    ANON_NAME_FALLBACK,
+    TOPICS,
+    new Set(),
+    undefined,
+    undefined,
+    undefined,
+  );
+  expect(withUndefinedTransform).toEqual(withoutTransform);
+});
+
 it("newestCreatedAt finds the max even when a pinned post sits first", () => {
   const posts = [
     { createdAt: "2026-07-01T00:00:00Z" }, // old pinned post floated to the top

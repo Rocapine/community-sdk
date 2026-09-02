@@ -2,6 +2,7 @@ export type {
   CommunityTopicDef,
   CommunityModules,
   CommunityHostAdapters,
+  CommunityFeedConfig,
   CommunityConfig,
   ResolvedCommunityConfig,
 } from "./config";
@@ -52,6 +53,7 @@ export type { CommunityEventName } from "./events";
 export { ensureIdentity, resetIdentity, syncProfileFromHost } from "./identity";
 
 export {
+  buildFeedSelect,
   fetchFeedPage,
   countNewPosts,
   fetchProfile,

@@ -37,3 +37,17 @@ it("host adapters default to safe no-ops", async () => {
   expect(await r.host.rulesAcceptance.get()).toBe(false);
   r.host.onEvent("community_opened", {}); // must not throw
 });
+
+it("feed defaults to {} when omitted", () => {
+  const r = resolveConfig({ ...base });
+  expect(r.feed).toEqual({});
+});
+
+it("feed carries through the extension point when provided", () => {
+  const transformPost = () => {
+    throw new Error("not called by resolveConfig");
+  };
+  const r = resolveConfig({ ...base, feed: { extraPostColumns: ["seed_likes"], transformPost } });
+  expect(r.feed.extraPostColumns).toEqual(["seed_likes"]);
+  expect(r.feed.transformPost).toBe(transformPost);
+});

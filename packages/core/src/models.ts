@@ -237,8 +237,11 @@ export function mapPostRow(
   likedPostIds: ReadonlySet<string>,
   pollData: PollData = EMPTY_POLL_DATA,
   reactionData: ReactionData = EMPTY_REACTION_DATA,
+  /** Host extension point (`CommunityConfig.feed.transformPost`), run last with
+   * the raw row (including any `extraPostColumns`) this post was built from. */
+  transformPost?: (post: FeedPost, row: Record<string, unknown>) => FeedPost,
 ): FeedPost {
-  return {
+  const post: FeedPost = {
     id: row.id,
     authorId: row.author_id,
     authorName: displayName(row.profiles, fallback),
@@ -259,6 +262,7 @@ export function mapPostRow(
     hasReacted: reactionData.mine.has(row.id),
     lastReactorName: reactionData.lastReactorName.get(row.id) ?? null,
   };
+  return transformPost ? transformPost(post, row as unknown as Record<string, unknown>) : post;
 }
 
 /**

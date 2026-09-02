@@ -45,6 +45,31 @@ const FEED_SELECT =
 
 const PROFILE_SELECT = "id, username, handle, is_official, bio, avatar_url";
 
+/** Minimal injection guard for `CommunityConfig.feed.extraPostColumns`: a bare
+ * column name only, no `.`, `(`, `:`, whitespace, etc. — those are how a
+ * PostgREST select embeds a relation or renames a column, and letting them
+ * through would extend the query in ways this extension point isn't meant to
+ * allow. */
+const VALID_EXTRA_COLUMN = /^[a-z0-9_]+$/;
+
+/**
+ * Appends `extraPostColumns` (if any) to the posts feed select. Pure and
+ * exported so it's unit-testable without a Supabase client. Invalid column
+ * names are dropped with a `console.warn` rather than failing the query.
+ */
+export function buildFeedSelect(extraPostColumns?: readonly string[]): string {
+  if (!extraPostColumns || extraPostColumns.length === 0) return FEED_SELECT;
+  const valid = extraPostColumns.filter((column) => {
+    if (VALID_EXTRA_COLUMN.test(column)) return true;
+    console.warn(
+      `[@rocapine/community-core] ignoring invalid feed.extraPostColumns entry: ${JSON.stringify(column)}`,
+    );
+    return false;
+  });
+  if (valid.length === 0) return FEED_SELECT;
+  return `${FEED_SELECT}, ${valid.join(", ")}`;
+}
+
 async function fetchMyLikes(
   client: SupabaseClient,
   postIds: string[],
@@ -145,7 +170,16 @@ async function toFeedPosts(
     fetchReactionSummaries(cfg, postIds),
   ]);
   return rows.map((r) =>
-    mapPostRow(r, uid, cfg.anonymousAuthorFallback, cfg.topics, liked, pollData, reactionData),
+    mapPostRow(
+      r,
+      uid,
+      cfg.anonymousAuthorFallback,
+      cfg.topics,
+      liked,
+      pollData,
+      reactionData,
+      cfg.feed.transformPost,
+    ),
   );
 }
 
@@ -162,7 +196,7 @@ export async function fetchFeedPage(
   const page = opts.cursor ?? 0;
   let query = client
     .from("posts")
-    .select(FEED_SELECT)
+    .select(buildFeedSelect(cfg.feed.extraPostColumns))
     .eq("comments.status", "visible")
     // Others' rows are already limited to 'visible' by RLS; this also shows the
     // author their own 'pending' posts (optimistic) while hiding their moderated-out
@@ -233,7 +267,7 @@ export async function fetchUserPosts(
   const page = opts.cursor ?? 0;
   const { data, error } = await client
     .from("posts")
-    .select(FEED_SELECT)
+    .select(buildFeedSelect(cfg.feed.extraPostColumns))
     .eq("author_id", userId)
     .eq("comments.status", "visible")
     .in("status", ["visible", "pending"])
@@ -260,7 +294,7 @@ export async function searchPosts(
   const page = opts.cursor ?? 0;
   const { data, error } = await client
     .from("posts")
-    .select(FEED_SELECT)
+    .select(buildFeedSelect(cfg.feed.extraPostColumns))
     .eq("comments.status", "visible")
     .eq("status", "visible")
     .ilike("content", `%${cleaned}%`)
@@ -270,6 +304,12 @@ export async function searchPosts(
   return toFeedPosts(cfg, client, (data ?? []) as unknown as PostRow[], uid);
 }
 
+/**
+ * Note: `cfg.feed.extraPostColumns`/`transformPost` do NOT apply here — this
+ * queries `comments`, not `posts` (the thread's parent post is passed in by
+ * the caller from an already-fetched, already-transformed `FeedPost`, not
+ * re-fetched).
+ */
 export async function fetchThread(
   cfg: ResolvedCommunityConfig,
   postId: string,

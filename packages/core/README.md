@@ -78,6 +78,47 @@ All optional, all default to a no-op:
 | `onContentPublished` | `() => void`                                             | Fired after a post/comment is successfully published (e.g. to arm a review-gate)                                                                                                      |
 | `getLocale`          | `() => string`                                           | Selects which locale-specific behavior the _host_ wants (distinct from the UI package's own `translations.locale` prop)                                                               |
 
+### Feed row extension point (`CommunityConfig.feed`)
+
+Optional, defaults to `{}` — omitting `feed` entirely keeps today's behavior
+byte-identical. It exists for a host that stores extra columns on `posts` the
+shared schema doesn't know about (e.g. Nightward's `posts.seed_likes`
+top-up), without forking the query or mapping layer:
+
+```ts
+import type { CommunityConfig } from "@rocapine/community-core";
+
+const config: CommunityConfig = {
+  // ...supabase, appName, anonymousAuthorFallback, topics, modules...
+  feed: {
+    // Appended to the posts `select` in every posts-table query
+    // (fetchFeedPage, fetchUserPosts, searchPosts). Only `[a-z0-9_]+`
+    // column names are accepted — anything else (a relation embed, a rename,
+    // a stray `*`) is dropped with a `console.warn` instead of reaching the
+    // query string.
+    extraPostColumns: ["seed_likes"],
+    // Runs last inside `mapPostRow`, given the mapped post and the raw row
+    // (including any extraPostColumns) it came from.
+    transformPost: (post, row) => ({
+      ...post,
+      likeCount: post.likeCount + (Number(row.seed_likes) || 0),
+    }),
+  },
+};
+```
+
+Two things worth knowing:
+
+- `transformPost` only runs on rows the SDK fetched from the backend. The
+  optimistic post shown right after `createPost` has no raw row yet, so it
+  renders untransformed until the next refetch swaps in the server-mapped
+  (and transformed) version — acceptable since the gap is a moderation-queue
+  window, not a rendered-forever state.
+- `fetchThread` queries `comments`, not `posts` — `extraPostColumns` and
+  `transformPost` don't apply there; a thread's parent post is the
+  already-fetched, already-transformed `FeedPost` the caller passes in, never
+  re-fetched.
+
 ### Event names (`COMMUNITY_EVENTS`)
 
 ```ts
@@ -114,7 +155,8 @@ runs in production and is silent in degraded mode.
   `fetchUserPosts`, `searchPosts`, `fetchThread`, `createPost`, `votePoll`,
   `createComment`, `moderateOne`, `setLike`, `setReaction`,
   `fetchReactionSummaries`, `reportContent`, `blockUser`, `deleteOwnPost`,
-  `deleteOwnComment`, `updateProfile`, `uploadAvatar`.
+  `deleteOwnComment`, `updateProfile`, `uploadAvatar`, `buildFeedSelect`
+  (pure helper behind `feed.extraPostColumns`, see below).
 - **React Query hooks** (`hooks.ts`): `useCommunityFeed`, `useSearchPosts`,
   `useNewPostsCount`, `useCommunityUnseenCount`, `useThread`, `useProfile`,
   `useUserPosts`, `useMyUid`, `useUpdateProfile`, `useCreatePost`,
