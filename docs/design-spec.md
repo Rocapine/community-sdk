@@ -20,7 +20,7 @@ Out of scope, decided:
 
 ## 2. Repo and packages (Approach A)
 
-New public GitHub repo (e.g. `Rocapine/community-sdk`), pnpm monorepo, npm scope `@rocapine`:
+New public GitHub repo (e.g. `Rocapine/community-sdk`), npm monorepo, npm scope `@rocapine`:
 
 ```
 community-sdk/
@@ -149,7 +149,7 @@ Carried over from mold v1 as-is (already opt-in), with the reaction push added.
 
 ## 8. Versioning, testing, docs, CI
 
-- **pnpm monorepo + changesets**, linked versioning (core/ui/cli share one version).
+- **npm monorepo + changesets**, linked versioning (core/ui/cli share one version).
 - **npm ↔ schema compatibility**: each package version declares its minimum schema version; the core migration maintains `community_meta(schema_version)`; core checks it at startup **in dev only** (console warning on mismatch). The CLI manifest plus a compat table in the README cover the rest.
 - **Testing**: core unit tests (vitest, migrated from Eve). The example Expo app is the manual/Argent QA bench for UI. No automated SQL tests in v1.
 - **Docs**: README per package; a phased integration guide inheriting the mold's `SKILL.md` (an agent-oriented install guide is kept deliberately — it is a differentiator); backend runbook inheriting Nightward's `docs/community-setup.md`.

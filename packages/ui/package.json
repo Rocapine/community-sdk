@@ -19,7 +19,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@rocapine/community-core": "workspace:*"
+    "@rocapine/community-core": "^0.1.0"
   },
   "peerDependencies": {
     "react": ">=18",

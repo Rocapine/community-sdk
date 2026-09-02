@@ -1,11 +1,15 @@
 {
   "name": "community-sdk",
   "private": true,
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
   "scripts": {
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
-    "build": "pnpm -r build",
-    "release": "pnpm build && changeset publish"
+    "typecheck": "npm run typecheck -w @rocapine/community-core && npm run typecheck -w @rocapine/community-ui && npm run typecheck -w @rocapine/community",
+    "test": "npm test -w @rocapine/community-core && npm test -w @rocapine/community-ui && npm test -w @rocapine/community",
+    "build": "npm run build -w @rocapine/community-core && npm run build -w @rocapine/community-ui && npm run build -w @rocapine/community",
+    "release": "npm run build && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.0",
@@ -13,5 +17,9 @@
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
-  "packageManager": "pnpm@11.5.3"
+  "overrides": {
+    "react": "19.2.0",
+    "react-native": "0.83.10"
+  },
+  "packageManager": "npm@11.13.0"
 }

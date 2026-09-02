@@ -1,5 +1,6 @@
-// @generated: Expo's default config already detects this pnpm workspace and
-// watches its root — the only override needed is below.
+// @generated: Expo's default config already detects this npm workspace (via
+// the root package-lock.json / "workspaces" field) and watches its root —
+// the only override needed is below.
 const { getDefaultConfig } = require("expo/metro-config");
 
 const config = getDefaultConfig(__dirname);

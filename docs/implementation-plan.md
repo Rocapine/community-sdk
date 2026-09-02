@@ -4,9 +4,9 @@
 
 **Goal:** Build and publish `0.x` of the public community SDK — monorepo with `@rocapine/community-core`, `@rocapine/community-ui`, the `@rocapine/community` CLI and the versioned Supabase backend — consolidated from the Rocacommu mold plus Eve's drift and Nightward's improvements.
 
-**Architecture:** pnpm monorepo, two runtime packages (headless core on Supabase + React Query; themable UI on top) configured through a single `CommunityConfig` given to a `CommunityProvider`. Backend ships as module-organized SQL migrations + Deno Edge Functions, installed into consumer apps by a CLI (`init`/`upgrade`/`adopt`) that substitutes URL/key placeholders and tracks a manifest.
+**Architecture:** npm monorepo, two runtime packages (headless core on Supabase + React Query; themable UI on top) configured through a single `CommunityConfig` given to a `CommunityProvider`. Backend ships as module-organized SQL migrations + Deno Edge Functions, installed into consumer apps by a CLI (`init`/`upgrade`/`adopt`) that substitutes URL/key placeholders and tracks a manifest.
 
-**Tech Stack:** TypeScript strict, pnpm workspaces, tsc builds (CJS + d.ts), vitest, changesets (linked versioning), React Native / Expo peer deps, Supabase (Postgres + Edge Functions/Deno), commander (CLI).
+**Tech Stack:** TypeScript strict, npm workspaces, tsc builds (CJS + d.ts), vitest, changesets (linked versioning), React Native / Expo peer deps, Supabase (Postgres + Edge Functions/Deno), commander (CLI).
 
 **Spec:** `docs/design-spec.md` (this repo). This plan implements spec §7 steps 1-2 only. Nightward and Eve migrations (§7 steps 3-5) get their own plans in their own repos after `0.x` ships.
 
@@ -33,7 +33,7 @@
 
 ```
 community-sdk/
-├── package.json  pnpm-workspace.yaml  tsconfig.base.json  .prettierrc  .changeset/  .github/workflows/ci.yml  LICENSE
+├── package.json (with a "workspaces" field)  tsconfig.base.json  .prettierrc  .changeset/  .github/workflows/ci.yml  LICENSE
 ├── packages/core/src/
 │   ├── index.ts            (public exports)
 │   ├── config.ts           (CommunityConfig, defaults, CommunityDisabledError)
@@ -68,17 +68,17 @@ community-sdk/
 
 **Files:**
 
-- Create: repo root — `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.prettierrc`, `.gitignore`, `LICENSE` (MIT), `.github/workflows/ci.yml`, `packages/{core,ui,cli}/package.json`, `packages/{core,ui,cli}/tsconfig.json`, `packages/{core,ui,cli}/src/index.ts` (empty export), `.changeset/config.json`
+- Create: repo root — `package.json` (with a "workspaces" field), `tsconfig.base.json`, `.prettierrc`, `.gitignore`, `LICENSE` (MIT), `.github/workflows/ci.yml`, `packages/{core,ui,cli}/package.json`, `packages/{core,ui,cli}/tsconfig.json`, `packages/{core,ui,cli}/src/index.ts` (empty export), `.changeset/config.json`
 
 **Interfaces:**
 
-- Produces: workspace where `pnpm -r typecheck`, `pnpm -r test`, `pnpm -r build` run green; later tasks add code under `packages/*/src`.
+- Produces: workspace where `npm run typecheck --workspaces --if-present`, `npm run test --workspaces --if-present`, `npm run build --workspaces --if-present` run green; later tasks add code under `packages/*/src`.
 
 - [ ] **Step 1: Initialize repo and workspace**
 
 ```bash
 mkdir -p community-sdk && cd community-sdk && git init -b main
-pnpm init
+npm init
 ```
 
 Root `package.json`:
@@ -88,10 +88,10 @@ Root `package.json`:
   "name": "community-sdk",
   "private": true,
   "scripts": {
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
-    "build": "pnpm -r build",
-    "release": "pnpm build && changeset publish"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "release": "npm run build && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.0",
@@ -102,12 +102,10 @@ Root `package.json`:
 }
 ```
 
-`pnpm-workspace.yaml`:
+Root `package.json`'s `"workspaces"` field:
 
-```yaml
-packages:
-  - "packages/*"
-  - "examples/*"
+```json
+["packages/*", "examples/*"]
 ```
 
 `tsconfig.base.json`:
@@ -168,7 +166,7 @@ Each `packages/<p>/tsconfig.json`: `{ "extends": "../../tsconfig.base.json", "in
 - [ ] **Step 3: Changesets + CI**
 
 ```bash
-pnpm install && pnpm changeset init
+npm install && npx changeset init
 ```
 
 Edit `.changeset/config.json`: `"linked": [["@rocapine/community-core", "@rocapine/community-ui", "@rocapine/community"]]`, `"access": "public"`.
@@ -183,20 +181,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with: { version: 9 }
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
 ```
 
 - [ ] **Step 4: Verify and commit**
 
-Run: `pnpm typecheck && pnpm test && pnpm build` — all pass (vitest passes with no test files via `passWithNoTests: true` in a root `vitest.config.ts` shared config; add it).
-Commit: `chore: scaffold pnpm monorepo (core, ui, cli), changesets, CI`
+Run: `npm run typecheck && npm test && npm run build` — all pass (vitest passes with no test files via `passWithNoTests: true` in a root `vitest.config.ts` shared config; add it).
+Commit: `chore: scaffold npm monorepo (core, ui, cli), changesets, CI`
 
 ---
 
@@ -295,7 +291,7 @@ it("host adapters default to safe no-ops", async () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure** — `pnpm --filter @rocapine/community-core test` → FAIL (module not found).
+- [ ] **Step 2: Run to verify failure** — `npm run test -w @rocapine/community-core` → FAIL (module not found).
 - [ ] **Step 3: Implement `config.ts`** exactly per the Produces block (module-level `let warned = false` for the single warn; `resolveConfig` returns a frozen object with defaults filled).
 - [ ] **Step 4: Implement `provider.tsx`** — `createContext<ResolvedCommunityConfig | null>(null)`; provider memoizes `resolveConfig(config)` on the `config` reference; `useCommunityConfig` throws `new Error("CommunityProvider is missing")` when null. Export both plus all config types from `index.ts`.
 - [ ] **Step 5: Run tests + typecheck** → PASS. Commit: `feat(core): CommunityConfig contract, provider, degraded mode`
@@ -404,7 +400,7 @@ export async function syncProfileFromHost(cfg: ResolvedCommunityConfig): Promise
 - Produces (all take `cfg: ResolvedCommunityConfig` as first arg): `fetchFeedPage(cfg, { topic?, cursor? })`, `countNewPosts(cfg, sinceIso)`, `fetchUserPosts(cfg, userId)`, `searchPosts(cfg, query)`, `fetchThread(cfg, postId)`, `fetchProfile(cfg, userId)`, `createPost(cfg, { topic, body, pollOptions? })` (routes to RPC `create_poll_post` when pollOptions), `createComment(cfg, postId, body)`, `moderateOne(cfg, { kind, id })`, `setLike(cfg, postId, on)`, `setReaction(cfg, postId)`, `votePoll(cfg, postId, optionIndex)`, `reportContent(cfg, …)`, `blockUser(cfg, userId)`, `deleteOwnPost/Comment(cfg, id)`, `updateProfile(cfg, { handle?, bio?, avatarUrl? })` (edge fn), `uploadAvatar(cfg, fileUri)`. Reaction batch: `fetchReactionSummaries(cfg, postIds: string[])` → RPC `post_reaction_summary`; poll batch: RPC `poll_vote_counts`.
 
 - [ ] **Step 1: Port the mold service file.** Transformations: (a) every function takes `cfg` and opens with `const client = cfg.requireClient();` (Nightward pattern — callers in hooks catch `CommunityDisabledError` via `enabled` guards, mutations surface it); (b) `setPrayed` → `setReaction`, `post_prayer_summary` → `post_reaction_summary` (SQL renamed in Task 17), gated on `cfg.modules.reaction`; (c) poll RPCs gated on `cfg.modules.polls` (skip batching, return empty maps when off); (d) module-level constants (page size, bucket name `avatars`) imported from `models.ts` or kept local with the mold's values.
-- [ ] **Step 2: Typecheck** (`pnpm --filter @rocapine/community-core typecheck`) → PASS. (Network layer is exercised by existing mapper tests + the example app; no supabase mock suite in v1, per spec §8.)
+- [ ] **Step 2: Typecheck** (`npm run typecheck -w @rocapine/community-core`) → PASS. (Network layer is exercised by existing mapper tests + the example app; no supabase mock suite in v1, per spec §8.)
 - [ ] **Step 3: Commit** `feat(core): community service on injected client, reaction + poll modules gated`
 
 ---
@@ -475,7 +471,7 @@ export function useMarkInboxSeen(): UseMutationResult<...>;     // optimistic se
 
 - [ ] **Step 1: Test** with a stubbed client (`{ from: () => ({ select: ... }) }` minimal shape): mismatch warns, match silent, query error silent, degraded mode silent. Run → FAIL, implement, PASS.
 - [ ] **Step 2: Wire into provider** (`useEffect(() => { void checkSchemaVersion(resolved); }, [resolved])`).
-- [ ] **Step 3: Full core suite green:** `pnpm --filter @rocapine/community-core test && pnpm --filter @rocapine/community-core build`. Commit: `feat(core): schema version dev check, public API surface`
+- [ ] **Step 3: Full core suite green:** `npm run test -w @rocapine/community-core && npm run build -w @rocapine/community-core`. Commit: `feat(core): schema version dev check, public API surface`
 
 ---
 
@@ -576,7 +572,7 @@ export function NoticeCard(props: { kind: "rejected" | "network"; onDismiss(): v
 
 - [ ] **Step 1: Port `ui.tsx` → `Sheet.tsx`**: replace `EveSheet`-style dependency with a self-contained implementation (RN `Modal`, reanimated `withTiming` slide-up, backdrop pressable). All styling from `useCommunityTheme()`.
 - [ ] **Step 2: Port the three components**: replace mold theme-seam imports with `useCommunityTheme()`, hardcoded strings with `useT()` keys, navigation with the callback props above; reaction button renders only when `cfg.modules.reaction` (from `useCommunityConfig()`), wrapped by `renderReactionButton` slot; footer wrapped by `renderPostFooter`. Haptics via `expo-haptics` directly (mold's `lib/haptics.ts` seam dissolves).
-- [ ] **Step 3: Verify** `pnpm --filter @rocapine/community-ui typecheck` → PASS. Commit: `feat(ui): self-contained sheet, post card with slots, poll block, notice card`
+- [ ] **Step 3: Verify** `npm run typecheck -w @rocapine/community-ui` → PASS. Commit: `feat(ui): self-contained sheet, post card with slots, poll block, notice card`
 
 ---
 
@@ -693,7 +689,7 @@ export function NotificationInboxScreen(props: {
 
 - [ ] **Step 1: Port the 6 catalogs** flattened to the Task 9 key scheme, degendered the same way as en (translate the neutral replacements — e.g. es "Alguien", it "Qualcuno"; the executor rewrites each gendered value in-language, this is copy translation work, not machine key mapping).
 - [ ] **Step 2: Consistency test** in `i18n.test.ts`: every catalog has exactly the same key set as en (iterate, assert equal sorted keys). Run → PASS (fix omissions).
-- [ ] **Step 3: `index.ts`** exports all components/screens/theme/i18n APIs; `pnpm --filter @rocapine/community-ui build` → PASS. Commit: `feat(ui): 7 locale catalogs, public surface`
+- [ ] **Step 3: `index.ts`** exports all components/screens/theme/i18n APIs; `npm run build -w @rocapine/community-ui` → PASS. Commit: `feat(ui): 7 locale catalogs, public surface`
 
 ---
 
@@ -826,7 +822,7 @@ Migration templates ship inside the package: `files` includes `templates/` — t
 
 - [ ] **Step 1: Tests first** (vitest, temp dirs via `fs.mkdtempSync`): substitution replaces both placeholders everywhere and throws on leftovers; manifest round-trips; init copies core-only when `--modules core`, filenames timestamp-prefixed and ordered, placeholders substituted in output, manifest lists files, running init twice fails with "already initialized (found community-sdk.json), use upgrade". Run → FAIL.
 - [ ] **Step 2: Implement** (commander program; prompts via `readline` when flags missing; `--project-url`/`--anon-key` read from `<dir>/config.toml` `project_id` when derivable, else prompted). Make tests PASS.
-- [ ] **Step 3: Wire `bin`,** `pnpm --filter @rocapine/community build`, run `node packages/cli/lib/index.js init --help` → prints usage. Commit: `feat(cli): init with module selection, placeholder substitution, manifest`
+- [ ] **Step 3: Wire `bin`,** `npm run build -w @rocapine/community`, run `node packages/cli/lib/index.js init --help` → prints usage. Commit: `feat(cli): init with module selection, placeholder substitution, manifest`
 
 ---
 
@@ -852,7 +848,7 @@ Migration templates ship inside the package: `files` includes `templates/` — t
 
 **Files:**
 
-- Create: `examples/expo-app/` (via `pnpm create expo-app@latest` minimal template), `App.tsx`, `community-config.ts`, `.env.example`
+- Create: `examples/expo-app/` (via `npx create-expo-app@latest` minimal template), `App.tsx`, `community-config.ts`, `.env.example`
 
 **Interfaces:**
 
@@ -891,9 +887,9 @@ const config: CommunityConfig = {
 - Source: mold `SKILL.md` (phased agent guide), Nightward `docs/community-setup.md` (runbook).
 
 - [ ] **Step 1: Write docs.** Root README: what/why, 5-minute quickstart (install, CLI init, provider wiring), module matrix, link to dashboard note ("a hosted moderation dashboard is used internally at Rocapine; the schema ships a `community_dashboard` migration so any admin tool can plug in — moderate via SQL/Studio otherwise"). `integration-skill.md`: port the mold's SKILL.md phases updated for npm install + CLI. `backend-runbook.md`: port Nightward's runbook (secrets table incl. the Task 17 env list, anonymous sign-ins, cron verification). `compat.md`: table `SDK version ↔ schema version` starting `0.1.x ↔ 1`.
-- [ ] **Step 2: Changeset + versions:** `pnpm changeset` (minor, all three packages, summary "initial public release"), `pnpm changeset version` → `0.1.0` everywhere.
-- [ ] **Step 3: Release checklist** at end of root README (maintainers section): confirm repo/package names with Martin (§9), npm org `@rocapine` exists + 2FA + `NPM_TOKEN` secret, LICENSE confirmed MIT, create GitHub repo and push, then `pnpm release` (dry-run first: `pnpm publish -r --dry-run --no-git-checks`). Do NOT publish in this task — publishing is gated on the §9 confirmations (a human step).
-- [ ] **Step 4: Final full check:** `pnpm typecheck && pnpm test && pnpm build && pnpm publish -r --dry-run --no-git-checks` → all green. Commit: `docs: readmes, integration skill, backend runbook, compat table + v0.1.0 changeset`
+- [ ] **Step 2: Changeset + versions:** `npx changeset` (minor, all three packages, summary "initial public release"), `npx changeset version` → `0.1.0` everywhere.
+- [ ] **Step 3: Release checklist** at end of root README (maintainers section): confirm repo/package names with Martin (§9), npm org `@rocapine` exists + 2FA + `NPM_TOKEN` secret, LICENSE confirmed MIT, create GitHub repo and push, then `npm run release` (dry-run first: `npm publish --dry-run --workspaces`). Do NOT publish in this task — publishing is gated on the §9 confirmations (a human step).
+- [ ] **Step 4: Final full check:** `npm run typecheck && npm test && npm run build && npm publish --dry-run --workspaces` → all green. Commit: `docs: readmes, integration skill, backend runbook, compat table + v0.1.0 changeset`
 
 ---
 

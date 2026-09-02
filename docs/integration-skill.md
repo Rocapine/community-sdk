@@ -175,7 +175,7 @@ Run through on a simulator/device against your real (or a scratch) project:
    received, tap routes correctly.
 8. Notification inbox (if shipped): the events above show up as inbox rows;
    opening it clears the unread badge.
-9. `pnpm test` (or your own runner) on the app's own tests still passes —
+9. `npm test` (or your own runner) on the app's own tests still passes —
    this SDK's own unit tests live in `packages/core`/`packages/ui` and don't
    need re-running per host app.
 

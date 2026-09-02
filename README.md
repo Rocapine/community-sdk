@@ -64,8 +64,8 @@ Full backend setup (anonymous sign-ins, all secrets, cron verification):
 ### 3. Wire the provider
 
 This is the exact shape used by [`examples/expo-app/App.tsx`](examples/expo-app/App.tsx)
-(a working, live-verified reference app — run it with `pnpm --filter
-@rocapine/community-example-expo-app start`):
+(a working, live-verified reference app — run it with `npm start -w
+@rocapine/community-example-expo-app`):
 
 ```tsx
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -166,22 +166,22 @@ Without a dashboard, moderate via SQL or the Supabase Studio table editor —
 ## Development
 
 ```bash
-pnpm install
-pnpm typecheck
-pnpm test
-pnpm build
+npm install
+npm run typecheck
+npm test
+npm run build
 ```
 
 `examples/expo-app` is the manual/QA bench — see its own README-less
-`package.json` (`pnpm --filter @rocapine/community-example-expo-app start`).
+`package.json` (`npm start -w @rocapine/community-example-expo-app`).
 There are no automated UI tests in v1; the example app plus `docs/backend-runbook.md`'s
 QA checklist are the coverage story for anything React Native rendering
 touches. `packages/core` and `packages/ui` each have vitest unit tests
-(`pnpm -r test`).
+(`npm test`).
 
 ## Maintainers: release checklist
 
-Publishing is **gated on human confirmation** — do not run `pnpm release`
+Publishing is **gated on human confirmation** — do not run `npm run release`
 until every item below is checked.
 
 1. **Confirm names with Martin.** The design spec (§9) marks the GitHub org
@@ -198,9 +198,9 @@ until every item below is checked.
    desired.
 5. **Dry-run, then release:**
    ```bash
-   pnpm publish -r --dry-run --no-git-checks
+   npm publish --dry-run -w @rocapine/community-core -w @rocapine/community-ui -w @rocapine/community
    # review the tarball contents/version list, then:
-   pnpm release   # = pnpm build && changeset publish
+   npm run release   # = npm run build && changeset publish
    ```
 6. **Post-release: full live QA.** The example app's degraded mode and
    non-moderation-gated paths were verified live during development, but

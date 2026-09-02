@@ -107,12 +107,12 @@ export function defaultTemplatesDir(): string {
   const packageRoot = path.resolve(__dirname, "..");
   const packaged = path.join(packageRoot, "templates");
   // STALENESS TRAP: once packages/cli/templates/ exists on disk (written by
-  // any prior `pnpm build`, whose `prebuild` hook runs
+  // any prior `npm run build`, whose `prebuild` hook runs
   // scripts/copy-templates.mjs), it wins over the live repo-root supabase/
   // tree below — even during local dev. Editing supabase/**/*.sql or
   // supabase/functions/** and then running `node lib/index.js init` (or a
   // test that doesn't pass an explicit `templatesDir`) will silently use the
-  // last-built snapshot, not your edits. Rerun `pnpm build` (or `node
+  // last-built snapshot, not your edits. Rerun `npm run build` (or `node
   // scripts/copy-templates.mjs` directly) to refresh packages/cli/templates/
   // after touching supabase/.
   if (fs.existsSync(packaged)) return packaged;
