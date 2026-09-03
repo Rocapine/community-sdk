@@ -82,11 +82,17 @@ export function ProfileScreen({
   onOpenThread,
   onBack,
   slots,
+  topInset = 0,
 }: {
   userId: string;
   onOpenThread(postId: string): void;
   onBack?: () => void;
   slots?: PostSlots;
+  // Top safe-area inset in px. This screen owns its back button and is meant
+  // to be mounted as a full-screen route, so on a notched device the host
+  // must feed `useSafeAreaInsets().top` here — the SDK deliberately takes no
+  // react-native-safe-area-context dependency of its own (see Sheet.tsx).
+  topInset?: number;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -195,7 +201,10 @@ export function ProfileScreen({
     <View style={styles.root}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          topInset > 0 ? { paddingTop: topInset + theme.spacing(2) } : null,
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={profile.isRefetching || userPosts.isRefetching}
