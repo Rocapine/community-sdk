@@ -188,13 +188,13 @@ you can wrap, replace, or ignore it:
 
 ## Screens
 
-| Screen                    | Key props                                                                                                                      |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `CommunityFeedScreen`     | `onOpenProfile(userId)`, `onOpenInbox?()`, `header?: ReactNode`, `slots?: PostSlots`                                           |
-| `ThreadSheet`             | `postId: string \| null`, `onClose()`, `onOpenProfile(userId)` — self-contained sheet, render it once and drive it by `postId` |
-| `ProfileScreen`           | `userId: string`, `onOpenThread(postId)`, `onBack?()`                                                                          |
-| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                |
-| `NotificationInboxScreen` | `onOpenPost(postId)`, `renderInboxRow?` (see Slots above)                                                                      |
+| Screen                    | Key props                                                                                                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CommunityFeedScreen`     | `onOpenProfile(userId)`, `onOpenInbox?()`, `header?: ReactNode`, `slots?: PostSlots`, `beforeSubmitPost?`, `beforeSubmitComment?` (see Gating submissions) |
+| `ThreadSheet`             | `postId: string \| null`, `onClose()`, `onOpenProfile(userId)`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`     |
+| `ProfileScreen`           | `userId: string`, `onOpenThread(postId)`, `onBack?()`                                                                                                      |
+| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                            |
+| `NotificationInboxScreen` | `onOpenPost(postId)`, `renderInboxRow?` (see Slots above)                                                                                                  |
 
 Plus standalone components you can use directly: `CommunityPost`,
 `PollBlock`, `NoticeCard`, `ComposerCard`, `RulesSheet`, `ReportSheet`, and
@@ -203,3 +203,57 @@ the package's own `CommunitySheet` primitive (no host sheet library needed).
 See `examples/expo-app/App.tsx` for a complete, working wiring of
 `CommunityFeedScreen` + `ProfileScreen` + `NotificationInboxScreen` +
 `ThreadSheet` behind a simple `useState`-driven router.
+
+## Gating submissions
+
+`ComposerCard`'s `beforeSubmit` and `ThreadSheet`'s `beforeSubmitComment`
+(both forwarded by `CommunityFeedScreen` as `beforeSubmitPost` /
+`beforeSubmitComment`) let a host intercept a post or comment right before it
+is actually created, with an async check:
+
+```ts
+type BeforeSubmitPost = (draft: {
+  topic: string;
+  body: string;
+  pollOptions?: string[];
+}) => Promise<boolean>;
+
+type BeforeSubmitComment = (draft: { postId: string; body: string }) => Promise<boolean>;
+```
+
+Both props are optional and **default-inert** — omit them and behavior is
+byte-identical to before they existed. When present, the SDK `await`s the
+promise before its own mutation runs: resolving `true` lets the submit
+through; resolving `false` (or the promise rejecting) aborts it silently —
+no mutation, no error UI, and the composer/comment draft is kept exactly as
+typed so the user can retry. The submit button is disabled for the duration
+of the await, so a second tap can't fire the gate twice.
+
+A typical use is a Superwall paywall that only lets the post through once the
+viewer is entitled:
+
+```tsx
+import { registerPlacement } from "expo-superwall";
+
+<CommunityFeedScreen
+  onOpenProfile={openProfile}
+  beforeSubmitPost={(draft) =>
+    new Promise<boolean>((resolve) => {
+      registerPlacement({
+        placement: "community_post",
+        feature: () => resolve(true), // entitled: let the post through
+      });
+      // If the paywall is dismissed without converting, `feature` never
+      // fires — resolve(false) on that event too so the promise settles.
+    })
+  }
+  beforeSubmitComment={(draft) =>
+    new Promise<boolean>((resolve) => {
+      registerPlacement({
+        placement: "community_comment",
+        feature: () => resolve(true),
+      });
+    })
+  }
+/>;
+```

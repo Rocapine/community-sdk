@@ -68,6 +68,7 @@ import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { isQueryLoading } from "../utils/query";
 import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
 import { formatTimeAgo } from "../utils/time";
+import { runGuarded } from "../utils/gate";
 
 const COMMENT_CLAMP_LINES = 5;
 const HANDOFF_DELAY_MS = 320;
@@ -106,11 +107,18 @@ export function ThreadSheet({
   onClose,
   onOpenProfile,
   slots,
+  beforeSubmitComment,
 }: {
   postId: string | null;
   onClose(): void;
   onOpenProfile(userId: string): void;
   slots?: PostSlots;
+  /** Awaited before the comment is actually created (`useCreateComment().mutate`).
+   * Absent ⇒ byte-identical behavior. Resolving/returning `false` (or
+   * throwing) aborts the submit silently — no mutation, no error UI, and the
+   * draft text is kept exactly as typed. Meant for a host-side async gate,
+   * e.g. a paywall that resolves once the user is entitled. */
+  beforeSubmitComment?: (draft: { postId: string; body: string }) => Promise<boolean>;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -157,22 +165,37 @@ export function ThreadSheet({
   const [text, setText] = useState("");
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [notice, setNotice] = useState<"rejected" | "network" | null>(null);
+  // Double-submit latch for the `beforeSubmitComment` await — see the
+  // matching note in `ComposerCard.tsx`'s `gating` state.
+  const [gating, setGating] = useState(false);
 
   const send = () => {
     const trimmed = text.trim();
-    if (!trimmed || !shownId) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    if (!trimmed || !shownId || gating) return;
+    const postId = shownId;
     const authorName = displayName(cfg.host.getDisplayName(), cfg.anonymousAuthorFallback);
-    createComment.mutate(
-      { postId: shownId, text: trimmed, authorName },
-      {
-        onSuccess: (res) => {
-          if (res.verdict.status === "rejected") setNotice("rejected");
+    const draft = { postId, body: trimmed };
+
+    const doSend = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      createComment.mutate(
+        { postId, text: trimmed, authorName },
+        {
+          onSuccess: (res) => {
+            if (res.verdict.status === "rejected") setNotice("rejected");
+          },
+          onError: () => setNotice("network"),
         },
-        onError: () => setNotice("network"),
-      },
-    );
-    setText("");
+      );
+      setText("");
+    };
+
+    if (!beforeSubmitComment) {
+      doSend();
+      return;
+    }
+    setGating(true);
+    runGuarded(beforeSubmitComment, draft, doSend).finally(() => setGating(false));
   };
 
   const closeThenReport = (target: ReportTarget) => {
@@ -316,10 +339,10 @@ export function ThreadSheet({
             multiline
             maxLength={COMMENT_MAX_LENGTH}
           />
-          <Pressable hitSlop={8} onPress={send} style={styles.send}>
+          <Pressable hitSlop={8} onPress={send} disabled={gating} style={styles.send}>
             <icons.send
               size={20}
-              color={text.trim() ? theme.colors.accent : theme.colors.textFaint}
+              color={text.trim() && !gating ? theme.colors.accent : theme.colors.textFaint}
               weight="fill"
             />
           </Pressable>

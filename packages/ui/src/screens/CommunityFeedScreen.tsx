@@ -109,11 +109,23 @@ export function CommunityFeedScreen({
   onOpenInbox,
   header,
   slots,
+  beforeSubmitPost,
+  beforeSubmitComment,
 }: {
   onOpenProfile(userId: string): void;
   onOpenInbox?: () => void;
   header?: ReactNode;
   slots?: PostSlots;
+  /** Forwarded to this screen's own `ComposerCard` as `beforeSubmit` — see
+   * that prop's doc comment. Absent ⇒ byte-identical behavior. */
+  beforeSubmitPost?: (draft: {
+    topic: string;
+    body: string;
+    pollOptions?: string[];
+  }) => Promise<boolean>;
+  /** Forwarded to this screen's own `ThreadSheet` as `beforeSubmitComment` —
+   * see that prop's doc comment. Absent ⇒ byte-identical behavior. */
+  beforeSubmitComment?: (draft: { postId: string; body: string }) => Promise<boolean>;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -362,6 +374,7 @@ export function CommunityFeedScreen({
             <ComposerCard
               defaultTopic={composeDefaultTopic}
               onModerationRejected={() => setNotice("rejected")}
+              beforeSubmit={beforeSubmitPost}
             />
           }
           ListEmptyComponent={
@@ -410,6 +423,7 @@ export function CommunityFeedScreen({
         onClose={() => setActivePostId(null)}
         onOpenProfile={onOpenProfile}
         slots={slots}
+        beforeSubmitComment={beforeSubmitComment}
       />
       <ReportSheet
         visible={reportTarget !== null}

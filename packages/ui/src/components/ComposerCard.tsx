@@ -48,18 +48,30 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
+import { runGuarded } from "../utils/gate";
 import { RulesSheet } from "./RulesSheet";
 
 export function ComposerCard({
   defaultTopic,
   renderComposerExtra,
   onModerationRejected,
+  beforeSubmit,
 }: {
   defaultTopic?: string;
   renderComposerExtra?: ReactNode;
   /** Called when a submitted post's moderation verdict comes back rejected —
    * a host can use this to show its own `NoticeCard`. */
   onModerationRejected?: (kind: "post") => void;
+  /** Awaited before the post is actually created (`useCreatePost().mutate`).
+   * Absent ⇒ byte-identical behavior. Resolving/returning `false` (or
+   * throwing) aborts the submit silently — no mutation, no error UI, and the
+   * draft (text, poll options) is kept exactly as typed. Meant for a host-side
+   * async gate, e.g. a paywall that resolves once the user is entitled. */
+  beforeSubmit?: (draft: {
+    topic: string;
+    body: string;
+    pollOptions?: string[];
+  }) => Promise<boolean>;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -102,7 +114,13 @@ export function ComposerCard({
   const filledPollOptions = (pollDraft ?? []).map((o) => o.trim()).filter((o) => o.length > 0);
   const pollInvalid = pollDraft !== null && filledPollOptions.length < POLL_MIN_OPTIONS;
   const pending = createPost.isPending;
-  const canPost = text.trim().length > 0 && !pollInvalid && !pending;
+  // `gating`: true while a `beforeSubmit` promise is in flight — a plain
+  // double-submit latch, since `pending` (from `createPost.isPending`) only
+  // flips true once `.mutate(...)` actually starts, which happens after the
+  // gate resolves. Without this, a second tap during the await could invoke
+  // `beforeSubmit` a second time concurrently.
+  const [gating, setGating] = useState(false);
+  const canPost = text.trim().length > 0 && !pollInvalid && !pending && !gating;
 
   const togglePoll = () => {
     Haptics.selectionAsync().catch(() => {});
@@ -111,24 +129,39 @@ export function ComposerCard({
 
   const submit = () => {
     if (!canPost) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     const authorName = displayName(cfg.host.getDisplayName(), cfg.anonymousAuthorFallback);
-    createPost.mutate(
-      {
-        topic,
-        text: text.trim(),
-        authorName,
-        pollOptions: pollDraft !== null ? filledPollOptions : undefined,
-      },
-      {
-        onSuccess: (result) => {
-          if (result.verdict.status === "rejected") onModerationRejected?.("post");
+    const draft = {
+      topic,
+      body: text.trim(),
+      pollOptions: pollDraft !== null ? filledPollOptions : undefined,
+    };
+
+    const doSubmit = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      createPost.mutate(
+        {
+          topic,
+          text: draft.body,
+          authorName,
+          pollOptions: draft.pollOptions,
         },
-      },
-    );
-    setText("");
-    setPollDraft(null);
-    Keyboard.dismiss();
+        {
+          onSuccess: (result) => {
+            if (result.verdict.status === "rejected") onModerationRejected?.("post");
+          },
+        },
+      );
+      setText("");
+      setPollDraft(null);
+      Keyboard.dismiss();
+    };
+
+    if (!beforeSubmit) {
+      doSubmit();
+      return;
+    }
+    setGating(true);
+    runGuarded(beforeSubmit, draft, doSubmit).finally(() => setGating(false));
   };
 
   return (
