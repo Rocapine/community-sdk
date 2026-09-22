@@ -1,11 +1,18 @@
 // Coalesced like notifications. Trigger path (body has record): apply a 10-min
 // per-post cooldown so bursts do not spam. Digest path (no record, from cron):
 // sweep posts with unnotified likes older than the cooldown. Either way, group
-// as "<name> liked your post" (1) or "<name> and N others liked your post".
+// as "<name> liked your post" (1) or "<name> and N others liked your post",
+// in the recipient's locale (profiles.locale) — see _shared/copy.ts for the
+// built-in copy and the COMMUNITY_PUSH_COPY override.
+//
+// Security: the trigger path only takes `record.post_id` from the (anon-key
+// reachable, hence untrusted) body and re-derives everything from the likes
+// table, so a forged body can at most flush a real post's pending like
+// notifications early.
 
 import { adminClient } from "../_shared/client.ts";
 import { sendExpoPush } from "../_shared/push.ts";
-import { FALLBACK_ACTOR_NAME } from "../_shared/config.ts";
+import { pushCopy } from "../_shared/copy.ts";
 
 const supabase = adminClient();
 const COOLDOWN_MS = 10 * 60 * 1000;
@@ -52,16 +59,23 @@ async function flushPost(postId: string) {
   );
   if (contributors.length === 0) return;
 
+  const { data: recipient } = await supabase
+    .from("profiles")
+    .select("locale")
+    .eq("id", post.author_id)
+    .single();
+  const copy = pushCopy(recipient?.locale);
+
   const { data: actor } = await supabase
     .from("profiles")
     .select("username")
     .eq("id", contributors[0].user_id)
     .single();
-  const name = actor?.username?.trim() || FALLBACK_ACTOR_NAME;
+  const name = actor?.username?.trim() || copy.fallbackName;
   const title =
     contributors.length === 1
-      ? `${name} liked your post`
-      : `${name} and ${contributors.length - 1} others liked your post`;
+      ? copy.text("like.one", { name })
+      : copy.text("like.many", { name, count: contributors.length - 1 });
 
   await sendExpoPush({
     to: pref.expo_push_token,

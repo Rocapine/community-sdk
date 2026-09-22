@@ -127,9 +127,10 @@ This single object replaces every seam the old mold had you edit by hand:
 </QueryClientProvider>
 ```
 
-- **Entry point**: a button/tile navigating to your community screen. If
-  you shipped the inbox module, `useCommunityUnseenCount` (core) or
-  `NotificationInboxScreen`'s own unread state gives you a badge count.
+- **Entry point**: a button/tile navigating to your community screen.
+  `useCommunityUnseenCount(lastSeenAtIso)` (core) gives you a "new posts since
+  my last visit" dot for the community tab; if you shipped the inbox module,
+  `useUnreadNotificationCount()` gives you the inbox badge count.
 - **Settings/profile screen**: `ProfileEditSheet` covers username/bio/avatar
   moderated editing; the avatar can double as your app's own profile photo
   if you read it back through `useProfile(useMyUid())`.

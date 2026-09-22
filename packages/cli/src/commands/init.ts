@@ -177,7 +177,9 @@ function printNextSteps(log: (message: string) => void, modules: Module[]): void
   log("  2. Set Edge Function secrets: supabase secrets set OPENAI_API_KEY=...");
   log("     optional: SLACK_WEBHOOK_URL, COMMUNITY_APP_NAME, COMMUNITY_FALLBACK_NAME");
   if (modules.includes("push")) {
-    log("     push module: EXPO_ACCESS_TOKEN (required for notify-like/notify-comment)");
+    log(
+      "     push module: EXPO_ACCESS_TOKEN (only if your Expo project enforces Enhanced Security for push); COMMUNITY_PUSH_COPY (optional per-locale copy)",
+    );
   }
   log("  3. Deploy the Edge Functions: supabase functions deploy");
 }

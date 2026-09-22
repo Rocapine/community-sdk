@@ -5,89 +5,21 @@
 // sweep posts with unnotified reactions older than the cooldown. Never
 // includes any reaction content — the reaction table carries no text.
 //
-// Push copy: the recipient's profiles.locale selects a built-in neutral
-// template for the common single-reactor case (COMMUNITY_REACTION_PUSH_TEXT
-// overrides that template for every locale, `{name}` substituted with the
-// reactor's display name — an app with its own reaction semantics sets its
-// own copy there). The multi-reactor case always uses the locale's own
-// "and N others" phrasing; there is no secret for it, only the built-in
-// translations below.
+// Push copy: the recipient's profiles.locale selects the built-in neutral
+// copy ("{name} is thinking of you" / "… and N others …") — an app with its
+// own reaction semantics overrides it per locale with the COMMUNITY_PUSH_COPY
+// secret (see _shared/copy.ts; the older COMMUNITY_REACTION_PUSH_TEXT single
+// string still works for the single-reactor case).
 //
-// NOTE: profiles.locale is not part of the SDK's core schema yet (task 16) —
-// it must exist before this function can run. See the internal port notes
-// for a reference migration adding it.
+// Security: same as notify-like — only `record.post_id` is read from the
+// untrusted body; everything else comes from post_reactions.
 
 import { adminClient } from "../_shared/client.ts";
 import { sendExpoPush } from "../_shared/push.ts";
-import { FALLBACK_ACTOR_NAME, REACTION_PUSH_TEXT } from "../_shared/config.ts";
+import { pushCopy } from "../_shared/copy.ts";
 
 const supabase = adminClient();
 const COOLDOWN_MS = 10 * 60 * 1000;
-
-/**
- * CLDR plural form for a count: 1 -> `one`, 2-4 -> `few`, 5+ -> `many` (the
- * Polish rule, minus the fractional `other` case a push count never hits).
- * Every other locale below needs only a singular/plural pair.
- */
-function plForm(n: number, one: string, few: string, many: string) {
-  if (n === 1) return one;
-  const lastTwo = n % 100;
-  const inTeens = lastTwo >= 10 && lastTwo < 20;
-  return !inTeens && n % 10 >= 2 && n % 10 <= 4 ? few : many;
-}
-
-// Built-in neutral push copy per recipient locale (profiles.locale). Keys
-// mirror SupportedLanguage in host apps; unknown locales fall back to en.
-// `one` is only used when COMMUNITY_REACTION_PUSH_TEXT is unset (its default
-// already matches the `en` entry below).
-const COPY = {
-  en: {
-    fallbackName: "Someone",
-    one: (name: string) => `${name} is thinking of you`,
-    many: (name: string, extra: number) =>
-      `${name} and ${extra} ${extra === 1 ? "other" : "others"} are thinking of you`,
-  },
-  "pt-PT": {
-    fallbackName: "Alguém",
-    one: (name: string) => `${name} está a pensar em ti`,
-    many: (name: string, extra: number) =>
-      `${name} e mais ${extra} ${extra === 1 ? "pessoa está" : "pessoas estão"} a pensar em ti`,
-  },
-  "pt-BR": {
-    fallbackName: "Alguém",
-    one: (name: string) => `${name} está pensando em você`,
-    many: (name: string, extra: number) =>
-      `${name} e mais ${extra} ${extra === 1 ? "pessoa está" : "pessoas estão"} pensando em você`,
-  },
-  "es-ES": {
-    fallbackName: "Alguien",
-    one: (name: string) => `${name} está pensando en ti`,
-    many: (name: string, extra: number) =>
-      `${name} y ${extra} ${extra === 1 ? "persona más está" : "personas más están"} pensando en ti`,
-  },
-  "es-419": {
-    fallbackName: "Alguien",
-    one: (name: string) => `${name} está pensando en ti`,
-    many: (name: string, extra: number) =>
-      `${name} y ${extra} ${extra === 1 ? "persona más está" : "personas más están"} pensando en ti`,
-  },
-  it: {
-    fallbackName: "Qualcuno",
-    one: (name: string) => `${name} sta pensando a te`,
-    many: (name: string, extra: number) =>
-      `${name} e altre ${extra} ${extra === 1 ? "persona sta" : "persone stanno"} pensando a te`,
-  },
-  pl: {
-    fallbackName: "Ktoś",
-    one: (name: string) => `${name} myśli o tobie`,
-    many: (name: string, extra: number) =>
-      `${name} i ${plForm(extra, `${extra} inna osoba myśli`, `${extra} inne osoby myślą`, `${extra} innych osób myśli`)} o tobie`,
-  },
-} as const;
-
-function copyFor(locale: string | null | undefined) {
-  return COPY[(locale ?? "en") as keyof typeof COPY] ?? COPY.en;
-}
 
 async function flushPost(postId: string) {
   const { data: post } = await supabase.from("posts").select("author_id").eq("id", postId).single();
@@ -98,7 +30,7 @@ async function flushPost(postId: string) {
     .select("locale")
     .eq("id", post.author_id)
     .single();
-  const copy = copyFor(recipient?.locale);
+  const copy = pushCopy(recipient?.locale);
 
   const { data: pref } = await supabase
     .from("push_tokens")
@@ -138,15 +70,11 @@ async function flushPost(postId: string) {
     .select("username")
     .eq("id", contributors[0].user_id)
     .single();
-  // COMMUNITY_FALLBACK_NAME (the deployer-set env var, shared with
-  // notify-like/notify-comment and meant to match the client's
-  // anonymousAuthorFallback — see docs/backend-runbook.md) takes precedence
-  // over the locale table's own fallbackName default.
-  const name = actor?.username?.trim() || FALLBACK_ACTOR_NAME || copy.fallbackName;
+  const name = actor?.username?.trim() || copy.fallbackName;
   const title =
     contributors.length === 1
-      ? REACTION_PUSH_TEXT.replace("{name}", name)
-      : copy.many(name, contributors.length - 1);
+      ? copy.text("reaction.one", { name })
+      : copy.text("reaction.many", { name, count: contributors.length - 1 });
 
   await sendExpoPush({
     to: pref.expo_push_token,
