@@ -448,40 +448,27 @@ export function useCreateComment() {
   });
 }
 
-/** Optimistic like toggle across all cached feed pages (every topic filter). */
+/** Optimistic like toggle across every post cache (feed pages of every topic
+ * filter, user-posts and search — same sweep as votes/reactions, so a like
+ * from a profile or search screen is reflected immediately too). */
 export function useToggleLike() {
   const cfg = useCommunityConfig();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ postId, liked }: { postId: string; liked: boolean; topic: string | null }) =>
       setLike(cfg, postId, liked),
-    onMutate: async ({ postId, liked }) => {
-      await queryClient.cancelQueries({ queryKey: FEED_KEY });
-      const previous = queryClient.getQueriesData<InfiniteData<FeedPost[]>>({
-        queryKey: FEED_KEY,
-      });
-      queryClient.setQueriesData<InfiniteData<FeedPost[]>>({ queryKey: FEED_KEY }, (data) =>
-        data
+    onMutate: ({ postId, liked }) =>
+      applyOptimisticToAllPostCaches(queryClient, (post) =>
+        post.id === postId
           ? {
-              ...data,
-              pages: data.pages.map((page) =>
-                page.map((post) =>
-                  post.id === postId
-                    ? {
-                        ...post,
-                        likedByMe: liked,
-                        likeCount: Math.max(0, post.likeCount + (liked ? 1 : -1)),
-                      }
-                    : post,
-                ),
-              ),
+              ...post,
+              likedByMe: liked,
+              likeCount: Math.max(0, post.likeCount + (liked ? 1 : -1)),
             }
-          : data,
-      );
-      return { previous };
-    },
-    onError: (_err, _vars, context) => {
-      for (const [key, data] of context?.previous ?? []) queryClient.setQueryData(key, data);
+          : post,
+      ),
+    onError: (_err, _vars, snapshot) => {
+      if (snapshot) rollbackPostCaches(queryClient, snapshot);
     },
     onSuccess: (_data, { liked, postId, topic }) => {
       if (liked) emitEvent(cfg, COMMUNITY_EVENTS.postLiked, { postId, topic });
@@ -586,6 +573,8 @@ export function useDeleteContent() {
       emitEvent(cfg, COMMUNITY_EVENTS.contentDeleted, { contentType: kind });
       queryClient.invalidateQueries({ queryKey: threadKey(postId) });
       queryClient.invalidateQueries({ queryKey: FEED_KEY });
+      queryClient.invalidateQueries({ queryKey: USER_POSTS_KEY });
+      queryClient.invalidateQueries({ queryKey: SEARCH_KEY });
     },
   });
 }

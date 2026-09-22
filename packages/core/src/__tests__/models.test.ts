@@ -428,3 +428,8 @@ it("mapProfileRow maps names, flags and nullables", () => {
     username: null,
   });
 });
+
+it("buildPoll tolerates a missing poll_options embed (polls module off)", async () => {
+  const { buildPoll } = await import("../models");
+  expect(buildPoll(undefined, new Map(), null)).toBeNull();
+});
