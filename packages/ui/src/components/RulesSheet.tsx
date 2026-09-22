@@ -22,6 +22,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { CommunitySheet } from "../Sheet";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
+import { markRulesAccepted } from "../utils/rulesAcceptance";
 
 const RULE_KEYS = ["rules.kind", "rules.medical", "rules.hateful", "rules.report"] as const;
 
@@ -48,6 +49,7 @@ export function RulesSheet({
       // silently swallowing it would hide a real integration bug, so warn.
       console.warn("[@rocapine/community-ui] rulesAcceptance.set failed", e);
     }
+    markRulesAccepted();
     emitEvent(cfg, COMMUNITY_EVENTS.rulesAccepted);
     onAccepted();
   };

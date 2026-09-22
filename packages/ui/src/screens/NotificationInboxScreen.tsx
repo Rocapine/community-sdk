@@ -68,7 +68,15 @@ export function NotificationInboxScreen({
   renderInboxRow,
 }: {
   onOpenPost(postId: string): void;
-  renderInboxRow?: (item: InboxItem, defaults: ReactNode | null) => ReactNode;
+  /** Custom row renderer. `defaults` is the built-in row (or `null` for a
+   * kind the SDK doesn't know); `meta.unread` is the same "newer than the
+   * pre-open seen marker" flag the built-in rows use for their dot, so a host
+   * row for a custom kind can style unread state identically. */
+  renderInboxRow?: (
+    item: InboxItem,
+    defaults: ReactNode | null,
+    meta: { unread: boolean },
+  ) => ReactNode;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -113,17 +121,18 @@ export function NotificationInboxScreen({
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.card}>
             {items.map((item, i) => {
+              const unread = Date.parse(item.createdAt) > seenMs;
               const defaultRow = KNOWN_KINDS.has(item.kind) ? (
                 <NotificationRow
                   item={item}
-                  unread={Date.parse(item.createdAt) > seenMs}
+                  unread={unread}
                   showDivider={i > 0}
                   onOpenPost={onOpenPost}
                 />
               ) : null;
               return (
                 <Fragment key={item.id}>
-                  {renderInboxRow ? renderInboxRow(item, defaultRow) : defaultRow}
+                  {renderInboxRow ? renderInboxRow(item, defaultRow, { unread }) : defaultRow}
                 </Fragment>
               );
             })}

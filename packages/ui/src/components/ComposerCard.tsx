@@ -44,11 +44,12 @@ import {
   useCreatePost,
 } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { runGuarded } from "../utils/gate";
+import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { RulesSheet } from "./RulesSheet";
 
 export function ComposerCard({
@@ -87,21 +88,11 @@ export function ComposerCard({
   // null = no poll on this draft; an array = the poll editor is open.
   const [pollDraft, setPollDraft] = useState<string[] | null>(null);
 
-  // Rules gate: loaded once from the host adapter, no store. Defaults to
-  // locked until the adapter answers, so posting is never possible for a
-  // frame before we actually know the acceptance state.
-  const [accepted, setAccepted] = useState(false);
+  // Rules gate: the shared in-memory mirror of `cfg.host.rulesAcceptance`
+  // (see utils/rulesAcceptance.ts) — locked until the adapter answers, and
+  // unlocked by ANY `RulesSheet` in the app, not just the one embedded below.
+  const accepted = useRulesAccepted(cfg);
   const [rulesVisible, setRulesVisible] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    cfg.host.rulesAcceptance.get().then((ok) => {
-      if (alive) setAccepted(ok);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [cfg]);
 
   const locked = !accepted;
   const openRulesGate = () => setRulesVisible(true);
@@ -279,10 +270,7 @@ export function ComposerCard({
 
       <RulesSheet
         visible={rulesVisible}
-        onAccepted={() => {
-          setAccepted(true);
-          setRulesVisible(false);
-        }}
+        onAccepted={() => setRulesVisible(false)}
         onClose={() => setRulesVisible(false)}
       />
     </View>

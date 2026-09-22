@@ -8,12 +8,10 @@
 // de-branded ("Eve's News" / "Eve's Rhythm" removed) to match en.ts's
 // neutral meaning.
 //
-// Polish plurals: Eve's source uses the full CLDR one/few/many/other set
-// (e.g. `newPosts_one/_few/_many/_other`), but this package's runtime only
-// supports a binary one/other split (count === 1 ? "one" : "other", see
-// i18n.ts). `.other` here is filled from Eve's `_many` form (correct for 0
-// and 5+, the most common non-1 counts in this UI; grammatically a step off
-// for 2-4, a known limitation of the binary scheme — see the internal port notes).
+// Polish plurals: the runtime picks the CLDR category (`pluralCategory` in
+// i18n.ts) — `.one` (1), `.few` (2-4, 22-24, …) and `.other` (filled with the
+// `_many` form: 0, 5-21, 25-31, …). Integer counts never hit CLDR's Polish
+// fractional `other`, so three forms cover this UI.
 //
 // Polish gendering note: unlike the other 5 ported locales, Polish past-tense
 // verbs conjugate for the subject's grammatical gender (e.g. "polubiła" vs
@@ -61,6 +59,7 @@ export const pl: Record<string, string> = {
   "feed.empty": "Jeszcze nie ma tu postów. Zacznij od siebie.",
   "feed.loadMore": "Wczytaj więcej",
   "feed.newPosts.one": "{count} nowy post",
+  "feed.newPosts.few": "{count} nowe posty",
   "feed.newPosts.other": "{count} nowych postów",
 
   // Compact relative-time labels (see en.ts's comment on this section for
@@ -78,11 +77,14 @@ export const pl: Record<string, string> = {
   "post.viewLess": "Pokaż mniej",
   "post.reaction.received": "{name} zareagował(a) na twój post",
   "post.reaction.anonymous.one": "Ktoś zareagował(a) na twój post",
+  "post.reaction.anonymous.few": "{count} osoby zareagowały na twój post",
   "post.reaction.anonymous.other": "{count} osób zareagowało na twój post",
   "post.reaction.withOthers.one": "{name} i jeszcze {count} osoba reagują na twój post",
+  "post.reaction.withOthers.few": "{name} i jeszcze {count} osoby reagują na twój post",
   "post.reaction.withOthers.other": "{name} i jeszcze {count} osób reagują na twój post",
 
   "thread.comments.one": "{count} komentarz",
+  "thread.comments.few": "{count} komentarze",
   "thread.comments.other": "{count} komentarzy",
   "thread.loadingComments": "Wczytywanie komentarzy…",
   "thread.emptyComments": "Jeszcze nikt nie zostawił miłego słowa. Zacznij od siebie.",
@@ -97,6 +99,7 @@ export const pl: Record<string, string> = {
   "composer.post": "OPUBLIKUJ",
 
   "poll.votes.one": "{count} głos",
+  "poll.votes.few": "{count} głosy",
   "poll.votes.other": "{count} głosów",
   "poll.tapToVote": "Dotknij opcji, aby zagłosować",
 
