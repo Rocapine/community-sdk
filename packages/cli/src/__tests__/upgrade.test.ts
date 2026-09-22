@@ -101,7 +101,7 @@ describe("runUpgrade", () => {
     const result = await runUpgrade(baseOptions());
 
     const after = fs.readdirSync(migrationsDir).sort();
-    expect(after).toHaveLength(7);
+    expect(after).toHaveLength(8);
 
     const newFiles = after.filter((f) => !before.includes(f));
     expect(newFiles).toHaveLength(1);
