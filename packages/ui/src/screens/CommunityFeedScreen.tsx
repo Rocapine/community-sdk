@@ -102,6 +102,7 @@ import { ComposerCard } from "../components/ComposerCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
 import { isQueryLoading } from "../utils/query";
+import { uniqueById } from "../utils/pages";
 import { ThreadSheet } from "./ThreadSheet";
 
 export function CommunityFeedScreen({
@@ -169,9 +170,7 @@ export function CommunityFeedScreen({
   // diffing and the `renderItem`/`CommunityPost` memoization below.
   const posts: FeedPost[] = useMemo(
     () =>
-      searchActive
-        ? (searchFeed.data?.pages.flat() ?? [])
-        : (categoryFeed.data?.pages.flat() ?? []),
+      searchActive ? uniqueById(searchFeed.data?.pages) : uniqueById(categoryFeed.data?.pages),
     [searchActive, searchFeed.data, categoryFeed.data],
   );
   // `isPending` alone (TanStack Query v5: `status === "pending"`) stays true

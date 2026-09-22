@@ -107,8 +107,8 @@ export default function App() {
 ```
 
 `supabase: null` runs the SDK in **degraded mode**: every screen renders its
-empty state, one console warning is logged the first time a query needs the
-client, and nothing crashes — useful for `expo start` with no `.env` yet.
+empty state (queries stay disabled), one console warning is logged the first
+time a mutation needs the client, and nothing crashes — useful for `expo start` with no `.env` yet.
 
 Full config reference (host adapters, degraded mode, event names):
 [`packages/core/README.md`](packages/core/README.md). Theming, i18n and

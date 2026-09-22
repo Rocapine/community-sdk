@@ -14,7 +14,7 @@ npm install @rocapine/community-ui
 Peer dependencies (beyond `@rocapine/community-core`'s own):
 `react-native >=0.74.0`, `react-native-reanimated >=3.16.0`,
 `expo-image >=1.10.0`, `expo-haptics >=13.0.0`,
-`expo-image-picker >=15.0.0`, `phosphor-react-native >=2.0.0`.
+`expo-image-picker >=16.0.0`, `phosphor-react-native >=2.0.0`.
 `phosphor-react-native` is an **optional** peer (`peerDependenciesMeta`) —
 skip it if you pass a complete `icons` set to `CommunityUIProvider` (see
 Icons below); the default icon set only requires it once a default icon
@@ -109,7 +109,10 @@ falls back to its language family's designated base: `es`/any other `es-*`
 region falls back to `es-ES`, `pt`/any other `pt-*` region falls back to
 `pt-PT`, and any other language's regional variant, e.g. `it-CH`, falls back
 to its bare-language catalog, e.g. `it`) → `catalog.en` → the key itself
-(never a blank string). A numeric `params.count` selects `<key>.one` /
+(never a blank string). A numeric `params.count` selects `<key>.<category>`
+for the locale's CLDR plural category (`pluralCategory`, exported — `one`/`other`,
+plus `few`/`many` for Polish, falling back to `.other` when a catalog only ships
+the binary pair), i.e. `<key>.one` /
 `<key>.other` (through the same fallback chain) before falling back to the
 bare key — e.g. `t("feed.newPosts", { count: 3 })`.
 Interpolation uses `{name}`-style placeholders, not i18next's `{{name}}`.
@@ -188,13 +191,13 @@ you can wrap, replace, or ignore it:
 
 ## Screens
 
-| Screen                    | Key props                                                                                                                                                  |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CommunityFeedScreen`     | `onOpenProfile(userId)`, `onOpenInbox?()`, `header?: ReactNode`, `slots?: PostSlots`, `beforeSubmitPost?`, `beforeSubmitComment?` (see Gating submissions) |
-| `ThreadSheet`             | `postId: string \| null`, `onClose()`, `onOpenProfile(userId)`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`     |
-| `ProfileScreen`           | `userId: string`, `onOpenThread(postId)`, `onBack?()`                                                                                                      |
-| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                            |
-| `NotificationInboxScreen` | `onOpenPost(postId)`, `renderInboxRow?` (see Slots above)                                                                                                  |
+| Screen                    | Key props                                                                                                                                                                                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CommunityFeedScreen`     | `onOpenProfile(userId)`, `onOpenInbox?()`, `header?: ReactNode`, `slots?: PostSlots`, `beforeSubmitPost?`, `beforeSubmitComment?` (see Gating submissions)                                                                                      |
+| `ThreadSheet`             | `postId: string \| null`, `onClose()`, `onOpenProfile(userId)`, `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does |
+| `ProfileScreen`           | `userId: string`, `onOpenThread(postId)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `slots?: PostSlots`                                                                        |
+| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                 |
+| `NotificationInboxScreen` | `onOpenPost(postId)`, `renderInboxRow?(item, defaults, { unread })` (see Slots above)                                                                                                                                                           |
 
 Plus standalone components you can use directly: `CommunityPost`,
 `PollBlock`, `NoticeCard`, `ComposerCard`, `RulesSheet`, `ReportSheet`, and
@@ -230,30 +233,33 @@ typed so the user can retry. The submit button is disabled for the duration
 of the await, so a second tap can't fire the gate twice.
 
 A typical use is a Superwall paywall that only lets the post through once the
-viewer is entitled:
+viewer is entitled. **The promise must settle on every path** — entitled,
+paywall dismissed, paywall error — otherwise the submit button stays disabled
+until the composer remounts:
 
 ```tsx
-import { registerPlacement } from "expo-superwall";
+import { usePlacement } from "expo-superwall";
 
+function useGate() {
+  const pending = useRef<((ok: boolean) => void) | null>(null);
+  const { registerPlacement } = usePlacement({
+    onDismiss: (_info, result) => {
+      // Dismissed without converting → abort, keep the draft.
+      if (result.type !== "purchased" && result.type !== "restored") pending.current?.(false);
+    },
+    onError: () => pending.current?.(false),
+  });
+  return (placement: string) =>
+    new Promise<boolean>((resolve) => {
+      pending.current = resolve;
+      registerPlacement({ placement, feature: () => resolve(true) }).catch(() => resolve(false));
+    });
+}
+
+const gate = useGate();
 <CommunityFeedScreen
   onOpenProfile={openProfile}
-  beforeSubmitPost={(draft) =>
-    new Promise<boolean>((resolve) => {
-      registerPlacement({
-        placement: "community_post",
-        feature: () => resolve(true), // entitled: let the post through
-      });
-      // If the paywall is dismissed without converting, `feature` never
-      // fires — resolve(false) on that event too so the promise settles.
-    })
-  }
-  beforeSubmitComment={(draft) =>
-    new Promise<boolean>((resolve) => {
-      registerPlacement({
-        placement: "community_comment",
-        feature: () => resolve(true),
-      });
-    })
-  }
+  beforeSubmitPost={() => gate("community_post")}
+  beforeSubmitComment={() => gate("community_comment")}
 />;
 ```

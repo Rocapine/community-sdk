@@ -41,7 +41,12 @@ async function requireUid(cfg: ResolvedCommunityConfig): Promise<string> {
 // Embedded filter: comment counts only count visible comments, so the badge
 // on a card always matches what the opened thread renders.
 const FEED_SELECT =
-  "id, author_id, topic, content, status, pinned_at, created_at, profiles!posts_author_id_fkey(username, is_official, handle, avatar_url), likes(count), comments(count), poll_options(id, idx, label)";
+  "id, author_id, topic, content, status, pinned_at, created_at, profiles!posts_author_id_fkey(username, is_official, handle, avatar_url), likes(count), comments(count)";
+
+/** Embedded only when the polls module is on: on a core-only backend the
+ * `poll_options` table does not exist and PostgREST rejects the whole select
+ * (PGRST200), which took the entire feed down for such installs. */
+const POLL_OPTIONS_SELECT = "poll_options(id, idx, label)";
 
 const PROFILE_SELECT = "id, username, handle, is_official, bio, avatar_url";
 
@@ -57,8 +62,9 @@ const VALID_EXTRA_COLUMN = /^[a-z0-9_]+$/;
  * exported so it's unit-testable without a Supabase client. Invalid column
  * names are dropped with a `console.warn` rather than failing the query.
  */
-export function buildFeedSelect(extraPostColumns?: readonly string[]): string {
-  if (!extraPostColumns || extraPostColumns.length === 0) return FEED_SELECT;
+export function buildFeedSelect(extraPostColumns?: readonly string[], polls = false): string {
+  const base = polls ? `${FEED_SELECT}, ${POLL_OPTIONS_SELECT}` : FEED_SELECT;
+  if (!extraPostColumns || extraPostColumns.length === 0) return base;
   const valid = extraPostColumns.filter((column) => {
     if (VALID_EXTRA_COLUMN.test(column)) return true;
     console.warn(
@@ -66,8 +72,14 @@ export function buildFeedSelect(extraPostColumns?: readonly string[]): string {
     );
     return false;
   });
-  if (valid.length === 0) return FEED_SELECT;
-  return `${FEED_SELECT}, ${valid.join(", ")}`;
+  if (valid.length === 0) return base;
+  return `${base}, ${valid.join(", ")}`;
+}
+
+/** The posts select for this install: `feed.extraPostColumns` + the poll
+ * embed iff `modules.polls`. */
+function postsSelect(cfg: ResolvedCommunityConfig): string {
+  return buildFeedSelect(cfg.feed.extraPostColumns, cfg.modules.polls);
 }
 
 async function fetchMyLikes(
@@ -164,7 +176,7 @@ async function toFeedPosts(
     fetchMyLikes(client, postIds, uid),
     fetchPollData(
       cfg,
-      rows.filter((r) => r.poll_options.length > 0).map((r) => r.id),
+      rows.filter((r) => (r.poll_options ?? []).length > 0).map((r) => r.id),
       uid,
     ),
     fetchReactionSummaries(cfg, postIds),
@@ -196,7 +208,7 @@ export async function fetchFeedPage(
   const page = opts.cursor ?? 0;
   let query = client
     .from("posts")
-    .select(buildFeedSelect(cfg.feed.extraPostColumns))
+    .select(postsSelect(cfg))
     .eq("comments.status", "visible")
     // Others' rows are already limited to 'visible' by RLS; this also shows the
     // author their own 'pending' posts (optimistic) while hiding their moderated-out
@@ -267,7 +279,7 @@ export async function fetchUserPosts(
   const page = opts.cursor ?? 0;
   const { data, error } = await client
     .from("posts")
-    .select(buildFeedSelect(cfg.feed.extraPostColumns))
+    .select(postsSelect(cfg))
     .eq("author_id", userId)
     .eq("comments.status", "visible")
     .in("status", ["visible", "pending"])
@@ -294,7 +306,7 @@ export async function searchPosts(
   const page = opts.cursor ?? 0;
   const { data, error } = await client
     .from("posts")
-    .select(buildFeedSelect(cfg.feed.extraPostColumns))
+    .select(postsSelect(cfg))
     .eq("comments.status", "visible")
     .eq("status", "visible")
     .ilike("content", `%${cleaned}%`)

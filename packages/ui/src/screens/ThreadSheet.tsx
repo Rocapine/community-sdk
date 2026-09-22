@@ -69,6 +69,8 @@ import { isQueryLoading } from "../utils/query";
 import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
 import { formatTimeAgo } from "../utils/time";
 import { runGuarded } from "../utils/gate";
+import { useRulesAccepted } from "../utils/rulesAcceptance";
+import { RulesSheet } from "../components/RulesSheet";
 
 const COMMENT_CLAMP_LINES = 5;
 const HANDOFF_DELAY_MS = 320;
@@ -163,6 +165,10 @@ export function ThreadSheet({
   }, [postId, queryClient]);
 
   const [text, setText] = useState("");
+  // Rules gate on commenting, same shared flag as the feed composer (both
+  // source apps gated the first comment behind the UGC rules sheet too).
+  const rulesAccepted = useRulesAccepted(cfg);
+  const [rulesVisible, setRulesVisible] = useState(false);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [notice, setNotice] = useState<"rejected" | "network" | null>(null);
   // Double-submit latch for the `beforeSubmitComment` await — see the
@@ -172,6 +178,10 @@ export function ThreadSheet({
   const send = () => {
     const trimmed = text.trim();
     if (!trimmed || !shownId || gating) return;
+    if (!rulesAccepted) {
+      setRulesVisible(true);
+      return;
+    }
     const postId = shownId;
     const authorName = displayName(cfg.host.getDisplayName(), cfg.anonymousAuthorFallback);
     const draft = { postId, body: trimmed };
@@ -346,7 +356,20 @@ export function ThreadSheet({
               weight="fill"
             />
           </Pressable>
+          {/* Rules gate: swallow every touch on the comment box until the UGC
+              rules are accepted (mirrors `ComposerCard`'s overlay). */}
+          {!rulesAccepted && (
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setRulesVisible(true)}>
+              <View />
+            </Pressable>
+          )}
         </View>
+
+        <RulesSheet
+          visible={rulesVisible}
+          onAccepted={() => setRulesVisible(false)}
+          onClose={() => setRulesVisible(false)}
+        />
       </CommunitySheet>
 
       {notice && <NoticeCard kind={notice} target="comment" onDismiss={() => setNotice(null)} />}

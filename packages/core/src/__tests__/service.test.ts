@@ -36,3 +36,11 @@ it("falls back to the base select when every entry is invalid", () => {
   expect(select).toBe(buildFeedSelect(undefined));
   expect(warn).toHaveBeenCalledTimes(2);
 });
+
+it("embeds poll_options only when the polls module is on", () => {
+  expect(buildFeedSelect(undefined, false)).not.toContain("poll_options");
+  expect(buildFeedSelect(undefined, true)).toContain("poll_options(id, idx, label)");
+  expect(buildFeedSelect(["seed_likes"], true)).toBe(
+    `${buildFeedSelect(undefined, true)}, seed_likes`,
+  );
+});

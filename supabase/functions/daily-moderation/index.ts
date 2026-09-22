@@ -41,7 +41,7 @@ Deno.serve(async () => {
   const { data: posts, error: postsError } = await supabase
     .from("posts")
     .select(
-      "id, content, author_id, status, poll_options(idx, label), profiles!posts_author_id_fkey(username, amplitude_id, revenuecat_id)",
+      "id, content, author_id, status, profiles!posts_author_id_fkey(username, amplitude_id, revenuecat_id)",
     )
     .is("moderated_at", null)
     .in("status", ["pending", "visible"]);
@@ -57,16 +57,34 @@ Deno.serve(async () => {
   }
 
   // Poll option labels are user content: fold them into the post's moderated
-  // text (same treatment as the synchronous moderate-one function).
+  // text (same treatment as the synchronous moderate-one function). The polls
+  // module is optional: without it the table doesn't exist, the query errors,
+  // and posts are moderated on their text alone (a separate query instead of
+  // an embed so a core-only install doesn't 400 the whole sweep).
+  const optionsByPost = new Map<string, { idx: number; label: string }[]>();
+  if (posts && posts.length > 0) {
+    const { data: options, error } = await supabase
+      .from("poll_options")
+      .select("post_id, idx, label")
+      .in(
+        "post_id",
+        posts.map((p) => p.id),
+      );
+    if (!error) {
+      for (const o of options ?? []) {
+        const list = optionsByPost.get(o.post_id) ?? [];
+        list.push({ idx: o.idx, label: o.label });
+        optionsByPost.set(o.post_id, list);
+      }
+    }
+  }
   const items: Item[] = [
     ...(posts ?? []).map((p) => ({
       ...p,
       profiles: toOne(p.profiles),
       content: [
         p.content,
-        ...(p.poll_options ?? [])
-          .sort((a: { idx: number }, b: { idx: number }) => a.idx - b.idx)
-          .map((o: { label: string }) => o.label),
+        ...(optionsByPost.get(p.id) ?? []).sort((a, b) => a.idx - b.idx).map((o) => o.label),
       ].join("\n"),
       table: "posts" as const,
     })),
@@ -116,11 +134,15 @@ Deno.serve(async () => {
   const totalItems = items.length;
 
   const flaggedIds = new Set(flagged.map((f) => f.item.id));
+  // Status guards: a row the author soft-deleted while the sweep ran must not
+  // be resurrected as hidden/visible, so every write re-checks the status it
+  // was selected with.
   for (const { item, categories } of flagged) {
     await supabase
       .from(item.table)
       .update({ status: "hidden", moderation_reason: categories.join(",") })
-      .eq("id", item.id);
+      .eq("id", item.id)
+      .in("status", ["pending", "visible"]);
   }
   // Backstop: promote clean 'pending' items to 'visible' (their synchronous
   // moderate-one call must have failed).
@@ -128,10 +150,18 @@ Deno.serve(async () => {
   const promotePostIds = promote.filter((i) => i.table === "posts").map((i) => i.id);
   const promoteCommentIds = promote.filter((i) => i.table === "comments").map((i) => i.id);
   if (promotePostIds.length > 0) {
-    await supabase.from("posts").update({ status: "visible" }).in("id", promotePostIds);
+    await supabase
+      .from("posts")
+      .update({ status: "visible" })
+      .in("id", promotePostIds)
+      .eq("status", "pending");
   }
   if (promoteCommentIds.length > 0) {
-    await supabase.from("comments").update({ status: "visible" }).in("id", promoteCommentIds);
+    await supabase
+      .from("comments")
+      .update({ status: "visible" })
+      .in("id", promoteCommentIds)
+      .eq("status", "pending");
   }
   const now = new Date().toISOString();
   const processedPostIds = processed.filter((i) => i.table === "posts").map((i) => i.id);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeT } from "../i18n";
+import { makeT, pluralCategory } from "../i18n";
 import { en } from "../locales/en";
 import { esES } from "../locales/es-ES";
 import { es419 } from "../locales/es-419";
@@ -53,6 +53,24 @@ describe("makeT", () => {
     expect(t("poll.votes", { count: 2 })).toBe("2 votes");
   });
 
+  it("uses CLDR few/many for Polish and falls back to .other when .few is absent", () => {
+    const t = makeT("pl");
+    expect(t("feed.newPosts", { count: 1 })).toBe("1 nowy post");
+    expect(t("feed.newPosts", { count: 2 })).toBe("2 nowe posty");
+    expect(t("feed.newPosts", { count: 22 })).toBe("22 nowe posty");
+    expect(t("feed.newPosts", { count: 5 })).toBe("5 nowych postów");
+    expect(t("feed.newPosts", { count: 12 })).toBe("12 nowych postów");
+    // a key with only .one/.other: few resolves to .other
+    const t2 = makeT("pl", { "x.one": "one", "x.other": "other" });
+    expect(t2("x", { count: 3 })).toBe("other");
+  });
+
+  it("treats 0 as singular in French", () => {
+    const t = makeT("fr");
+    expect(t("poll.votes", { count: 0 })).toBe("0 vote");
+    expect(t("poll.votes", { count: 2 })).toBe("2 votes");
+  });
+
   it("plural resolution still honors overrides", () => {
     const t = makeT("en", { "poll.votes.other": "{count} ballots" });
     expect(t("poll.votes", { count: 3 })).toBe("3 ballots");
@@ -102,11 +120,26 @@ describe("locale catalogs", () => {
     "pt-BR": ptBR,
   };
 
-  const enKeys = Object.keys(en).sort();
+  // `.few`/`.many` are optional per-locale plural refinements (see
+  // `pluralCategory`), not part of the shared key contract.
+  const contractKeys = (c: Record<string, string>) =>
+    Object.keys(c)
+      .filter((k) => !k.endsWith(".few") && !k.endsWith(".many"))
+      .sort();
+  const enKeys = contractKeys(en);
 
   for (const [locale, catalog] of Object.entries(catalogs)) {
     it(`${locale} has exactly the same key set as en`, () => {
-      expect(Object.keys(catalog).sort()).toEqual(enKeys);
+      expect(contractKeys(catalog)).toEqual(enKeys);
     });
   }
+});
+
+describe("pluralCategory", () => {
+  it("covers the Polish teens exception and the default binary split", () => {
+    expect(pluralCategory("pl", 14)).toBe("many");
+    expect(pluralCategory("pl", 24)).toBe("few");
+    expect(pluralCategory("es-ES", 0)).toBe("other");
+    expect(pluralCategory("de", 1)).toBe("one");
+  });
 });

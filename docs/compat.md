@@ -6,9 +6,10 @@ identified by `community_meta.schema_version` (a single integer, written by
 `core/006_meta.sql`), while the npm packages carry a normal semver. This
 table is the source of truth for which combinations are compatible.
 
-| SDK version range | Schema version | Notes                                                                |
-| ----------------- | -------------- | -------------------------------------------------------------------- |
-| `0.1.x`           | `1`            | Initial public release. Modules: core, push, polls, reaction, inbox. |
+| SDK version range | Schema version | Notes                                                                                                                                                  |
+| ----------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0.1.x`           | `1`            | Initial public release. Modules: core, push, polls, reaction, inbox.                                                                                   |
+| `0.2.x`           | `1`            | Same schema. Function templates changed (locale-aware push copy, hardened triggers/moderation) — redeploy them with `npx @rocapine/community upgrade`. |
 
 ## How this is enforced
 

@@ -35,8 +35,9 @@ export interface PostRow {
   } | null;
   likes: { count: number }[];
   comments: { count: number }[];
-  /** Empty for a post without a poll. */
-  poll_options: PollOptionRow[];
+  /** Empty for a post without a poll; absent entirely when the polls module
+   * is off (the embed is then not part of the select). */
+  poll_options?: PollOptionRow[];
 }
 
 export interface PollOptionRow {
@@ -208,11 +209,11 @@ export function mapProfileRow(row: ProfileRow, fallback: string): CommunityProfi
 
 /** Assemble a FeedPoll from the embedded option rows + batched vote data. */
 export function buildPoll(
-  options: PollOptionRow[],
+  options: PollOptionRow[] | undefined,
   counts: ReadonlyMap<string, number>,
   myOptionId: string | null,
 ): FeedPoll | null {
-  if (options.length === 0) return null;
+  if (!options || options.length === 0) return null;
   const mapped = [...options]
     .sort((a, b) => a.idx - b.idx)
     .map((o) => ({ id: o.id, label: o.label, votes: counts.get(o.id) ?? 0 }));

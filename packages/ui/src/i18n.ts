@@ -52,6 +52,26 @@ function baseLocaleFor(locale: string): string | undefined {
   return BASE_LOCALE[lang] ?? lang;
 }
 
+/**
+ * CLDR plural category for integer counts in the languages this package
+ * ships. Polish distinguishes one/few/many (2 → "nowe posty", 5 → "nowych
+ * postów"); French treats 0 like 1. Everything else is a binary one/other.
+ * Catalogs only need `.one`/`.other`; `.few`/`.many` are optional refinements
+ * that fall back to `.other` when absent.
+ */
+export function pluralCategory(locale: string, n: number): "one" | "few" | "many" | "other" {
+  const lang = locale.split("-")[0]?.toLowerCase();
+  if (lang === "pl") {
+    if (n === 1) return "one";
+    const m10 = n % 10;
+    const m100 = n % 100;
+    if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return "few";
+    return "many";
+  }
+  if (lang === "fr") return n === 0 || n === 1 ? "one" : "other";
+  return n === 1 ? "one" : "other";
+}
+
 function has(record: LocaleCatalog, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(record, key);
 }
@@ -71,9 +91,9 @@ function interpolate(template: string, params?: Record<string, string | number>)
  * "es-MX"/"pt-AO"/bare "es" or "pt" fall back to `es-ES`/`pt-PT`, and any
  * other unlisted variant like "it-CH" falls back to its bare language
  * catalog `it`) -> `catalog.en` -> the key itself.
- * A numeric `params.count` selects between the `<key>.one` / `<key>.other`
- * suffixed keys (each resolved through the same fallback chain) before
- * falling back to the bare key.
+ * A numeric `params.count` selects the `<key>.<category>` suffixed key for
+ * the locale's CLDR plural category (`pluralCategory`), falling back to
+ * `<key>.other` for a missing `.few`/`.many`, then to the bare key.
  */
 export function makeT(locale: string, overrides?: Record<string, string>): TFn {
   const localeCatalog = catalog[locale];
@@ -92,8 +112,11 @@ export function makeT(locale: string, overrides?: Record<string, string>): TFn {
     let value: string | undefined;
     const count = params?.count;
     if (typeof count === "number") {
-      const suffix = count === 1 ? "one" : "other";
-      value = lookup(`${key}.${suffix}`);
+      const category = pluralCategory(locale, count);
+      value = lookup(`${key}.${category}`);
+      if (value === undefined && category !== "one" && category !== "other") {
+        value = lookup(`${key}.other`);
+      }
     }
     if (value === undefined) {
       value = lookup(key);
