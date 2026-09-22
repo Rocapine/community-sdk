@@ -40,7 +40,7 @@ describe("runInit", () => {
     await runInit(baseOptions({ modules: ["core"] }));
 
     const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
-    expect(files).toHaveLength(6);
+    expect(files).toHaveLength(7);
     expect(files.every((f) => /^\d{14}_community_core_/.test(f))).toBe(true);
   });
 
@@ -51,6 +51,7 @@ describe("runInit", () => {
     const modulesInFileOrder = files.map((f) => f.split("_community_")[1]!.split("_")[0]);
 
     expect(modulesInFileOrder).toEqual([
+      "core",
       "core",
       "core",
       "core",
