@@ -4,10 +4,10 @@
 -- reader's language by @rocapine/community-ui with a per-item "see original".
 --
 -- Written only by the service role (translate-one / daily-translation Edge
--- Functions). Readable exactly where the parent row is readable (RLS on
--- posts/comments does the filtering, same pattern as likes). Additive: no
--- core table changes. poll_option_translations is guarded so this module
--- installs on a backend without the polls module.
+-- Functions). Readable by authenticated users where the parent row is
+-- readable (RLS on posts/comments does the filtering, same pattern as
+-- likes). Additive: no core table changes. poll_option_translations is
+-- guarded so this module installs on a backend without the polls module.
 
 create table public.post_translations (
   post_id       uuid not null references public.posts(id) on delete cascade,
@@ -20,9 +20,9 @@ create table public.post_translations (
 );
 alter table public.post_translations enable row level security;
 create policy "post translations readable where post readable"
-  on public.post_translations for select to anon, authenticated
+  on public.post_translations for select to authenticated
   using (exists (select 1 from public.posts p where p.id = post_translations.post_id));
-grant select on public.post_translations to anon, authenticated;
+grant select on public.post_translations to authenticated;
 
 create table public.comment_translations (
   comment_id    uuid not null references public.comments(id) on delete cascade,
@@ -35,9 +35,9 @@ create table public.comment_translations (
 );
 alter table public.comment_translations enable row level security;
 create policy "comment translations readable where comment readable"
-  on public.comment_translations for select to anon, authenticated
+  on public.comment_translations for select to authenticated
   using (exists (select 1 from public.comments c where c.id = comment_translations.comment_id));
-grant select on public.comment_translations to anon, authenticated;
+grant select on public.comment_translations to authenticated;
 
 do $$
 begin
@@ -52,9 +52,9 @@ begin
     drop policy if exists "poll option translations readable where option readable"
       on public.poll_option_translations;
     create policy "poll option translations readable where option readable"
-      on public.poll_option_translations for select to anon, authenticated
+      on public.poll_option_translations for select to authenticated
       using (exists (select 1 from public.poll_options o where o.id = poll_option_translations.option_id));
-    grant select on public.poll_option_translations to anon, authenticated;
+    grant select on public.poll_option_translations to authenticated;
   end if;
 end $$;
 
