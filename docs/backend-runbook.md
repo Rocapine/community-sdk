@@ -72,6 +72,9 @@ supabase functions deploy
 | `MODERATION_SCORE_THRESHOLD`                                       | `0.5`                                | Optional. Raw OpenAI moderation score at or above which a category is hidden even when OpenAI's own boolean flag is false (catches under-scored insults/harassment, including other languages).                                                                                                                                                                                                                                                                                         | `_shared/moderation.ts` (all moderating functions)                                                            |
 | `MODERATION_EXCLUDED_CATEGORIES`                                   | `""` (none excluded)                 | Optional, comma-separated. Removes listed categories from the score-threshold check only — OpenAI's own boolean flag for that category still applies regardless. **Example (Eve's Rhythm, a menstrual-health app):** `MODERATION_EXCLUDED_CATEGORIES=sexual` lets legitimate intimacy/fertility discussion through the score check, while OpenAI's own `sexual`/`sexual/minors` boolean flags still hide clearly explicit content.                                                      | `_shared/moderation.ts`                                                                                       |
 | `EXPO_ACCESS_TOKEN`                                                | none                                 | Optional — only needed for an Expo project with Enhanced Security.                                                                                                                                                                                                                                                                                                                                                                                                                      | `_shared/push.ts` (push module)                                                                               |
+| `COMMUNITY_TRANSLATION_LOCALES`                                    | none                                 | **Required with the translation module.** Comma-separated target locales, e.g. `en,es-ES,es-419,it,pl,pt-PT,pt-BR` — must equal the client's `modules.translation.locales`.                                                                                                                                                                                                                                                                                                             | `translate-one`, `daily-translation`, `notify-comment`, `broadcast-post`                                      |
+| `COMMUNITY_TRANSLATION_MODEL`                                      | `gpt-5-mini`                         | Optional.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `translate-one`, `daily-translation`                                                                          |
+| `COMMUNITY_TRANSLATION_STYLE`                                      | none                                 | Optional per-app voice instruction appended to the translation prompt.                                                                                                                                                                                                                                                                                                                                                                                                                  | `translate-one`, `daily-translation`                                                                          |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` | —                                    | Platform-provided automatically; never set these yourself.                                                                                                                                                                                                                                                                                                                                                                                                                              | all functions via `_shared/client.ts`                                                                         |
 
 Deploy after setting secrets (`supabase functions deploy`, or scope it to
@@ -80,16 +83,17 @@ next-steps output for the exact list per module).
 
 ## 4. Cron verification
 
-Four scheduled jobs, each installed by its module's migration, each wrapped
+Five scheduled jobs, each installed by its module's migration, each wrapped
 in a defensive `exception when others` block so a rerun (e.g. via
 `upgrade`) never fails the migration if the job already exists:
 
-| Job name                    | Schedule                       | Module   | What it does                                                                                                                                                                                                       |
-| --------------------------- | ------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `daily-moderation`          | `0 8 * * *` (08:00 UTC daily)  | core     | POSTs to `daily-moderation` — sweeps every not-yet-moderated post/comment (`moderated_at is null`) through moderation, promotes clean pending ones, and posts a Slack summary (no-op if `SLACK_WEBHOOK_URL` unset) |
-| `community-like-digest`     | `0 * * * *` (hourly)           | push     | POSTs to `notify-like` — flushes any coalesced like-notification bursts the real-time trigger held back                                                                                                            |
-| `community-reaction-digest` | `30 * * * *` (half-hourly)     | reaction | POSTs to `notify-reaction` — same digest pattern for reactions                                                                                                                                                     |
-| `notifications-purge`       | `15 3 * * *` (03:15 UTC daily) | inbox    | Pure SQL, deletes `notifications` rows older than 90 days — no HTTP call, no placeholder                                                                                                                           |
+| Job name                      | Schedule                       | Module      | What it does                                                                                                                                                                                                       |
+| ----------------------------- | ------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `daily-moderation`            | `0 8 * * *` (08:00 UTC daily)  | core        | POSTs to `daily-moderation` — sweeps every not-yet-moderated post/comment (`moderated_at is null`) through moderation, promotes clean pending ones, and posts a Slack summary (no-op if `SLACK_WEBHOOK_URL` unset) |
+| `community-like-digest`       | `0 * * * *` (hourly)           | push        | POSTs to `notify-like` — flushes any coalesced like-notification bursts the real-time trigger held back                                                                                                            |
+| `community-reaction-digest`   | `30 * * * *` (half-hourly)     | reaction    | POSTs to `notify-reaction` — same digest pattern for reactions                                                                                                                                                     |
+| `notifications-purge`         | `15 3 * * *` (03:15 UTC daily) | inbox       | Pure SQL, deletes `notifications` rows older than 90 days — no HTTP call, no placeholder                                                                                                                           |
+| `community-translation-sweep` | `30 8 * * *` (08:30 UTC daily) | translation | POSTs to `daily-translation` — back-fills and retries translations                                                                                                                                                 |
 
 Verify jobs registered:
 
@@ -137,6 +141,24 @@ anonymous fallback name) and remembered in `username_rejected` so a client
 re-sync keeps them blank. The first sweeps after installing the migration
 check the existing usernames, up to 1000 per run. Blanked names are listed in
 the Slack summary.
+
+### Translation
+
+`translate-one` runs synchronously when a post or comment is published,
+translating it into every locale in `COMMUNITY_TRANSLATION_LOCALES`. The
+source language is not configured — the model detects it per item, and no
+row is written for the target locale that matches the detected source (the
+UI falls back to the original text for that reader). `daily-translation`
+sweeps daily at 08:30 UTC: it back-fills the whole history the first time
+the module is installed, then catches anything the synchronous call missed
+(an API outage, a locale added to the secret afterward), capped at 250
+items per kind (post/comment) per run. Neither function ever surfaces a
+failure to the end user — `daily-translation` posts to Slack only when
+items failed (no-op if `SLACK_WEBHOOK_URL` unset), and an item that fails
+simply stays "missing" for the next sweep. `notify-comment` and
+`broadcast-post` send the recipient an excerpt in their own language
+(resolved from `profiles.locale` against the target locales), falling back
+to the original text if no translation is available.
 
 ### Who can call what
 

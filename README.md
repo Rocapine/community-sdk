@@ -83,7 +83,14 @@ const config: CommunityConfig = {
   appName: "My App",
   anonymousAuthorFallback: "Someone",
   topics: [{ id: "general" }, { id: "question" }, { id: "news", officialOnly: true }],
-  modules: { polls: true, push: false, inbox: true, reaction: { key: "cheer" } },
+  modules: {
+    polls: true,
+    push: false,
+    inbox: true,
+    reaction: { key: "cheer" },
+    // must equal the backend's COMMUNITY_TRANSLATION_LOCALES secret
+    translation: { locales: ["en", "es-419"] },
+  },
   host: {
     onEvent: (name, props) => myAnalytics.track(name, props),
   },
@@ -134,16 +141,17 @@ import { Feather } from "@expo/vector-icons";
 `modules` in `CommunityConfig` must mirror what the CLI installed on the
 backend (`--modules` at `init` time / `community-sdk.json`).
 
-| Module   | Config field                                 | Adds                                                                                                                                        | Backend pieces                                                                                        |
-| -------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| core     | always on                                    | feed, comments, likes, blocks/reports, moderated profiles (handle/bio/avatar synchronously, username by the daily sweep)                    | `supabase/migrations/core/*`, `moderate-one`, `daily-moderation`, `update-profile`, `report-to-slack` |
-| push     | `modules.push: boolean`                      | like/comment push notifications, official-account broadcasts                                                                                | `supabase/migrations/push/*`, `notify-like`, `notify-comment`, `broadcast-post`                       |
-| polls    | `modules.polls: boolean`                     | 2-4 option polls on a post                                                                                                                  | `supabase/migrations/polls/*`                                                                         |
-| reaction | `modules.reaction: { key: string } \| false` | one generic, private, non-retractable secondary reaction per post (label/meaning is entirely client-side via i18n + `renderReactionButton`) | `supabase/migrations/reaction/*`, `notify-reaction`                                                   |
-| inbox    | `modules.inbox: boolean`                     | server-event notification center (likes/comments/reactions/official posts, plus custom app-defined kinds)                                   | `supabase/migrations/inbox/*`                                                                         |
+| Module      | Config field                                          | Adds                                                                                                                                                                                                                                 | Backend pieces                                                                                                         |
+| ----------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| core        | always on                                             | feed, comments, likes, blocks/reports, moderated profiles (handle/bio/avatar synchronously, username by the daily sweep)                                                                                                             | `supabase/migrations/core/*`, `moderate-one`, `daily-moderation`, `update-profile`, `report-to-slack`                  |
+| push        | `modules.push: boolean`                               | like/comment push notifications, official-account broadcasts                                                                                                                                                                         | `supabase/migrations/push/*`, `notify-like`, `notify-comment`, `broadcast-post`                                        |
+| polls       | `modules.polls: boolean`                              | 2-4 option polls on a post                                                                                                                                                                                                           | `supabase/migrations/polls/*`                                                                                          |
+| reaction    | `modules.reaction: { key: string } \| false`          | one generic, private, non-retractable secondary reaction per post (label/meaning is entirely client-side via i18n + `renderReactionButton`)                                                                                          | `supabase/migrations/reaction/*`, `notify-reaction`                                                                    |
+| inbox       | `modules.inbox: boolean`                              | server-event notification center (likes/comments/reactions/official posts, plus custom app-defined kinds)                                                                                                                            | `supabase/migrations/inbox/*`                                                                                          |
+| translation | `modules.translation: { locales: string[] } \| false` | posts, comments and poll labels translated at publication into the listed locales, shown in the reader's language with a per-item "see original"; comment pushes, official broadcasts and inbox excerpts in the recipient's language | `supabase/migrations/translation/*`, `translate-one`, `daily-translation` (+ `notify-comment`/`broadcast-post` use it) |
 
 **Ordering note:** the CLI installs modules `core → push → polls → reaction →
-inbox` regardless of the order you pass to `--modules`, because inbox's
+inbox → translation` regardless of the order you pass to `--modules`, because inbox's
 reaction trigger is guarded at install time and needs the reaction module's
 table to already exist. You never need to think about this — just don't
 enable `inbox` without `reaction` if you want reaction pushes to show up in
