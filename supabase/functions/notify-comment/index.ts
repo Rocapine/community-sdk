@@ -10,6 +10,7 @@
 import { adminClient } from "../_shared/client.ts";
 import { sendExpoPush } from "../_shared/push.ts";
 import { pushCopy } from "../_shared/copy.ts";
+import { ensureTranslations, resolveTargetLocale, languageOf } from "../_shared/translation.ts";
 
 const supabase = adminClient();
 
@@ -59,8 +60,19 @@ Deno.serve(async (req) => {
     .eq("id", comment.author_id)
     .single();
   const name = actor?.username?.trim() || copy.fallbackName;
-  const excerpt =
-    comment.content.length > 140 ? `${comment.content.slice(0, 137)}...` : comment.content;
+  // Recipient-language excerpt when the translation module is on: translate
+  // now (a few seconds) rather than push the source language; on failure the
+  // original goes out and the sweep fills the rows later.
+  let excerptSource = comment.content;
+  const targetLocale = resolveTargetLocale(recipient?.locale);
+  if (targetLocale) {
+    const rows = await ensureTranslations(supabase, "comment", comment.id);
+    const match = rows?.find(
+      (r) => r.locale === targetLocale && languageOf(r.locale) !== r.source_locale,
+    );
+    if (match) excerptSource = match.content;
+  }
+  const excerpt = excerptSource.length > 140 ? `${excerptSource.slice(0, 137)}...` : excerptSource;
   // Title states the event; body is the commenter's name then the comment in
   // quotes, e.g.  Marie: "So happy for you!".
   const body = `${name}: "${excerpt}"`;
