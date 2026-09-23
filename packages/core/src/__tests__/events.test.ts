@@ -29,3 +29,7 @@ it("is a no-op without a host adapter (default onEvent)", () => {
   const cfg = resolveConfig({ ...base });
   expect(() => emitEvent(cfg, COMMUNITY_EVENTS.rulesAccepted)).not.toThrow();
 });
+
+it("defines the translation toggle event key", () => {
+  expect(COMMUNITY_EVENTS.translationToggled).toBe("community_translation_toggled");
+});

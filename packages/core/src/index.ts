@@ -106,7 +106,7 @@ export {
   useDeleteContent,
 } from "./hooks";
 
-export { fetchInbox, markInboxSeen, unreadCount } from "./inbox-service";
+export { fetchInbox, localizeExcerpts, markInboxSeen, unreadCount } from "./inbox-service";
 export type { InboxItem, InboxState } from "./inbox-service";
 
 export { useNotificationInbox, useUnreadNotificationCount, useMarkInboxSeen } from "./inbox-hooks";

@@ -13,6 +13,7 @@
 
 import type { ResolvedCommunityConfig } from "./config";
 import { ensureIdentity } from "./identity";
+import { readerLocale } from "./locale";
 
 export type InboxItem = {
   id: string;
@@ -41,6 +42,21 @@ interface NotificationRow {
 }
 
 const INBOX_PAGE_SIZE = 50;
+
+/** Same truncation as list_notifications()'s `left(p.content, 140)`. */
+export function localizeExcerpts(
+  items: InboxItem[],
+  translations: { post_id: string; content: string }[],
+): InboxItem[] {
+  if (translations.length === 0) return items;
+  const byPost = new Map(translations.map((t) => [t.post_id, t.content.slice(0, 140)]));
+  return items.map((item) => {
+    const translated = item.postId ? byPost.get(item.postId) : undefined;
+    return translated === undefined
+      ? item
+      : { ...item, payload: { ...item.payload, postExcerpt: translated } };
+  });
+}
 
 async function requireUid(cfg: ResolvedCommunityConfig): Promise<string> {
   const uid = await ensureIdentity(cfg);
@@ -86,7 +102,20 @@ export async function fetchInbox(cfg: ResolvedCommunityConfig): Promise<InboxSta
   if (listRes.error) throw listRes.error;
   if (seenRes.error) throw seenRes.error;
   const items = ((listRes.data ?? []) as NotificationRow[]).map(mapNotificationRow);
-  return { items, seenAt: (seenRes.data?.seen_at as string | undefined) ?? null };
+  const locale = readerLocale(cfg);
+  const postIds = [
+    ...new Set(items.map((i) => i.postId).filter((id): id is string => Boolean(id))),
+  ];
+  let localized = items;
+  if (locale && postIds.length > 0) {
+    const { data } = await client
+      .from("post_translations")
+      .select("post_id, content")
+      .eq("locale", locale)
+      .in("post_id", postIds);
+    localized = localizeExcerpts(items, (data ?? []) as { post_id: string; content: string }[]);
+  }
+  return { items: localized, seenAt: (seenRes.data?.seen_at as string | undefined) ?? null };
 }
 
 /**
