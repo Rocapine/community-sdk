@@ -150,15 +150,22 @@ the Slack summary.
 translating it into every locale in `COMMUNITY_TRANSLATION_LOCALES`. The
 source language is not configured — the model detects it per item, and no
 row is written for the target locale that matches the detected source (the
-UI falls back to the original text for that reader). `daily-translation`
-sweeps daily at 08:30 UTC: it back-fills the whole history the first time
-the module is installed, then catches anything the synchronous call missed
-(an API outage, a locale added to the secret afterward), capped at 250
-items per kind (post/comment) per run. Neither function ever surfaces a
-failure to the end user — `daily-translation` posts to Slack only when
-items failed (no-op if `SLACK_WEBHOOK_URL` unset), and an item that fails
-simply stays "missing" for the next sweep. `notify-comment` and
-`broadcast-post` send the recipient an excerpt in their own language
+UI falls back to the original text for that reader). For a `gpt-5*` model
+the request sets `reasoning.effort=minimal`, since reasoning effort otherwise
+dominates per-item latency. `daily-translation` sweeps daily at 08:30 UTC: it
+back-fills the whole history the first time the module is installed, then
+catches anything the synchronous call missed (an API outage, a locale added
+to the secret afterward), capped at 250 items per kind (post/comment) fetched
+per run. Each invocation translates up to 4 items at a time within a 60s time
+budget; when items remain after the budget (or the fetch itself was capped),
+the function re-invokes itself over HTTP so a first install back-fills the
+whole history in the background, typically within hours (chained up to 200
+times deep). A run that makes no progress (0 items done) never chains — that
+case is left to the daily cron retry and the Slack failure count. Neither
+function ever surfaces a failure to the end user — `daily-translation` posts
+to Slack only when items failed (no-op if `SLACK_WEBHOOK_URL` unset), and an
+item that fails simply stays "missing" for the next sweep. `notify-comment`
+and `broadcast-post` send the recipient an excerpt in their own language
 (resolved from `profiles.locale` against the target locales), falling back
 to the original text if no translation is available.
 

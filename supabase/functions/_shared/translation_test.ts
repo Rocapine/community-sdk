@@ -4,6 +4,7 @@ import {
   missingLocales,
   parseTranslationResponse,
   resolveTargetLocale,
+  runPool,
   type TranslationRow,
 } from "./translation.ts";
 
@@ -62,4 +63,42 @@ Deno.test("missingLocales excludes present locales and same-language-as-source l
 Deno.test("missingLocales returns every target when nothing exists yet", () => {
   const targets = ["en", "es-ES", "pt-PT"];
   assertEquals(missingLocales([], targets), targets);
+});
+
+Deno.test("runPool: results preserve item order regardless of completion order", async () => {
+  const delays = [30, 10, 20, 0]; // item 0 finishes last, item 3 first
+  const fn = (i: number) =>
+    new Promise<string>((resolve) => setTimeout(() => resolve(`item-${i}`), delays[i]));
+  const { results, processed } = await runPool([0, 1, 2, 3], 4, fn);
+  assertEquals(processed, 4);
+  assertEquals(results, ["item-0", "item-1", "item-2", "item-3"]);
+});
+
+Deno.test("runPool: never runs more than `concurrency` at once", async () => {
+  let active = 0;
+  let maxActive = 0;
+  const fn = async (n: number) => {
+    active++;
+    maxActive = Math.max(maxActive, active);
+    await new Promise((r) => setTimeout(r, 5));
+    active--;
+    return n * 2;
+  };
+  const { results, processed } = await runPool([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3, fn);
+  assertEquals(processed, 10);
+  assertEquals(results, [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]);
+  assertEquals(maxActive <= 3, true);
+});
+
+Deno.test("runPool: stops starting new items when shouldContinue returns false", async () => {
+  let started = 0;
+  let allow = true;
+  const fn = async (n: number) => {
+    started++;
+    if (started === 2) allow = false;
+    return n;
+  };
+  const { results, processed } = await runPool([1, 2, 3, 4, 5], 1, fn, () => allow);
+  assertEquals(processed, 2);
+  assertEquals(results, [1, 2]);
 });

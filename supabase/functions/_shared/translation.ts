@@ -130,6 +130,7 @@ export async function translateItem(input: {
           format: { type: "json_schema", name: "translations", strict: true, schema },
         },
         store: false,
+        ...(/^gpt-5/.test(TRANSLATION_MODEL) ? { reasoning: { effort: "minimal" } } : {}),
       }),
     });
     if (!res.ok) {
@@ -152,6 +153,36 @@ export async function translateItem(input: {
     console.error("translation failed", e);
     return null;
   }
+}
+
+/**
+ * Runs `fn` over `items` with at most `concurrency` in flight at once, starting
+ * items in order. Before starting each new item, `shouldContinue()` is checked
+ * (default: always continue); once it returns false, no further items are
+ * started (items already in flight still finish). `processed` counts items
+ * actually started (and awaited); `results` holds their outputs, in item order.
+ * Pure/no I/O — safe to unit test with fake async fns.
+ */
+export async function runPool<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+  shouldContinue: () => boolean = () => true,
+): Promise<{ results: R[]; processed: number }> {
+  const results: R[] = [];
+  let nextIndex = 0;
+  let processed = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length && shouldContinue()) {
+      const i = nextIndex++;
+      processed++;
+      results[i] = await fn(items[i]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return { results, processed };
 }
 
 /** Targets not already present in `have`, and (once a source is known) not the same language as it. */
