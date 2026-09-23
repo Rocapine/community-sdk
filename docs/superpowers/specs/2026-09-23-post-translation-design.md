@@ -10,15 +10,15 @@ does not enable the module.
 Readers see every post, comment and poll in the language of their app, with a per-item toggle back
 to the original. Decisions taken during brainstorming (each is a product choice, not an inference):
 
-| Question | Decision |
-| --- | --- |
-| Default display | Translation shown automatically; discreet "Translated from X · See original" line toggles that one item. No persisted preference. |
-| Target languages | The app's declared locales (`modules.translation.locales`), identical on the backend via a secret. No dynamic detection of active locales. |
-| Source language | Detected by the model at translation time; never trusted from `profiles.locale`. No translation row is written for the source language. |
-| Engine | OpenAI, through the `OPENAI_API_KEY` secret both apps already hold. Model name is a secret with a small default. One structured-output call per item, all target locales at once. |
-| When | At publication (status becomes `visible`), asynchronously; a daily sweep backfills the whole history and any item whose translation failed. |
-| Pushes and inbox | In the recipient's language (comment push, official-post broadcast, inbox excerpts). |
-| Polls | Option labels translated with the post, in the same call. |
+| Question         | Decision                                                                                                                                                                          |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default display  | Translation shown automatically; discreet "Translated from X · See original" line toggles that one item. No persisted preference.                                                 |
+| Target languages | The app's declared locales (`modules.translation.locales`), identical on the backend via a secret. No dynamic detection of active locales.                                        |
+| Source language  | Detected by the model at translation time; never trusted from `profiles.locale`. No translation row is written for the source language.                                           |
+| Engine           | OpenAI, through the `OPENAI_API_KEY` secret both apps already hold. Model name is a secret with a small default. One structured-output call per item, all target locales at once. |
+| When             | At publication (status becomes `visible`), asynchronously; a daily sweep backfills the whole history and any item whose translation failed.                                       |
+| Pushes and inbox | In the recipient's language (comment push, official-post broadcast, inbox excerpts).                                                                                              |
+| Polls            | Option labels translated with the post, in the same call.                                                                                                                         |
 
 Volume baseline (Eve prod, 2026-09-23): ~200 posts and ~400 comments per month, 356 / 198
 characters on average; 96% of profiles `en`, 3.7% `es-419`. Cost is not a design constraint.
@@ -79,7 +79,7 @@ create table public.poll_option_translations (
   `translate-one` through `net.http_post` with `{ "kind": "post" | "comment", "id": <uuid> }` and the
   anon key (placeholders `__SUPABASE_PROJECT_URL__` / `__SUPABASE_ANON_KEY__`, same as push).
 - `poll_option_translations` is created inside a `do $$ … if to_regclass('public.poll_options') is
-  not null …` guard (the same pattern as the inbox module's reaction trigger), so `translation`
+not null …` guard (the same pattern as the inbox module's reaction trigger), so `translation`
   installs cleanly on a backend without `polls`. The CLI warns when `translation` is requested
   without `polls`, only to explain that poll labels won't be translated; nothing breaks.
 - The migration also ships `public.items_missing_translations(kind text, target_locales text[], max_items int)`,
@@ -143,12 +143,12 @@ when there is nothing to do.
 
 ### 5.5 Secrets summary
 
-| Secret | Required | Purpose |
-| --- | --- | --- |
+| Secret                          | Required       | Purpose                                           |
+| ------------------------------- | -------------- | ------------------------------------------------- |
 | `COMMUNITY_TRANSLATION_LOCALES` | yes, module on | Target locales, must equal the client config list |
-| `COMMUNITY_TRANSLATION_MODEL` | no | Overrides the default OpenAI model |
-| `COMMUNITY_TRANSLATION_STYLE` | no | Per-app voice instruction |
-| `OPENAI_API_KEY` | already set | Translation calls |
+| `COMMUNITY_TRANSLATION_MODEL`   | no             | Overrides the default OpenAI model                |
+| `COMMUNITY_TRANSLATION_STYLE`   | no             | Per-app voice instruction                         |
+| `OPENAI_API_KEY`                | already set    | Translation calls                                 |
 
 ## 6. Client core
 
@@ -180,8 +180,8 @@ when there is nothing to do.
 - `CommunityPost` and the thread's `CommentRow` display `translation.text` when present, else `text`;
   the poll block uses `translatedLabel` when present. Below the body (after the clamp, before the
   footer) a line in `fonts.medium` 12.5 `textFaint`: `t("translation.translatedFrom", { language })` +
-  ` · ` + `t("translation.showOriginal")`; toggled state shows `t("translation.original")` +
-  ` · ` + `t("translation.showTranslation")`. State is local to the item; toggling emits the event.
+  `·` + `t("translation.showOriginal")`; toggled state shows `t("translation.original")` +
+  `·` + `t("translation.showTranslation")`. State is local to the item; toggling emits the event.
 - Pure helper `utils/translation.ts`: `displayText(item, showOriginal)`, `toggleLabel(...)`, unit-tested.
 - New catalogue keys in all 9 locales: `translation.translatedFrom`, `translation.original`,
   `translation.showOriginal`, `translation.showTranslation`, and `language.<code>` for

@@ -29,6 +29,7 @@
 ## File structure
 
 **Backend templates (`supabase/`)**
+
 - Create `supabase/migrations/translation/001_translations.sql` — tables, RLS, triggers, cron, sweep helper.
 - Create `supabase/functions/_shared/translation.ts` — secrets, OpenAI call, response parser, `ensureTranslations`, `resolveTargetLocale`.
 - Create `supabase/functions/_shared/translation_test.ts` — Deno unit tests for the pure parts.
@@ -36,17 +37,21 @@
 - Modify `supabase/functions/notify-comment/index.ts`, `supabase/functions/broadcast-post/index.ts` — localized excerpts.
 
 **CLI (`packages/cli`)**
+
 - Modify `src/install-shared.ts` (module order, functions map, dependency warning), `src/commands/init.ts` (secrets hint), tests.
 
 **Core (`packages/core/src`)**
+
 - Create `locale.ts` — `readerLocale(cfg)`; test `__tests__/locale.test.ts`.
 - Modify `config.ts` (module type), `models.ts` (row + model types, mapping), `service.ts` (selects + embedded filters), `hooks.ts` (locale in query keys), `inbox-service.ts` (excerpt substitution), `events.ts`, `index.ts`, tests.
 
 **UI (`packages/ui/src`)**
+
 - Create `utils/translation.ts` — `displayText`, `translationLine`; test `__tests__/translation.test.ts`.
 - Modify `components/CommunityPost.tsx`, `components/PollBlock.tsx`, `screens/ThreadSheet.tsx` (CommentRow), all 9 `locales/*.ts`.
 
 **Docs / release**
+
 - Modify `README.md` (module matrix), `docs/backend-runbook.md` (secrets), `docs/compat.md`, `packages/core/README.md`, `packages/ui/README.md`; add three changesets; `.github/workflows/ci.yml` (deno test step).
 
 ---
@@ -54,11 +59,13 @@
 ### Task 1: Migration template and CLI module registration
 
 **Files:**
+
 - Create: `supabase/migrations/translation/001_translations.sql`
 - Modify: `packages/cli/src/install-shared.ts:16-33` (MODULE_ORDER, functions map), `packages/cli/src/install-shared.ts:61-64` (warning), `packages/cli/src/commands/init.ts:176-184` (secrets hint)
 - Test: `packages/cli/src/__tests__/init.test.ts`
 
 **Interfaces:**
+
 - Produces: tables `post_translations(post_id, locale, source_locale, content, engine, created_at)`, `comment_translations(comment_id, …)`, `poll_option_translations(option_id, locale, content)`; SQL function `items_missing_translations(kind text, target_locales text[], max_items int) returns table(id uuid)`; triggers calling `/functions/v1/translate-one` with body `{"kind": "post"|"comment", "id": "<uuid>"}`; cron `community-translation-sweep` → `/functions/v1/daily-translation` at `30 8 * * *`. CLI module `"translation"` with functions `translate-one`, `daily-translation`.
 
 - [ ] **Step 1: Write the failing CLI tests**
@@ -66,24 +73,24 @@
 Append to `packages/cli/src/__tests__/init.test.ts` inside the `runInit` describe block:
 
 ```ts
-  it("installs the translation module last, with its two functions", async () => {
-    await runInit(baseOptions({ modules: ["core", "polls", "translation"] }));
-    const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
-    const modulesInFileOrder = files.map((f) => f.split("_community_")[1]!.split("_")[0]);
-    expect(modulesInFileOrder.at(-1)).toBe("translation");
-    expect(modulesInFileOrder.filter((m) => m === "translation")).toHaveLength(1);
-    const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions")).sort();
-    expect(fnDirs).toContain("translate-one");
-    expect(fnDirs).toContain("daily-translation");
-  });
+it("installs the translation module last, with its two functions", async () => {
+  await runInit(baseOptions({ modules: ["core", "polls", "translation"] }));
+  const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
+  const modulesInFileOrder = files.map((f) => f.split("_community_")[1]!.split("_")[0]);
+  expect(modulesInFileOrder.at(-1)).toBe("translation");
+  expect(modulesInFileOrder.filter((m) => m === "translation")).toHaveLength(1);
+  const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions")).sort();
+  expect(fnDirs).toContain("translate-one");
+  expect(fnDirs).toContain("daily-translation");
+});
 
-  it("warns when translation is selected without polls, but proceeds", async () => {
-    const onWarn = vi.fn();
-    const result = await runInit(baseOptions({ modules: ["core", "translation"], onWarn }));
-    expect(onWarn).toHaveBeenCalledTimes(1);
-    expect(onWarn.mock.calls[0]![0]).toMatch(/poll/i);
-    expect(result.manifest.modules).toEqual(["core", "translation"]);
-  });
+it("warns when translation is selected without polls, but proceeds", async () => {
+  const onWarn = vi.fn();
+  const result = await runInit(baseOptions({ modules: ["core", "translation"], onWarn }));
+  expect(onWarn).toHaveBeenCalledTimes(1);
+  expect(onWarn.mock.calls[0]![0]).toMatch(/poll/i);
+  expect(result.manifest.modules).toEqual(["core", "translation"]);
+});
 ```
 
 - [ ] **Step 2: Run the CLI tests to verify they fail**
@@ -272,17 +279,17 @@ const TRANSLATION_FUNCTIONS = ["translate-one", "daily-translation"];
 and in `functionsForModules`, after the reaction line:
 
 ```ts
-  if (modules.includes("translation")) for (const f of TRANSLATION_FUNCTIONS) set.add(f);
+if (modules.includes("translation")) for (const f of TRANSLATION_FUNCTIONS) set.add(f);
 ```
 
 After the existing inbox-without-reaction warning (line 61-64) add:
 
 ```ts
-  if (canonicalModules.includes("translation") && !canonicalModules.includes("polls")) {
-    onWarn(
-      "community-sdk: module 'translation' selected without 'polls' — poll option labels won't be translated (posts and comments are).",
-    );
-  }
+if (canonicalModules.includes("translation") && !canonicalModules.includes("polls")) {
+  onWarn(
+    "community-sdk: module 'translation' selected without 'polls' — poll option labels won't be translated (posts and comments are).",
+  );
+}
 ```
 
 Also update the header comment of `MODULE_ORDER` to mention `inbox -> translation`.
@@ -290,11 +297,11 @@ Also update the header comment of `MODULE_ORDER` to mention `inbox -> translatio
 In `packages/cli/src/commands/init.ts`, after the push-module secrets hint (line 179-183) add:
 
 ```ts
-  if (modules.includes("translation")) {
-    log(
-      '     translation module: COMMUNITY_TRANSLATION_LOCALES="en,es-419,..." (required, same list as modules.translation.locales in the app); optional: COMMUNITY_TRANSLATION_MODEL, COMMUNITY_TRANSLATION_STYLE',
-    );
-  }
+if (modules.includes("translation")) {
+  log(
+    '     translation module: COMMUNITY_TRANSLATION_LOCALES="en,es-419,..." (required, same list as modules.translation.locales in the app); optional: COMMUNITY_TRANSLATION_MODEL, COMMUNITY_TRANSLATION_STYLE',
+  );
+}
 ```
 
 - [ ] **Step 5: Run the CLI tests to verify they pass**
@@ -316,10 +323,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 2: Shared translation helper (`_shared/translation.ts`) with Deno tests and CI step
 
 **Files:**
+
 - Create: `supabase/functions/_shared/translation.ts`, `supabase/functions/_shared/translation_test.ts`, `supabase/functions/deno.json`
 - Modify: `.github/workflows/ci.yml`
 
 **Interfaces:**
+
 - Produces:
   - `TARGET_LOCALES: string[]` (from `COMMUNITY_TRANSLATION_LOCALES`), `TRANSLATION_MODEL: string`, `TRANSLATION_STYLE: string`.
   - `languageOf(locale: string): string` — `"es-419"` → `"es"`.
@@ -356,30 +365,36 @@ Deno.test("resolveTargetLocale: exact, same-language, none", () => {
   assertEquals(resolveTargetLocale(null, TARGETS), null);
 });
 
-Deno.test("parseTranslationResponse keeps only targets in another language and drops bad shapes", () => {
-  const parsed = parseTranslationResponse(
-    {
-      source_locale: "en",
-      translations: {
-        en: { content: "same language, must be dropped", options: [] },
-        "es-ES": { content: "Hola", options: ["Sí", "No"] },
-        "es-419": { content: "Hola", options: ["Sí", "No"] },
-        "pt-PT": { content: "Olá", options: ["Sim"] }, // wrong option count → dropped
-        fr: { content: "not a target", options: [] },
+Deno.test(
+  "parseTranslationResponse keeps only targets in another language and drops bad shapes",
+  () => {
+    const parsed = parseTranslationResponse(
+      {
+        source_locale: "en",
+        translations: {
+          en: { content: "same language, must be dropped", options: [] },
+          "es-ES": { content: "Hola", options: ["Sí", "No"] },
+          "es-419": { content: "Hola", options: ["Sí", "No"] },
+          "pt-PT": { content: "Olá", options: ["Sim"] }, // wrong option count → dropped
+          fr: { content: "not a target", options: [] },
+        },
       },
-    },
-    TARGETS,
-    2,
-  );
-  assertEquals(parsed?.sourceLocale, "en");
-  assertEquals(Object.keys(parsed!.translations).sort(), ["es-419", "es-ES"]);
-  assertEquals(parsed!.translations["es-ES"].options, ["Sí", "No"]);
-});
+      TARGETS,
+      2,
+    );
+    assertEquals(parsed?.sourceLocale, "en");
+    assertEquals(Object.keys(parsed!.translations).sort(), ["es-419", "es-ES"]);
+    assertEquals(parsed!.translations["es-ES"].options, ["Sí", "No"]);
+  },
+);
 
 Deno.test("parseTranslationResponse rejects invalid payloads", () => {
   assertEquals(parseTranslationResponse(null, TARGETS, 0), null);
   assertEquals(parseTranslationResponse({ translations: {} }, TARGETS, 0), null);
-  assertEquals(parseTranslationResponse({ source_locale: "english!", translations: {} }, TARGETS, 0), null);
+  assertEquals(
+    parseTranslationResponse({ source_locale: "english!", translations: {} }, TARGETS, 0),
+    null,
+  );
 });
 ```
 
@@ -484,7 +499,10 @@ export async function translateItem(input: {
   const schema = {
     type: "object",
     properties: {
-      source_locale: { type: "string", description: "ISO 639-1 language code of the ORIGINAL text" },
+      source_locale: {
+        type: "string",
+        description: "ISO 639-1 language code of the ORIGINAL text",
+      },
       translations: {
         type: "object",
         properties: perLocale,
@@ -531,9 +549,9 @@ export async function translateItem(input: {
     // Responses API: the JSON text lives in output[].content[].text; output_text is the convenience join.
     const text: string | undefined =
       data.output_text ??
-      data.output?.flatMap((o: { content?: { text?: string }[] }) => o.content ?? []).find(
-        (c: { text?: string }) => typeof c.text === "string",
-      )?.text;
+      data.output
+        ?.flatMap((o: { content?: { text?: string }[] }) => o.content ?? [])
+        .find((c: { text?: string }) => typeof c.text === "string")?.text;
     if (!text) return null;
     return parseTranslationResponse(JSON.parse(text), input.targets, input.options.length);
   } catch (e) {
@@ -561,7 +579,11 @@ export async function ensureTranslations(
   const tTable = kind === "post" ? "post_translations" : "comment_translations";
   const fk = kind === "post" ? "post_id" : "comment_id";
 
-  const { data: row } = await supabase.from(table).select("id, content, status").eq("id", id).single();
+  const { data: row } = await supabase
+    .from(table)
+    .select("id, content, status")
+    .eq("id", id)
+    .single();
   if (!row || row.status !== "visible") return [];
 
   const { data: existing } = await supabase
@@ -634,10 +656,10 @@ Expected: 4 tests pass, check clean.
 In `.github/workflows/ci.yml`, after the prettier step add:
 
 ```yaml
-      - uses: denoland/setup-deno@v2
-        with: { deno-version: v2.x }
-      - run: cd supabase/functions && deno test --config deno.json --no-lock _shared/
-      - run: cd supabase/functions && deno check --config deno.json --no-lock */index.ts
+- uses: denoland/setup-deno@v2
+  with: { deno-version: v2.x }
+- run: cd supabase/functions && deno test --config deno.json --no-lock _shared/
+- run: cd supabase/functions && deno check --config deno.json --no-lock */index.ts
 ```
 
 Also add `supabase/functions/deno.json` to `.prettierignore` is NOT needed (JSON is formatted by prettier; run `npx prettier --write supabase/functions/deno.json`).
@@ -656,9 +678,11 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 3: `translate-one` and `daily-translation` functions
 
 **Files:**
+
 - Create: `supabase/functions/translate-one/index.ts`, `supabase/functions/daily-translation/index.ts`
 
 **Interfaces:**
+
 - Consumes: `ensureTranslations`, `TARGET_LOCALES` from Task 2; `items_missing_translations(kind, target_locales, max_items)` from Task 1; `adminClient`, `json` from `_shared/client.ts`; `postToSlack` from `_shared/slack.ts`.
 - Produces: HTTP `POST /translate-one` body `{ kind, id }` → `{ status: "ok" | "skipped" | "failed" }`; `POST /daily-translation` → `{ posts, comments, failed }`.
 
@@ -678,7 +702,8 @@ const supabase = adminClient();
 Deno.serve(async (req) => {
   const body = (await req.json().catch(() => ({}))) as { kind?: unknown; id?: unknown };
   const kind = body.kind === "post" || body.kind === "comment" ? body.kind : null;
-  if (!kind || typeof body.id !== "string") return json({ status: "error", error: "bad request" }, 400);
+  if (!kind || typeof body.id !== "string")
+    return json({ status: "error", error: "bad request" }, 400);
 
   const rows = await ensureTranslations(supabase, kind, body.id);
   if (rows === null) return json({ status: "failed" }, 502);
@@ -723,7 +748,12 @@ async function sweep(kind: "post" | "comment"): Promise<{ done: number; failed: 
 
 Deno.serve(async () => {
   if (TARGET_LOCALES.length === 0) {
-    return json({ posts: 0, comments: 0, failed: 0, note: "COMMUNITY_TRANSLATION_LOCALES not set" });
+    return json({
+      posts: 0,
+      comments: 0,
+      failed: 0,
+      note: "COMMUNITY_TRANSLATION_LOCALES not set",
+    });
   }
   const posts = await sweep("post");
   const comments = await sweep("comment");
@@ -761,9 +791,11 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 4: Localized excerpts in `notify-comment` and `broadcast-post`
 
 **Files:**
+
 - Modify: `supabase/functions/notify-comment/index.ts`, `supabase/functions/broadcast-post/index.ts`
 
 **Interfaces:**
+
 - Consumes: `ensureTranslations`, `resolveTargetLocale`, `languageOf` (Task 2).
 
 - [ ] **Step 1: `notify-comment` — translated excerpt for the recipient**
@@ -777,17 +809,19 @@ import { ensureTranslations, resolveTargetLocale, languageOf } from "../_shared/
 Replace the excerpt block (currently `const excerpt = comment.content.length > 140 ? … : comment.content;`) with:
 
 ```ts
-  // Recipient-language excerpt when the translation module is on: translate
-  // now (a few seconds) rather than push the source language; on failure the
-  // original goes out and the sweep fills the rows later.
-  let excerptSource = comment.content;
-  const targetLocale = resolveTargetLocale(recipient?.locale);
-  if (targetLocale) {
-    const rows = await ensureTranslations(supabase, "comment", comment.id);
-    const match = rows?.find((r) => r.locale === targetLocale && languageOf(r.locale) !== r.source_locale);
-    if (match) excerptSource = match.content;
-  }
-  const excerpt = excerptSource.length > 140 ? `${excerptSource.slice(0, 137)}...` : excerptSource;
+// Recipient-language excerpt when the translation module is on: translate
+// now (a few seconds) rather than push the source language; on failure the
+// original goes out and the sweep fills the rows later.
+let excerptSource = comment.content;
+const targetLocale = resolveTargetLocale(recipient?.locale);
+if (targetLocale) {
+  const rows = await ensureTranslations(supabase, "comment", comment.id);
+  const match = rows?.find(
+    (r) => r.locale === targetLocale && languageOf(r.locale) !== r.source_locale,
+  );
+  if (match) excerptSource = match.content;
+}
+const excerpt = excerptSource.length > 140 ? `${excerptSource.slice(0, 137)}...` : excerptSource;
 ```
 
 (`recipient` is already fetched above for the push copy; keep that query and reuse it.)
@@ -797,33 +831,36 @@ Replace the excerpt block (currently `const excerpt = comment.content.length > 1
 Add the same import. Replace everything from `const excerpt = …` to the `sendExpoPushBatch(...)` call with:
 
 ```ts
-  const original = post.content.length > 140 ? `${post.content.slice(0, 137)}...` : post.content;
-  const translations = (await ensureTranslations(supabase, "post", post.id)) ?? [];
-  const excerptFor = (locale: string | null): string => {
-    if (!locale) return original;
-    const t = translations.find((r) => r.locale === locale);
-    return t ? (t.content.length > 140 ? `${t.content.slice(0, 137)}...` : t.content) : original;
-  };
+const original = post.content.length > 140 ? `${post.content.slice(0, 137)}...` : post.content;
+const translations = (await ensureTranslations(supabase, "post", post.id)) ?? [];
+const excerptFor = (locale: string | null): string => {
+  if (!locale) return original;
+  const t = translations.find((r) => r.locale === locale);
+  return t ? (t.content.length > 140 ? `${t.content.slice(0, 137)}...` : t.content) : original;
+};
 
-  const { data: rows } = await supabase
-    .from("push_tokens")
-    .select("expo_push_token, profiles!push_tokens_user_id_fkey(locale)")
-    .not("expo_push_token", "is", null);
-  const messages = (rows ?? [])
-    .map((r) => {
-      const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
-      return { to: r.expo_push_token as string, locale: resolveTargetLocale(profile?.locale ?? null) };
-    })
-    .filter((m) => Boolean(m.to))
-    .map(({ to, locale }) => ({
-      to,
-      title,
-      body: excerptFor(locale),
-      data: { route: "/community", kind: "community_official_post" },
-      badge: 1,
-    }));
-  await sendExpoPushBatch(messages);
-  const tokens = messages;
+const { data: rows } = await supabase
+  .from("push_tokens")
+  .select("expo_push_token, profiles!push_tokens_user_id_fkey(locale)")
+  .not("expo_push_token", "is", null);
+const messages = (rows ?? [])
+  .map((r) => {
+    const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+    return {
+      to: r.expo_push_token as string,
+      locale: resolveTargetLocale(profile?.locale ?? null),
+    };
+  })
+  .filter((m) => Boolean(m.to))
+  .map(({ to, locale }) => ({
+    to,
+    title,
+    body: excerptFor(locale),
+    data: { route: "/community", kind: "community_official_post" },
+    badge: 1,
+  }));
+await sendExpoPushBatch(messages);
+const tokens = messages;
 ```
 
 Check the FK name with `grep -n "references public.profiles" supabase/migrations/push/001_push.sql`: if `push_tokens.user_id` references `auth.users` rather than `profiles`, replace the embed with a second query `supabase.from("profiles").select("id, locale").in("id", userIds)` and a `Map<userId, locale>`; the join must not be guessed.
@@ -845,11 +882,13 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 5: Core config and reader-locale resolver
 
 **Files:**
+
 - Modify: `packages/core/src/config.ts:5-10` (CommunityModules), `packages/core/src/index.ts`
 - Create: `packages/core/src/locale.ts`
 - Test: `packages/core/src/__tests__/locale.test.ts`
 
 **Interfaces:**
+
 - Produces: `CommunityModules.translation?: { locales: string[] } | false`; `readerLocale(cfg: ResolvedCommunityConfig): string | null`; `languageOf(locale: string): string`.
 
 - [ ] **Step 1: Write the failing test**
@@ -870,7 +909,11 @@ const base = {
 describe("readerLocale", () => {
   const locales = ["en", "es-ES", "es-419", "pt-PT", "pl"];
   const cfgFor = (locale: string, translation: { locales: string[] } | false = { locales }) =>
-    resolveConfig({ ...base, modules: { ...base.modules, translation }, host: { getLocale: () => locale } });
+    resolveConfig({
+      ...base,
+      modules: { ...base.modules, translation },
+      host: { getLocale: () => locale },
+    });
 
   it("returns null when the module is off", () => {
     expect(readerLocale(cfgFor("es-419", false))).toBeNull();
@@ -953,10 +996,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 6: Core models — translation fields and mapping
 
 **Files:**
+
 - Modify: `packages/core/src/models.ts` (rows: `PostRow`, `PollOptionRow`, `CommentRow`; models: `FeedPost`, `ThreadComment`, `PollOption`; `buildPoll`, `mapPostRow`, `mapCommentRow`), `packages/core/src/index.ts`
 - Test: `packages/core/src/__tests__/models.test.ts`
 
 **Interfaces:**
+
 - Produces: `TranslationInfo = { text: string; sourceLocale: string }`; `FeedPost.translation: TranslationInfo | null`; `ThreadComment.translation: TranslationInfo | null`; `PollOption.translatedLabel: string | null`; row fields `PostRow.post_translations?: TranslationRowEmbed[]`, `CommentRow.comment_translations?: TranslationRowEmbed[]`, `PollOptionRow.poll_option_translations?: { content: string }[]` with `TranslationRowEmbed = { locale: string; source_locale: string; content: string }`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -992,7 +1037,11 @@ describe("translations", () => {
   });
   it("mapCommentRow exposes the embedded translation", () => {
     const comment = mapCommentRow(
-      { ...baseCommentRow(), content: "Thanks", comment_translations: [{ locale: "pl", source_locale: "en", content: "Dzięki" }] },
+      {
+        ...baseCommentRow(),
+        content: "Thanks",
+        comment_translations: [{ locale: "pl", source_locale: "en", content: "Dzięki" }],
+      },
       "me",
       "Someone",
     );
@@ -1066,10 +1115,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 7: Core selects and query keys
 
 **Files:**
+
 - Modify: `packages/core/src/service.ts` (`buildFeedSelect`, `postsSelect`, `fetchFeedPage`, `fetchUserPosts`, `searchPosts`, `fetchThread`), `packages/core/src/hooks.ts` (key helpers and every call site)
 - Test: `packages/core/src/__tests__/service.test.ts`
 
 **Interfaces:**
+
 - Consumes: `readerLocale(cfg)` (Task 5).
 - Produces: `buildFeedSelect(extraPostColumns?: readonly string[], polls = false, translations = false): string`; `applyTranslationFilters(query, locale, polls)` internal.
 
@@ -1100,7 +1151,8 @@ In `service.ts`:
 
 ```ts
 const POLL_OPTIONS_SELECT = "poll_options(id, idx, label)";
-const POLL_OPTIONS_TRANSLATED_SELECT = "poll_options(id, idx, label, poll_option_translations(content))";
+const POLL_OPTIONS_TRANSLATED_SELECT =
+  "poll_options(id, idx, label, poll_option_translations(content))";
 const POST_TRANSLATIONS_SELECT = "post_translations(locale, source_locale, content)";
 
 export function buildFeedSelect(
@@ -1140,9 +1192,12 @@ Apply `withTranslationFilters(query, cfg)` to the three posts queries (`fetchFee
 In `hooks.ts`:
 
 ```ts
-const feedKey = (topic?: string, locale?: string | null) => [...FEED_KEY, topic ?? "all", locale ?? "src"] as const;
-const threadKey = (postId: string, locale?: string | null) => ["community", "thread", postId, locale ?? "src"] as const;
-const userPostsKey = (userId: string, locale?: string | null) => [...USER_POSTS_KEY, userId, locale ?? "src"] as const;
+const feedKey = (topic?: string, locale?: string | null) =>
+  [...FEED_KEY, topic ?? "all", locale ?? "src"] as const;
+const threadKey = (postId: string, locale?: string | null) =>
+  ["community", "thread", postId, locale ?? "src"] as const;
+const userPostsKey = (userId: string, locale?: string | null) =>
+  [...USER_POSTS_KEY, userId, locale ?? "src"] as const;
 ```
 
 Then `grep -n "feedKey(\|threadKey(\|userPostsKey(\|SEARCH_KEY, cleaned" packages/core/src/hooks.ts` and pass `readerLocale(cfg)` at every call site (each hook already has `cfg`; add `const locale = readerLocale(cfg);` where needed). The search key becomes `[...SEARCH_KEY, cleaned, locale ?? "src"]`. `bumpFeedCommentCount`, `applyOptimisticToAllPostCaches` and `useDeleteContent` use prefix keys (`FEED_KEY`, `USER_POSTS_KEY`, `SEARCH_KEY`, `threadKey(postId, locale)`) — verify each still targets the right cache. `postCache.ts` in the ui package matches on `["community","thread", …]` prefixes: check `findCachedPost` / `subscribeToPostListCaches` still work with the extra key segment (they filter on key[1]; run the ui tests).
@@ -1164,10 +1219,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 8: Core inbox excerpts and the toggle event
 
 **Files:**
+
 - Modify: `packages/core/src/inbox-service.ts:78-90` (`fetchInbox`), `packages/core/src/events.ts`
 - Test: `packages/core/src/__tests__/inbox-service.test.ts`, `packages/core/src/__tests__/events.test.ts`
 
 **Interfaces:**
+
 - Produces: `COMMUNITY_EVENTS.translationToggled = "community_translation_toggled"`; `localizeExcerpts(items: InboxItem[], translations: { post_id: string; content: string }[]): InboxItem[]` (pure, exported for tests).
 
 - [ ] **Step 1: Write the failing tests**
@@ -1177,8 +1234,22 @@ In `inbox-service.test.ts`:
 ```ts
 it("localizeExcerpts swaps postExcerpt for the translated 140-char excerpt", () => {
   const items = [
-    { id: "n1", kind: "like", createdAt: "2026-01-01T00:00:00Z", actorName: null, postId: "p1", payload: { postExcerpt: "Hello" } },
-    { id: "n2", kind: "like", createdAt: "2026-01-01T00:00:00Z", actorName: null, postId: "p2", payload: { postExcerpt: "Keep" } },
+    {
+      id: "n1",
+      kind: "like",
+      createdAt: "2026-01-01T00:00:00Z",
+      actorName: null,
+      postId: "p1",
+      payload: { postExcerpt: "Hello" },
+    },
+    {
+      id: "n2",
+      kind: "like",
+      createdAt: "2026-01-01T00:00:00Z",
+      actorName: null,
+      postId: "p2",
+      payload: { postExcerpt: "Keep" },
+    },
   ] as InboxItem[];
   const out = localizeExcerpts(items, [{ post_id: "p1", content: "x".repeat(200) }]);
   expect(out[0].payload.postExcerpt).toBe("x".repeat(140));
@@ -1210,7 +1281,9 @@ export function localizeExcerpts(
   const byPost = new Map(translations.map((t) => [t.post_id, t.content.slice(0, 140)]));
   return items.map((item) => {
     const translated = item.postId ? byPost.get(item.postId) : undefined;
-    return translated === undefined ? item : { ...item, payload: { ...item.payload, postExcerpt: translated } };
+    return translated === undefined
+      ? item
+      : { ...item, payload: { ...item.payload, postExcerpt: translated } };
   });
 }
 ```
@@ -1250,10 +1323,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 9: UI helper and locale catalogues
 
 **Files:**
+
 - Create: `packages/ui/src/utils/translation.ts`, `packages/ui/src/__tests__/translation.test.ts`
 - Modify: `packages/ui/src/locales/{en,fr,de,es-ES,es-419,it,pl,pt-PT,pt-BR}.ts`, `packages/ui/src/index.ts`
 
 **Interfaces:**
+
 - Produces: `displayText(item: Translatable, showOriginal: boolean): string`; `translationLine(t: TFn, item: Translatable, showOriginal: boolean): string | null`; `type Translatable = { text: string; translation: { text: string; sourceLocale: string } | null }`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1279,9 +1354,9 @@ describe("translation helpers", () => {
   });
   it("falls back to the raw code for an unknown language", () => {
     const t = makeT("en");
-    expect(translationLine(t, { text: "x", translation: { text: "y", sourceLocale: "xx" } }, false)).toBe(
-      "Translated from xx · See original",
-    );
+    expect(
+      translationLine(t, { text: "x", translation: { text: "y", sourceLocale: "xx" } }, false),
+    ).toBe("Translated from xx · See original");
   });
 });
 ```
@@ -1297,7 +1372,10 @@ Run: `npm test -w @rocapine/community-ui 2>&1 | grep -E "×"`
 // out of the components so it is unit-testable without React Native.
 import type { TFn } from "../i18n";
 
-export type Translatable = { text: string; translation: { text: string; sourceLocale: string } | null };
+export type Translatable = {
+  text: string;
+  translation: { text: string; sourceLocale: string } | null;
+};
 
 export function displayText(item: Translatable, showOriginal: boolean): string {
   return item.translation && !showOriginal ? item.translation.text : item.text;
@@ -1321,6 +1399,7 @@ Export from `index.ts`: `export { displayText, translationLine } from "./utils/t
 Append to each `locales/*.ts` (keep the key-set parity test green — every file gets the same keys):
 
 en:
+
 ```ts
   "translation.translatedFrom": "Translated from {language}",
   "translation.original": "Original",
@@ -1329,6 +1408,7 @@ en:
   "language.en": "English", "language.es": "Spanish", "language.pt": "Portuguese",
   "language.it": "Italian", "language.pl": "Polish", "language.fr": "French", "language.de": "German",
 ```
+
 fr: `"Traduit du {language}"`, `"Original"`, `"Voir l'original"`, `"Voir la traduction"`, languages `anglais, espagnol, portugais, italien, polonais, français, allemand` (lower-case; the sentence reads "Traduit de l'anglais" — use `"translation.translatedFrom": "Traduit de {language}"` with language values `l'anglais, l'espagnol, du portugais…`? No: keep one template and article-free names: `"Traduit depuis : {language}"` avoids gender/elision issues). Use `"Traduit depuis : {language}"` with `anglais, espagnol, portugais, italien, polonais, français, allemand`.  
 de: `"Übersetzt aus dem {language}"` with `Englischen, Spanischen, Portugiesischen, Italienischen, Polnischen, Französischen, Deutschen`; `"Original"`, `"Original anzeigen"`, `"Übersetzung anzeigen"`.  
 es-ES / es-419: `"Traducido del {language}"` with `inglés, español, portugués, italiano, polaco, francés, alemán`; `"Original"`, `"Ver original"`, `"Ver traducción"`.  
@@ -1356,9 +1436,11 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 10: UI wiring — post card, poll block, comment row
 
 **Files:**
+
 - Modify: `packages/ui/src/components/CommunityPost.tsx:195-225` (body + new line), `packages/ui/src/components/PollBlock.tsx:20-60`, `packages/ui/src/screens/ThreadSheet.tsx` (CommentRow)
 
 **Interfaces:**
+
 - Consumes: `displayText`, `translationLine` (Task 9); `COMMUNITY_EVENTS.translationToggled`, `emitEvent`, `useCommunityConfig` (core).
 - Produces: `PollBlock` prop `showOriginal?: boolean` (default false).
 
@@ -1367,28 +1449,30 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 Add imports (`useCommunityConfig`, `COMMUNITY_EVENTS`, `emitEvent` from core if not already imported; `displayText`, `translationLine` from `../utils/translation`). Inside the component:
 
 ```tsx
-  const cfg = useCommunityConfig();
-  const [showOriginal, setShowOriginal] = useState(false);
-  const toggleLine = translationLine(t, post, showOriginal);
-  const toggleOriginal = () => {
-    setShowOriginal((v) => {
-      emitEvent(cfg, COMMUNITY_EVENTS.translationToggled, {
-        postId: post.id,
-        to: v ? "translation" : "original",
-      });
-      return !v;
+const cfg = useCommunityConfig();
+const [showOriginal, setShowOriginal] = useState(false);
+const toggleLine = translationLine(t, post, showOriginal);
+const toggleOriginal = () => {
+  setShowOriginal((v) => {
+    emitEvent(cfg, COMMUNITY_EVENTS.translationToggled, {
+      postId: post.id,
+      to: v ? "translation" : "original",
     });
-  };
+    return !v;
+  });
+};
 ```
 
 Replace `{post.text}` with `{displayText(post, showOriginal)}`. After the `overflows` block and before `{post.poll && <PollBlock post={post} />}` add:
 
 ```tsx
-      {toggleLine && (
-        <Pressable hitSlop={8} onPress={toggleOriginal}>
-          <Text style={styles.translationLine}>{toggleLine}</Text>
-        </Pressable>
-      )}
+{
+  toggleLine && (
+    <Pressable hitSlop={8} onPress={toggleOriginal}>
+      <Text style={styles.translationLine}>{toggleLine}</Text>
+    </Pressable>
+  );
+}
 ```
 
 Pass `showOriginal` to `PollBlock`: `<PollBlock post={post} showOriginal={showOriginal} />`. Add the style:
@@ -1428,6 +1512,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 11: Docs, changesets, README module matrix
 
 **Files:**
+
 - Modify: `README.md` (module matrix + config example), `docs/backend-runbook.md` (§3 secrets table + cron list), `docs/compat.md`, `packages/core/README.md` (config reference), `packages/ui/README.md` (screens/components notes)
 - Create: `.changeset/translation-core.md`, `.changeset/translation-ui.md`, `.changeset/translation-cli.md`
 
