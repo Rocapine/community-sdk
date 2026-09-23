@@ -11,8 +11,15 @@ import type { FeedPost } from "@rocapine/community-core";
 /** Finds a `FeedPost` by id across every cache that can hold one — the topic
  * feeds, user-posts and search results, all paginated `InfiniteData` —
  * mirroring the set of caches `useReactToPost`/`useVotePoll` sweep in
- * `core/hooks.ts`. */
-export function findCachedPost(queryClient: QueryClient, postId: string): FeedPost | null {
+ * `core/hooks.ts`. Only entries for the reader's `locale` count (every such
+ * key ends with `locale ?? "src"`): after a language switch the previous
+ * locale's entries are still cached and carry that locale's translation. */
+export function findCachedPost(
+  queryClient: QueryClient,
+  postId: string,
+  locale: string | null,
+): FeedPost | null {
+  const localeKey = locale ?? "src";
   const entries = [
     ...queryClient.getQueriesData<InfiniteData<FeedPost[]>>({ queryKey: ["community", "feed"] }),
     ...queryClient.getQueriesData<InfiniteData<FeedPost[]>>({
@@ -20,8 +27,8 @@ export function findCachedPost(queryClient: QueryClient, postId: string): FeedPo
     }),
     ...queryClient.getQueriesData<InfiniteData<FeedPost[]>>({ queryKey: ["community", "search"] }),
   ];
-  for (const [, data] of entries) {
-    if (!data) continue;
+  for (const [key, data] of entries) {
+    if (!data || key[key.length - 1] !== localeKey) continue;
     for (const page of data.pages) {
       const found = page.find((p) => p.id === postId);
       if (found) return found;

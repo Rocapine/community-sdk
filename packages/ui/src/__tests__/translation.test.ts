@@ -28,6 +28,16 @@ describe("translation helpers", () => {
     expect(translationLine(t, undItem, false)).toBeNull();
     expect(translationLine(t, undItem, true)).toBeNull();
   });
+  it("shows no caption when the translation is identical to the original", () => {
+    const t = makeT("es-419");
+    const same = {
+      text: "curl test post",
+      translation: { text: "curl test post", sourceLocale: "en" },
+    };
+    expect(translationLine(t, same, false)).toBeNull();
+    expect(translationLine(t, same, true)).toBeNull();
+    expect(displayText(same, false)).toBe("curl test post");
+  });
   it("uses idiomatic Polish genitive, French and Italian phrasing", () => {
     expect(translationLine(makeT("pl"), item, false)).toBe(
       "Przetłumaczono z angielskiego · Zobacz oryginał",

@@ -18,6 +18,9 @@ export function translationLine(t: TFn, item: Translatable, showOriginal: boolea
   // language; naming it in the caption ("Translated from und") is worse than
   // no caption, so the text still displays (via displayText) but without a line.
   if (item.translation.sourceLocale === "und") return null;
+  // The model sometimes returns the original unchanged (terse or
+  // technical-looking text): a caption over identical text is noise.
+  if (item.translation.text === item.text) return null;
   if (showOriginal) return `${t("translation.original")} · ${t("translation.showTranslation")}`;
   const key = `language.${item.translation.sourceLocale}`;
   const named = t(key);

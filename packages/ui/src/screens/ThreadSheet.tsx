@@ -46,6 +46,7 @@ import {
   COMMUNITY_EVENTS,
   displayName,
   emitEvent,
+  readerLocale,
   useBlockUser,
   useCommunityConfig,
   useCreateComment,
@@ -97,11 +98,11 @@ const noop = () => {};
  * on top of `useSyncExternalStore`'s own reference-equality bailout) live in
  * `../utils/postCache` — pulled out of this file so they're unit-testable
  * without mocking React Native/expo. */
-function useCachedPost(postId: string | null): FeedPost | null {
+function useCachedPost(postId: string | null, locale: string | null): FeedPost | null {
   const queryClient = useQueryClient();
   return useSyncExternalStore(
     (onStoreChange) => subscribeToPostListCaches(queryClient, postId, onStoreChange),
-    () => (postId ? findCachedPost(queryClient, postId) : null),
+    () => (postId ? findCachedPost(queryClient, postId, locale) : null),
   );
 }
 
@@ -142,7 +143,7 @@ export function ThreadSheet({
     if (postId) setShownId(postId);
   }, [postId]);
 
-  const post = useCachedPost(shownId);
+  const post = useCachedPost(shownId, readerLocale(cfg));
   const thread = useThread(shownId);
   const comments = thread.data ?? [];
 
@@ -155,7 +156,7 @@ export function ThreadSheet({
     // previous (stale) `shownId` — reading `post.commentCount` here always
     // observed 0 (or the previous thread's count). Reading the cache fresh at
     // the moment this effect fires sidesteps that ordering entirely.
-    const cached = findCachedPost(queryClient, postId);
+    const cached = findCachedPost(queryClient, postId, readerLocale(cfg));
     emitEvent(cfg, COMMUNITY_EVENTS.threadOpened, {
       postId,
       commentCount: cached?.commentCount ?? 0,
