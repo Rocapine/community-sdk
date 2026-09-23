@@ -22,4 +22,15 @@ describe("translation helpers", () => {
       translationLine(t, { text: "x", translation: { text: "y", sourceLocale: "xx" } }, false),
     ).toBe("Translated from xx · See original");
   });
+  it("uses idiomatic Polish genitive, French and Italian phrasing", () => {
+    expect(translationLine(makeT("pl"), item, false)).toBe(
+      "Przetłumaczono z angielskiego · Zobacz oryginał",
+    );
+    expect(translationLine(makeT("fr"), item, false)).toBe(
+      "Traduit de l'anglais · Voir l'original",
+    );
+    expect(translationLine(makeT("it"), item, false)).toBe(
+      "Tradotto dall'inglese · Vedi originale",
+    );
+  });
 });
