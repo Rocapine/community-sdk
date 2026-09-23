@@ -4,6 +4,9 @@ export { defaultTheme, mergeTheme } from "./theme";
 export type { TFn } from "./i18n";
 export { makeT, pluralCategory } from "./i18n";
 
+export type { Translatable } from "./utils/translation";
+export { displayText, translationLine } from "./utils/translation";
+
 export { en } from "./locales/en";
 export { esES } from "./locales/es-ES";
 export { es419 } from "./locales/es-419";

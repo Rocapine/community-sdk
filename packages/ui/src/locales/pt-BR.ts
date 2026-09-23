@@ -143,4 +143,16 @@ export const ptBR: Record<string, string> = {
   "inbox.reacted": "{name} reagiu à sua publicação",
   "inbox.news": "Novidades de {name}",
   "inbox.supportReply": "A equipe de suporte respondeu a você",
+
+  "translation.translatedFrom": "Traduzido do {language}",
+  "translation.original": "Original",
+  "translation.showOriginal": "Ver original",
+  "translation.showTranslation": "Ver tradução",
+  "language.en": "inglês",
+  "language.es": "espanhol",
+  "language.pt": "português",
+  "language.it": "italiano",
+  "language.pl": "polonês",
+  "language.fr": "francês",
+  "language.de": "alemão",
 };

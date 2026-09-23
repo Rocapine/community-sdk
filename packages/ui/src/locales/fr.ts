@@ -167,4 +167,16 @@ export const fr: Record<string, string> = {
   "inbox.reacted": "{name} a réagi à ta publication",
   "inbox.news": "Actualités de {name}",
   "inbox.supportReply": "L'équipe support t'a répondu",
+
+  "translation.translatedFrom": "Traduit depuis : {language}",
+  "translation.original": "Original",
+  "translation.showOriginal": "Voir l'original",
+  "translation.showTranslation": "Voir la traduction",
+  "language.en": "anglais",
+  "language.es": "espagnol",
+  "language.pt": "portugais",
+  "language.it": "italien",
+  "language.pl": "polonais",
+  "language.fr": "français",
+  "language.de": "allemand",
 };
