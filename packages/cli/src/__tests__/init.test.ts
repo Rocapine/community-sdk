@@ -161,6 +161,25 @@ describe("runInit", () => {
     expect(fnDirs).not.toContain("notify-reaction");
   });
 
+  it("installs the translation module last, with its two functions", async () => {
+    await runInit(baseOptions({ modules: ["core", "polls", "translation"] }));
+    const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
+    const modulesInFileOrder = files.map((f) => f.split("_community_")[1]!.split("_")[0]);
+    expect(modulesInFileOrder.at(-1)).toBe("translation");
+    expect(modulesInFileOrder.filter((m) => m === "translation")).toHaveLength(1);
+    const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions")).sort();
+    expect(fnDirs).toContain("translate-one");
+    expect(fnDirs).toContain("daily-translation");
+  });
+
+  it("warns when translation is selected without polls, but proceeds", async () => {
+    const onWarn = vi.fn();
+    const result = await runInit(baseOptions({ modules: ["core", "translation"], onWarn }));
+    expect(onWarn).toHaveBeenCalledTimes(1);
+    expect(onWarn.mock.calls[0]![0]).toMatch(/poll/i);
+    expect(result.manifest.modules).toEqual(["core", "translation"]);
+  });
+
   it("derives the project URL from <dir>/config.toml when not passed explicitly", async () => {
     const supabaseDir = path.join(cwd, "supabase");
     fs.mkdirSync(supabaseDir, { recursive: true });

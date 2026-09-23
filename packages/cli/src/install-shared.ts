@@ -4,16 +4,17 @@ import { createInterface } from "node:readline/promises";
 
 /**
  * Ruled install order (controller ruling, task 18): core -> push -> polls ->
- * reaction -> inbox. Reaction MUST land before inbox — inbox/001's reaction
- * trigger is guarded with `to_regclass('public.post_reactions')` at install
- * time and is never retroactively wired if the reaction module shows up
- * later, so `reaction` needs to already exist when `inbox` runs.
+ * reaction -> inbox -> translation. Reaction MUST land before inbox —
+ * inbox/001's reaction trigger is guarded with
+ * `to_regclass('public.post_reactions')` at install time and is never
+ * retroactively wired if the reaction module shows up later, so `reaction`
+ * needs to already exist when `inbox` runs.
  *
  * Shared between `init` (task 18) and `upgrade`/`adopt` (task 19) — the
  * single source of truth for module names, order, and the function sets
  * each module pulls in.
  */
-export const MODULE_ORDER = ["core", "push", "polls", "reaction", "inbox"] as const;
+export const MODULE_ORDER = ["core", "push", "polls", "reaction", "inbox", "translation"] as const;
 export type Module = (typeof MODULE_ORDER)[number];
 
 const ALWAYS_FUNCTIONS = [
@@ -25,11 +26,13 @@ const ALWAYS_FUNCTIONS = [
 ];
 const PUSH_FUNCTIONS = ["notify-like", "notify-comment", "broadcast-post"];
 const REACTION_FUNCTIONS = ["notify-reaction"];
+const TRANSLATION_FUNCTIONS = ["translate-one", "daily-translation"];
 
 export function functionsForModules(modules: readonly Module[]): string[] {
   const set = new Set<string>(ALWAYS_FUNCTIONS);
   if (modules.includes("push")) for (const f of PUSH_FUNCTIONS) set.add(f);
   if (modules.includes("reaction")) for (const f of REACTION_FUNCTIONS) set.add(f);
+  if (modules.includes("translation")) for (const f of TRANSLATION_FUNCTIONS) set.add(f);
   return [...set];
 }
 
@@ -61,6 +64,12 @@ export function resolveModules(
   if (canonicalModules.includes("inbox") && !canonicalModules.includes("reaction")) {
     onWarn(
       "community-sdk: module 'inbox' selected without 'reaction' — reaction notifications won't appear in the inbox until the reaction module is also installed.",
+    );
+  }
+
+  if (canonicalModules.includes("translation") && !canonicalModules.includes("polls")) {
+    onWarn(
+      "community-sdk: module 'translation' selected without 'polls' — poll option labels won't be translated (posts and comments are).",
     );
   }
 
