@@ -44,3 +44,14 @@ it("embeds poll_options only when the polls module is on", () => {
     `${buildFeedSelect(undefined, true)}, seed_likes`,
   );
 });
+
+it("embeds translations (and nested poll label translations) only when asked", () => {
+  const plain = buildFeedSelect(undefined, true, false);
+  expect(plain).not.toContain("post_translations");
+  const withT = buildFeedSelect(undefined, true, true);
+  expect(withT).toContain("post_translations(locale, source_locale, content)");
+  expect(withT).toContain("poll_options(id, idx, label, poll_option_translations(content))");
+  const noPolls = buildFeedSelect(undefined, false, true);
+  expect(noPolls).toContain("post_translations(");
+  expect(noPolls).not.toContain("poll_option");
+});

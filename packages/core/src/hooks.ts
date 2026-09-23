@@ -20,6 +20,7 @@ import {
 
 import { COMMUNITY_EVENTS, emitEvent } from "./events";
 import { ensureIdentity } from "./identity";
+import { readerLocale } from "./locale";
 import {
   applyPollVote,
   applyReaction,
@@ -54,11 +55,14 @@ import {
 } from "./service";
 
 const FEED_KEY = ["community", "feed"] as const;
-const feedKey = (topic?: string) => [...FEED_KEY, topic ?? "all"] as const;
-const threadKey = (postId: string) => ["community", "thread", postId] as const;
+const feedKey = (topic?: string, locale?: string | null) =>
+  [...FEED_KEY, topic ?? "all", locale ?? "src"] as const;
+const threadKey = (postId: string, locale?: string | null) =>
+  ["community", "thread", postId, locale ?? "src"] as const;
 const profileKey = (userId: string) => ["community", "profile", userId] as const;
-const userPostsKey = (userId: string) => ["community", "userPosts", userId] as const;
 const USER_POSTS_KEY = ["community", "userPosts"] as const;
+const userPostsKey = (userId: string, locale?: string | null) =>
+  [...USER_POSTS_KEY, userId, locale ?? "src"] as const;
 const SEARCH_KEY = ["community", "search"] as const;
 
 /**
@@ -139,8 +143,9 @@ function rollbackPostCaches(queryClient: QueryClient, snapshot: PostCacheSnapsho
  */
 export function useCommunityFeed(topic?: string, enabled = true) {
   const cfg = useCommunityConfig();
+  const locale = readerLocale(cfg);
   return useInfiniteQuery({
-    queryKey: feedKey(topic),
+    queryKey: feedKey(topic, locale),
     queryFn: ({ pageParam }) => fetchFeedPage(cfg, { topic, cursor: pageParam }),
     initialPageParam: 0,
     getNextPageParam: (lastPage: FeedPost[], pages: FeedPost[][]) =>
@@ -158,8 +163,9 @@ export function useCommunityFeed(topic?: string, enabled = true) {
 export function useSearchPosts(term: string) {
   const cfg = useCommunityConfig();
   const cleaned = term.trim();
+  const locale = readerLocale(cfg);
   return useInfiniteQuery({
-    queryKey: [...SEARCH_KEY, cleaned],
+    queryKey: [...SEARCH_KEY, cleaned, locale ?? "src"],
     queryFn: ({ pageParam }) => searchPosts(cfg, cleaned, { cursor: pageParam }),
     initialPageParam: 0,
     getNextPageParam: (lastPage: FeedPost[], pages: FeedPost[][]) =>
@@ -214,8 +220,9 @@ export function useCommunityUnseenCount(lastSeenAtIso: string | null): number {
 
 export function useThread(postId: string | null) {
   const cfg = useCommunityConfig();
+  const locale = readerLocale(cfg);
   return useQuery<ThreadComment[]>({
-    queryKey: threadKey(postId ?? "none"),
+    queryKey: threadKey(postId ?? "none", locale),
     queryFn: () => fetchThread(cfg, postId!),
     enabled: cfg.supabase !== null && !!postId,
     staleTime: 1000 * 15,
@@ -239,8 +246,9 @@ export function useProfile(userId: string | null) {
  */
 export function useUserPosts(userId: string | null) {
   const cfg = useCommunityConfig();
+  const locale = readerLocale(cfg);
   return useInfiniteQuery({
-    queryKey: userPostsKey(userId ?? "none"),
+    queryKey: userPostsKey(userId ?? "none", locale),
     queryFn: ({ pageParam }) => fetchUserPosts(cfg, userId!, { cursor: pageParam }),
     initialPageParam: 0,
     getNextPageParam: (lastPage: FeedPost[], pages: FeedPost[][]) =>
@@ -293,6 +301,7 @@ type PostResult = { id: string; verdict: ModerationVerdict };
 export function useCreatePost() {
   const cfg = useCommunityConfig();
   const queryClient = useQueryClient();
+  const locale = readerLocale(cfg);
   return useMutation<
     PostResult,
     Error,
@@ -342,8 +351,8 @@ export function useCreatePost() {
         queryClient.setQueryData<InfiniteData<FeedPost[]>>(key, (d) =>
           d ? { ...d, pages: [[optimistic, ...(d.pages[0] ?? [])], ...d.pages.slice(1)] } : d,
         );
-      prepend(feedKey(undefined));
-      prepend(feedKey(topic));
+      prepend(feedKey(undefined, locale));
+      prepend(feedKey(topic, locale));
       return { tempId };
     },
     mutationFn: async ({ topic, text, pollOptions }) => {
@@ -394,6 +403,7 @@ export function useCreatePost() {
 export function useCreateComment() {
   const cfg = useCommunityConfig();
   const queryClient = useQueryClient();
+  const locale = readerLocale(cfg);
   return useMutation<
     PostResult,
     Error,
@@ -401,7 +411,7 @@ export function useCreateComment() {
     { tempId: string }
   >({
     onMutate: async ({ postId, text, authorName }) => {
-      await queryClient.cancelQueries({ queryKey: threadKey(postId) });
+      await queryClient.cancelQueries({ queryKey: threadKey(postId, locale) });
       await queryClient.cancelQueries({ queryKey: FEED_KEY });
       const tempId = `optimistic-${Date.now()}`;
       const optimistic: ThreadComment = {
@@ -417,7 +427,7 @@ export function useCreateComment() {
         createdAt: new Date().toISOString(),
         translation: null,
       };
-      queryClient.setQueryData<ThreadComment[]>(threadKey(postId), (d) => [
+      queryClient.setQueryData<ThreadComment[]>(threadKey(postId, locale), (d) => [
         ...(d ?? []),
         optimistic,
       ]);
@@ -431,7 +441,7 @@ export function useCreateComment() {
     },
     onSuccess: ({ id, verdict }, { postId, text }, { tempId }) => {
       const rejected = verdict.status === "rejected";
-      queryClient.setQueryData<ThreadComment[]>(threadKey(postId), (d) =>
+      queryClient.setQueryData<ThreadComment[]>(threadKey(postId, locale), (d) =>
         (d ?? [])
           .filter((c) => !(rejected && c.id === tempId))
           .map((c) => (c.id === tempId ? { ...c, id } : c)),
@@ -447,7 +457,7 @@ export function useCreateComment() {
       }
     },
     onError: (_e, { postId }, context) => {
-      queryClient.setQueryData<ThreadComment[]>(threadKey(postId), (d) =>
+      queryClient.setQueryData<ThreadComment[]>(threadKey(postId, locale), (d) =>
         (d ?? []).filter((c) => c.id !== context?.tempId),
       );
       bumpFeedCommentCount(queryClient, postId, -1);
@@ -573,12 +583,13 @@ export function useBlockUser() {
 export function useDeleteContent() {
   const cfg = useCommunityConfig();
   const queryClient = useQueryClient();
+  const locale = readerLocale(cfg);
   return useMutation({
     mutationFn: ({ kind, id }: { kind: "post" | "comment"; id: string; postId: string }) =>
       kind === "post" ? deleteOwnPost(cfg, id) : deleteOwnComment(cfg, id),
     onSuccess: (_data, { kind, postId }) => {
       emitEvent(cfg, COMMUNITY_EVENTS.contentDeleted, { contentType: kind });
-      queryClient.invalidateQueries({ queryKey: threadKey(postId) });
+      queryClient.invalidateQueries({ queryKey: threadKey(postId, locale) });
       queryClient.invalidateQueries({ queryKey: FEED_KEY });
       queryClient.invalidateQueries({ queryKey: USER_POSTS_KEY });
       queryClient.invalidateQueries({ queryKey: SEARCH_KEY });

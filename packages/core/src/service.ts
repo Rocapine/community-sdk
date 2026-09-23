@@ -12,6 +12,7 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 
 import type { ResolvedCommunityConfig } from "./config";
 import { ensureIdentity } from "./identity";
+import { readerLocale } from "./locale";
 import {
   EMPTY_POLL_DATA,
   EMPTY_REACTION_DATA,
@@ -48,6 +49,20 @@ const FEED_SELECT =
  * (PGRST200), which took the entire feed down for such installs. */
 const POLL_OPTIONS_SELECT = "poll_options(id, idx, label)";
 
+/** Same embed, plus each option's translation row — used when the reader has
+ * a resolved translation locale (see `readerLocale`). */
+const POLL_OPTIONS_TRANSLATED_SELECT =
+  "poll_options(id, idx, label, poll_option_translations(content))";
+
+/** Embedded only when the reader has a resolved translation locale. */
+const POST_TRANSLATIONS_SELECT = "post_translations(locale, source_locale, content)";
+
+const COMMENTS_SELECT =
+  "id, post_id, author_id, content, status, created_at, profiles(username, is_official, handle, avatar_url)";
+
+/** Embedded only when the reader has a resolved translation locale. */
+const COMMENT_TRANSLATIONS_SELECT = "comment_translations(locale, source_locale, content)";
+
 const PROFILE_SELECT = "id, username, handle, is_official, bio, avatar_url";
 
 /** Minimal injection guard for `CommunityConfig.feed.extraPostColumns`: a bare
@@ -62,8 +77,15 @@ const VALID_EXTRA_COLUMN = /^[a-z0-9_]+$/;
  * exported so it's unit-testable without a Supabase client. Invalid column
  * names are dropped with a `console.warn` rather than failing the query.
  */
-export function buildFeedSelect(extraPostColumns?: readonly string[], polls = false): string {
-  const base = polls ? `${FEED_SELECT}, ${POLL_OPTIONS_SELECT}` : FEED_SELECT;
+export function buildFeedSelect(
+  extraPostColumns?: readonly string[],
+  polls = false,
+  translations = false,
+): string {
+  const parts = [FEED_SELECT];
+  if (polls) parts.push(translations ? POLL_OPTIONS_TRANSLATED_SELECT : POLL_OPTIONS_SELECT);
+  if (translations) parts.push(POST_TRANSLATIONS_SELECT);
+  const base = parts.join(", ");
   if (!extraPostColumns || extraPostColumns.length === 0) return base;
   const valid = extraPostColumns.filter((column) => {
     if (VALID_EXTRA_COLUMN.test(column)) return true;
@@ -77,9 +99,27 @@ export function buildFeedSelect(extraPostColumns?: readonly string[], polls = fa
 }
 
 /** The posts select for this install: `feed.extraPostColumns` + the poll
- * embed iff `modules.polls`. */
+ * embed iff `modules.polls`, + translation embeds iff the reader has a
+ * resolved translation locale. */
 function postsSelect(cfg: ResolvedCommunityConfig): string {
-  return buildFeedSelect(cfg.feed.extraPostColumns, cfg.modules.polls);
+  return buildFeedSelect(cfg.feed.extraPostColumns, cfg.modules.polls, readerLocale(cfg) !== null);
+}
+
+/** Embedded-resource filters: keep only the reader locale's translation rows,
+ * so `rows?.[0]` in the mappers is always that locale, never some other
+ * locale's leftover row. PostgREST accepts dotted paths for nested embeds,
+ * the same mechanism as the existing `.eq("comments.status", "visible")`. A
+ * no-op (module off / no resolved locale) leaves the query, and therefore
+ * every byte of it, unchanged from before translations existed. */
+function withTranslationFilters<Q extends { eq(column: string, value: string): Q }>(
+  query: Q,
+  cfg: ResolvedCommunityConfig,
+): Q {
+  const locale = readerLocale(cfg);
+  if (!locale) return query;
+  let q = query.eq("post_translations.locale", locale);
+  if (cfg.modules.polls) q = q.eq("poll_options.poll_option_translations.locale", locale);
+  return q;
 }
 
 async function fetchMyLikes(
@@ -217,6 +257,7 @@ export async function fetchFeedPage(
     .order("pinned_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .range(page * FEED_PAGE_SIZE, page * FEED_PAGE_SIZE + FEED_PAGE_SIZE - 1);
+  query = withTranslationFilters(query, cfg);
   if (opts.topic) query = query.eq("topic", opts.topic);
   const { data, error } = await query;
   if (error) throw error;
@@ -277,7 +318,7 @@ export async function fetchUserPosts(
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
   const page = opts.cursor ?? 0;
-  const { data, error } = await client
+  let query = client
     .from("posts")
     .select(postsSelect(cfg))
     .eq("author_id", userId)
@@ -285,6 +326,8 @@ export async function fetchUserPosts(
     .in("status", ["visible", "pending"])
     .order("created_at", { ascending: false })
     .range(page * FEED_PAGE_SIZE, page * FEED_PAGE_SIZE + FEED_PAGE_SIZE - 1);
+  query = withTranslationFilters(query, cfg);
+  const { data, error } = await query;
   if (error) throw error;
   return toFeedPosts(cfg, client, (data ?? []) as unknown as PostRow[], uid);
 }
@@ -296,15 +339,15 @@ export async function fetchUserPosts(
  */
 export async function searchPosts(
   cfg: ResolvedCommunityConfig,
-  query: string,
+  searchTerm: string,
   opts: { cursor?: number } = {},
 ): Promise<FeedPost[]> {
-  const cleaned = query.trim();
+  const cleaned = searchTerm.trim();
   if (cleaned.length === 0) return [];
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
   const page = opts.cursor ?? 0;
-  const { data, error } = await client
+  let query = client
     .from("posts")
     .select(postsSelect(cfg))
     .eq("comments.status", "visible")
@@ -312,6 +355,8 @@ export async function searchPosts(
     .ilike("content", `%${cleaned}%`)
     .order("created_at", { ascending: false })
     .range(page * FEED_PAGE_SIZE, page * FEED_PAGE_SIZE + FEED_PAGE_SIZE - 1);
+  query = withTranslationFilters(query, cfg);
+  const { data, error } = await query;
   if (error) throw error;
   return toFeedPosts(cfg, client, (data ?? []) as unknown as PostRow[], uid);
 }
@@ -328,14 +373,16 @@ export async function fetchThread(
 ): Promise<ThreadComment[]> {
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
-  const { data, error } = await client
+  const locale = readerLocale(cfg);
+  const select = locale ? `${COMMENTS_SELECT}, ${COMMENT_TRANSLATIONS_SELECT}` : COMMENTS_SELECT;
+  let query = client
     .from("comments")
-    .select(
-      "id, post_id, author_id, content, status, created_at, profiles(username, is_official, handle, avatar_url)",
-    )
+    .select(select)
     .eq("post_id", postId)
     .in("status", ["visible", "pending"])
     .order("created_at", { ascending: true });
+  if (locale) query = query.eq("comment_translations.locale", locale);
+  const { data, error } = await query;
   if (error) throw error;
   return ((data ?? []) as unknown as CommentRow[]).map((r) =>
     mapCommentRow(r, uid, cfg.anonymousAuthorFallback),
