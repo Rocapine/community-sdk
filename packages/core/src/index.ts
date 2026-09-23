@@ -22,6 +22,8 @@ export type {
   FeedPost,
   ThreadComment,
   CommunityProfile,
+  TranslationInfo,
+  TranslationRowEmbed,
 } from "./models";
 export {
   FEED_PAGE_SIZE,

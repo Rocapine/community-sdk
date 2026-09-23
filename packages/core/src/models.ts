@@ -38,12 +38,30 @@ export interface PostRow {
   /** Empty for a post without a poll; absent entirely when the polls module
    * is off (the embed is then not part of the select). */
   poll_options?: PollOptionRow[];
+  /** At most one row: server-filtered to the reader's locale. Absent when the
+   * translation module is off. */
+  post_translations?: TranslationRowEmbed[];
 }
 
 export interface PollOptionRow {
   id: string;
   idx: number;
   label: string;
+  /** At most one row: server-filtered to the reader's locale. */
+  poll_option_translations?: { content: string }[];
+}
+
+/** One embedded translation row, filtered server-side on the reader locale. */
+export interface TranslationRowEmbed {
+  locale: string;
+  source_locale: string;
+  content: string;
+}
+
+export interface TranslationInfo {
+  text: string;
+  /** Detected language of the original (short code: en, es, pt…). */
+  sourceLocale: string;
 }
 
 export interface CommentRow {
@@ -59,11 +77,16 @@ export interface CommentRow {
     handle: string | null;
     avatar_url: string | null;
   } | null;
+  /** At most one row: server-filtered to the reader's locale. Absent when the
+   * translation module is off. */
+  comment_translations?: TranslationRowEmbed[];
 }
 
 export interface PollOption {
   id: string;
   label: string;
+  /** Label in the reader locale when the translation module provided one. */
+  translatedLabel: string | null;
   votes: number;
 }
 
@@ -129,6 +152,9 @@ export interface FeedPost {
   /** Display name of the most recent reactor, for a "X and N others reacted" affordance;
    * null when nobody has reacted yet or the reaction module is off. */
   lastReactorName: string | null;
+  /** Reader-locale translation; null when the item is already in the reader's language,
+   * not translated yet, or the module is off. `text` stays the original. */
+  translation: TranslationInfo | null;
 }
 
 export interface ThreadComment {
@@ -142,6 +168,9 @@ export interface ThreadComment {
   text: string;
   isOwn: boolean;
   createdAt: string;
+  /** Reader-locale translation; null when the item is already in the reader's language,
+   * not translated yet, or the module is off. `text` stays the original. */
+  translation: TranslationInfo | null;
 }
 
 /**
@@ -207,6 +236,11 @@ export function mapProfileRow(row: ProfileRow, fallback: string): CommunityProfi
   };
 }
 
+function embedToTranslation(rows: TranslationRowEmbed[] | undefined): TranslationInfo | null {
+  const row = rows?.[0];
+  return row ? { text: row.content, sourceLocale: row.source_locale } : null;
+}
+
 /** Assemble a FeedPoll from the embedded option rows + batched vote data. */
 export function buildPoll(
   options: PollOptionRow[] | undefined,
@@ -216,7 +250,12 @@ export function buildPoll(
   if (!options || options.length === 0) return null;
   const mapped = [...options]
     .sort((a, b) => a.idx - b.idx)
-    .map((o) => ({ id: o.id, label: o.label, votes: counts.get(o.id) ?? 0 }));
+    .map((o) => ({
+      id: o.id,
+      label: o.label,
+      translatedLabel: o.poll_option_translations?.[0]?.content ?? null,
+      votes: counts.get(o.id) ?? 0,
+    }));
   return {
     options: mapped,
     myOptionId,
@@ -262,6 +301,7 @@ export function mapPostRow(
     reactionCount: reactionData.counts.get(row.id) ?? 0,
     hasReacted: reactionData.mine.has(row.id),
     lastReactorName: reactionData.lastReactorName.get(row.id) ?? null,
+    translation: embedToTranslation(row.post_translations),
   };
   return transformPost ? transformPost(post, row as unknown as Record<string, unknown>) : post;
 }
@@ -311,6 +351,7 @@ export function mapCommentRow(row: CommentRow, myUid: string, fallback: string):
     text: row.content,
     isOwn: row.author_id === myUid,
     createdAt: row.created_at,
+    translation: embedToTranslation(row.comment_translations),
   };
 }
 

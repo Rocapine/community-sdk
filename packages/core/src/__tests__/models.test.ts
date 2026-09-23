@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   applyPollVote,
   applyReaction,
@@ -46,6 +46,17 @@ const postRow = (over: Partial<PostRow> = {}): PostRow => ({
   ...over,
 });
 
+const commentRow = (over: Partial<CommentRow> = {}): CommentRow => ({
+  id: "c1",
+  post_id: "p1",
+  author_id: "u9",
+  content: "amen",
+  status: "visible",
+  created_at: "2026-07-08T11:00:00Z",
+  profiles: { username: null, is_official: null, handle: null, avatar_url: null },
+  ...over,
+});
+
 const makePost = (over: Partial<FeedPost> = {}): FeedPost => ({
   id: "p1",
   authorId: "u1",
@@ -66,6 +77,7 @@ const makePost = (over: Partial<FeedPost> = {}): FeedPost => ({
   reactionCount: 0,
   hasReacted: false,
   lastReactorName: null,
+  translation: null,
   ...over,
 });
 
@@ -112,6 +124,7 @@ it("mapPostRow extracts counts, like state and ownership", () => {
     reactionCount: 0,
     hasReacted: false,
     lastReactorName: null,
+    translation: null,
   });
 });
 
@@ -251,6 +264,7 @@ it("mapCommentRow maps author name and ownership", () => {
     text: "amen",
     isOwn: false,
     createdAt: "2026-07-08T11:00:00Z",
+    translation: null,
   });
 });
 
@@ -274,8 +288,8 @@ it("mapPostRow assembles the poll in idx order with counts and my vote", () => {
   });
   expect(post.poll).toEqual({
     options: [
-      { id: "o1", label: "Yes", votes: 4 },
-      { id: "o2", label: "No", votes: 1 },
+      { id: "o1", label: "Yes", translatedLabel: null, votes: 4 },
+      { id: "o2", label: "No", translatedLabel: null, votes: 1 },
     ],
     myOptionId: "o2",
     totalVotes: 5,
@@ -286,7 +300,7 @@ it("mapPostRow defaults poll data to empty (no votes, not voted)", () => {
   const row = postRow({ poll_options: [{ id: "o1", idx: 0, label: "Yes" }] });
   const post = mapPostRow(row, "u1", ANON_NAME_FALLBACK, TOPICS, new Set());
   expect(post.poll).toEqual({
-    options: [{ id: "o1", label: "Yes", votes: 0 }],
+    options: [{ id: "o1", label: "Yes", translatedLabel: null, votes: 0 }],
     myOptionId: null,
     totalVotes: 0,
   });
@@ -313,8 +327,8 @@ it("applyPollVote counts a first vote and grows the total", () => {
   const voted = applyPollVote(post, "p1", "o2");
   expect(voted.poll).toEqual({
     options: [
-      { id: "o1", label: "Yes", votes: 2 },
-      { id: "o2", label: "No", votes: 1 },
+      { id: "o1", label: "Yes", translatedLabel: null, votes: 2 },
+      { id: "o2", label: "No", translatedLabel: null, votes: 1 },
     ],
     myOptionId: "o2",
     totalVotes: 3,
@@ -338,8 +352,8 @@ it("applyPollVote moves an existing vote without changing the total", () => {
   const moved = applyPollVote(post, "p1", "o2");
   expect(moved.poll).toEqual({
     options: [
-      { id: "o1", label: "Yes", votes: 1 },
-      { id: "o2", label: "No", votes: 1 },
+      { id: "o1", label: "Yes", translatedLabel: null, votes: 1 },
+      { id: "o2", label: "No", translatedLabel: null, votes: 1 },
     ],
     myOptionId: "o2",
     totalVotes: 2,
@@ -432,4 +446,46 @@ it("mapProfileRow maps names, flags and nullables", () => {
 it("buildPoll tolerates a missing poll_options embed (polls module off)", async () => {
   const { buildPoll } = await import("../models");
   expect(buildPoll(undefined, new Map(), null)).toBeNull();
+});
+
+describe("translations", () => {
+  it("mapPostRow exposes the embedded translation and keeps text as the original", () => {
+    const row = postRow({
+      content: "Hello",
+      post_translations: [{ locale: "es-419", source_locale: "en", content: "Hola" }],
+    });
+    const post = mapPostRow(row, "me", "Someone", [], new Set());
+    expect(post.text).toBe("Hello");
+    expect(post.translation).toEqual({ text: "Hola", sourceLocale: "en" });
+  });
+
+  it("mapPostRow yields translation null without an embed", () => {
+    const post = mapPostRow(postRow(), "me", "Someone", [], new Set());
+    expect(post.translation).toBeNull();
+  });
+
+  it("buildPoll carries translated labels when embedded", () => {
+    const poll = buildPoll(
+      [
+        { id: "a", idx: 0, label: "Yes", poll_option_translations: [{ content: "Sí" }] },
+        { id: "b", idx: 1, label: "No" },
+      ],
+      new Map(),
+      null,
+    );
+    expect(poll?.options.map((o) => o.translatedLabel)).toEqual(["Sí", null]);
+  });
+
+  it("mapCommentRow exposes the embedded translation", () => {
+    const comment = mapCommentRow(
+      commentRow({
+        content: "Thanks",
+        comment_translations: [{ locale: "pl", source_locale: "en", content: "Dzięki" }],
+      }),
+      "me",
+      "Someone",
+    );
+    expect(comment.text).toBe("Thanks");
+    expect(comment.translation).toEqual({ text: "Dzięki", sourceLocale: "en" });
+  });
 });

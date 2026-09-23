@@ -323,7 +323,12 @@ export function useCreatePost() {
         poll:
           pollOptions && pollOptions.length > 0
             ? {
-                options: pollOptions.map((label, i) => ({ id: `temp-${i}`, label, votes: 0 })),
+                options: pollOptions.map((label, i) => ({
+                  id: `temp-${i}`,
+                  label,
+                  translatedLabel: null,
+                  votes: 0,
+                })),
                 myOptionId: null,
                 totalVotes: 0,
               }
@@ -331,6 +336,7 @@ export function useCreatePost() {
         reactionCount: 0,
         hasReacted: false,
         lastReactorName: null,
+        translation: null,
       };
       const prepend = (key: readonly unknown[]) =>
         queryClient.setQueryData<InfiniteData<FeedPost[]>>(key, (d) =>
@@ -409,6 +415,7 @@ export function useCreateComment() {
         text,
         isOwn: true,
         createdAt: new Date().toISOString(),
+        translation: null,
       };
       queryClient.setQueryData<ThreadComment[]>(threadKey(postId), (d) => [
         ...(d ?? []),
