@@ -127,6 +127,17 @@ Section 2/3 above.
   dashboard, or your own against the `community_dashboard` migration's
   tables) stays consistent.
 
+### Username moderation
+
+`profiles.username` is client-writable (the host syncs its display name into
+it), so it is moderated asynchronously by `daily-moderation`
+(`core/007_username_moderation.sql`): every not-yet-checked username is run
+through the moderation API, flagged ones are blanked (the app shows its
+anonymous fallback name) and remembered in `username_rejected` so a client
+re-sync keeps them blank. The first sweeps after installing the migration
+check the existing usernames, up to 1000 per run. Blanked names are listed in
+the Slack summary.
+
 ### Who can call what
 
 Every function sits behind the platform's `verify_jwt`, so a caller needs at
@@ -139,8 +150,9 @@ least the public anon key. On top of that:
   are invoked by database triggers with the anon key and therefore treat the
   request body as untrusted: only the row `id` (or `post_id`) is read and
   everything else is re-read from the database.
-- `daily-moderation` is invoked by cron with the anon key and is idempotent
-  (a stray call re-runs the sweep, nothing more).
+- `daily-moderation` is invoked by cron with the anon key and is idempotent:
+  once a sweep has stamped its items, a stray call finds nothing to check and
+  returns without an API call or a Slack post.
 
 ## 6. Schema drift detection
 

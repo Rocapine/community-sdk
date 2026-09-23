@@ -1,9 +1,16 @@
 // Daily moderation batch + backstop. Runs every not-yet-moderated post/comment
 // through OpenAI's moderation endpoint (free): flagged -> soft-hide, clean
 // 'pending' -> promote to 'visible' (catches items whose synchronous
-// moderate-one call failed), clean 'visible' -> just stamp. Posts a Slack
-// summary (no-op if SLACK_WEBHOOK_URL is unset — see _shared/slack.ts). Never
-// deletes rows. App criticism is not a category (stays visible).
+// moderate-one call failed), clean 'visible' -> just stamp. Also sweeps
+// not-yet-checked usernames (profiles.username is client-writable, see
+// core/007_username_moderation.sql): flagged -> blanked. Posts a Slack
+// summary when there was something to check (no-op if SLACK_WEBHOOK_URL is
+// unset — see _shared/slack.ts). Never deletes rows. App criticism is not a
+// category (stays visible).
+//
+// Reachable with the anon key (the cron calls it that way) and idempotent:
+// once a sweep has stamped its items, a stray call finds nothing to check and
+// exits without an API call or a Slack post.
 
 import { adminClient } from "../_shared/client.ts";
 import {
@@ -35,6 +42,88 @@ interface Item {
 // single row (or null) to match Item.profiles above.
 function toOne<T>(v: T | T[] | null | undefined): T | null {
   return Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
+}
+
+/** One OpenAI moderation call for up to 100 inputs; null on any failure so
+ * the caller can skip stamping and retry next run. */
+async function moderateBatch(inputs: string[]): Promise<ModerationResult[] | null> {
+  try {
+    const res = await fetch("https://api.openai.com/v1/moderations", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "omni-moderation-latest", input: inputs }),
+    });
+    if (!res.ok) return null;
+    const { results } = await res.json();
+    return results as ModerationResult[];
+  } catch {
+    return null;
+  }
+}
+
+interface ProfileItem {
+  id: string;
+  username: string;
+  amplitude_id: string | null;
+  revenuecat_id: string | null;
+}
+
+/**
+ * Username sweep (core/007): moderate every not-yet-checked username, blank
+ * the flagged ones (remembering the value in `username_rejected` so a client
+ * re-sync keeps it blank) and stamp the rest. Capped per run so the first
+ * sweep after the migration stays within the function's time budget. On an
+ * install without core/007 the select errors and the sweep is skipped.
+ */
+async function sweepUsernames(): Promise<{
+  checked: number;
+  blanked: { profile: ProfileItem; categories: string[] }[];
+  failedBatches: number;
+  skipped: boolean;
+}> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, username, amplitude_id, revenuecat_id")
+    .not("username", "is", null)
+    .is("username_checked_at", null)
+    .limit(1000);
+  if (error) return { checked: 0, blanked: [], failedBatches: 0, skipped: true };
+  const profiles = (data ?? []) as ProfileItem[];
+  const blanked: { profile: ProfileItem; categories: string[] }[] = [];
+  const processed: ProfileItem[] = [];
+  let failedBatches = 0;
+  for (let i = 0; i < profiles.length; i += 100) {
+    const batch = profiles.slice(i, i + 100);
+    const results = await moderateBatch(batch.map((p) => p.username));
+    if (!results) {
+      failedBatches++;
+      continue;
+    }
+    results.forEach((r, idx) => {
+      const cats = flaggedCategories(r);
+      if (cats.length > 0) blanked.push({ profile: batch[idx], categories: cats });
+    });
+    processed.push(...batch);
+  }
+  const now = new Date().toISOString();
+  for (const { profile } of blanked) {
+    // Guarded on the current value: a name changed since the select is left
+    // for the next sweep (the change trigger reset its checked_at anyway).
+    await supabase
+      .from("profiles")
+      .update({ username: null, username_rejected: profile.username, username_checked_at: now })
+      .eq("id", profile.id)
+      .eq("username", profile.username);
+  }
+  const blankedIds = new Set(blanked.map((b) => b.profile.id));
+  const cleanIds = processed.filter((p) => !blankedIds.has(p.id)).map((p) => p.id);
+  if (cleanIds.length > 0) {
+    await supabase.from("profiles").update({ username_checked_at: now }).in("id", cleanIds);
+  }
+  return { checked: processed.length, blanked, failedBatches, skipped: false };
 }
 
 Deno.serve(async () => {
@@ -94,9 +183,6 @@ Deno.serve(async () => {
       table: "comments" as const,
     })),
   ];
-  if (items.length === 0) {
-    return new Response(JSON.stringify({ checked: 0, hidden: 0, failed_batches: 0 }));
-  }
 
   // Moderate in batches of 100 (API limit). Only items whose batch succeeded
   // get stamped moderated_at, so a transient failure is retried tomorrow.
@@ -105,31 +191,16 @@ Deno.serve(async () => {
   let failedBatches = 0;
   for (let i = 0; i < items.length; i += 100) {
     const batch = items.slice(i, i + 100);
-    try {
-      const res = await fetch("https://api.openai.com/v1/moderations", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "omni-moderation-latest",
-          input: batch.map((it) => it.content),
-        }),
-      });
-      if (!res.ok) {
-        failedBatches++;
-        continue; // skip stamping; retried next run
-      }
-      const { results } = await res.json();
-      results.forEach((r: ModerationResult, idx: number) => {
-        const cats = flaggedCategories(r);
-        if (cats.length > 0) flagged.push({ item: batch[idx], categories: cats });
-      });
-      processed.push(...batch);
-    } catch {
-      failedBatches++; // network error; skip stamping, retried next run
+    const results = await moderateBatch(batch.map((it) => it.content));
+    if (!results) {
+      failedBatches++; // API/network error; skip stamping, retried next run
+      continue;
     }
+    results.forEach((r, idx) => {
+      const cats = flaggedCategories(r);
+      if (cats.length > 0) flagged.push({ item: batch[idx], categories: cats });
+    });
+    processed.push(...batch);
   }
   const totalItems = items.length;
 
@@ -173,6 +244,23 @@ Deno.serve(async () => {
     await supabase.from("comments").update({ moderated_at: now }).in("id", processedCommentIds);
   }
 
+  const usernames = await sweepUsernames();
+  const allFailedBatches = failedBatches + usernames.failedBatches;
+
+  // Quiet when there was nothing to check at all (a stray or duplicate call
+  // finds every item already stamped): no Slack noise, no API cost.
+  if (totalItems === 0 && usernames.checked === 0 && allFailedBatches === 0) {
+    return new Response(
+      JSON.stringify({
+        checked: 0,
+        hidden: 0,
+        usernames_checked: 0,
+        usernames_blanked: 0,
+        failed_batches: 0,
+      }),
+    );
+  }
+
   const lines = flagged.map(({ item, categories }) => {
     const p = item.profiles;
     return (
@@ -181,17 +269,28 @@ Deno.serve(async () => {
       `  amplitude: \`${p?.amplitude_id ?? "?"}\` | revenuecat: \`${p?.revenuecat_id ?? "?"}\``
     );
   });
+  const usernameLines = usernames.blanked.map(
+    ({ profile, categories }) =>
+      `* [username] *${profile.username}* blanked, _${categories.join(", ")}_\n` +
+      `  amplitude: \`${profile.amplitude_id ?? "?"}\` | revenuecat: \`${profile.revenuecat_id ?? "?"}\``,
+  );
+  const usernameSummary =
+    usernames.checked > 0
+      ? ` Usernames: ${usernames.blanked.length}/${usernames.checked} blanked.`
+      : "";
   let summaryText: string;
-  if (failedBatches > 0) {
+  if (allFailedBatches > 0) {
     const uncheckedCount = totalItems - processed.length;
     summaryText =
-      `Daily moderation: WARNING, ${failedBatches} batch(es) failed to reach the moderation API ` +
+      `Daily moderation: WARNING, ${allFailedBatches} batch(es) failed to reach the moderation API ` +
       `(${uncheckedCount} of ${totalItems} items were not checked and will be retried). ` +
-      `${flagged.length} items hidden.`;
-  } else if (flagged.length === 0) {
-    summaryText = `Daily moderation: ${processed.length} items checked, nothing to report.`;
+      `${flagged.length} items hidden.${usernameSummary}`;
+  } else if (flagged.length === 0 && usernames.blanked.length === 0) {
+    summaryText = `Daily moderation: ${processed.length} items checked, nothing to report.${usernameSummary}`;
   } else {
-    summaryText = `Daily moderation: ${flagged.length}/${processed.length} items hidden\n\n${lines.join("\n")}`;
+    summaryText =
+      `Daily moderation: ${flagged.length}/${processed.length} items hidden.${usernameSummary}\n\n` +
+      [...lines, ...usernameLines].join("\n");
   }
   await postToSlack({ text: summaryText });
 
@@ -199,7 +298,9 @@ Deno.serve(async () => {
     JSON.stringify({
       checked: processed.length,
       hidden: flagged.length,
-      failed_batches: failedBatches,
+      usernames_checked: usernames.checked,
+      usernames_blanked: usernames.blanked.length,
+      failed_batches: allFailedBatches,
     }),
   );
 });
