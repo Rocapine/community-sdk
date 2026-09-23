@@ -68,6 +68,7 @@ import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { isQueryLoading } from "../utils/query";
 import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
 import { formatTimeAgo } from "../utils/time";
+import { displayText, translationLine } from "../utils/translation";
 import { runGuarded } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { RulesSheet } from "../components/RulesSheet";
@@ -400,10 +401,24 @@ function CommentRow({
   const t = useT();
   const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
+  const cfg = useCommunityConfig();
 
   const [fullLines, setFullLines] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const overflows = (fullLines ?? 0) > COMMENT_CLAMP_LINES;
+
+  const [showOriginal, setShowOriginal] = useState(false);
+  const toggleLine = translationLine(t, comment, showOriginal);
+  const toggleOriginal = () => {
+    setShowOriginal((v) => {
+      emitEvent(cfg, COMMUNITY_EVENTS.translationToggled, {
+        commentId: comment.id,
+        to: v ? "translation" : "original",
+      });
+      return !v;
+    });
+  };
+  useEffect(() => setFullLines(null), [showOriginal]);
 
   const handleAuthor = () => onOpenProfile(comment.authorId);
 
@@ -442,13 +457,18 @@ function CommentRow({
             if (fullLines === null) setFullLines(e.nativeEvent.lines.length);
           }}
         >
-          {comment.text}
+          {displayText(comment, showOriginal)}
         </Text>
         {overflows && (
           <Pressable hitSlop={8} onPress={() => setExpanded((v) => !v)}>
             <Text style={styles.cViewMore}>
               {expanded ? t("post.viewLess") : t("post.viewMore")}
             </Text>
+          </Pressable>
+        )}
+        {toggleLine && (
+          <Pressable hitSlop={8} onPress={toggleOriginal}>
+            <Text style={styles.cTranslationLine}>{toggleLine}</Text>
           </Pressable>
         )}
       </View>
@@ -517,6 +537,12 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 12.5,
       color: theme.colors.accent,
       marginTop: theme.spacing(1),
+    },
+    cTranslationLine: {
+      fontFamily: theme.fonts.medium,
+      fontSize: 12.5,
+      color: theme.colors.textFaint,
+      marginTop: theme.spacing(1.5),
     },
     cMenu: { paddingLeft: theme.spacing(1.5), paddingTop: 2 },
     inputRow: {
