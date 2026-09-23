@@ -65,6 +65,10 @@ program
     "Copy any new migrations/Edge Functions shipped since this repo's community-sdk.json was last written, and overwrite changed function code (with a warning)",
   )
   .option(
+    "--add-modules <modules>",
+    "comma-separated module list to install on top of what's already in community-sdk.json (e.g. translation)",
+  )
+  .option(
     "--project-url <url>",
     "Supabase project URL, e.g. https://<ref>.supabase.co (only needed if a new migration carries a placeholder)",
   )
@@ -73,18 +77,21 @@ program
     "Supabase anon key (only needed if a new migration carries a placeholder)",
   )
   .option("--dir <dir>", "target Supabase directory, relative to the current directory", "supabase")
-  .action(async (opts: { projectUrl?: string; anonKey?: string; dir?: string }) => {
-    try {
-      await runUpgrade({
-        projectUrl: opts.projectUrl,
-        anonKey: opts.anonKey,
-        dir: opts.dir,
-      });
-    } catch (err) {
-      console.error(err instanceof Error ? err.message : String(err));
-      process.exitCode = 1;
-    }
-  });
+  .action(
+    async (opts: { addModules?: string; projectUrl?: string; anonKey?: string; dir?: string }) => {
+      try {
+        await runUpgrade({
+          addModules: parseModulesFlag(opts.addModules),
+          projectUrl: opts.projectUrl,
+          anonKey: opts.anonKey,
+          dir: opts.dir,
+        });
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : String(err));
+        process.exitCode = 1;
+      }
+    },
+  );
 
 program
   .command("adopt")

@@ -155,7 +155,9 @@ inbox → translation` regardless of the order you pass to `--modules`, because 
 reaction trigger is guarded at install time and needs the reaction module's
 table to already exist. You never need to think about this — just don't
 enable `inbox` without `reaction` if you want reaction pushes to show up in
-the inbox (the CLI warns if you do).
+the inbox (the CLI warns if you do). Already initialized a backend and just
+want to add one more module? `npx @rocapine/community upgrade --add-modules
+translation` installs it without touching what's already there.
 
 ## Dashboard
 

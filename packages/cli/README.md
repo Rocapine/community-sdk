@@ -61,6 +61,11 @@ warning** — review the diff before deploying. `--project-url`/`--anon-key`
 are only needed if a newly-added migration carries a placeholder. Fails if
 `community-sdk.json` doesn't exist yet (run `init` or `adopt` first).
 
+`--add-modules <modules>` installs one or more modules not yet in
+`community-sdk.json` on top of the existing backend (comma-separated, same
+parsing as `init --modules`) — e.g. `upgrade --add-modules translation` to
+add the translation module to an already-initialized app.
+
 ## `adopt`
 
 ```bash

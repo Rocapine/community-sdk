@@ -12,6 +12,7 @@ import {
 import {
   MODULE_ORDER,
   type Module,
+  resolveModules,
   functionsForModules,
   defaultTemplatesDir,
   resolveTemplateRoots,
@@ -38,6 +39,8 @@ export interface UpgradeOptions {
   cwd?: string;
   /** Source of the migrations/ + functions/ trees. Defaults to the shipped templates. */
   templatesDir?: string;
+  /** Module names to install on top of what's already in the manifest — validated, ordered and merged via resolveModules, same rules as `init --modules` (unknown names throw, dependency gaps warn). */
+  addModules?: string[];
   /** Used to ask for projectUrl/anonKey when a newly copied migration needs them. */
   prompt?: (question: string) => Promise<string>;
   /** Called for non-fatal warnings — most importantly, functions overwritten with new content. */
@@ -53,6 +56,8 @@ export interface UpgradeResult {
   dir: string;
   /** True when nothing needed to change — no new migrations, no function drift. */
   upToDate: boolean;
+  /** Modules newly added by `addModules` (not already in the manifest). Empty when `addModules` was omitted or every named module was already installed. */
+  addedModules: string[];
   /** Relative (to `cwd`) paths of newly copied migration files, in copy order. */
   addedMigrations: string[];
   /** Function names copied because they weren't present on disk yet. */
@@ -77,10 +82,16 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   const templatesDir = options.templatesDir ?? defaultTemplatesDir();
   const { migrationsSrcRoot, functionsSrcRoot } = resolveTemplateRoots(templatesDir);
 
-  // Only modules the app actually has installed are diffed/re-synced —
-  // upgrade never adds or removes modules (that's what re-running init on a
-  // fresh dir, or a future dedicated command, would be for).
-  const canonicalModules = MODULE_ORDER.filter((m) => manifest.modules.includes(m));
+  // By default only modules the app already has installed are diffed/re-synced.
+  // `addModules` extends that list through the same validation/ordering/warning
+  // rules `init --modules` uses; left empty/undefined, behaviour here must stay
+  // byte-identical to the pre-`addModules` path (no resolveModules call, no
+  // spurious warnings for e.g. an existing inbox-without-reaction install).
+  const canonicalModules =
+    options.addModules && options.addModules.length > 0
+      ? resolveModules([...manifest.modules, ...options.addModules], onWarn)
+      : MODULE_ORDER.filter((m) => manifest.modules.includes(m));
+  const addedModules = canonicalModules.filter((m) => !manifest.modules.includes(m));
 
   const installedTemplateIds = new Set<string>(
     manifest.installedTemplates ?? reconstructInstalledTemplateIds(manifest.installedFiles),
@@ -130,6 +141,7 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
       manifest,
       dir,
       upToDate: true,
+      addedModules,
       addedMigrations: [],
       newFunctions: [],
       overwrittenFunctions: [],
@@ -239,13 +251,14 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   const updatedManifest: Manifest = {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     sdkVersion: readOwnPackageVersion(),
-    modules: manifest.modules,
+    modules: canonicalModules,
     installedFiles,
     installedTemplates: [...newInstalledTemplateIds].sort(),
   };
   writeManifest(cwd, updatedManifest);
 
   printSummary(log, onWarn, {
+    addedModules,
     addedMigrations,
     newFunctions,
     overwrittenFunctions: changedFunctions,
@@ -255,6 +268,7 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
     manifest: updatedManifest,
     dir,
     upToDate: false,
+    addedModules,
     addedMigrations,
     newFunctions,
     overwrittenFunctions: changedFunctions,
@@ -294,10 +308,18 @@ function functionDirDiffers(srcDir: string, destDir: string): boolean {
 function printSummary(
   log: (message: string) => void,
   onWarn: (message: string) => void,
-  summary: { addedMigrations: string[]; newFunctions: string[]; overwrittenFunctions: string[] },
+  summary: {
+    addedModules: string[];
+    addedMigrations: string[];
+    newFunctions: string[];
+    overwrittenFunctions: string[];
+  },
 ): void {
   log("");
   log("community-sdk upgraded.");
+  if (summary.addedModules.length > 0) {
+    log(`Added module(s): ${summary.addedModules.join(", ")}`);
+  }
   if (summary.addedMigrations.length > 0) {
     log(`Added ${summary.addedMigrations.length} migration(s):`);
     for (const f of summary.addedMigrations) log(`  ${f}`);
@@ -316,5 +338,10 @@ function printSummary(
   }
   if (summary.newFunctions.length > 0 || summary.overwrittenFunctions.length > 0) {
     log("  2. Review the function changes, then: supabase functions deploy");
+  }
+  if (summary.addedModules.includes("translation")) {
+    log(
+      '  3. translation module: COMMUNITY_TRANSLATION_LOCALES="en,es-419,..." (required, same list as modules.translation.locales in the app); optional: COMMUNITY_TRANSLATION_MODEL, COMMUNITY_TRANSLATION_STYLE',
+    );
   }
 }

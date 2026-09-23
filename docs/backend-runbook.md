@@ -49,6 +49,8 @@ than silently pushing and failing later at cron/webhook runtime.
 
 Never renumber or hand-edit an already-applied migration; a new behavior is
 always a new migration file, added via `npx @rocapine/community upgrade`.
+Adding a whole new module (e.g. translation) to an already-initialized
+backend: `npx @rocapine/community upgrade --add-modules translation`.
 
 ## 3. Edge Function secrets
 
