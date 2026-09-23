@@ -130,6 +130,8 @@ export async function translateItem(input: {
           format: { type: "json_schema", name: "translations", strict: true, schema },
         },
         store: false,
+        // /^gpt-5/ also matches future gpt-5.x names; a model that rejects
+        // effort=minimal shows up as sweep failures in Slack.
         ...(/^gpt-5/.test(TRANSLATION_MODEL) ? { reasoning: { effort: "minimal" } } : {}),
       }),
     });
@@ -188,8 +190,9 @@ export async function runPool<T, R>(
 /** Targets not already present in `have`, and (once a source is known) not the same language as it. */
 export function missingLocales(have: TranslationRow[], targets: string[]): string[] {
   const knownSource = have[0]?.source_locale;
+  const realRows = have.filter((h) => h.locale !== "source");
   return targets.filter(
-    (l) => !have.some((h) => h.locale === l) && (!knownSource || languageOf(l) !== knownSource),
+    (l) => !realRows.some((h) => h.locale === l) && (!knownSource || languageOf(l) !== knownSource),
   );
 }
 
@@ -234,7 +237,7 @@ export async function ensureTranslations(
   }
   const have = (existing ?? []) as TranslationRow[];
   const missing = missingLocales(have, TARGET_LOCALES);
-  if (missing.length === 0) return have;
+  if (missing.length === 0) return have.filter((h) => h.locale !== "source");
 
   let options: { id: string; idx: number; label: string }[] = [];
   if (kind === "post") {
@@ -295,9 +298,35 @@ export async function ensureTranslations(
       console.error("translation upsert failed", error.message);
       return null;
     }
+  } else {
+    // ponytail: every missing target shares the source language, so there was
+    // nothing to translate — but items_missing_translations only looks for a
+    // `have is null` row, so without a marker this item would be re-fetched
+    // and re-sent to OpenAI on every sweep link. This marker records the
+    // detected source so the sweep stops re-selecting the item; clients only
+    // ever see real-locale rows (missingLocales/callers filter "source" out),
+    // and once `src` is known the RPC's own per-target check already excludes
+    // same-language targets, so no real translation is ever "missing" because
+    // of it.
+    const { error } = await supabase.from(tTable).upsert(
+      [
+        {
+          [fk]: id,
+          locale: "source",
+          source_locale: parsed.sourceLocale,
+          content: "",
+          engine: ENGINE,
+        },
+      ],
+      { onConflict: `${fk},locale` },
+    );
+    if (error) {
+      console.error("translation marker upsert failed", error.message);
+      return null;
+    }
   }
   return [
-    ...have,
+    ...have.filter((h) => h.locale !== "source"),
     ...rows.map((r) => ({ locale: r.locale, source_locale: r.source_locale, content: r.content })),
   ];
 }

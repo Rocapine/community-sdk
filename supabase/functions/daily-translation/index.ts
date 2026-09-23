@@ -59,13 +59,16 @@ Deno.serve(async (req) => {
   const failed = posts.failed + comments.failed;
   const remaining = posts.remaining + comments.remaining;
 
-  const depth = Number(req.headers.get("x-community-chain")) || 0;
+  // The endpoint only needs the public anon key, so the caller controls this
+  // header: clamp to a non-negative integer so a malicious/garbage value (a
+  // large negative number, NaN, -Infinity) can't bypass MAX_CHAIN.
+  const depth = Math.max(0, Math.trunc(Number(req.headers.get("x-community-chain"))) || 0);
   let chained = false;
   if (remaining > 0 && done > 0 && depth < MAX_CHAIN) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2_000);
     try {
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/daily-translation`, {
+      const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/daily-translation`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
@@ -75,19 +78,23 @@ Deno.serve(async (req) => {
         body: JSON.stringify({}),
         signal: controller.signal,
       });
-      chained = true;
-    } catch {
-      // Aborted after 2s (or another fetch error): the request has already
-      // been sent, so the chained run continues server-side regardless.
-      chained = true;
+      chained = res.ok;
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        // We stopped waiting after 2s; the request was already sent and the
+        // chained run continues server-side regardless of our response.
+        chained = true;
+      }
     } finally {
       clearTimeout(timeout);
     }
   }
 
-  if (failed > 0) {
+  // Only the last link of a chain reports: an item that always fails would
+  // otherwise post a warning on every one of up to 200 chained links.
+  if (failed > 0 && !chained) {
     await postToSlack({
-      text: `Daily translation: WARNING, ${failed} item(s) failed to translate (${posts.done} posts and ${comments.done} comments done, ${remaining} remaining); they will be retried tomorrow.`,
+      text: `Daily translation: WARNING, ${failed} item(s) failed to translate (${posts.done} posts and ${comments.done} comments done, ${remaining} remaining); they will be retried by the next sweep.`,
     });
   }
   return json({ posts: posts.done, comments: comments.done, failed, remaining, chained, depth });

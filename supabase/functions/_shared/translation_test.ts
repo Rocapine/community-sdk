@@ -65,6 +65,11 @@ Deno.test("missingLocales returns every target when nothing exists yet", () => {
   assertEquals(missingLocales([], targets), targets);
 });
 
+Deno.test("missingLocales ignores the source marker row but still uses its known source", () => {
+  const have: TranslationRow[] = [{ locale: "source", source_locale: "en", content: "" }];
+  assertEquals(missingLocales(have, ["en", "en-GB", "fr"]), ["fr"]);
+});
+
 Deno.test("runPool: results preserve item order regardless of completion order", async () => {
   const delays = [30, 10, 20, 0]; // item 0 finishes last, item 3 first
   const fn = (i: number) =>
@@ -87,7 +92,7 @@ Deno.test("runPool: never runs more than `concurrency` at once", async () => {
   const { results, processed } = await runPool([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3, fn);
   assertEquals(processed, 10);
   assertEquals(results, [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]);
-  assertEquals(maxActive <= 3, true);
+  assertEquals(maxActive, 3);
 });
 
 Deno.test("runPool: stops starting new items when shouldContinue returns false", async () => {

@@ -22,6 +22,12 @@ describe("translation helpers", () => {
       translationLine(t, { text: "x", translation: { text: "y", sourceLocale: "xx" } }, false),
     ).toBe("Translated from xx · See original");
   });
+  it("shows no caption for an undetermined source language", () => {
+    const t = makeT("en");
+    const undItem = { text: "x", translation: { text: "y", sourceLocale: "und" } };
+    expect(translationLine(t, undItem, false)).toBeNull();
+    expect(translationLine(t, undItem, true)).toBeNull();
+  });
   it("uses idiomatic Polish genitive, French and Italian phrasing", () => {
     expect(translationLine(makeT("pl"), item, false)).toBe(
       "Przetłumaczono z angielskiego · Zobacz oryginał",
