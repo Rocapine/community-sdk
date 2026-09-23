@@ -78,11 +78,13 @@ create table public.poll_option_translations (
   `after update of status … when (old.status = 'pending' and new.status = 'visible')`, calling
   `translate-one` through `net.http_post` with `{ "kind": "post" | "comment", "id": <uuid> }` and the
   anon key (placeholders `__SUPABASE_PROJECT_URL__` / `__SUPABASE_ANON_KEY__`, same as push).
-- The `poll_option_translations` table is created unconditionally by the module even on an install
-  without polls? **No**: like the inbox module's reaction trigger, the poll table is created inside a
-  `do $$ … if to_regclass('public.poll_options') is not null …` guard, so `translation` works on an
-  install without `polls`. The CLI warns when `translation` is requested without `polls` only to
-  explain that poll labels won't be translated (nothing breaks).
+- `poll_option_translations` is created inside a `do $$ … if to_regclass('public.poll_options') is
+  not null …` guard (the same pattern as the inbox module's reaction trigger), so `translation`
+  installs cleanly on a backend without `polls`. The CLI warns when `translation` is requested
+  without `polls`, only to explain that poll labels won't be translated; nothing breaks.
+- The migration also ships `public.items_missing_translations(kind text, target_locales text[], max_items int)`,
+  a security-definer helper used by `daily-translation` to list visible posts/comments lacking at
+  least one target locale other than their source (see 5.3); execute is granted to the service role only.
 - Cron: `community-translation-sweep`, daily at 08:30 UTC (after the 08:00 moderation sweep), calling
   `daily-translation` with the anon key.
 
@@ -120,10 +122,9 @@ makes no API call. Returns `{ status: "ok" | "skipped" | "failed" }`.
 
 ### 5.3 `daily-translation`
 
-Selects visible posts and comments that lack at least one target locale other than their source
-(a left join per target locale, computed in SQL by a small helper function
-`public.items_missing_translations(kind, limit)` shipped in the migration, so the check stays
-correct when a locale is added to the secret). Batches of 50 per kind, capped per run (default 500
+Selects visible posts and comments that lack at least one target locale other than their source,
+through `items_missing_translations(kind, target_locales, max_items)` (section 4), so the check
+stays correct when a locale is added to the secret. Batches of 50 per kind, capped per run (default 500
 items) to fit the function's time budget; the first runs after installation back-fill the history.
 Slack summary only when something failed (`_shared/slack.ts`, no-op without the webhook). Quiet
 when there is nothing to do.
