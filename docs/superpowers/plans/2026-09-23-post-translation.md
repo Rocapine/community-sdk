@@ -1555,6 +1555,36 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 ---
 
+### Task 11b: `upgrade --add-modules` — install a module on an already-initialized backend
+
+**Why:** `runUpgrade` only re-syncs modules already in `community-sdk.json` and `runInit` refuses an initialized dir, so there is no CLI path to add `translation` (or any module) to Eve's Rhythm / Nightward. The spec requires the module to be CLI-installed.
+
+**Files:**
+
+- Modify: `packages/cli/src/commands/upgrade.ts` (`UpgradeOptions`, module resolution, manifest write, summary), `packages/cli/src/index.ts` (the `upgrade` command's options), `packages/cli/src/install-shared.ts` only if a helper must be shared (prefer reusing `resolveModules`).
+- Test: `packages/cli/src/__tests__/upgrade.test.ts`
+- Docs: `README.md` (one sentence under the ordering note / upgrade mention), `docs/backend-runbook.md` §2 if it describes `upgrade` (one sentence).
+
+**Interfaces:**
+
+- `UpgradeOptions.addModules?: string[]` — module names to add. CLI flag: `--add-modules <list>` (comma-separated, same parsing style as `init --modules`).
+- Behaviour: the effective module list = `resolveModules([...manifest.modules, ...addModules], onWarn)` — this validates unknown names (throws the existing "unknown module" error), implies core, orders per `MODULE_ORDER`, and emits the same dependency warnings as `init` (inbox without reaction, translation without polls). Everything downstream (`pending` migrations, `newFunctions`, credentials prompt, placeholder substitution, rollback) already keys off `canonicalModules`, so a newly added module's migrations and functions flow through unchanged. The manifest written at the end persists the enlarged list (`modules: canonicalModules`, not `manifest.modules`). When `addModules` is empty/undefined behaviour is byte-identical to today (`canonicalModules` must still be derived from the manifest only — keep `resolveModules` out of that path OR make sure it yields the same list and no spurious warning for an existing inbox-without-reaction install; simplest: only call `resolveModules` when `addModules` has entries).
+- `UpgradeResult.addedModules: string[]` (the modules that were not in the manifest before; `[]` otherwise).
+- Summary: `printSummary` lists added modules; when `translation` is among them, log the same secrets hint as `init` ("translation module: COMMUNITY_TRANSLATION_LOCALES=… (required, same list as modules.translation.locales in the app); optional: COMMUNITY_TRANSLATION_MODEL, COMMUNITY_TRANSLATION_STYLE").
+
+- [ ] **Step 1: Failing tests** (append to `upgrade.test.ts`, reuse its `baseOptions`/`runInit` pattern with `modules: ["core", "polls"]`):
+  1. `adds a module: copies its migrations after the existing ones, its functions, and persists it in the manifest` — init with `["core","polls"]`, `runUpgrade(baseOptions({ addModules: ["translation"] }))`; expect `result.addedModules` to equal `["translation"]`; the migrations dir now contains exactly one `_community_translation_` file whose timestamp sorts after every existing file; `supabase/functions/translate-one` and `daily-translation` exist; `readManifest(cwd).modules` equals `["core","polls","translation"]`; `installedTemplates` contains `"translation/translations"`.
+  2. `warns when adding translation without polls` — init `["core"]`, add `["translation"]` with an `onWarn` spy: called once, message matches `/poll/i`, upgrade still succeeds.
+  3. `rejects an unknown module name and writes nothing` — init `["core"]`, `addModules: ["nope"]` rejects with `/unknown module/`; the migrations dir still has only core files and the manifest is unchanged.
+  4. `adding an already-installed module is a no-op` — init `["core","polls"]`, `addModules: ["polls"]` → `upToDate: true`, `addedModules: []`.
+- [ ] **Step 2:** run `npm test -w @rocapine/community` — the four fail (`addModules` unknown / `addedModules` undefined).
+- [ ] **Step 3:** implement as described. Placeholder credentials: the translation migration carries `__SUPABASE_*` placeholders, so the existing `needsCredentials` path prompts/uses `--project-url`/`--anon-key` — the tests' `baseOptions` already pass both.
+- [ ] **Step 4:** `npm run build -w @rocapine/community && npm test -w @rocapine/community`, then `npm run build && npm run typecheck && npm test && npx prettier --check .` from the root.
+- [ ] **Step 5:** docs: one sentence in `README.md` where `upgrade` is described ("`npx @rocapine/community upgrade --add-modules translation` installs a module on an existing backend") and the same in `docs/backend-runbook.md` §2 if it lists CLI commands; update `.changeset/translation-cli.md` with a bullet for `--add-modules`.
+- [ ] **Step 6:** commit `feat(cli): upgrade --add-modules installs a module on an initialized backend` + Co-Authored-By line.
+
+---
+
 ### Task 12: Install on the scratch project and verify end to end
 
 **Files:** none in the repo (scratch project `cozfrhmbjrvotpwjnqmu`; Eve worktree for the app-side check is created at `/Users/glsx/Developer/eden-sdk-translation-qa` from Eve's `main`).
@@ -1563,7 +1593,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Apply the module to scratch**
 
-From a scratch checkout of Eve (`git -C ~/Developer/eden-s-rythm worktree add ~/Developer/eden-sdk-translation-qa main`), run the built CLI: `node /Users/glsx/Developer/community-sdk/packages/cli/lib/index.js upgrade --modules translation` (it copies `…_community_translation_translations.sql` and the two functions and re-syncs `notify-comment`/`broadcast-post`). Then, against scratch only:
+From a scratch checkout of Eve (`git -C ~/Developer/eden-s-rythm worktree add ~/Developer/eden-sdk-translation-qa main`), run the built CLI: `node /Users/glsx/Developer/community-sdk/packages/cli/lib/index.js upgrade --add-modules translation` (it copies `…_community_translation_translations.sql` and the two functions and re-syncs `notify-comment`/`broadcast-post`). Then, against scratch only:
 
 ```bash
 supabase link --project-ref cozfrhmbjrvotpwjnqmu
