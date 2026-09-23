@@ -1,5 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import {
+  hasFreshAttempt,
   languageOf,
   missingLocales,
   parseTranslationResponse,
@@ -68,6 +69,49 @@ Deno.test("missingLocales returns every target when nothing exists yet", () => {
 Deno.test("missingLocales ignores the source marker row but still uses its known source", () => {
   const have: TranslationRow[] = [{ locale: "source", source_locale: "en", content: "" }];
   assertEquals(missingLocales(have, ["en", "en-GB", "fr"]), ["fr"]);
+});
+
+Deno.test("missingLocales: a fresh attempt marker is not a presence and carries no source", () => {
+  const attempt: TranslationRow = {
+    locale: "attempt",
+    source_locale: "",
+    content: "",
+    created_at: new Date().toISOString(),
+  };
+  assertEquals(missingLocales([attempt], ["en", "fr"]), ["en", "fr"]);
+  const withReal: TranslationRow[] = [
+    attempt,
+    { locale: "fr", source_locale: "en", content: "Bonjour" },
+  ];
+  assertEquals(missingLocales(withReal, ["en", "en-GB", "fr", "pl"]), ["pl"]);
+});
+
+Deno.test("hasFreshAttempt: an attempt younger than maxAge is fresh", () => {
+  const now = Date.parse("2026-09-24T12:00:00Z");
+  const have: TranslationRow[] = [
+    { locale: "attempt", source_locale: "", content: "", created_at: "2026-09-24T07:00:00Z" },
+  ];
+  assertEquals(hasFreshAttempt(have, now, 6 * 3600_000), true);
+});
+
+Deno.test("hasFreshAttempt: an attempt older than maxAge (or none) is not fresh", () => {
+  const now = Date.parse("2026-09-24T12:00:00Z");
+  const stale: TranslationRow[] = [
+    { locale: "attempt", source_locale: "", content: "", created_at: "2026-09-24T05:59:59Z" },
+    { locale: "fr", source_locale: "en", content: "x", created_at: "2026-09-24T11:59:00Z" },
+  ];
+  assertEquals(hasFreshAttempt(stale, now, 6 * 3600_000), false);
+  assertEquals(hasFreshAttempt([], now, 6 * 3600_000), false);
+});
+
+Deno.test("parseTranslationResponse normalises a regional source_locale to its language", () => {
+  const parsed = parseTranslationResponse(
+    { source_locale: "pt-BR", translations: { en: { content: "Hi", options: [] } } },
+    TARGETS,
+    0,
+  );
+  assertEquals(parsed?.sourceLocale, "pt");
+  assertEquals(Object.keys(parsed!.translations), ["en"]);
 });
 
 Deno.test("runPool: results preserve item order regardless of completion order", async () => {

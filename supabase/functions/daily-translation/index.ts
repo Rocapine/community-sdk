@@ -10,7 +10,12 @@ import { ensureTranslations, runPool, TARGET_LOCALES } from "../_shared/translat
 import { postToSlack } from "../_shared/slack.ts";
 
 const supabase = adminClient();
-const MAX_ITEMS_PER_KIND = 250;
+// COMMUNITY_TRANSLATION_SWEEP_BATCH: optional test/cost knob (a small value
+// forces chaining on a small backlog).
+const MAX_ITEMS_PER_KIND = Math.max(
+  1,
+  Number(Deno.env.get("COMMUNITY_TRANSLATION_SWEEP_BATCH")) || 250,
+);
 const CONCURRENCY = 4;
 const TIME_BUDGET_MS = 60_000;
 const MAX_CHAIN = 200;
@@ -64,6 +69,8 @@ Deno.serve(async (req) => {
   // large negative number, NaN, -Infinity) can't bypass MAX_CHAIN.
   const depth = Math.max(0, Math.trunc(Number(req.headers.get("x-community-chain"))) || 0);
   let chained = false;
+  // Why no chain was started, reported to Slack when items remain.
+  let chainFailure = done > 0 ? "depth cap" : "no progress this run";
   if (remaining > 0 && done > 0 && depth < MAX_CHAIN) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2_000);
@@ -71,7 +78,11 @@ Deno.serve(async (req) => {
       const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/daily-translation`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+          // Forward the caller's own JWT (cron/pg_net sends the anon key the CLI
+          // substituted, which passes verify_jwt); the platform's SUPABASE_ANON_KEY
+          // env may be a publishable sb_ key that verify_jwt rejects.
+          Authorization:
+            req.headers.get("authorization") ?? `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
           "Content-Type": "application/json",
           "x-community-chain": String(depth + 1),
         },
@@ -79,11 +90,14 @@ Deno.serve(async (req) => {
         signal: controller.signal,
       });
       chained = res.ok;
+      if (!res.ok) chainFailure = `chain request failed (${res.status})`;
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") {
         // We stopped waiting after 2s; the request was already sent and the
         // chained run continues server-side regardless of our response.
         chained = true;
+      } else {
+        chainFailure = "chain request failed";
       }
     } finally {
       clearTimeout(timeout);
@@ -95,6 +109,11 @@ Deno.serve(async (req) => {
   if (failed > 0 && !chained) {
     await postToSlack({
       text: `Daily translation: WARNING, ${failed} item(s) failed to translate (${posts.done} posts and ${comments.done} comments done, ${remaining} remaining); they will be retried by the next sweep.`,
+    });
+  }
+  if (remaining > 0 && !chained) {
+    await postToSlack({
+      text: `Translation sweep stopped with ${remaining} items remaining (chain not started: ${chainFailure}); the daily cron continues tomorrow.`,
     });
   }
   return json({ posts: posts.done, comments: comments.done, failed, remaining, chained, depth });

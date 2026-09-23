@@ -7,7 +7,7 @@
 import { adminClient, isServiceCaller } from "../_shared/client.ts";
 import { sendExpoPushBatch } from "../_shared/push.ts";
 import { BROADCAST_FALLBACK_TITLE } from "../_shared/config.ts";
-import { ensureTranslations, resolveTargetLocale } from "../_shared/translation.ts";
+import { ensureTranslations, resolveTargetLocale, TARGET_LOCALES } from "../_shared/translation.ts";
 
 const supabase = adminClient();
 
@@ -34,7 +34,10 @@ Deno.serve(async (req) => {
   const title = author?.username?.trim() || BROADCAST_FALLBACK_TITLE;
 
   const original = post.content.length > 140 ? `${post.content.slice(0, 137)}...` : post.content;
-  const translations = (await ensureTranslations(supabase, "post", post.id)) ?? [];
+  const translations =
+    TARGET_LOCALES.length === 0
+      ? []
+      : ((await ensureTranslations(supabase, "post", post.id)) ?? []);
   const excerptFor = (locale: string | null): string => {
     if (!locale) return original;
     const t = translations.find((r) => r.locale === locale);
