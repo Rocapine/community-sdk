@@ -410,15 +410,13 @@ function CommentRow({
   const [showOriginal, setShowOriginal] = useState(false);
   const toggleLine = translationLine(t, comment, showOriginal);
   const toggleOriginal = () => {
-    setShowOriginal((v) => {
-      emitEvent(cfg, COMMUNITY_EVENTS.translationToggled, {
-        commentId: comment.id,
-        to: v ? "translation" : "original",
-      });
-      return !v;
+    emitEvent(cfg, COMMUNITY_EVENTS.translationToggled, {
+      commentId: comment.id,
+      to: showOriginal ? "translation" : "original",
     });
+    setFullLines(null);
+    setShowOriginal(!showOriginal);
   };
-  useEffect(() => setFullLines(null), [showOriginal]);
 
   const handleAuthor = () => onOpenProfile(comment.authorId);
 

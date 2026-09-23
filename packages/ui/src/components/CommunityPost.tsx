@@ -29,7 +29,7 @@ import {
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -84,17 +84,13 @@ export function CommunityPost({
   const [showOriginal, setShowOriginal] = useState(false);
   const toggleLine = translationLine(t, post, showOriginal);
   const toggleOriginal = () => {
-    setShowOriginal((v) => {
-      emitEvent(cfg, COMMUNITY_EVENTS.translationToggled, {
-        postId: post.id,
-        to: v ? "translation" : "original",
-      });
-      return !v;
+    emitEvent(cfg, COMMUNITY_EVENTS.translationToggled, {
+      postId: post.id,
+      to: showOriginal ? "translation" : "original",
     });
-  };
-  useEffect(() => {
     setFullLines(null);
-  }, [showOriginal]);
+    setShowOriginal(!showOriginal);
+  };
 
   const handleOpenThread = () => onOpenThread(post.id);
   const handleOpenProfile = () => onOpenProfile(post.authorId);
