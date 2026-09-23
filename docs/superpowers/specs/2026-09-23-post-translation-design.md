@@ -192,7 +192,7 @@ when there is nothing to do.
 - `MODULE_ORDER` gains `translation` (last). Templates: `migrations/translation/001_translations.sql`,
   functions `translate-one`, `daily-translation`, plus the modified `notify-comment`, `broadcast-post`,
   `_shared/translation.ts` (the shared file is copied with every function as today).
-- `init`/`upgrade` print the new secrets. `upgrade --modules translation` on an existing install
+- `init`/`upgrade` print the new secrets. `upgrade --add-modules translation` on an existing install
   copies the migration and functions and warns if `polls` is absent (labels not translated).
 - `docs/compat.md`: schema version unchanged (additive). Release: core minor, ui minor, cli minor → 0.3.0.
 
@@ -211,7 +211,7 @@ when there is nothing to do.
 
 ## 10. Rollout and rollback
 
-Order for Eve: publish SDK 0.3.0 → `npx @rocapine/community upgrade --modules translation` →
+Order for Eve: publish SDK 0.3.0 → `npx @rocapine/community upgrade --add-modules translation` →
 `supabase db push` (`--include-all` if needed) → `supabase functions deploy translate-one daily-translation
 notify-comment broadcast-post` → `supabase secrets set COMMUNITY_TRANSLATION_LOCALES=...` (and STYLE) →
 enable `modules.translation` in `lib/community-config.ts` → build. Installed clients are unaffected

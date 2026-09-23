@@ -39,10 +39,11 @@ supabase db push
 `init`/`upgrade` re-prefix every migration with a fresh timestamp at copy
 time (so ordering across modules stays correct regardless of install order)
 and substitute the `__SUPABASE_PROJECT_URL__` / `__SUPABASE_ANON_KEY__`
-placeholders that three migrations carry
+placeholders that four migrations carry
 (`core/003_moderation.sql`, `push/002_triggers.sql`,
-`reaction/001_reactions.sql` — each schedules a `pg_cron` job that calls
-back into this same project via `pg_net`). A migration with an
+`reaction/001_reactions.sql`, `translation/001_translations.sql` — each
+schedules a `pg_cron` job or trigger that calls back into this same project
+via `pg_net`). A migration with an
 unsubstituted placeholder fails loudly at `db push` (a `DO` block re-checks
 this at push time, in addition to the CLI's own pre-write check), rather
 than silently pushing and failing later at cron/webhook runtime.
@@ -77,6 +78,7 @@ supabase functions deploy
 | `COMMUNITY_TRANSLATION_LOCALES`                                    | none                                 | **Required with the translation module.** Comma-separated target locales, e.g. `en,es-ES,es-419,it,pl,pt-PT,pt-BR` — must equal the client's `modules.translation.locales`.                                                                                                                                                                                                                                                                                                             | `translate-one`, `daily-translation`, `notify-comment`, `broadcast-post`                                      |
 | `COMMUNITY_TRANSLATION_MODEL`                                      | `gpt-5-mini`                         | Optional.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `translate-one`, `daily-translation`                                                                          |
 | `COMMUNITY_TRANSLATION_STYLE`                                      | none                                 | Optional per-app voice instruction appended to the translation prompt.                                                                                                                                                                                                                                                                                                                                                                                                                  | `translate-one`, `daily-translation`                                                                          |
+| `COMMUNITY_TRANSLATION_SWEEP_BATCH`                                | `250`                                | Optional test/cost knob: items fetched per kind (post/comment) per `daily-translation` run. A small value (e.g. `2`) forces the self-chain on a small backlog, which is how the chain is exercised on a scratch project.                                                                                                                                                                                                                                                                | `daily-translation`                                                                                           |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` | —                                    | Platform-provided automatically; never set these yourself.                                                                                                                                                                                                                                                                                                                                                                                                                              | all functions via `_shared/client.ts`                                                                         |
 
 Deploy after setting secrets (`supabase functions deploy`, or scope it to
@@ -146,28 +148,72 @@ the Slack summary.
 
 ### Translation
 
-`translate-one` runs synchronously when a post or comment is published,
-translating it into every locale in `COMMUNITY_TRANSLATION_LOCALES`. The
+`translate-one` runs asynchronously when a post or comment is published: the
+publish trigger fires it through `pg_net` (the publishing request never waits
+for it), and it translates the item into every locale in
+`COMMUNITY_TRANSLATION_LOCALES`. The
 source language is not configured — the model detects it per item, and no
 row is written for the target locale that matches the detected source (the
 UI falls back to the original text for that reader). For a `gpt-5*` model
 the request sets `reasoning.effort=minimal`, since reasoning effort otherwise
 dominates per-item latency. `daily-translation` sweeps daily at 08:30 UTC: it
 back-fills the whole history the first time the module is installed, then
-catches anything the synchronous call missed (an API outage, a locale added
-to the secret afterward), capped at 250 items per kind (post/comment) fetched
-per run. Each invocation translates up to 4 items at a time within a 60s time
+catches anything `translate-one` missed (an API outage, a locale added to the
+secret afterward), capped at 250 items per kind (post/comment) fetched per run
+(`COMMUNITY_TRANSLATION_SWEEP_BATCH` overrides it). Each invocation translates up to 4 items at a time within a 60s time
 budget; when items remain after the budget (or the fetch itself was capped),
 the function re-invokes itself over HTTP so a first install back-fills the
 whole history in the background, typically within hours (chained up to 200
 times deep). A run that makes no progress (0 items done) never chains — that
 case is left to the daily cron retry and the Slack failure count. Neither
 function ever surfaces a failure to the end user — `daily-translation` posts
-to Slack only when items failed (no-op if `SLACK_WEBHOOK_URL` unset), and an
-item that fails simply stays "missing" for the next sweep. `notify-comment`
-and `broadcast-post` send the recipient an excerpt in their own language
-(resolved from `profiles.locale` against the target locales), falling back
-to the original text if no translation is available.
+to Slack only when items failed or when items remain and no chain was started
+(depth cap, chain request failed, or no progress; no-op if `SLACK_WEBHOOK_URL`
+unset), and an item that fails simply stays "missing" for a later sweep. The
+chained request forwards the incoming `Authorization` header (the anon key the
+cron/trigger sends), so it passes `verify_jwt` whatever key format the
+platform's `SUPABASE_ANON_KEY` env holds. `notify-comment` and
+`broadcast-post` send the recipient an excerpt in their own language (resolved
+from `profiles.locale` against the target locales), falling back to the
+original text if no translation is available.
+
+Two marker rows live next to the real translations in `post_translations` /
+`comment_translations` (clients only ever read real locales, so neither is
+visible to the app):
+
+- `locale = 'source'` (`content = ''`): the detected source language covers
+  every target, so there was nothing to translate. Written once so the sweep
+  stops re-selecting the item.
+- `locale = 'attempt'` (`source_locale = ''`, `content = ''`): a claim taken
+  before the OpenAI call and deleted when the rows are written. While it is
+  younger than 6 h no caller (translate-one, notify-comment, broadcast-post,
+  the sweep) calls the API for that item, and `items_missing_translations`
+  skips it; a failed attempt therefore leaves the claim, and the item is
+  retried once it is older than 6 h (at most 4 paid attempts per item per
+  day, whoever calls). Of two concurrent callers only one gets the claim; the
+  other returns what exists (a push excerpt then falls back to the original).
+
+First install, in this order:
+
+1. Secrets: `COMMUNITY_TRANSLATION_LOCALES` (and optionally
+   `COMMUNITY_TRANSLATION_MODEL` / `_STYLE`), `OPENAI_API_KEY` already set.
+2. Deploy the functions `init`/`upgrade` added or re-synced (it lists them:
+   `translate-one`, `daily-translation`, plus every function sharing
+   `_shared/`), so the triggers and cron never call a missing function.
+3. `supabase db push` (tables, triggers, sweep RPC, cron job).
+4. First backfill by hand instead of waiting for 08:30 UTC, then read the
+   response:
+
+   ```bash
+   curl -sS -X POST "https://<ref>.supabase.co/functions/v1/daily-translation" \
+     -H "Authorization: Bearer <anon key>" -H "Content-Type: application/json" -d '{}'
+   # {"posts":…,"comments":…,"failed":0,"remaining":…,"chained":true,"depth":0}
+   ```
+
+   `remaining > 0` with `chained: true` means the backfill continues in the
+   background; `remaining > 0` with `chained: false` means it stopped (see the
+   Slack message) and the daily cron resumes it. `depth` is this link's
+   position in the chain.
 
 ### Who can call what
 
@@ -184,6 +230,11 @@ least the public anon key. On top of that:
 - `daily-moderation` is invoked by cron with the anon key and is idempotent:
   once a sweep has stamped its items, a stray call finds nothing to check and
   returns without an API call or a Slack post.
+- `translate-one` (triggers) and `daily-translation` (cron, self-chain) accept
+  the anon key. `translate-one` reads only `kind` and `id` and re-reads the
+  row; both only ever translate visible items that still miss a locale, and
+  paid calls are bounded by the `attempt` claim row (one API call per item per
+  6 h, whoever calls).
 
 ## 6. Schema drift detection
 
