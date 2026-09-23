@@ -129,6 +129,7 @@ export async function translateItem(input: {
         text: {
           format: { type: "json_schema", name: "translations", strict: true, schema },
         },
+        store: false,
       }),
     });
     if (!res.ok) {
@@ -136,18 +137,29 @@ export async function translateItem(input: {
       return null;
     }
     const data = await res.json();
-    // Responses API: the JSON text lives in output[].content[].text; output_text is the convenience join.
+    // Responses API: the JSON text lives in output[].content[].text, on "message" items only
+    // ("reasoning" items have no output_text content and must never be picked); output_text is
+    // the convenience join for the common case.
     const text: string | undefined =
       data.output_text ??
       data.output
-        ?.flatMap((o: { content?: { text?: string }[] }) => o.content ?? [])
-        .find((c: { text?: string }) => typeof c.text === "string")?.text;
+        ?.filter((o: { type?: string }) => o.type === "message")
+        .flatMap((o: { content?: { type?: string; text?: string }[] }) => o.content ?? [])
+        .find((c: { type?: string; text?: string }) => c.type === "output_text")?.text;
     if (!text) return null;
     return parseTranslationResponse(JSON.parse(text), input.targets, input.options.length);
   } catch (e) {
     console.error("translation failed", e);
     return null;
   }
+}
+
+/** Targets not already present in `have`, and (once a source is known) not the same language as it. */
+export function missingLocales(have: TranslationRow[], targets: string[]): string[] {
+  const knownSource = have[0]?.source_locale;
+  return targets.filter(
+    (l) => !have.some((h) => h.locale === l) && (!knownSource || languageOf(l) !== knownSource),
+  );
 }
 
 /**
@@ -169,22 +181,28 @@ export async function ensureTranslations(
   const tTable = kind === "post" ? "post_translations" : "comment_translations";
   const fk = kind === "post" ? "post_id" : "comment_id";
 
-  const { data: row } = await supabase
+  const { data: row, error: rowError } = await supabase
     .from(table)
     .select("id, content, status")
     .eq("id", id)
     .single();
+  if (rowError) {
+    if (rowError.code === "PGRST116") return []; // not found
+    console.error("translation item lookup failed", rowError.message);
+    return null;
+  }
   if (!row || row.status !== "visible") return [];
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from(tTable)
     .select("locale, source_locale, content")
     .eq(fk, id);
+  if (existingError) {
+    console.error("translation existing rows lookup failed", existingError.message);
+    return null;
+  }
   const have = (existing ?? []) as TranslationRow[];
-  const knownSource = have[0]?.source_locale;
-  const missing = TARGET_LOCALES.filter(
-    (l) => !have.some((h) => h.locale === l) && (!knownSource || languageOf(l) !== knownSource),
-  );
+  const missing = missingLocales(have, TARGET_LOCALES);
   if (missing.length === 0) return have;
 
   let options: { id: string; idx: number; label: string }[] = [];
@@ -194,7 +212,11 @@ export async function ensureTranslations(
       .select("id, idx, label")
       .eq("post_id", id)
       .order("idx");
-    if (!error && data) options = data as typeof options;
+    if (error) {
+      console.error("poll options lookup failed", error.message);
+      return null;
+    }
+    if (data) options = data as typeof options;
   }
 
   const parsed = await translateItem({
@@ -203,6 +225,31 @@ export async function ensureTranslations(
     targets: missing,
   });
   if (!parsed) return null;
+
+  const incomplete = missing.filter(
+    (l) => languageOf(l) !== parsed.sourceLocale && !(l in parsed.translations),
+  );
+  if (incomplete.length > 0) {
+    console.error("translation response missing locales", incomplete.join(", "));
+    return null;
+  }
+
+  // Poll option rows are written first: if they fail, nothing lands, so the item
+  // stays fully "missing" and the sweep (which only checks post_translations) can retry it.
+  if (kind === "post" && options.length > 0) {
+    const optionRows = Object.entries(parsed.translations).flatMap(([locale, t]) =>
+      t.options.map((content, i) => ({ option_id: options[i].id, locale, content })),
+    );
+    if (optionRows.length > 0) {
+      const { error } = await supabase
+        .from("poll_option_translations")
+        .upsert(optionRows, { onConflict: "option_id,locale" });
+      if (error) {
+        console.error("poll option translation upsert failed", error.message);
+        return null;
+      }
+    }
+  }
 
   const rows = Object.entries(parsed.translations).map(([locale, t]) => ({
     [fk]: id,
@@ -216,17 +263,6 @@ export async function ensureTranslations(
     if (error) {
       console.error("translation upsert failed", error.message);
       return null;
-    }
-  }
-  if (kind === "post" && options.length > 0) {
-    const optionRows = Object.entries(parsed.translations).flatMap(([locale, t]) =>
-      t.options.map((content, i) => ({ option_id: options[i].id, locale, content })),
-    );
-    if (optionRows.length > 0) {
-      const { error } = await supabase
-        .from("poll_option_translations")
-        .upsert(optionRows, { onConflict: "option_id,locale" });
-      if (error) console.error("poll option translation upsert failed", error.message);
     }
   }
   return [

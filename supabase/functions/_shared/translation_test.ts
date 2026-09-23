@@ -1,5 +1,11 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { languageOf, parseTranslationResponse, resolveTargetLocale } from "./translation.ts";
+import {
+  languageOf,
+  missingLocales,
+  parseTranslationResponse,
+  resolveTargetLocale,
+  type TranslationRow,
+} from "./translation.ts";
 
 const TARGETS = ["en", "es-ES", "es-419", "pt-PT", "pl"];
 
@@ -46,4 +52,14 @@ Deno.test("parseTranslationResponse rejects invalid payloads", () => {
     parseTranslationResponse({ source_locale: "english!", translations: {} }, TARGETS, 0),
     null,
   );
+});
+
+Deno.test("missingLocales excludes present locales and same-language-as-source locales", () => {
+  const have: TranslationRow[] = [{ locale: "es-ES", source_locale: "en", content: "Hola" }];
+  assertEquals(missingLocales(have, ["en", "es-ES", "en-GB", "pt-PT"]), ["pt-PT"]);
+});
+
+Deno.test("missingLocales returns every target when nothing exists yet", () => {
+  const targets = ["en", "es-ES", "pt-PT"];
+  assertEquals(missingLocales([], targets), targets);
 });
