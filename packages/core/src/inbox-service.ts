@@ -108,11 +108,17 @@ export async function fetchInbox(cfg: ResolvedCommunityConfig): Promise<InboxSta
   ];
   let localized = items;
   if (locale && postIds.length > 0) {
-    const { data } = await client
+    const { data, error } = await client
       .from("post_translations")
       .select("post_id, content")
       .eq("locale", locale)
       .in("post_id", postIds);
+    if (error) {
+      console.warn(
+        "[@rocapine/community-core] inbox translations unavailable, showing original excerpts:",
+        error.message,
+      );
+    }
     localized = localizeExcerpts(items, (data ?? []) as { post_id: string; content: string }[]);
   }
   return { items: localized, seenAt: (seenRes.data?.seen_at as string | undefined) ?? null };
