@@ -7,6 +7,7 @@ export type {
   ResolvedCommunityConfig,
 } from "./config";
 export { CommunityDisabledError, resolveConfig } from "./config";
+export { readerLocale, languageOf } from "./locale";
 export { CommunityProvider, useCommunityConfig } from "./provider";
 
 export type {

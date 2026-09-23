@@ -8,6 +8,10 @@ export type CommunityModules = {
   push: boolean;
   inbox: boolean;
   reaction: { key: string } | false;
+  /** Translation module: posts/comments/poll labels translated at publication
+   * into these locales (must equal the backend's COMMUNITY_TRANSLATION_LOCALES
+   * secret). Absent or false ⇒ every query and screen behaves as before. */
+  translation?: { locales: string[] } | false;
 };
 
 export type CommunityHostAdapters = {
