@@ -22,6 +22,7 @@ import {
   templateBaseName,
   migrationDestFilename,
   listFilesRecursive,
+  isShippedFunctionFile,
   toRelativePosix,
   resolveContainedDir,
 } from "../install-shared";
@@ -138,7 +139,7 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
       const srcDir = path.join(functionsSrcRoot, fnName);
       if (!fs.existsSync(srcDir)) continue;
       const destDir = path.join(functionsDestRoot, fnName);
-      fs.cpSync(srcDir, destDir, { recursive: true });
+      fs.cpSync(srcDir, destDir, { recursive: true, filter: isShippedFunctionFile });
       writtenPaths.push(...listFilesRecursive(destDir));
     }
   } catch (err) {

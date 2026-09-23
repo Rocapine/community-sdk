@@ -157,6 +157,36 @@ describe("runUpgrade", () => {
     expect(result.upToDate).toBe(false);
   });
 
+  it("treats a host's leftover *_test.ts as no diff, and keeps the manifest's modules as they are", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core", "push"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+    // A host installed by an older CLI still has the test file.
+    fs.writeFileSync(
+      path.join(cwd, "supabase", "functions", "_shared", "translation_test.ts"),
+      "// old copy\n",
+    );
+    // Hand-ordered module list; a plain upgrade must not re-canonicalize it.
+    const manifest = readManifest(cwd)!;
+    writeManifest(cwd, { ...manifest, modules: ["push", "core"] });
+    fs.writeFileSync(
+      path.join(templatesDir, "migrations", "core", "999_new_thing.sql"),
+      "select 1;\n",
+    );
+
+    const result = await runUpgrade(baseOptions());
+
+    expect(result.overwrittenFunctions).toEqual([]);
+    expect(result.addedMigrations).toHaveLength(1);
+    expect(readManifest(cwd)!.modules).toEqual(["push", "core"]);
+  });
+
   it("does not warn or touch functions whose template content is unchanged", async () => {
     await runInit({
       cwd,

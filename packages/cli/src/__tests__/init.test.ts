@@ -134,6 +134,19 @@ describe("runInit", () => {
     ]);
   });
 
+  it("never copies Deno test files (*_test.ts) into the host's functions", async () => {
+    // The repo template does carry one, so this asserts the filter, not its absence.
+    expect(
+      fs.existsSync(path.join(REPO_SUPABASE_DIR, "functions", "_shared", "translation_test.ts")),
+    ).toBe(true);
+    await runInit(baseOptions({ modules: ["core"] }));
+
+    const shared = fs.readdirSync(path.join(cwd, "supabase", "functions", "_shared"));
+    expect(shared.length).toBeGreaterThan(0);
+    expect(shared.filter((f) => f.endsWith("_test.ts"))).toEqual([]);
+    expect(readManifest(cwd)!.installedFiles.some((f) => f.endsWith("_test.ts"))).toBe(false);
+  });
+
   it("copies all 8 functions + _shared when every module is selected", async () => {
     await runInit(baseOptions({ modules: ["core", "push", "polls", "reaction", "inbox"] }));
 

@@ -157,7 +157,8 @@ table to already exist. You never need to think about this — just don't
 enable `inbox` without `reaction` if you want reaction pushes to show up in
 the inbox (the CLI warns if you do). Already initialized a backend and just
 want to add one more module? `npx @rocapine/community upgrade --add-modules
-translation` installs it without touching what's already there.
+translation` installs it on top of the existing backend (and applies any other
+pending upgrade: new migrations, changed function templates).
 
 ## Dashboard
 

@@ -24,6 +24,7 @@ import {
   migrationDestFilename,
   parseMigrationDestFilename,
   listFilesRecursive,
+  isShippedFunctionFile,
   toRelativePosix,
   resolveContainedDir,
 } from "../install-shared";
@@ -206,7 +207,10 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
     }
     for (const fnName of newFunctions) {
       const destDir = path.join(functionsDestRoot, fnName);
-      fs.cpSync(path.join(functionsSrcRoot, fnName), destDir, { recursive: true });
+      fs.cpSync(path.join(functionsSrcRoot, fnName), destDir, {
+        recursive: true,
+        filter: isShippedFunctionFile,
+      });
       createdFunctionDirs.push(destDir);
     }
 
@@ -216,7 +220,10 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
       fs.cpSync(destDir, backupDir, { recursive: true });
       backups.push({ destDir, backupDir });
       fs.rmSync(destDir, { recursive: true, force: true });
-      fs.cpSync(path.join(functionsSrcRoot, fnName), destDir, { recursive: true });
+      fs.cpSync(path.join(functionsSrcRoot, fnName), destDir, {
+        recursive: true,
+        filter: isShippedFunctionFile,
+      });
     }
   } catch (err) {
     for (const p of writtenMigrationPaths) fs.rmSync(p, { force: true });
@@ -251,7 +258,10 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   const updatedManifest: Manifest = {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     sdkVersion: readOwnPackageVersion(),
-    modules: canonicalModules,
+    // Only --add-modules rewrites the module list; a plain upgrade keeps the
+    // manifest's own (order and any entry this CLI doesn't know).
+    modules:
+      options.addModules && options.addModules.length > 0 ? canonicalModules : manifest.modules,
     installedFiles,
     installedTemplates: [...newInstalledTemplateIds].sort(),
   };
@@ -293,8 +303,14 @@ function reconstructInstalledTemplateIds(installedFiles: string[]): string[] {
 }
 
 function functionDirDiffers(srcDir: string, destDir: string): boolean {
-  const srcRel = new Set(listFilesRecursive(srcDir).map((f) => path.relative(srcDir, f)));
-  const destRel = new Set(listFilesRecursive(destDir).map((f) => path.relative(destDir, f)));
+  const rel = (dir: string) =>
+    new Set(
+      listFilesRecursive(dir)
+        .filter(isShippedFunctionFile)
+        .map((f) => path.relative(dir, f)),
+    );
+  const srcRel = rel(srcDir);
+  const destRel = rel(destDir);
   if (srcRel.size !== destRel.size) return true;
   for (const rel of srcRel) {
     if (!destRel.has(rel)) return true;

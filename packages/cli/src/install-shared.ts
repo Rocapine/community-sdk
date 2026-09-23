@@ -232,6 +232,12 @@ export function addSeconds(date: Date, seconds: number): Date {
   return new Date(date.getTime() + seconds * 1000);
 }
 
+/** Deno test files (`*_test.ts`) stay in the repo: never copied into a host's
+ * functions, and ignored when diffing a host's function dir. */
+export function isShippedFunctionFile(file: string): boolean {
+  return !file.endsWith("_test.ts");
+}
+
 export function listFilesRecursive(dir: string): string[] {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   const files: string[] = [];
