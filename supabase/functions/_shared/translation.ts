@@ -228,9 +228,15 @@ export function hasFreshAttempt(have: TranslationRow[], nowMs: number, maxAgeMs:
   );
 }
 
-/** True when `have` holds an attempt young enough to still be in flight. */
+/** An attempt row not yet marked failed (its owner may still be translating). A
+ * failed attempt keeps its claim (and created_at) for the 6 h retry window,
+ * but nobody should wait on it. */
+const isPendingAttempt = (h: TranslationRow) => h.locale === "attempt" && h.content !== "failed";
+
+/** True when `have` holds an attempt young enough to still be in flight
+ * (a failed attempt never is). */
 export function isInFlight(have: TranslationRow[], nowMs: number, inFlightMs: number): boolean {
-  return hasFreshAttempt(have, nowMs, inFlightMs);
+  return hasFreshAttempt(have.filter(isPendingAttempt), nowMs, inFlightMs);
 }
 
 /**
@@ -315,7 +321,7 @@ export async function otherCallerResult(args: {
       const rows = (data ?? []) as TranslationRow[];
       return {
         done:
-          !rows.some((h) => h.locale === "attempt") ||
+          !rows.some(isPendingAttempt) ||
           missingLocales(rows, args.targets ?? TARGET_LOCALES).length === 0,
         value: realRows(rows),
       };
@@ -379,7 +385,7 @@ export async function ensureTranslations(
   // (translate-one + notify-comment, or a sweep) exactly one wins and the other
   // gets 23505 and returns what exists. A stale claim is deleted first (only if
   // still stale, so a claim another caller just took survives). Deleted on
-  // success, left on failure: the item is retried after 6 h.
+  // success, left (marked "failed") on failure: the item is retried after 6 h.
   const now = Date.now();
   const waitArgs = { supabase, tTable, fk, id, have, waitMs: opts?.waitMs };
   if (hasFreshAttempt(all, now, ATTEMPT_MAX_AGE_MS)) {
@@ -402,6 +408,13 @@ export async function ensureTranslations(
     console.error("translation attempt claim failed", claimError.message);
     return null;
   }
+  // From here on this caller holds the claim. Every failure marks it "failed"
+  // (keeping created_at, so the 6 h retry window is unchanged) so pushes
+  // waiting on it stop at once; an error marking it is ignored.
+  const fail = async (): Promise<null> => {
+    await supabase.from(tTable).update({ content: "failed" }).eq(fk, id).eq("locale", "attempt");
+    return null;
+  };
 
   let options: { id: string; idx: number; label: string }[] = [];
   if (kind === "post") {
@@ -413,7 +426,7 @@ export async function ensureTranslations(
     // A backend without the polls module has no poll_options relation: no options.
     if (error && error.code !== "PGRST205" && error.code !== "42P01") {
       console.error("poll options lookup failed", error.message);
-      return null;
+      return await fail();
     }
     if (!error && data) options = data as typeof options;
   }
@@ -423,14 +436,14 @@ export async function ensureTranslations(
     options: options.map((o) => o.label),
     targets: missing,
   });
-  if (!parsed) return null;
+  if (!parsed) return await fail();
 
   const incomplete = missing.filter(
     (l) => languageOf(l) !== parsed.sourceLocale && !(l in parsed.translations),
   );
   if (incomplete.length > 0) {
     console.error("translation response missing locales", incomplete.join(", "));
-    return null;
+    return await fail();
   }
 
   // Poll option rows are written first: if they fail, nothing lands, so the item
@@ -445,7 +458,7 @@ export async function ensureTranslations(
         .upsert(optionRows, { onConflict: "option_id,locale" });
       if (error) {
         console.error("poll option translation upsert failed", error.message);
-        return null;
+        return await fail();
       }
     }
   }
@@ -461,7 +474,7 @@ export async function ensureTranslations(
     const { error } = await supabase.from(tTable).upsert(rows, { onConflict: `${fk},locale` });
     if (error) {
       console.error("translation upsert failed", error.message);
-      return null;
+      return await fail();
     }
   } else {
     // ponytail: every missing target shares the source language, so there was
@@ -487,7 +500,7 @@ export async function ensureTranslations(
     );
     if (error) {
       console.error("translation marker upsert failed", error.message);
-      return null;
+      return await fail();
     }
   }
   // Release the claim; an error is ignored (a leftover claim only keeps the
