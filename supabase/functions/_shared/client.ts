@@ -11,6 +11,31 @@ export function adminClient() {
   return createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 }
 
+// Reads every row of a query page by page: PostgREST caps one response at the
+// project's max_rows (Supabase default 1000), so a single select silently
+// truncates. `page` must apply a deterministic order and `.range(from, to)`.
+// Stops on the first short page. A failed page logs and returns what was read
+// so far — for a broadcast, a partial send beats none (re-running would
+// double-send to the pages already pushed).
+export async function fetchAllRows<T>(
+  page: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  pageSize = 1000,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await page(from, from + pageSize - 1);
+    if (error) {
+      console.error(`fetchAllRows: page failed, keeping ${rows.length} rows`, error.message);
+      return rows;
+    }
+    rows.push(...(data ?? []));
+    if ((data?.length ?? 0) < pageSize) return rows;
+  }
+}
+
 // The gateway (verify_jwt) has already validated the bearer's signature, so
 // only the role claim needs checking here. An exact string match against the
 // injected SUPABASE_SERVICE_ROLE_KEY broke when a project migrated to the new

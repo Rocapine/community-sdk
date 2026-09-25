@@ -7,6 +7,7 @@ import {
   resolveTargetLocale,
   runPool,
   type TranslationRow,
+  waitFor,
 } from "./translation.ts";
 
 const TARGETS = ["en", "es-ES", "es-419", "pt-PT", "pl"];
@@ -150,4 +151,60 @@ Deno.test("runPool: stops starting new items when shouldContinue returns false",
   const { results, processed } = await runPool([1, 2, 3, 4, 5], 1, fn, () => allow);
   assertEquals(processed, 2);
   assertEquals(results, [1, 2]);
+});
+
+/** A fake clock whose sleep advances time instantly; counts sleeps. */
+function fakeClock() {
+  const clock = { t: 0, sleeps: 0 };
+  return {
+    clock,
+    now: () => clock.t,
+    sleep: (ms: number) => {
+      clock.t += ms;
+      clock.sleeps++;
+      return Promise.resolve();
+    },
+  };
+}
+
+Deno.test("waitFor: resolves on the first done read without sleeping", async () => {
+  const { clock, now, sleep } = fakeClock();
+  const value = await waitFor(() => Promise.resolve({ done: true, value: "a" }), {
+    timeoutMs: 10_000,
+    intervalMs: 1500,
+    sleep,
+    now,
+  });
+  assertEquals(value, "a");
+  assertEquals(clock.sleeps, 0);
+});
+
+Deno.test("waitFor: retries until done", async () => {
+  const { clock, now, sleep } = fakeClock();
+  let reads = 0;
+  const value = await waitFor(
+    () => {
+      reads++;
+      return Promise.resolve({ done: reads === 3, value: reads });
+    },
+    { timeoutMs: 10_000, intervalMs: 1500, sleep, now },
+  );
+  assertEquals(value, 3);
+  assertEquals(clock.sleeps, 2);
+});
+
+Deno.test("waitFor: returns the last value at the timeout", async () => {
+  const { clock, now, sleep } = fakeClock();
+  let reads = 0;
+  const value = await waitFor(
+    () => {
+      reads++;
+      return Promise.resolve({ done: false, value: reads });
+    },
+    { timeoutMs: 20_000, intervalMs: 1500, sleep, now },
+  );
+  // Reads at t = 0, 1500, …, 19500 (14 reads), then one last read at 20000 after the final sleep.
+  assertEquals(value, reads);
+  assertEquals(clock.t, 20_000);
+  assertEquals(reads, 15);
 });

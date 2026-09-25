@@ -4,7 +4,7 @@
 // Guarded by a service-role check — the public anon key passes the platform's
 // verify_jwt but must NOT be able to trigger a broadcast.
 
-import { adminClient, isServiceCaller } from "../_shared/client.ts";
+import { adminClient, fetchAllRows, isServiceCaller } from "../_shared/client.ts";
 import { sendExpoPushBatch } from "../_shared/push.ts";
 import { BROADCAST_FALLBACK_TITLE } from "../_shared/config.ts";
 import { ensureTranslations, resolveTargetLocale, TARGET_LOCALES } from "../_shared/translation.ts";
@@ -34,21 +34,30 @@ Deno.serve(async (req) => {
   const title = author?.username?.trim() || BROADCAST_FALLBACK_TITLE;
 
   const original = post.content.length > 140 ? `${post.content.slice(0, 137)}...` : post.content;
+  // waitMs: when translate-one holds the claim (it fires on the same insert),
+  // wait for its rows instead of pushing the source language.
   const translations =
     TARGET_LOCALES.length === 0
       ? []
-      : ((await ensureTranslations(supabase, "post", post.id)) ?? []);
+      : ((await ensureTranslations(supabase, "post", post.id, { waitMs: 20_000 })) ?? []);
   const excerptFor = (locale: string | null): string => {
     if (!locale) return original;
     const t = translations.find((r) => r.locale === locale);
     return t ? (t.content.length > 140 ? `${t.content.slice(0, 137)}...` : t.content) : original;
   };
 
-  const { data: rows } = await supabase
-    .from("push_tokens")
-    .select("expo_push_token, profiles(locale)")
-    .not("expo_push_token", "is", null);
-  const messages = (rows ?? [])
+  // Paged (PostgREST max_rows caps a single select, default 1000) and ordered
+  // so the pages don't overlap or skip rows.
+  const rows = await fetchAllRows((from, to) =>
+    supabase
+      .from("push_tokens")
+      .select("user_id, expo_push_token, profiles(locale)")
+      .not("expo_push_token", "is", null)
+      .order("user_id")
+      .range(from, to),
+  );
+  const seen = new Set<string>();
+  const messages = rows
     .map((r) => {
       const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
       return {
@@ -56,7 +65,12 @@ Deno.serve(async (req) => {
         locale: resolveTargetLocale(profile?.locale ?? null),
       };
     })
-    .filter((m) => Boolean(m.to))
+    .filter((m) => {
+      // A stale duplicate token must not double-push.
+      if (!m.to || seen.has(m.to)) return false;
+      seen.add(m.to);
+      return true;
+    })
     .map(({ to, locale }) => ({
       to,
       title,

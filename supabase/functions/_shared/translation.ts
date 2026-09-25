@@ -32,6 +32,11 @@ export type TranslationRow = {
  * with nothing to translate, "attempt" claims an in-flight/failed attempt. */
 const MARKERS = ["source", "attempt"];
 const isMarker = (r: TranslationRow) => MARKERS.includes(r.locale);
+/** Real translation rows only, without created_at — what callers receive. */
+const realRows = (rows: TranslationRow[]): TranslationRow[] =>
+  rows
+    .filter((h) => !isMarker(h))
+    .map(({ locale, source_locale, content }) => ({ locale, source_locale, content }));
 const ATTEMPT_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 export type ParsedTranslation = {
   sourceLocale: string;
@@ -221,15 +226,47 @@ export function hasFreshAttempt(have: TranslationRow[], nowMs: number, maxAgeMs:
 }
 
 /**
+ * Calls `read` until it reports `done` or `timeoutMs` has elapsed, sleeping
+ * `intervalMs` between reads (the last sleep is cut to the deadline), and
+ * returns the last value read. `sleep`/`now` are injectable for tests.
+ */
+export async function waitFor<T>(
+  read: () => Promise<{ done: boolean; value: T }>,
+  opts: {
+    timeoutMs: number;
+    intervalMs: number;
+    sleep?: (ms: number) => Promise<void>;
+    now?: () => number;
+  },
+): Promise<T> {
+  const now = opts.now ?? Date.now;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const deadline = now() + opts.timeoutMs;
+  let r = await read();
+  while (!r.done) {
+    const left = deadline - now();
+    if (left <= 0) break;
+    await sleep(Math.min(opts.intervalMs, left));
+    r = await read();
+  }
+  return r.value;
+}
+
+/**
  * Translate `kind`/`id` into every missing target locale and upsert the rows.
  * Returns the rows now present for the item (possibly empty when the item is
  * in a target language), or null when translation failed (nothing written).
  * Idempotent: complete items make no API call.
+ *
+ * `waitMs` (pushes): when another caller holds the attempt claim, poll for up
+ * to `waitMs` until its claim is released or the rows cover every missing
+ * locale, instead of returning the (usually empty) rows at once.
  */
 export async function ensureTranslations(
   supabase: SupabaseClient,
   kind: "post" | "comment",
   id: string,
+  opts?: { waitMs?: number },
 ): Promise<TranslationRow[] | null> {
   if (TARGET_LOCALES.length === 0) {
     console.log("community-sdk: COMMUNITY_TRANSLATION_LOCALES not set, skipping translation");
@@ -260,11 +297,37 @@ export async function ensureTranslations(
     return null;
   }
   const all = (existing ?? []) as TranslationRow[];
-  const have = all
-    .filter((h) => !isMarker(h))
-    .map(({ locale, source_locale, content }) => ({ locale, source_locale, content }));
+  const have = realRows(all);
   const missing = missingLocales(all, TARGET_LOCALES);
   if (missing.length === 0) return have;
+
+  // Another caller holds the claim: without waitMs return what exists now;
+  // with it, wait for that caller. A failed attempt leaves its claim, so the
+  // wait then runs to the timeout.
+  const otherCallerResult = async (): Promise<TranslationRow[]> => {
+    const waitMs = opts?.waitMs ?? 0;
+    if (waitMs <= 0) return have;
+    return await waitFor(
+      async () => {
+        const { data, error } = await supabase
+          .from(tTable)
+          .select("locale, source_locale, content")
+          .eq(fk, id);
+        if (error) {
+          console.error("translation wait lookup failed", error.message);
+          return { done: true, value: have };
+        }
+        const rows = (data ?? []) as TranslationRow[];
+        return {
+          done:
+            !rows.some((h) => h.locale === "attempt") ||
+            missingLocales(rows, TARGET_LOCALES).length === 0,
+          value: realRows(rows),
+        };
+      },
+      { timeoutMs: waitMs, intervalMs: 1500 },
+    );
+  };
 
   // Claim: an "attempt" row younger than 6 h (in flight, or failed recently)
   // means no new API call — bounds spend for anon callers. The claim is a plain
@@ -274,7 +337,7 @@ export async function ensureTranslations(
   // still stale, so a claim another caller just took survives). Deleted on
   // success, left on failure: the item is retried after 6 h.
   const now = Date.now();
-  if (hasFreshAttempt(all, now, ATTEMPT_MAX_AGE_MS)) return have;
+  if (hasFreshAttempt(all, now, ATTEMPT_MAX_AGE_MS)) return await otherCallerResult();
   if (all.some((h) => h.locale === "attempt")) {
     await supabase
       .from(tTable)
@@ -287,7 +350,7 @@ export async function ensureTranslations(
     .from(tTable)
     .insert({ [fk]: id, locale: "attempt", source_locale: "", content: "", engine: ENGINE });
   if (claimError) {
-    if (claimError.code === "23505") return have; // another caller holds the claim
+    if (claimError.code === "23505") return await otherCallerResult(); // another caller holds the claim
     console.error("translation attempt claim failed", claimError.message);
     return null;
   }
