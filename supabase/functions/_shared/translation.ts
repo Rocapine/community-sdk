@@ -88,6 +88,14 @@ export function parseTranslationResponse(
   return { sourceLocale, translations: out };
 }
 
+/** OpenAI request timeout: output grows with text length × target count, so a
+ * flat limit fails every long post (measured on Eve's Rhythm: 7 locales of a
+ * ~1,500-character post take over 20 s). 20 s base plus 5 ms per character per
+ * target, capped at 90 s (inside the edge-function wall clock). */
+export function translationTimeoutMs(contentLength: number, targetCount: number): number {
+  return Math.min(90_000, 20_000 + 5 * contentLength * Math.max(1, targetCount));
+}
+
 /** One OpenAI call. Returns null on any failure (caller writes nothing). */
 export async function translateItem(input: {
   content: string;
@@ -155,7 +163,7 @@ export async function translateItem(input: {
         // effort=minimal shows up as sweep failures in Slack.
         ...(/^gpt-5/.test(TRANSLATION_MODEL) ? { reasoning: { effort: "minimal" } } : {}),
       }),
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(translationTimeoutMs(input.content.length, input.targets.length)),
     });
     if (!res.ok) {
       console.error("translation api error", res.status, (await res.text()).slice(0, 300));

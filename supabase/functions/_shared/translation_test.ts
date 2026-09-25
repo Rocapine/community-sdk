@@ -10,6 +10,7 @@ import {
   parseTranslationResponse,
   resolveTargetLocale,
   runPool,
+  translationTimeoutMs,
   type TranslationRow,
   waitFor,
 } from "./translation.ts";
@@ -327,4 +328,13 @@ Deno.test("otherCallerResult: a fresh failed claim returns the rows with no read
   const out = await otherCallerResult({ ...base(f.client), claimRows: [failedAttempt(1_000)] });
   assertEquals(out, [row("en")]);
   assertEquals(f.reads(), 0);
+});
+
+Deno.test("translationTimeoutMs grows with length and targets, capped at 90 s", () => {
+  assertEquals(translationTimeoutMs(0, 7), 20_000);
+  assertEquals(translationTimeoutMs(271, 7), 29_485); // median Eve post
+  assertEquals(translationTimeoutMs(1_500, 7), 72_500); // the long posts that timed out at 20 s
+  assertEquals(translationTimeoutMs(2_000, 7), 90_000);
+  assertEquals(translationTimeoutMs(1_500, 1), 27_500); // single-target app (Nightward)
+  assertEquals(translationTimeoutMs(100, 0), 20_500); // never below one target
 });
