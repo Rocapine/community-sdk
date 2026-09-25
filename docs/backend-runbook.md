@@ -191,7 +191,18 @@ visible to the app):
   skips it; a failed attempt therefore leaves the claim, and the item is
   retried once it is older than 6 h (at most 4 paid attempts per item per
   day, whoever calls). Of two concurrent callers only one gets the claim; the
-  other returns what exists (a push excerpt then falls back to the original).
+  other returns what exists — except the push senders, see below.
+
+Pushes and the claim race: a comment published `visible` fires
+`notify-comment` and `translate-one` at the same moment (an official post
+fires `translate-one` just before Rocactopus calls `broadcast-post`), so the
+push sender usually finds the claim already held and no rows yet. Instead of
+pushing the source language, `notify-comment` and `broadcast-post` then poll
+the item's translation rows every 1.5 s for up to 20 s (the OpenAI request
+timeout) until the claim is released or the rows cover every missing locale,
+and use whatever real rows exist then. If the other caller's attempt failed its
+claim stays, so the wait runs the full 20 s and the push goes out in the
+original language. `translate-one` and `daily-translation` never wait.
 
 First install, in this order:
 
@@ -214,6 +225,16 @@ First install, in this order:
    background; `remaining > 0` with `chained: false` means it stopped (see the
    Slack message) and the daily cron resumes it. `depth` is this link's
    position in the chain.
+
+### Official broadcasts
+
+`broadcast-post` reads `push_tokens` in pages of 1000 ordered by `user_id`: a
+single select is capped at the project's PostgREST `max_rows` (default 1000),
+which used to limit an official broadcast to the first 1000 devices. Tokens are
+de-duplicated before sending. If a page read fails, the function logs
+`fetchAllRows: page failed, keeping N rows` and sends to the tokens already
+read — do not re-run the broadcast to cover the rest, that would double-send
+to everyone already pushed.
 
 ### Who can call what
 
