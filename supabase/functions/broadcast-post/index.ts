@@ -46,13 +46,17 @@ Deno.serve(async (req) => {
     return t ? (t.content.length > 140 ? `${t.content.slice(0, 137)}...` : t.content) : original;
   };
 
-  // Paged (PostgREST max_rows caps a single select, default 1000) and ordered
-  // so the pages don't overlap or skip rows.
+  // Paged (PostgREST max_rows caps a single select, default 1000) with a total
+  // order so pages don't overlap. Newest registration first: a reinstall
+  // creates a new anonymous user while the old row keeps the same token, and
+  // the dedupe below keeps the first (newest) row's locale. Offset paging can
+  // skip a row if one is deleted mid-broadcast — acceptable.
   const rows = await fetchAllRows((from, to) =>
     supabase
       .from("push_tokens")
       .select("user_id, expo_push_token, profiles(locale)")
       .not("expo_push_token", "is", null)
+      .order("updated_at", { ascending: false })
       .order("user_id")
       .range(from, to),
   );

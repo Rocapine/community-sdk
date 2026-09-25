@@ -1,10 +1,12 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import {
   hasFreshAttempt,
   IN_FLIGHT_MS,
   isInFlight,
   languageOf,
   missingLocales,
+  otherCallerResult,
   parseTranslationResponse,
   resolveTargetLocale,
   runPool,
@@ -226,4 +228,77 @@ Deno.test("isInFlight: only an attempt younger than IN_FLIGHT_MS counts", () => 
     false,
   );
   assertEquals(isInFlight([], now, IN_FLIGHT_MS), false);
+});
+
+/** Fake supabase: every awaited `from(...)...` chain resolves the next scripted result. */
+function fakeSupabase(results: { data: TranslationRow[] | null; error: null }[]) {
+  let reads = 0;
+  const builder: Record<string, unknown> = {
+    select: () => builder,
+    eq: () => builder,
+    then: (resolve: (v: unknown) => void) => resolve(results[reads++] ?? results.at(-1)),
+  };
+  const client = { from: () => builder } as unknown as SupabaseClient;
+  return { client, reads: () => reads };
+}
+
+const T0 = Date.parse("2026-09-25T12:00:00Z");
+const row = (locale: string): TranslationRow => ({ locale, source_locale: "pl", content: locale });
+const attempt = (agoMs: number): TranslationRow => ({
+  locale: "attempt",
+  source_locale: "",
+  content: "",
+  created_at: new Date(T0 - agoMs).toISOString(),
+});
+const base = (client: SupabaseClient, over: Record<string, unknown> = {}) => {
+  const { now, sleep } = fakeClock();
+  return {
+    supabase: client,
+    tTable: "comment_translations",
+    fk: "comment_id",
+    id: "c1",
+    have: [row("en")],
+    waitMs: 20_000,
+    targets: ["en", "es-ES"],
+    now: () => T0 + now(),
+    sleep,
+    ...over,
+  };
+};
+
+Deno.test(
+  "otherCallerResult: an attempt older than 45 s returns the rows with no read",
+  async () => {
+    const f = fakeSupabase([]);
+    const out = await otherCallerResult({ ...base(f.client), claimRows: [attempt(60_000)] });
+    assertEquals(out, [row("en")]);
+    assertEquals(f.reads(), 0);
+  },
+);
+
+Deno.test("otherCallerResult: waits until the fresh attempt is released", async () => {
+  const f = fakeSupabase([
+    { data: [row("en"), attempt(1_000)], error: null },
+    { data: [row("en"), row("es-ES")], error: null },
+  ]);
+  const out = await otherCallerResult({ ...base(f.client), claimRows: [attempt(1_000)] });
+  assertEquals(out, [row("en"), row("es-ES")]);
+  assertEquals(f.reads(), 2);
+});
+
+Deno.test("otherCallerResult: 23505 with no attempt left reads the new rows once", async () => {
+  const f = fakeSupabase([
+    { data: [], error: null }, // claim re-read: already released
+    { data: [row("en"), row("es-ES")], error: null },
+  ]);
+  const out = await otherCallerResult(base(f.client));
+  assertEquals(out, [row("en"), row("es-ES")]);
+  assertEquals(f.reads(), 2); // the claim re-read + exactly one poll
+});
+
+Deno.test("otherCallerResult: no waitMs means no read at all", async () => {
+  const f = fakeSupabase([]);
+  const out = await otherCallerResult({ ...base(f.client, { waitMs: undefined }) });
+  assertEquals(out, [row("en")]);
+  assertEquals(f.reads(), 0);
 });

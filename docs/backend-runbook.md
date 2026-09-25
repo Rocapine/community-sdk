@@ -229,13 +229,15 @@ First install, in this order:
 
 ### Official broadcasts
 
-`broadcast-post` reads `push_tokens` in pages of 1000 ordered by `user_id`: a
-single select is capped at the project's PostgREST `max_rows` (default 1000),
-which used to limit an official broadcast to the first 1000 devices. Tokens are
-de-duplicated before sending. If a page read fails, the function logs
+`broadcast-post` reads `push_tokens` in pages of 1000 (newest `updated_at`
+first, then `user_id`, so a token left behind by a reinstall uses the newest
+registration's locale): a single select is capped at the project's PostgREST
+`max_rows` (default 1000), which used to limit an official broadcast to the
+first 1000 devices. Tokens are de-duplicated before sending. If a page read fails, the function logs
 `fetchAllRows: page failed, keeping N rows` and sends to the tokens already
 read — do not re-run the broadcast to cover the rest, that would double-send
-to everyone already pushed.
+to everyone already pushed. Messages go to Expo 4 requests × 100 tokens at a
+time, each request aborted after 10 s.
 
 ### Who can call what
 

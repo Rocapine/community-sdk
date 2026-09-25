@@ -215,9 +215,9 @@ export async function runPool<T, R>(
  * carries one (the attempt marker's is ""). */
 export function missingLocales(have: TranslationRow[], targets: string[]): string[] {
   const knownSource = have.find((h) => h.source_locale !== "")?.source_locale;
-  const realRows = have.filter((h) => !isMarker(h));
+  const real = have.filter((h) => !isMarker(h));
   return targets.filter(
-    (l) => !realRows.some((h) => h.locale === l) && (!knownSource || languageOf(l) !== knownSource),
+    (l) => !real.some((h) => h.locale === l) && (!knownSource || languageOf(l) !== knownSource),
   );
 }
 
@@ -258,6 +258,70 @@ export async function waitFor<T>(
     r = await read();
   }
   return r.value;
+}
+
+/**
+ * Another caller holds the attempt claim. Without `waitMs`, return what exists
+ * now (`have`); with it, wait for that caller — but only while its attempt can
+ * still be in flight (a failed attempt keeps its claim for 6 h; waiting on it
+ * would only delay the push). `claimRows` carries the attempt row's
+ * created_at; absent (23505: the claim was just taken by someone else), it is
+ * re-read. Internal export for tests; `targets`/`sleep`/`now` are injectable.
+ */
+export async function otherCallerResult(args: {
+  supabase: SupabaseClient;
+  tTable: string;
+  fk: string;
+  id: string;
+  have: TranslationRow[];
+  waitMs?: number;
+  claimRows?: TranslationRow[];
+  targets?: string[];
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
+}): Promise<TranslationRow[]> {
+  const { supabase, tTable, fk, id, have } = args;
+  const waitMs = args.waitMs ?? 0;
+  const now = args.now ?? Date.now;
+  if (waitMs <= 0) return have;
+  let claimRows = args.claimRows;
+  if (!claimRows) {
+    const { data, error } = await supabase
+      .from(tTable)
+      .select("locale, source_locale, content, created_at")
+      .eq(fk, id)
+      .eq("locale", "attempt");
+    if (error) {
+      console.error("translation claim lookup failed", error.message);
+      return have;
+    }
+    claimRows = (data ?? []) as TranslationRow[];
+  }
+  // No attempt left means the other caller just finished: the first read
+  // below picks up its rows at once.
+  const stale =
+    claimRows.some((h) => h.locale === "attempt") && !isInFlight(claimRows, now(), IN_FLIGHT_MS);
+  if (stale) return have;
+  return await waitFor(
+    async () => {
+      const { data, error } = await supabase
+        .from(tTable)
+        .select("locale, source_locale, content")
+        .eq(fk, id);
+      if (error) {
+        console.error("translation wait lookup failed", error.message);
+        return { done: true, value: have };
+      }
+      const rows = (data ?? []) as TranslationRow[];
+      return {
+        done:
+          !rows.some((h) => h.locale === "attempt") ||
+          missingLocales(rows, args.targets ?? TARGET_LOCALES).length === 0,
+        value: realRows(rows),
+      };
+    },
+    { timeoutMs: waitMs, intervalMs: 1500, sleep: args.sleep, now: args.now },
+  );
 }
 
 /**
@@ -309,54 +373,6 @@ export async function ensureTranslations(
   const missing = missingLocales(all, TARGET_LOCALES);
   if (missing.length === 0) return have;
 
-  // Another caller holds the claim: without waitMs return what exists now;
-  // with it, wait for that caller — but only while its attempt can still be in
-  // flight (a failed attempt keeps its claim for 6 h; waiting on it would only
-  // delay the push). `claimRows` carries the attempt row's created_at; absent
-  // (23505: the claim was just taken by someone else), it is re-read.
-  const otherCallerResult = async (claimRows?: TranslationRow[]): Promise<TranslationRow[]> => {
-    const waitMs = opts?.waitMs ?? 0;
-    if (waitMs <= 0) return have;
-    if (!claimRows) {
-      const { data, error } = await supabase
-        .from(tTable)
-        .select("locale, source_locale, content, created_at")
-        .eq(fk, id)
-        .eq("locale", "attempt");
-      if (error) {
-        console.error("translation claim lookup failed", error.message);
-        return have;
-      }
-      claimRows = (data ?? []) as TranslationRow[];
-    }
-    // No attempt left means the other caller just finished: the first read
-    // below picks up its rows at once.
-    const stale =
-      claimRows.some((h) => h.locale === "attempt") &&
-      !isInFlight(claimRows, Date.now(), IN_FLIGHT_MS);
-    if (stale) return have;
-    return await waitFor(
-      async () => {
-        const { data, error } = await supabase
-          .from(tTable)
-          .select("locale, source_locale, content")
-          .eq(fk, id);
-        if (error) {
-          console.error("translation wait lookup failed", error.message);
-          return { done: true, value: have };
-        }
-        const rows = (data ?? []) as TranslationRow[];
-        return {
-          done:
-            !rows.some((h) => h.locale === "attempt") ||
-            missingLocales(rows, TARGET_LOCALES).length === 0,
-          value: realRows(rows),
-        };
-      },
-      { timeoutMs: waitMs, intervalMs: 1500 },
-    );
-  };
-
   // Claim: an "attempt" row younger than 6 h (in flight, or failed recently)
   // means no new API call — bounds spend for anon callers. The claim is a plain
   // insert on the (fk, locale) primary key, so of two concurrent callers
@@ -365,7 +381,10 @@ export async function ensureTranslations(
   // still stale, so a claim another caller just took survives). Deleted on
   // success, left on failure: the item is retried after 6 h.
   const now = Date.now();
-  if (hasFreshAttempt(all, now, ATTEMPT_MAX_AGE_MS)) return await otherCallerResult(all);
+  const waitArgs = { supabase, tTable, fk, id, have, waitMs: opts?.waitMs };
+  if (hasFreshAttempt(all, now, ATTEMPT_MAX_AGE_MS)) {
+    return await otherCallerResult({ ...waitArgs, claimRows: all });
+  }
   if (all.some((h) => h.locale === "attempt")) {
     await supabase
       .from(tTable)
@@ -378,7 +397,8 @@ export async function ensureTranslations(
     .from(tTable)
     .insert({ [fk]: id, locale: "attempt", source_locale: "", content: "", engine: ENGINE });
   if (claimError) {
-    if (claimError.code === "23505") return await otherCallerResult(); // another caller holds the claim
+    // Another caller holds the claim.
+    if (claimError.code === "23505") return await otherCallerResult(waitArgs);
     console.error("translation attempt claim failed", claimError.message);
     return null;
   }
