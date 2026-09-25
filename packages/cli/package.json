@@ -1,6 +1,6 @@
 {
   "name": "@rocapine/community",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "CLI to install, upgrade and adopt the Rocapine Community SDK's Supabase backend (migrations, Edge Functions) into a project.",
   "license": "MIT",
   "repository": {
