@@ -198,14 +198,16 @@ Pushes and the claim race: a comment published `visible` fires
 fires `translate-one` just before Rocactopus calls `broadcast-post`), so the
 push sender usually finds the claim already held and no rows yet. Instead of
 pushing the source language, `notify-comment` and `broadcast-post` then poll
-the item's translation rows every 1.5 s for up to 20 s (the OpenAI request
-timeout) until the claim is released or the rows cover every missing locale,
+the item's translation rows every 1.5 s for up to 20 s until the claim is released or the rows cover every missing locale,
 and use whatever real rows exist then. They only wait for an attempt younger
 than 45 s (`IN_FLIGHT_MS`), i.e. one that can still be running: a failed
 attempt keeps its claim for 6 h, and a push for such an item goes out at once
 in the original language. A caller whose translation fails marks its claim
 `content = 'failed'`, so pushes already waiting on it stop at once instead of
 after 20 s; the item is still retried after 6 h. `translate-one` and `daily-translation` never wait.
+The OpenAI request timeout scales with the text: 20 s plus 5 ms per character per
+target locale, capped at 90 s (7 locales of a 1,500-character post need well over
+20 s). A push never waits longer than 20 s for someone else's translation.
 
 First install, in this order:
 
