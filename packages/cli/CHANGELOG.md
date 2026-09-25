@@ -1,5 +1,11 @@
 # @rocapine/community
 
+## 0.3.1
+
+### Patch Changes
+
+- 28a21d3: broadcast-post pages through push_tokens (PostgREST max_rows no longer caps official broadcasts at 1000 devices); comment pushes and broadcasts wait up to 20 s for an in-flight translation instead of sending the source language.
+
 ## 0.3.0
 
 ### Minor Changes
