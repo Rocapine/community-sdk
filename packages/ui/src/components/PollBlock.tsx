@@ -17,7 +17,13 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 
-export function PollBlock({ post }: { post: FeedPost }) {
+export function PollBlock({
+  post,
+  showOriginal = false,
+}: {
+  post: FeedPost;
+  showOriginal?: boolean;
+}) {
   const theme = useCommunityTheme();
   const t = useT();
   const icons = useCommunityIcons();
@@ -54,7 +60,7 @@ export function PollBlock({ post }: { post: FeedPost }) {
             )}
             <View style={styles.optionRow}>
               <Text style={[styles.label, mine && styles.labelMine]} numberOfLines={2}>
-                {option.label}
+                {showOriginal ? option.label : (option.translatedLabel ?? option.label)}
               </Text>
               {mine && <icons.checkmark size={16} color={theme.colors.accent} weight="fill" />}
               {showResults && <Text style={[styles.pct, mine && styles.labelMine]}>{pct}%</Text>}

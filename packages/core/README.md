@@ -38,6 +38,10 @@ const config: CommunityConfig = {
     push: false,
     inbox: true,
     reaction: { key: "cheer" }, // or `false` to disable the reaction module
+    // posts/comments/poll labels translated at publication into these
+    // locales — must equal the backend's COMMUNITY_TRANSLATION_LOCALES.
+    // Absent or `false` ⇒ every query and screen behaves as before.
+    translation: { locales: ["en", "es-419"] },
   },
 
   // Host adapters — every field optional, no-op defaults.
@@ -128,7 +132,8 @@ import { COMMUNITY_EVENTS, type CommunityEventName } from "@rocapine/community-c
 `COMMUNITY_EVENTS` is a frozen map of stable event-name strings — `opened`,
 `rulesAccepted`, `postPublished`, `pollVoted`, `threadOpened`, `postLiked`,
 `commentPublished`, `profileOpened`, `profileUpdated`, `reactionAdded`,
-`userReported`, `userBlocked`, `contentDeleted`, `inboxOpened` — forwarded to
+`userReported`, `userBlocked`, `contentDeleted`, `inboxOpened`,
+`translationToggled` (`community_translation_toggled`, props `{ postId | commentId, to: "original" | "translation" }`) — forwarded to
 `host.onEvent` by the exported `emitEvent(cfg, name, props)` helper. Route or
 ignore these in your own tracking plan; nothing else in the package calls an
 analytics provider directly.
@@ -148,7 +153,16 @@ runs in production and is silent in degraded mode.
   `ReactionData`, and DB-mirroring constants `FEED_PAGE_SIZE`,
   `POST_MAX_LENGTH` (2000), `COMMENT_MAX_LENGTH` (1000), `POLL_MIN_OPTIONS`
   (2), `POLL_MAX_OPTIONS` (4), `POLL_OPTION_MAX_LENGTH` (60) — client-side
-  mirrors of the backend's check constraints.
+  mirrors of the backend's check constraints. `FeedPost.translation` /
+  `ThreadComment.translation` are `{ text, sourceLocale } | null` (embedded
+  only when the translation module is on and the reader locale resolves);
+  `text`/`content` always stay the original. Poll options carry
+  `translatedLabel: string | null` alongside the original `label`.
+- **Locale** (`locale.ts`): `readerLocale(cfg)` — the locale translations
+  are read in (the host's `getLocale()` resolved against
+  `modules.translation.locales`), or `null` when the module is off or
+  nothing resolves. `languageOf(locale)` — the bare-language prefix of a
+  locale tag (e.g. `"es-419"` → `"es"`).
 - **Identity**: `ensureIdentity()`, `resetIdentity()`, `syncProfileFromHost()`
   — anonymous Supabase auth session management.
 - **Queries** (`service.ts`): `fetchFeedPage`, `countNewPosts`, `fetchProfile`,
@@ -163,8 +177,9 @@ runs in production and is silent in degraded mode.
   `useCreateComment`, `useToggleLike`, `useVotePoll`, `useReactToPost`,
   `useReport`, `useBlockUser`, `useDeleteContent`.
 - **Inbox** (opt-in via `modules.inbox`): `fetchInbox`, `markInboxSeen`,
-  `unreadCount`, and hooks `useNotificationInbox`,
-  `useUnreadNotificationCount`, `useMarkInboxSeen`.
+  `unreadCount`, `localizeExcerpts` (swaps a notification's excerpt for its
+  reader-locale translation when one is available), and hooks
+  `useNotificationInbox`, `useUnreadNotificationCount`, `useMarkInboxSeen`.
 - **`timeAgo(iso, nowMs)`** — hardcoded-English relative-time formatting, kept for
   back-compat. **`timeAgoParts(iso, nowMs)`** — the language-free unit+value
   decomposition the UI package actually localizes through its own catalog

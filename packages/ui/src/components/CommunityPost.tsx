@@ -20,6 +20,8 @@
 //    this file.
 
 import {
+  COMMUNITY_EVENTS,
+  emitEvent,
   useCommunityConfig,
   useReactToPost,
   useToggleLike,
@@ -31,6 +33,7 @@ import { useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
+import { displayText, translationLine } from "../utils/translation";
 import { formatTimeAgo } from "../utils/time";
 import { PollBlock } from "./PollBlock";
 
@@ -77,6 +80,17 @@ export function CommunityPost({
   const [fullLines, setFullLines] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const overflows = (fullLines ?? 0) > BODY_CLAMP_LINES;
+
+  const [showOriginal, setShowOriginal] = useState(false);
+  const toggleLine = translationLine(t, post, showOriginal);
+  const toggleOriginal = () => {
+    emitEvent(cfg, COMMUNITY_EVENTS.translationToggled, {
+      postId: post.id,
+      to: showOriginal ? "translation" : "original",
+    });
+    setFullLines(null);
+    setShowOriginal(!showOriginal);
+  };
 
   const handleOpenThread = () => onOpenThread(post.id);
   const handleOpenProfile = () => onOpenProfile(post.authorId);
@@ -208,15 +222,20 @@ export function CommunityPost({
           if (fullLines === null) setFullLines(e.nativeEvent.lines.length);
         }}
       >
-        {post.text}
+        {displayText(post, showOriginal)}
       </Text>
       {overflows && (
         <Pressable hitSlop={8} onPress={() => setExpanded((v) => !v)}>
           <Text style={styles.viewMore}>{expanded ? t("post.viewLess") : t("post.viewMore")}</Text>
         </Pressable>
       )}
+      {toggleLine && (
+        <Pressable hitSlop={8} onPress={toggleOriginal}>
+          <Text style={styles.translationLine}>{toggleLine}</Text>
+        </Pressable>
+      )}
 
-      {post.poll && <PollBlock post={post} />}
+      {post.poll && <PollBlock post={post} showOriginal={showOriginal} />}
 
       {footer}
     </Pressable>
@@ -279,6 +298,12 @@ function makeStyles(theme: CommunityTheme) {
       fontFamily: theme.fonts.medium,
       fontSize: 13,
       color: theme.colors.accent,
+      marginTop: theme.spacing(1.5),
+    },
+    translationLine: {
+      fontFamily: theme.fonts.medium,
+      fontSize: 12.5,
+      color: theme.colors.textFaint,
       marginTop: theme.spacing(1.5),
     },
     footer: { flexDirection: "row", gap: theme.spacing(6), marginTop: theme.spacing(3.5) },

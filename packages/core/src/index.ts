@@ -7,6 +7,7 @@ export type {
   ResolvedCommunityConfig,
 } from "./config";
 export { CommunityDisabledError, resolveConfig } from "./config";
+export { readerLocale, languageOf } from "./locale";
 export { CommunityProvider, useCommunityConfig } from "./provider";
 
 export type {
@@ -21,6 +22,8 @@ export type {
   FeedPost,
   ThreadComment,
   CommunityProfile,
+  TranslationInfo,
+  TranslationRowEmbed,
 } from "./models";
 export {
   FEED_PAGE_SIZE,
@@ -103,7 +106,7 @@ export {
   useDeleteContent,
 } from "./hooks";
 
-export { fetchInbox, markInboxSeen, unreadCount } from "./inbox-service";
+export { fetchInbox, localizeExcerpts, markInboxSeen, unreadCount } from "./inbox-service";
 export type { InboxItem, InboxState } from "./inbox-service";
 
 export { useNotificationInbox, useUnreadNotificationCount, useMarkInboxSeen } from "./inbox-hooks";

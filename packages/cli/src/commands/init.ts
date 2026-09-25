@@ -22,6 +22,7 @@ import {
   templateBaseName,
   migrationDestFilename,
   listFilesRecursive,
+  isShippedFunctionFile,
   toRelativePosix,
   resolveContainedDir,
 } from "../install-shared";
@@ -138,7 +139,7 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
       const srcDir = path.join(functionsSrcRoot, fnName);
       if (!fs.existsSync(srcDir)) continue;
       const destDir = path.join(functionsDestRoot, fnName);
-      fs.cpSync(srcDir, destDir, { recursive: true });
+      fs.cpSync(srcDir, destDir, { recursive: true, filter: isShippedFunctionFile });
       writtenPaths.push(...listFilesRecursive(destDir));
     }
   } catch (err) {
@@ -179,6 +180,11 @@ function printNextSteps(log: (message: string) => void, modules: Module[]): void
   if (modules.includes("push")) {
     log(
       "     push module: EXPO_ACCESS_TOKEN (only if your Expo project enforces Enhanced Security for push); COMMUNITY_PUSH_COPY (optional per-locale copy)",
+    );
+  }
+  if (modules.includes("translation")) {
+    log(
+      '     translation module: COMMUNITY_TRANSLATION_LOCALES="en,es-419,..." (required, same list as modules.translation.locales in the app); optional: COMMUNITY_TRANSLATION_MODEL, COMMUNITY_TRANSLATION_STYLE',
     );
   }
   log("  3. Deploy the Edge Functions: supabase functions deploy");

@@ -50,41 +50,59 @@ describe("findCachedPost", () => {
   it("finds a post in the feed cache", () => {
     const post = fakePost("p1");
     const { client } = makeFakeQueryClient([
-      [["community", "feed", "general"], infiniteData([post])],
+      [["community", "feed", "general", "src"], infiniteData([post])],
     ]);
-    expect(findCachedPost(client, "p1")).toBe(post);
+    expect(findCachedPost(client, "p1", null)).toBe(post);
   });
 
   it("finds a post in the userPosts cache", () => {
     const post = fakePost("p2");
     const { client } = makeFakeQueryClient([
-      [["community", "userPosts", "u1"], infiniteData([post])],
+      [["community", "userPosts", "u1", "src"], infiniteData([post])],
     ]);
-    expect(findCachedPost(client, "p2")).toBe(post);
+    expect(findCachedPost(client, "p2", null)).toBe(post);
   });
 
   it("finds a post in the search cache", () => {
     const post = fakePost("p3");
     const { client } = makeFakeQueryClient([
-      [["community", "search", "hello"], infiniteData([post])],
+      [["community", "search", "hello", "src"], infiniteData([post])],
     ]);
-    expect(findCachedPost(client, "p3")).toBe(post);
+    expect(findCachedPost(client, "p3", null)).toBe(post);
   });
 
   it("returns null when the post is in no cache", () => {
     const { client } = makeFakeQueryClient([
-      [["community", "feed", "general"], infiniteData([fakePost("other")])],
+      [["community", "feed", "general", "src"], infiniteData([fakePost("other")])],
     ]);
-    expect(findCachedPost(client, "missing")).toBeNull();
+    expect(findCachedPost(client, "missing", null)).toBeNull();
   });
 
   it("never reads the thread cache (not one of the lists it sweeps)", () => {
     const { client } = makeFakeQueryClient([
-      [["community", "thread", "p1"], [fakePost("p1")]], // wrong shape on purpose
+      [["community", "thread", "p1", "src"], [fakePost("p1")]], // wrong shape on purpose
     ]);
     // Would throw on `.pages` if this ever got read as an InfiniteData list;
     // returning null proves the thread key was never queried.
-    expect(findCachedPost(client, "p1")).toBeNull();
+    expect(findCachedPost(client, "p1", null)).toBeNull();
+  });
+});
+
+describe("findCachedPost locale", () => {
+  it("only reads entries cached for the reader's locale", () => {
+    const src = { id: "p1", translation: null } as unknown as FeedPost;
+    const es = {
+      id: "p1",
+      translation: { text: "Hola", sourceLocale: "en" },
+    } as unknown as FeedPost;
+    // The stale-locale entry comes first, as it did after a language switch.
+    const { client } = makeFakeQueryClient([
+      [["community", "feed", "all", "src"], infiniteData([src])],
+      [["community", "feed", "all", "es-419"], infiniteData([es])],
+    ]);
+    expect(findCachedPost(client, "p1", "es-419")).toBe(es);
+    expect(findCachedPost(client, "p1", null)).toBe(src);
+    expect(findCachedPost(client, "p1", "fr")).toBeNull();
   });
 });
 

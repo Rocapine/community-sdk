@@ -157,6 +157,36 @@ describe("runUpgrade", () => {
     expect(result.upToDate).toBe(false);
   });
 
+  it("treats a host's leftover *_test.ts as no diff, and keeps the manifest's modules as they are", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core", "push"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+    // A host installed by an older CLI still has the test file.
+    fs.writeFileSync(
+      path.join(cwd, "supabase", "functions", "_shared", "translation_test.ts"),
+      "// old copy\n",
+    );
+    // Hand-ordered module list; a plain upgrade must not re-canonicalize it.
+    const manifest = readManifest(cwd)!;
+    writeManifest(cwd, { ...manifest, modules: ["push", "core"] });
+    fs.writeFileSync(
+      path.join(templatesDir, "migrations", "core", "999_new_thing.sql"),
+      "select 1;\n",
+    );
+
+    const result = await runUpgrade(baseOptions());
+
+    expect(result.overwrittenFunctions).toEqual([]);
+    expect(result.addedMigrations).toHaveLength(1);
+    expect(readManifest(cwd)!.modules).toEqual(["push", "core"]);
+  });
+
   it("does not warn or touch functions whose template content is unchanged", async () => {
     await runInit({
       cwd,
@@ -297,5 +327,97 @@ describe("runUpgrade", () => {
     });
 
     await expect(runUpgrade(baseOptions({ dir: "../escape" }))).rejects.toThrow(/--dir/);
+  });
+
+  it("adds a module: copies its migrations after the existing ones, its functions, and persists it in the manifest", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core", "polls"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+
+    const migrationsDir = path.join(cwd, "supabase", "migrations");
+    const before = fs.readdirSync(migrationsDir).sort();
+    const maxBeforeTimestamp = Math.max(...before.map((f) => Number(f.slice(0, 14))));
+
+    const result = await runUpgrade(baseOptions({ addModules: ["translation"] }));
+
+    expect(result.addedModules).toEqual(["translation"]);
+
+    const after = fs.readdirSync(migrationsDir).sort();
+    const translationFiles = after.filter((f) => f.includes("_community_translation_"));
+    expect(translationFiles).toHaveLength(1);
+    expect(Number(translationFiles[0]!.slice(0, 14))).toBeGreaterThan(maxBeforeTimestamp);
+
+    expect(fs.existsSync(path.join(cwd, "supabase", "functions", "translate-one"))).toBe(true);
+    expect(fs.existsSync(path.join(cwd, "supabase", "functions", "daily-translation"))).toBe(true);
+
+    const manifest = readManifest(cwd)!;
+    expect(manifest.modules).toEqual(["core", "polls", "translation"]);
+    expect(manifest.installedTemplates).toContain("translation/translations");
+  });
+
+  it("warns when adding translation without polls", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+
+    const onWarn = vi.fn();
+    const result = await runUpgrade(baseOptions({ addModules: ["translation"], onWarn }));
+
+    expect(onWarn).toHaveBeenCalledTimes(1);
+    expect(String(onWarn.mock.calls[0]![0])).toMatch(/poll/i);
+    expect(result.upToDate).toBe(false);
+    expect(result.addedModules).toEqual(["translation"]);
+  });
+
+  it("rejects an unknown module name and writes nothing", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+
+    const migrationsDir = path.join(cwd, "supabase", "migrations");
+    const before = fs.readdirSync(migrationsDir).sort();
+    const manifestBefore = readManifest(cwd);
+
+    await expect(runUpgrade(baseOptions({ addModules: ["nope"] }))).rejects.toThrow(
+      /unknown module/,
+    );
+
+    expect(fs.readdirSync(migrationsDir).sort()).toEqual(before);
+    expect(readManifest(cwd)).toEqual(manifestBefore);
+  });
+
+  it("adding an already-installed module is a no-op", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core", "polls"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+
+    const result = await runUpgrade(baseOptions({ addModules: ["polls"] }));
+
+    expect(result.upToDate).toBe(true);
+    expect(result.addedModules).toEqual([]);
   });
 });

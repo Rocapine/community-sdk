@@ -134,6 +134,19 @@ describe("runInit", () => {
     ]);
   });
 
+  it("never copies Deno test files (*_test.ts) into the host's functions", async () => {
+    // The repo template does carry one, so this asserts the filter, not its absence.
+    expect(
+      fs.existsSync(path.join(REPO_SUPABASE_DIR, "functions", "_shared", "translation_test.ts")),
+    ).toBe(true);
+    await runInit(baseOptions({ modules: ["core"] }));
+
+    const shared = fs.readdirSync(path.join(cwd, "supabase", "functions", "_shared"));
+    expect(shared.length).toBeGreaterThan(0);
+    expect(shared.filter((f) => f.endsWith("_test.ts"))).toEqual([]);
+    expect(readManifest(cwd)!.installedFiles.some((f) => f.endsWith("_test.ts"))).toBe(false);
+  });
+
   it("copies all 8 functions + _shared when every module is selected", async () => {
     await runInit(baseOptions({ modules: ["core", "push", "polls", "reaction", "inbox"] }));
 
@@ -159,6 +172,25 @@ describe("runInit", () => {
     expect(fnDirs).toContain("notify-comment");
     expect(fnDirs).toContain("broadcast-post");
     expect(fnDirs).not.toContain("notify-reaction");
+  });
+
+  it("installs the translation module last, with its two functions", async () => {
+    await runInit(baseOptions({ modules: ["core", "polls", "translation"] }));
+    const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
+    const modulesInFileOrder = files.map((f) => f.split("_community_")[1]!.split("_")[0]);
+    expect(modulesInFileOrder.at(-1)).toBe("translation");
+    expect(modulesInFileOrder.filter((m) => m === "translation")).toHaveLength(1);
+    const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions")).sort();
+    expect(fnDirs).toContain("translate-one");
+    expect(fnDirs).toContain("daily-translation");
+  });
+
+  it("warns when translation is selected without polls, but proceeds", async () => {
+    const onWarn = vi.fn();
+    const result = await runInit(baseOptions({ modules: ["core", "translation"], onWarn }));
+    expect(onWarn).toHaveBeenCalledTimes(1);
+    expect(onWarn.mock.calls[0]![0]).toMatch(/poll/i);
+    expect(result.manifest.modules).toEqual(["core", "translation"]);
   });
 
   it("derives the project URL from <dir>/config.toml when not passed explicitly", async () => {

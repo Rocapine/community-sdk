@@ -118,3 +118,27 @@ $$;
 
 revoke execute on function public.create_poll_post(text, text, text[]) from public, anon;
 grant execute on function public.create_poll_post(text, text, text[]) to authenticated;
+
+-- ============ TRANSLATION (installed after the translation module) ============
+-- translation/001 creates poll_option_translations only when poll_options
+-- already exists; when polls is added later (`upgrade --add-modules polls` on
+-- a translation-enabled backend) this block creates it instead. Same
+-- definition as translation/001's guarded block.
+do $$
+begin
+  if to_regclass('public.post_translations') is not null then
+    create table if not exists public.poll_option_translations (
+      option_id uuid not null references public.poll_options(id) on delete cascade,
+      locale    text not null,
+      content   text not null,
+      primary key (option_id, locale)
+    );
+    alter table public.poll_option_translations enable row level security;
+    drop policy if exists "poll option translations readable where option readable"
+      on public.poll_option_translations;
+    create policy "poll option translations readable where option readable"
+      on public.poll_option_translations for select to authenticated
+      using (exists (select 1 from public.poll_options o where o.id = poll_option_translations.option_id));
+    grant select on public.poll_option_translations to authenticated;
+  end if;
+end $$;

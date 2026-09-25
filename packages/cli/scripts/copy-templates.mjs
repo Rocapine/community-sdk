@@ -23,9 +23,10 @@ rmSync(dest, { recursive: true, force: true });
 mkdirSync(dest, { recursive: true });
 // Skip dotted entries: `supabase link` drops a local .temp/ cache (and
 // .branches/ etc.) inside supabase/ that must never ship in the tarball.
+// Skip Deno test files (*_test.ts): repo-only, never copied into a host app.
 cpSync(source, dest, {
   recursive: true,
-  filter: (src) => !path.basename(src).startsWith("."),
+  filter: (src) => !path.basename(src).startsWith(".") && !src.endsWith("_test.ts"),
 });
 
 console.log(`copy-templates: copied ${source} -> ${dest}`);

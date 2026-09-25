@@ -7,6 +7,7 @@
 import { adminClient, isServiceCaller } from "../_shared/client.ts";
 import { sendExpoPushBatch } from "../_shared/push.ts";
 import { BROADCAST_FALLBACK_TITLE } from "../_shared/config.ts";
+import { ensureTranslations, resolveTargetLocale, TARGET_LOCALES } from "../_shared/translation.ts";
 
 const supabase = adminClient();
 
@@ -31,25 +32,41 @@ Deno.serve(async (req) => {
     .eq("id", post.author_id)
     .single();
   const title = author?.username?.trim() || BROADCAST_FALLBACK_TITLE;
-  const excerpt = post.content.length > 140 ? `${post.content.slice(0, 137)}...` : post.content;
+
+  const original = post.content.length > 140 ? `${post.content.slice(0, 137)}...` : post.content;
+  const translations =
+    TARGET_LOCALES.length === 0
+      ? []
+      : ((await ensureTranslations(supabase, "post", post.id)) ?? []);
+  const excerptFor = (locale: string | null): string => {
+    if (!locale) return original;
+    const t = translations.find((r) => r.locale === locale);
+    return t ? (t.content.length > 140 ? `${t.content.slice(0, 137)}...` : t.content) : original;
+  };
 
   const { data: rows } = await supabase
     .from("push_tokens")
-    .select("expo_push_token")
+    .select("expo_push_token, profiles(locale)")
     .not("expo_push_token", "is", null);
-  const tokens = (rows ?? []).map((r) => r.expo_push_token as string).filter(Boolean);
-
-  await sendExpoPushBatch(
-    tokens.map((to) => ({
+  const messages = (rows ?? [])
+    .map((r) => {
+      const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+      return {
+        to: r.expo_push_token as string,
+        locale: resolveTargetLocale(profile?.locale ?? null),
+      };
+    })
+    .filter((m) => Boolean(m.to))
+    .map(({ to, locale }) => ({
       to,
       title,
-      body: excerpt,
+      body: excerptFor(locale),
       data: { route: "/community", kind: "community_official_post" },
       badge: 1,
-    })),
-  );
+    }));
+  await sendExpoPushBatch(messages);
 
-  return new Response(JSON.stringify({ sent: tokens.length }), {
+  return new Response(JSON.stringify({ sent: messages.length }), {
     headers: { "Content-Type": "application/json" },
   });
 });

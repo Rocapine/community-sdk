@@ -124,6 +124,12 @@ shipped locale; any topic id you invent needs its own `topics.<yourId>`
 override in every locale you support, since it won't exist in the built-in
 catalogs.
 
+**Translation keys**: `translation.translatedFrom` / `translation.original` /
+`translation.showOriginal` / `translation.showTranslation` (the per-item
+caption line, see Translations below) and `language.en` / `.es` / `.pt` /
+`.it` / `.pl` / `.fr` / `.de` (language names used to fill in
+`translation.translatedFrom`) ship in all 9 built-in locales.
+
 **The `COMMUNITY_REACTION_PUSH_TEXT` caveat**: the reaction module's push
 copy (server-side, in the `notify-reaction` Edge Function) is built-in and
 localized per recipient for the common "one reactor" case across all 7
@@ -200,12 +206,28 @@ you can wrap, replace, or ignore it:
 | `NotificationInboxScreen` | `onOpenPost(postId)`, `renderInboxRow?(item, defaults, { unread })` (see Slots above)                                                                                                                                                           |
 
 Plus standalone components you can use directly: `CommunityPost`,
-`PollBlock`, `NoticeCard`, `ComposerCard`, `RulesSheet`, `ReportSheet`, and
+`PollBlock` (takes `showOriginal?: boolean` to render each option's
+original `label` instead of its `translatedLabel`, mirroring the post/thread
+toggle below), `NoticeCard`, `ComposerCard`, `RulesSheet`, `ReportSheet`, and
 the package's own `CommunitySheet` primitive (no host sheet library needed).
 
 See `examples/expo-app/App.tsx` for a complete, working wiring of
 `CommunityFeedScreen` + `ProfileScreen` + `NotificationInboxScreen` +
 `ThreadSheet` behind a simple `useState`-driven router.
+
+## Translations
+
+When the translation module is on and a post, comment or poll has a
+reader-locale translation, `CommunityPost` and `ThreadSheet`'s comment rows
+show it by default with a caption line underneath — "Translated from
+English · See original" — that toggles back to the original text on tap
+(emitting `community_translation_toggled`). `PollBlock` follows the same
+`showOriginal` state for its option labels. The display logic is exported
+as pure helpers so you can build your own row: `displayText(item,
+showOriginal)` picks the translation or the original text, and
+`translationLine(t, item, showOriginal)` builds the caption string (or
+`null` for an untranslated item) — both typed against the `Translatable`
+shape `{ text, translation: { text, sourceLocale } | null }`.
 
 ## Gating submissions
 

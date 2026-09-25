@@ -46,6 +46,7 @@ import {
   COMMUNITY_EVENTS,
   displayName,
   emitEvent,
+  readerLocale,
   useBlockUser,
   useCommunityConfig,
   useCreateComment,
@@ -68,6 +69,7 @@ import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { isQueryLoading } from "../utils/query";
 import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
 import { formatTimeAgo } from "../utils/time";
+import { displayText, translationLine } from "../utils/translation";
 import { runGuarded } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { RulesSheet } from "../components/RulesSheet";
@@ -96,11 +98,11 @@ const noop = () => {};
  * on top of `useSyncExternalStore`'s own reference-equality bailout) live in
  * `../utils/postCache` — pulled out of this file so they're unit-testable
  * without mocking React Native/expo. */
-function useCachedPost(postId: string | null): FeedPost | null {
+function useCachedPost(postId: string | null, locale: string | null): FeedPost | null {
   const queryClient = useQueryClient();
   return useSyncExternalStore(
     (onStoreChange) => subscribeToPostListCaches(queryClient, postId, onStoreChange),
-    () => (postId ? findCachedPost(queryClient, postId) : null),
+    () => (postId ? findCachedPost(queryClient, postId, locale) : null),
   );
 }
 
@@ -141,7 +143,7 @@ export function ThreadSheet({
     if (postId) setShownId(postId);
   }, [postId]);
 
-  const post = useCachedPost(shownId);
+  const post = useCachedPost(shownId, readerLocale(cfg));
   const thread = useThread(shownId);
   const comments = thread.data ?? [];
 
@@ -154,7 +156,7 @@ export function ThreadSheet({
     // previous (stale) `shownId` — reading `post.commentCount` here always
     // observed 0 (or the previous thread's count). Reading the cache fresh at
     // the moment this effect fires sidesteps that ordering entirely.
-    const cached = findCachedPost(queryClient, postId);
+    const cached = findCachedPost(queryClient, postId, readerLocale(cfg));
     emitEvent(cfg, COMMUNITY_EVENTS.threadOpened, {
       postId,
       commentCount: cached?.commentCount ?? 0,
@@ -400,10 +402,22 @@ function CommentRow({
   const t = useT();
   const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
+  const cfg = useCommunityConfig();
 
   const [fullLines, setFullLines] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const overflows = (fullLines ?? 0) > COMMENT_CLAMP_LINES;
+
+  const [showOriginal, setShowOriginal] = useState(false);
+  const toggleLine = translationLine(t, comment, showOriginal);
+  const toggleOriginal = () => {
+    emitEvent(cfg, COMMUNITY_EVENTS.translationToggled, {
+      commentId: comment.id,
+      to: showOriginal ? "translation" : "original",
+    });
+    setFullLines(null);
+    setShowOriginal(!showOriginal);
+  };
 
   const handleAuthor = () => onOpenProfile(comment.authorId);
 
@@ -442,13 +456,18 @@ function CommentRow({
             if (fullLines === null) setFullLines(e.nativeEvent.lines.length);
           }}
         >
-          {comment.text}
+          {displayText(comment, showOriginal)}
         </Text>
         {overflows && (
           <Pressable hitSlop={8} onPress={() => setExpanded((v) => !v)}>
             <Text style={styles.cViewMore}>
               {expanded ? t("post.viewLess") : t("post.viewMore")}
             </Text>
+          </Pressable>
+        )}
+        {toggleLine && (
+          <Pressable hitSlop={8} onPress={toggleOriginal}>
+            <Text style={styles.cTranslationLine}>{toggleLine}</Text>
           </Pressable>
         )}
       </View>
@@ -517,6 +536,12 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 12.5,
       color: theme.colors.accent,
       marginTop: theme.spacing(1),
+    },
+    cTranslationLine: {
+      fontFamily: theme.fonts.medium,
+      fontSize: 12.5,
+      color: theme.colors.textFaint,
+      marginTop: theme.spacing(1.5),
     },
     cMenu: { paddingLeft: theme.spacing(1.5), paddingTop: 2 },
     inputRow: {
