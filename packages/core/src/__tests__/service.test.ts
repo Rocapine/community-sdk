@@ -1,5 +1,6 @@
-import { afterEach, expect, it, vi } from "vitest";
-import { buildFeedSelect } from "../service";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { resolveConfig } from "../config";
+import { buildFeedSelect, threadSelect, withTranslationFilters } from "../service";
 
 // buildFeedSelect is the pure, mockable piece of the feed.extraPostColumns
 // extension point (see config.ts) — the network-hitting fetch* functions just
@@ -54,4 +55,76 @@ it("embeds translations (and nested poll label translations) only when asked", (
   const noPolls = buildFeedSelect(undefined, false, true);
   expect(noPolls).toContain("post_translations(");
   expect(noPolls).not.toContain("poll_option");
+});
+
+const base = {
+  supabase: null,
+  appName: "t",
+  anonymousAuthorFallback: "Someone",
+  topics: [],
+  modules: { polls: false, push: false, inbox: false, reaction: false as const },
+};
+const locales = ["en", "es-ES", "es-419"];
+const cfgFor = (opts: { translation: boolean; polls?: boolean; locale?: string }) =>
+  resolveConfig({
+    ...base,
+    modules: {
+      ...base.modules,
+      polls: opts.polls ?? false,
+      translation: opts.translation ? { locales } : false,
+    },
+    host: { getLocale: () => opts.locale ?? "es-419" },
+  });
+
+/** Chainable fake query builder that records every `.eq` call. */
+function fakeQuery() {
+  const eqs: [string, string][] = [];
+  const q = {
+    eq(column: string, value: string) {
+      eqs.push([column, value]);
+      return q;
+    },
+  };
+  return { q, eqs };
+}
+
+describe("withTranslationFilters", () => {
+  it("adds no filter when the module is off", () => {
+    const { q, eqs } = fakeQuery();
+    expect(withTranslationFilters(q, cfgFor({ translation: false, polls: true }))).toBe(q);
+    expect(eqs).toEqual([]);
+  });
+
+  it("adds no filter when the reader locale does not resolve", () => {
+    const { q, eqs } = fakeQuery();
+    withTranslationFilters(q, cfgFor({ translation: true, locale: "fr" }));
+    expect(eqs).toEqual([]);
+  });
+
+  it("filters post translations to the reader locale", () => {
+    const { q, eqs } = fakeQuery();
+    withTranslationFilters(q, cfgFor({ translation: true }));
+    expect(eqs).toEqual([["post_translations.locale", "es-419"]]);
+  });
+
+  it("also filters poll option translations with polls on", () => {
+    const { q, eqs } = fakeQuery();
+    withTranslationFilters(q, cfgFor({ translation: true, polls: true }));
+    expect(eqs).toEqual([
+      ["post_translations.locale", "es-419"],
+      ["poll_options.poll_option_translations.locale", "es-419"],
+    ]);
+  });
+});
+
+describe("threadSelect", () => {
+  const embed = "comment_translations(locale, source_locale, content)";
+
+  it("embeds comment translations only when a reader locale resolves", () => {
+    expect(threadSelect(cfgFor({ translation: true }))).toContain(embed);
+    expect(threadSelect(cfgFor({ translation: false }))).not.toContain("comment_translations");
+    expect(threadSelect(cfgFor({ translation: true, locale: "fr" }))).not.toContain(
+      "comment_translations",
+    );
+  });
 });

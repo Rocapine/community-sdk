@@ -20,6 +20,15 @@ import {
 
 import { COMMUNITY_EVENTS, emitEvent } from "./events";
 import { ensureIdentity } from "./identity";
+import {
+  FEED_KEY,
+  feedKey,
+  SEARCH_KEY,
+  searchKey,
+  threadKey,
+  USER_POSTS_KEY,
+  userPostsKey,
+} from "./keys";
 import { readerLocale } from "./locale";
 import {
   applyPollVote,
@@ -54,16 +63,7 @@ import {
   type UpdateProfileResult,
 } from "./service";
 
-const FEED_KEY = ["community", "feed"] as const;
-const feedKey = (topic?: string, locale?: string | null) =>
-  [...FEED_KEY, topic ?? "all", locale ?? "src"] as const;
-const threadKey = (postId: string, locale?: string | null) =>
-  ["community", "thread", postId, locale ?? "src"] as const;
 const profileKey = (userId: string) => ["community", "profile", userId] as const;
-const USER_POSTS_KEY = ["community", "userPosts"] as const;
-const userPostsKey = (userId: string, locale?: string | null) =>
-  [...USER_POSTS_KEY, userId, locale ?? "src"] as const;
-const SEARCH_KEY = ["community", "search"] as const;
 
 /**
  * Adjust a post's commentCount across every cached feed page (all topic
@@ -165,7 +165,7 @@ export function useSearchPosts(term: string) {
   const cleaned = term.trim();
   const locale = readerLocale(cfg);
   return useInfiniteQuery({
-    queryKey: [...SEARCH_KEY, cleaned, locale ?? "src"],
+    queryKey: searchKey(cleaned, locale),
     queryFn: ({ pageParam }) => searchPosts(cfg, cleaned, { cursor: pageParam }),
     initialPageParam: 0,
     getNextPageParam: (lastPage: FeedPost[], pages: FeedPost[][]) =>

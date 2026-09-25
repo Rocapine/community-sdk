@@ -62,11 +62,13 @@ Deno.serve(async (req) => {
   const name = actor?.username?.trim() || copy.fallbackName;
   // Recipient-language excerpt when the translation module is on: translate
   // now (a few seconds) rather than push the source language; on failure the
-  // original goes out and the sweep fills the rows later.
+  // original goes out and the sweep fills the rows later. translate-one fires
+  // on the same insert, so when it holds the claim wait up to 20 s (the OpenAI
+  // request timeout) for its rows.
   let excerptSource = comment.content;
   const targetLocale = resolveTargetLocale(recipient?.locale);
   if (targetLocale) {
-    const rows = await ensureTranslations(supabase, "comment", comment.id);
+    const rows = await ensureTranslations(supabase, "comment", comment.id, { waitMs: 20_000 });
     const match = rows?.find(
       (r) => r.locale === targetLocale && languageOf(r.locale) !== r.source_locale,
     );
