@@ -121,6 +121,12 @@ describe("runInit", () => {
     expect(onWarn).not.toHaveBeenCalled();
   });
 
+  it("does not warn when translation is selected with polls", async () => {
+    const onWarn = vi.fn();
+    await runInit(baseOptions({ modules: ["core", "polls", "translation"], onWarn }));
+    expect(onWarn).not.toHaveBeenCalled();
+  });
+
   it("copies only the always-on functions with --modules core", async () => {
     await runInit(baseOptions({ modules: ["core"] }));
 
