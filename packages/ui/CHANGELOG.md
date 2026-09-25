@@ -1,5 +1,16 @@
 # @rocapine/community-ui
 
+## 0.3.0
+
+### Minor Changes
+
+- 4f83d20: Posts, comments and poll labels display their reader-locale translation with a per-item "Translated from X · See original" toggle; `displayText`/`translationLine` helpers; `translation.*` and `language.*` catalogue keys in 9 locales.
+
+### Patch Changes
+
+- Updated dependencies [4f83d20]
+  - @rocapine/community-core@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
