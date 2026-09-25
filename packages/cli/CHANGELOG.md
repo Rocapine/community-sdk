@@ -1,5 +1,11 @@
 # @rocapine/community
 
+## 0.3.3
+
+### Patch Changes
+
+- 2ac6583: The OpenAI translation timeout scales with text length and target count (20 s + 5 ms per character per locale, capped at 90 s): long posts no longer time out on every attempt.
+
 ## 0.3.2
 
 ### Patch Changes
