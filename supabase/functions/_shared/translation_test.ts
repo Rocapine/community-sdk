@@ -302,3 +302,29 @@ Deno.test("otherCallerResult: no waitMs means no read at all", async () => {
   assertEquals(out, [row("en")]);
   assertEquals(f.reads(), 0);
 });
+
+const failedAttempt = (agoMs: number): TranslationRow => ({ ...attempt(agoMs), content: "failed" });
+
+Deno.test("isInFlight: a failed attempt is never in flight", () => {
+  assertEquals(isInFlight([failedAttempt(10_000)], T0, IN_FLIGHT_MS), false);
+  assertEquals(isInFlight([attempt(10_000)], T0, IN_FLIGHT_MS), true);
+});
+
+Deno.test("otherCallerResult: stops as soon as the attempt turns failed", async () => {
+  const f = fakeSupabase([
+    { data: [row("en"), attempt(1_000)], error: null },
+    { data: [row("en"), failedAttempt(1_000)], error: null },
+    { data: [row("en"), row("es-ES")], error: null }, // must never be read
+  ]);
+  const args = base(f.client);
+  const out = await otherCallerResult({ ...args, claimRows: [attempt(1_000)] });
+  assertEquals(out, [row("en")]);
+  assertEquals(f.reads(), 2);
+});
+
+Deno.test("otherCallerResult: a fresh failed claim returns the rows with no read", async () => {
+  const f = fakeSupabase([]);
+  const out = await otherCallerResult({ ...base(f.client), claimRows: [failedAttempt(1_000)] });
+  assertEquals(out, [row("en")]);
+  assertEquals(f.reads(), 0);
+});
