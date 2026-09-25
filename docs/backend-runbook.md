@@ -200,9 +200,10 @@ push sender usually finds the claim already held and no rows yet. Instead of
 pushing the source language, `notify-comment` and `broadcast-post` then poll
 the item's translation rows every 1.5 s for up to 20 s (the OpenAI request
 timeout) until the claim is released or the rows cover every missing locale,
-and use whatever real rows exist then. If the other caller's attempt failed its
-claim stays, so the wait runs the full 20 s and the push goes out in the
-original language. `translate-one` and `daily-translation` never wait.
+and use whatever real rows exist then. They only wait for an attempt younger
+than 45 s (`IN_FLIGHT_MS`), i.e. one that can still be running: a failed
+attempt keeps its claim for 6 h, and a push for such an item goes out at once
+in the original language. `translate-one` and `daily-translation` never wait.
 
 First install, in this order:
 

@@ -1,6 +1,8 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import {
   hasFreshAttempt,
+  IN_FLIGHT_MS,
+  isInFlight,
   languageOf,
   missingLocales,
   parseTranslationResponse,
@@ -207,4 +209,21 @@ Deno.test("waitFor: returns the last value at the timeout", async () => {
   assertEquals(value, reads);
   assertEquals(clock.t, 20_000);
   assertEquals(reads, 15);
+});
+
+Deno.test("isInFlight: only an attempt younger than IN_FLIGHT_MS counts", () => {
+  const now = Date.parse("2026-09-25T12:00:00Z");
+  const attemptAgo = (ms: number): TranslationRow => ({
+    locale: "attempt",
+    source_locale: "",
+    content: "",
+    created_at: new Date(now - ms).toISOString(),
+  });
+  assertEquals(isInFlight([attemptAgo(10_000)], now, IN_FLIGHT_MS), true);
+  assertEquals(isInFlight([attemptAgo(5 * 60_000)], now, IN_FLIGHT_MS), false);
+  assertEquals(
+    isInFlight([{ locale: "en", source_locale: "pl", content: "Hi" }], now, IN_FLIGHT_MS),
+    false,
+  );
+  assertEquals(isInFlight([], now, IN_FLIGHT_MS), false);
 });

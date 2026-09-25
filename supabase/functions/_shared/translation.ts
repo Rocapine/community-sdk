@@ -38,6 +38,9 @@ const realRows = (rows: TranslationRow[]): TranslationRow[] =>
     .filter((h) => !isMarker(h))
     .map(({ locale, source_locale, content }) => ({ locale, source_locale, content }));
 const ATTEMPT_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+/** An attempt younger than this may still be running (20 s OpenAI timeout plus
+ * claim/upsert time); an older one within the 6 h window has failed. */
+export const IN_FLIGHT_MS = 45_000;
 export type ParsedTranslation = {
   sourceLocale: string;
   translations: Record<string, { content: string; options: string[] }>;
@@ -225,6 +228,11 @@ export function hasFreshAttempt(have: TranslationRow[], nowMs: number, maxAgeMs:
   );
 }
 
+/** True when `have` holds an attempt young enough to still be in flight. */
+export function isInFlight(have: TranslationRow[], nowMs: number, inFlightMs: number): boolean {
+  return hasFreshAttempt(have, nowMs, inFlightMs);
+}
+
 /**
  * Calls `read` until it reports `done` or `timeoutMs` has elapsed, sleeping
  * `intervalMs` between reads (the last sleep is cut to the deadline), and
@@ -302,11 +310,31 @@ export async function ensureTranslations(
   if (missing.length === 0) return have;
 
   // Another caller holds the claim: without waitMs return what exists now;
-  // with it, wait for that caller. A failed attempt leaves its claim, so the
-  // wait then runs to the timeout.
-  const otherCallerResult = async (): Promise<TranslationRow[]> => {
+  // with it, wait for that caller — but only while its attempt can still be in
+  // flight (a failed attempt keeps its claim for 6 h; waiting on it would only
+  // delay the push). `claimRows` carries the attempt row's created_at; absent
+  // (23505: the claim was just taken by someone else), it is re-read.
+  const otherCallerResult = async (claimRows?: TranslationRow[]): Promise<TranslationRow[]> => {
     const waitMs = opts?.waitMs ?? 0;
     if (waitMs <= 0) return have;
+    if (!claimRows) {
+      const { data, error } = await supabase
+        .from(tTable)
+        .select("locale, source_locale, content, created_at")
+        .eq(fk, id)
+        .eq("locale", "attempt");
+      if (error) {
+        console.error("translation claim lookup failed", error.message);
+        return have;
+      }
+      claimRows = (data ?? []) as TranslationRow[];
+    }
+    // No attempt left means the other caller just finished: the first read
+    // below picks up its rows at once.
+    const stale =
+      claimRows.some((h) => h.locale === "attempt") &&
+      !isInFlight(claimRows, Date.now(), IN_FLIGHT_MS);
+    if (stale) return have;
     return await waitFor(
       async () => {
         const { data, error } = await supabase
@@ -337,7 +365,7 @@ export async function ensureTranslations(
   // still stale, so a claim another caller just took survives). Deleted on
   // success, left on failure: the item is retried after 6 h.
   const now = Date.now();
-  if (hasFreshAttempt(all, now, ATTEMPT_MAX_AGE_MS)) return await otherCallerResult();
+  if (hasFreshAttempt(all, now, ATTEMPT_MAX_AGE_MS)) return await otherCallerResult(all);
   if (all.some((h) => h.locale === "attempt")) {
     await supabase
       .from(tTable)
