@@ -19,6 +19,9 @@ describe("readerLocale", () => {
       host: { getLocale: () => locale },
     });
 
+  it("returns null when the module declares no locales", () => {
+    expect(readerLocale(cfgFor("en", { locales: [] }))).toBeNull();
+  });
   it("returns null when the module is off", () => {
     expect(readerLocale(cfgFor("es-419", false))).toBeNull();
     expect(readerLocale(resolveConfig({ ...base, host: { getLocale: () => "en" } }))).toBeNull();

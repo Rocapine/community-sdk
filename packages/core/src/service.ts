@@ -111,7 +111,7 @@ function postsSelect(cfg: ResolvedCommunityConfig): string {
  * the same mechanism as the existing `.eq("comments.status", "visible")`. A
  * no-op (module off / no resolved locale) leaves the query, and therefore
  * every byte of it, unchanged from before translations existed. */
-function withTranslationFilters<Q extends { eq(column: string, value: string): Q }>(
+export function withTranslationFilters<Q extends { eq(column: string, value: string): Q }>(
   query: Q,
   cfg: ResolvedCommunityConfig,
 ): Q {
@@ -361,6 +361,12 @@ export async function searchPosts(
   return toFeedPosts(cfg, client, (data ?? []) as unknown as PostRow[], uid);
 }
 
+/** The thread (comments) select: + the translation embed iff the reader has a
+ * resolved translation locale. */
+export function threadSelect(cfg: ResolvedCommunityConfig): string {
+  return readerLocale(cfg) ? `${COMMENTS_SELECT}, ${COMMENT_TRANSLATIONS_SELECT}` : COMMENTS_SELECT;
+}
+
 /**
  * Note: `cfg.feed.extraPostColumns`/`transformPost` do NOT apply here — this
  * queries `comments`, not `posts` (the thread's parent post is passed in by
@@ -374,10 +380,9 @@ export async function fetchThread(
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
   const locale = readerLocale(cfg);
-  const select = locale ? `${COMMENTS_SELECT}, ${COMMENT_TRANSLATIONS_SELECT}` : COMMENTS_SELECT;
   let query = client
     .from("comments")
-    .select(select)
+    .select(threadSelect(cfg))
     .eq("post_id", postId)
     .in("status", ["visible", "pending"])
     .order("created_at", { ascending: true });
