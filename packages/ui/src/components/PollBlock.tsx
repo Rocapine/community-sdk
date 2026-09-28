@@ -16,6 +16,7 @@ import { pollPercent, useVotePoll, type FeedPost } from "@rocapine/community-cor
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
+import { AnimatedHeight } from "./AnimatedHeight";
 
 export function PollBlock({
   post,
@@ -59,9 +60,11 @@ export function PollBlock({
               />
             )}
             <View style={styles.optionRow}>
-              <Text style={[styles.label, mine && styles.labelMine]} numberOfLines={2}>
-                {showOriginal ? option.label : (option.translatedLabel ?? option.label)}
-              </Text>
+              <AnimatedHeight style={styles.labelBox}>
+                <Text style={[styles.label, mine && styles.labelMine]} numberOfLines={2}>
+                  {showOriginal ? option.label : (option.translatedLabel ?? option.label)}
+                </Text>
+              </AnimatedHeight>
               {mine && <icons.checkmark size={16} color={theme.colors.accent} weight="fill" />}
               {showResults && <Text style={[styles.pct, mine && styles.labelMine]}>{pct}%</Text>}
             </View>
@@ -102,8 +105,8 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(3.5),
       paddingVertical: theme.spacing(2.75),
     },
+    labelBox: { flex: 1 },
     label: {
-      flex: 1,
       fontFamily: theme.fonts.medium,
       fontSize: 13.5,
       color: theme.colors.textSecondary,
