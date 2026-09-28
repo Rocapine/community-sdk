@@ -221,6 +221,14 @@ export function ThreadSheet({
     onClose();
   };
 
+  // The sheet is a Modal, which stays above any route the host pushes: close
+  // it first or the profile opens underneath. A push is not a modal
+  // presentation, so unlike Report it needn't wait for the dismissal.
+  const openProfile = (userId: string) => {
+    onClose();
+    onOpenProfile(userId);
+  };
+
   const handleDismissed = () => {
     if (!pendingReport.current) return;
     setReportTarget(pendingReport.current);
@@ -360,7 +368,7 @@ export function ThreadSheet({
             <CommunityPost
               post={post}
               onOpenThread={noop}
-              onOpenProfile={onOpenProfile}
+              onOpenProfile={openProfile}
               onMenu={openPostMenu}
               {...slots}
             />
@@ -379,7 +387,7 @@ export function ThreadSheet({
               <CommentRow
                 key={c.id}
                 comment={c}
-                onOpenProfile={onOpenProfile}
+                onOpenProfile={openProfile}
                 onMenu={openCommentMenu}
               />
             ))
