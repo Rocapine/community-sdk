@@ -1,15 +1,18 @@
-// Post / comment body: clamped to `clampLines` with a "View more" toggle, and
-// laid out so switching between the original and its translation never moves
-// the card. Every version is measured unclamped by an invisible copy laid out
-// at the same width (iOS `onTextLayout` only reports visible lines once
-// `numberOfLines` is set, so a clamped text can't tell whether it overflows);
-// the visible text is clamped from its first frame and the box reserves the
-// tallest version's height. Keyed list recycling remounts the card, which
-// resets `expanded` (accepted).
+// Post / comment body: clamped to `clampLines` with a "View more" toggle,
+// inside an `AnimatedHeight` so switching between the original and its
+// translation (or expanding) animates the card's height instead of jumping.
+//
+// The visible text is clamped from its first frame; every version is measured
+// unclamped by an invisible copy at the same width (iOS `onTextLayout` only
+// reports visible lines once `numberOfLines` is set, so a clamped text can't
+// tell whether it overflows). Measuring the other version up front means the
+// "View more" link of the version switched to is known in the same commit as
+// the switch, so the whole change animates as one. Keyed list recycling
+// remounts the card, which resets `expanded` (accepted).
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
 import { useT } from "../ThemeProvider";
-import { anyOverflows, reservedHeight, type TextLine } from "../utils/clamp";
+import { AnimatedHeight } from "./AnimatedHeight";
 
 export function ClampedBody({
   text,
@@ -28,25 +31,19 @@ export function ClampedBody({
 }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
-  const [measured, setMeasured] = useState<Record<string, TextLine[]>>({});
+  const [lineCounts, setLineCounts] = useState<Record<string, number>>({});
 
   const versions = alternate != null && alternate !== text ? [text, alternate] : [text];
-  const lineSets = versions.map((v) => measured[v] ?? null);
-  const minHeight = reservedHeight(lineSets, clampLines, expanded);
+  const overflows = (lineCounts[text] ?? 0) > clampLines;
 
   return (
-    <>
+    <AnimatedHeight>
       {/* One accessibility element carrying the shown text: an accessible
           parent (the post card) builds its label from its children and stops
           at a child that has its own label, so the invisible measuring copies
           below are never read out (accessibilityElementsHidden alone does not
           stop that aggregation on iOS). */}
-      <View
-        style={minHeight === undefined ? undefined : { minHeight }}
-        accessible
-        accessibilityRole="text"
-        accessibilityLabel={text}
-      >
+      <View accessible accessibilityRole="text" accessibilityLabel={text}>
         <Text style={textStyle} numberOfLines={expanded ? undefined : clampLines}>
           {text}
         </Text>
@@ -62,8 +59,8 @@ export function ClampedBody({
               key={v}
               style={[textStyle, styles.measureText]}
               onTextLayout={(e) => {
-                const lines = e.nativeEvent.lines.map(({ y, height }) => ({ y, height }));
-                setMeasured((m) => (m[v]?.length === lines.length ? m : { ...m, [v]: lines }));
+                const count = e.nativeEvent.lines.length;
+                setLineCounts((m) => (m[v] === count ? m : { ...m, [v]: count }));
               }}
             >
               {v}
@@ -71,12 +68,12 @@ export function ClampedBody({
           ))}
         </View>
       </View>
-      {anyOverflows(lineSets, clampLines) && (
+      {overflows && (
         <Pressable hitSlop={8} onPress={() => setExpanded((e) => !e)}>
           <Text style={viewMoreStyle}>{expanded ? t("post.viewLess") : t("post.viewMore")}</Text>
         </Pressable>
       )}
-    </>
+    </AnimatedHeight>
   );
 }
 
