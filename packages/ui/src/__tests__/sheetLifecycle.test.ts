@@ -3,24 +3,29 @@ import { sheetTransition } from "../utils/sheetLifecycle";
 
 describe("sheetTransition", () => {
   it("does nothing when visible did not change", () => {
-    expect(sheetTransition(true, true, true)).toBeNull();
-    expect(sheetTransition(false, false, false)).toBeNull();
-    expect(sheetTransition(false, false, true)).toBeNull();
+    expect(sheetTransition(true, true, "open")).toBeNull();
+    expect(sheetTransition(false, false, "hidden")).toBeNull();
+    expect(sheetTransition(false, false, "open")).toBeNull();
   });
 
   it("mounts when opened from nothing", () => {
-    expect(sheetTransition(false, true, false)).toBe("mount");
+    expect(sheetTransition(false, true, "hidden")).toBe("mount");
   });
 
-  it("closes a mounted sheet", () => {
-    expect(sheetTransition(true, false, true)).toBe("close");
+  it("closes an open sheet", () => {
+    expect(sheetTransition(true, false, "open")).toBe("close");
   });
 
-  it("ignores a close when already unmounted (user-initiated close came first)", () => {
-    expect(sheetTransition(true, false, false)).toBeNull();
+  it("ignores a close when already hidden (user-initiated close came first)", () => {
+    expect(sheetTransition(true, false, "hidden")).toBeNull();
   });
 
   it("snaps back open when re-opened mid close animation", () => {
-    expect(sheetTransition(false, true, true)).toBe("reopen");
+    expect(sheetTransition(false, true, "open")).toBe("reopen");
+  });
+
+  it("defers everything while the Modal is being dismissed", () => {
+    expect(sheetTransition(false, true, "dismissing")).toBeNull();
+    expect(sheetTransition(true, false, "dismissing")).toBeNull();
   });
 });

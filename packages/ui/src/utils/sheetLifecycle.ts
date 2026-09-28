@@ -1,17 +1,25 @@
 // What `CommunitySheet` must do when its parent's `visible` prop changes.
 // Kept out of `Sheet.tsx` so it is unit-testable without React Native.
-//  - "mount": not on screen → mount the Modal; gorhom opens at index 0.
-//  - "close": animate closed; gorhom's `onClose` then unmounts the Modal.
+//
+// Phases: "hidden" (nothing rendered), "open" (Modal up; the gorhom sheet is
+// open or animating closed), "dismissing" (gorhom closed, the RN Modal is
+// being dismissed natively — iOS only).
+//  - "mount": hidden → mount the Modal; gorhom opens at index 0.
+//  - "close": animate closed; gorhom's `onClose` then dismisses the Modal.
 //  - "reopen": `visible` came back while the close animation was still
-//    running (Modal still mounted) → snap back open instead of remounting.
+//    running → snap back open instead of remounting.
+// A re-open requested while "dismissing" is deferred until the Modal is gone
+// (handled by the sheet itself, not here): presenting during a dismissal is
+// silently refused by iOS.
+export type SheetPhase = "hidden" | "open" | "dismissing";
 export type SheetAction = "mount" | "close" | "reopen" | null;
 
 export function sheetTransition(
   prevVisible: boolean,
   visible: boolean,
-  mounted: boolean,
+  phase: SheetPhase,
 ): SheetAction {
-  if (prevVisible === visible) return null;
-  if (!visible) return mounted ? "close" : null;
-  return mounted ? "reopen" : "mount";
+  if (prevVisible === visible || phase === "dismissing") return null;
+  if (!visible) return phase === "open" ? "close" : null;
+  return phase === "open" ? "reopen" : "mount";
 }

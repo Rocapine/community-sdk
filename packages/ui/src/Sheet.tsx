@@ -31,6 +31,8 @@ import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetTextInput,
   BottomSheetView,
+  KEYBOARD_STATUS,
+  useBottomSheetInternal,
   useBottomSheetTimingConfigs,
   type BottomSheetBackdropProps,
   type BottomSheetFooterProps,
@@ -47,13 +49,14 @@ import {
 } from "react";
 import {
   Modal,
+  Platform,
   StyleSheet,
-  View,
   useWindowDimensions,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import {
   SafeAreaProvider,
   initialWindowMetrics,
@@ -61,14 +64,13 @@ import {
 } from "react-native-safe-area-context";
 import { useCommunityTheme, useThemedStyles } from "./ThemeProvider";
 import type { CommunityTheme } from "./theme";
-import { sheetTransition } from "./utils/sheetLifecycle";
+import { sheetTransition, type SheetPhase } from "./utils/sheetLifecycle";
 
 const FULL_SNAP_POINTS = ["94%"];
 /** `snapTo="half"` sheets are content-sized, capped at this share of the window. */
 const HALF_MAX_RATIO = 0.9;
-/** Matches the old hand-rolled sheet's slide. Deterministic on both platforms
- * (gorhom's iOS default is a spring with a long tail), because callers hand
- * off to a second Modal a fixed delay after closing (`HANDOFF_DELAY_MS`). */
+/** Matches the old hand-rolled sheet's slide, on both platforms (gorhom's iOS
+ * default is an overdamped spring with a long settling tail). */
 const ANIMATION_DURATION = 250;
 const BACKDROP_COLOR = "rgb(8,6,3)";
 const BACKDROP_OPACITY = 0.45;
@@ -79,12 +81,17 @@ const SheetContext = createContext<SheetCtx>({ footer: null, bottomInset: 0, con
 export function CommunitySheet({
   visible,
   onClose,
+  onDismissed,
   children,
   snapTo = "half",
   footer,
 }: {
   visible: boolean;
   onClose: () => void;
+  /** Fired once the sheet is fully gone: close animation done AND the native
+   * Modal dismissed. Open another Modal-based sheet from here (iOS silently
+   * refuses to present one while another is being dismissed). */
+  onDismissed?: () => void;
   children: ReactNode;
   snapTo?: "half" | "full";
   /** Pinned to the bottom of the sheet, right above the keyboard when open
@@ -92,40 +99,54 @@ export function CommunitySheet({
    * under it. */
   footer?: ReactNode;
 }) {
-  const [mounted, setMounted] = useState(visible);
+  const [phase, setPhase] = useState<SheetPhase>(visible ? "open" : "hidden");
   const sheetRef = useRef<BottomSheet>(null);
   const prevVisible = useRef(visible);
-  const latest = useRef({ visible, onClose });
-  latest.current = { visible, onClose };
+  const prevPhase = useRef(phase);
+  const latest = useRef({ visible, onClose, onDismissed });
+  latest.current = { visible, onClose, onDismissed };
 
   useEffect(() => {
-    const action = sheetTransition(prevVisible.current, visible, mounted);
+    const action = sheetTransition(prevVisible.current, visible, phase);
     prevVisible.current = visible;
-    if (action === "mount") setMounted(true);
+    if (action === "mount") setPhase("open");
     else if (action === "close") sheetRef.current?.close();
     else if (action === "reopen") sheetRef.current?.snapToIndex(0);
-    // Driven by `visible` only; `mounted` is read as of this render.
+    // Driven by `visible` only; `phase` is read as of this render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
+  // Fully gone: tell the parent, then honour a re-open that arrived while
+  // the Modal was still being dismissed.
+  useEffect(() => {
+    const was = prevPhase.current;
+    prevPhase.current = phase;
+    if (phase !== "hidden" || was === "hidden") return;
+    latest.current.onDismissed?.();
+    if (latest.current.visible) setPhase("open");
+  }, [phase]);
+
   // gorhom's `onClose` fires once the sheet reaches index -1, whatever closed
-  // it (pan, backdrop tap, or our own `close()`). Unmount, and tell the
-  // parent if it didn't ask for this close itself.
+  // it (pan, backdrop tap, or our own `close()`). Dismiss the Modal — on iOS
+  // it stays rendered with `visible={false}` until its `onDismiss`; Android
+  // has no `onDismiss`, so unmount straight away — and tell the parent if it
+  // didn't ask for this close itself.
   const handleSheetClosed = () => {
-    setMounted(false);
+    setPhase(Platform.OS === "ios" ? "dismissing" : "hidden");
     if (latest.current.visible) latest.current.onClose();
   };
 
-  if (!mounted) return null;
+  if (phase === "hidden") return null;
 
   return (
     <Modal
-      visible
+      visible={phase === "open"}
       transparent
       animationType="none"
       statusBarTranslucent
       navigationBarTranslucent
       onRequestClose={onClose}
+      onDismiss={() => setPhase("hidden")}
     >
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <GestureHandlerRootView style={{ flex: 1 }}>
@@ -168,10 +189,10 @@ function SheetBody({
   const ctx: SheetCtx = {
     footer: hasFooter ? footer : null,
     bottomInset: insets.bottom,
-    // With a footer, gorhom adds the measured footer height on top of this
-    // (`enableFooterMarginAdjustment`); the footer itself sits `insets.bottom`
-    // above the screen edge.
-    contentBottomPad: insets.bottom + (hasFooter ? 0 : theme.spacing(4)),
+    // With a footer, gorhom adds the measured footer height instead
+    // (`enableFooterMarginAdjustment`); that height already includes the
+    // footer's own bottom inset padding.
+    contentBottomPad: hasFooter ? 0 : insets.bottom + theme.spacing(4),
   };
 
   const sizing =
@@ -224,12 +245,26 @@ function SheetBackdrop(props: BottomSheetBackdropProps) {
   );
 }
 
+// Not lifted by gorhom's `bottomInset`: the footer reaches the screen edge
+// and pads the home-indicator strip itself (sheet background, so nothing
+// scrolls visibly beneath it). With the keyboard up it sits on the keyboard,
+// so the inset padding is dropped.
 function SheetFooter(props: BottomSheetFooterProps) {
   const { footer, bottomInset } = useContext(SheetContext);
+  const theme = useCommunityTheme();
   const styles = useThemedStyles(makeStyles);
+  const { animatedKeyboardState } = useBottomSheetInternal();
+  const gap = theme.spacing(2.5);
+  const padStyle = useAnimatedStyle(
+    () => ({
+      paddingBottom:
+        animatedKeyboardState.get().status === KEYBOARD_STATUS.SHOWN ? gap : gap + bottomInset,
+    }),
+    [gap, bottomInset],
+  );
   return (
-    <BottomSheetFooter {...props} bottomInset={bottomInset}>
-      <View style={styles.footer}>{footer}</View>
+    <BottomSheetFooter {...props}>
+      <Animated.View style={[styles.footer, padStyle]}>{footer}</Animated.View>
     </BottomSheetFooter>
   );
 }
@@ -300,7 +335,6 @@ function makeStyles(theme: CommunityTheme) {
     footer: {
       backgroundColor: theme.colors.background,
       paddingHorizontal: theme.spacing(5.5),
-      paddingBottom: theme.spacing(2.5),
     },
   });
 }
