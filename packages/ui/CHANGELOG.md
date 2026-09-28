@@ -1,5 +1,11 @@
 # @rocapine/community-ui
 
+## 0.3.4
+
+### Patch Changes
+
+- 7d9d81c: Switching a post or comment between its original and its translation no longer shifts the layout: the body is clamped from its first frame (no unclamped flash while re-measuring) and reserves the height of the taller version. Invisible measuring copies are kept out of the accessibility label.
+
 ## 0.3.0
 
 ### Minor Changes
