@@ -168,6 +168,9 @@ export function ThreadSheet({
   }, [postId, queryClient]);
 
   const [text, setText] = useState("");
+  // A draft belongs to its thread: reopening the same post keeps it, opening
+  // another one starts empty.
+  useEffect(() => setText(""), [shownId]);
   // Rules gate on commenting, same shared flag as the feed composer (both
   // source apps gated the first comment behind the UGC rules sheet too).
   const rulesAccepted = useRulesAccepted(cfg);
