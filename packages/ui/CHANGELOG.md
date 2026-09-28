@@ -1,5 +1,11 @@
 # @rocapine/community-ui
 
+## 0.4.2
+
+### Patch Changes
+
+- 3a7309d: Tapping an author in a thread closes the thread sheet before opening their profile, so the profile no longer opens underneath the sheet.
+
 ## 0.4.0
 
 ### Minor Changes
