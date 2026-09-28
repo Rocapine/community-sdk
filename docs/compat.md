@@ -11,6 +11,7 @@ table is the source of truth for which combinations are compatible.
 | `0.1.x`           | `1`            | Initial public release. Modules: core, push, polls, reaction, inbox.                                                                                                                                                                                                                                                                |
 | `0.2.x`           | `1`            | Same schema. Function templates changed (locale-aware push copy, hardened triggers/moderation) — redeploy them with `npx @rocapine/community upgrade`. 0.2.1 adds the additive `core/007_username_moderation` template (two nullable columns + a trigger) and a `daily-moderation` that sweeps usernames — `upgrade` copies both.   |
 | `0.3.x`           | `1`            | Same schema. Adds the optional, additive `translation` module (3 tables, 2 functions: `translate-one`, `daily-translation`) — `upgrade` copies it in only if you select it. `notify-comment`/`broadcast-post` templates changed (send excerpts in the recipient's language) — redeploy them with `npx @rocapine/community upgrade`. |
+| `0.4.x` (ui)      | `1`            | Same schema, no backend change. UI only: the sheets are built on `@gorhom/bottom-sheet`, which adds three new peers (`@gorhom/bottom-sheet`, `react-native-gesture-handler`, `react-native-safe-area-context`). `community-core` stays `0.3.x` and the CLI `0.3.x` (linked group: only packages with a changeset move).             |
 
 ## How this is enforced
 

@@ -38,7 +38,7 @@ program
   )
   .option(
     "--modules <modules>",
-    "comma-separated module list (core,push,polls,reaction,inbox) — core is always implied; defaults to all modules",
+    "comma-separated module list (core,push,polls,reaction,inbox,translation) — core is always implied; defaults to all modules",
   )
   .option("--project-url <url>", "Supabase project URL, e.g. https://<ref>.supabase.co")
   .option("--anon-key <key>", "Supabase anon key")
@@ -104,7 +104,7 @@ program
   )
   .requiredOption(
     "--modules <modules>",
-    "comma-separated module list (core,push,polls,reaction,inbox) — core is always implied",
+    "comma-separated module list (core,push,polls,reaction,inbox,translation) — core is always implied",
   )
   .option(
     "--dir <dir>",

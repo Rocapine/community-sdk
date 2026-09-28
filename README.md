@@ -56,13 +56,22 @@ and writes a `community-sdk.json` manifest. Then, as it prints:
 ```bash
 supabase db push
 supabase secrets set OPENAI_API_KEY=sk-...
+supabase secrets set COMMUNITY_TRANSLATION_LOCALES=en,es-419   # translation module only
 supabase functions deploy
 ```
 
 Full backend setup (anonymous sign-ins, all secrets, cron verification):
 [`docs/backend-runbook.md`](docs/backend-runbook.md).
 
-### 3. Wire the provider
+### 3. Pin React Query in Metro
+
+The SDK's compiled CommonJS `require()`s `@tanstack/react-query`, while your
+app `import`s it. Metro's `exports` resolution then loads two copies of it, and
+the SDK throws "No QueryClient set" even though your provider is in place. Pin
+the package to a single file in `metro.config.js` (see
+[`docs/integration.md`](docs/integration.md) → Phase 2 for the snippet).
+
+### 4. Wire the provider
 
 This is the exact shape used by [`examples/expo-app/App.tsx`](examples/expo-app/App.tsx)
 (a working, live-verified reference app — run it with `npm start -w
@@ -176,9 +185,9 @@ Without a dashboard, moderate via SQL or the Supabase Studio table editor —
 
 ## More docs
 
-- [`docs/integration-skill.md`](docs/integration-skill.md) — a phased,
-  agent-oriented integration guide (the "how do I actually wire this into my
-  app end to end" walkthrough).
+- [`docs/integration.md`](docs/integration.md) — the end-to-end integration
+  guide, phase by phase (backend, packages, config, screens, QA). In
+  Rocapine repos, the `/roca-features:community` skill runs it for you.
 - [`docs/backend-runbook.md`](docs/backend-runbook.md) — every secret,
   anonymous sign-ins, cron verification, `db push` flow.
 - [`docs/compat.md`](docs/compat.md) — SDK version ↔ schema version
@@ -206,44 +215,26 @@ QA checklist are the coverage story for anything React Native rendering
 touches. `packages/core` and `packages/ui` each have vitest unit tests
 (`npm test`).
 
-## Maintainers: release checklist
+## Maintainers: releasing
 
-Publishing is **gated on human confirmation** — do not run `npm run release`
-until every item below is checked.
+Versions are managed with [changesets](https://github.com/changesets/changesets).
+The three packages form a `linked` group: when several of them are released
+together, they share the highest version. A package with no changeset stays
+where it is.
 
-1. **Confirm names with Martin.** The design spec (§9) marks the GitHub org
-   (`Rocapine/community-sdk`) and npm scope (`@rocapine/community-core`,
-   `@rocapine/community-ui`, `@rocapine/community`) as placeholders pending
-   confirmation. If either changes, update every `package.json` `name` field
-   and this README before publishing.
-2. **npm org `@rocapine`** — confirm it exists, has 2FA enabled, and an
-   `NPM_TOKEN` repo secret is set for CI to publish with.
-3. **License** — `LICENSE` at the repo root is MIT; confirm that's still the
-   intended license before the first publish.
-4. **Create the GitHub repo and push.** Once §9's names are confirmed:
-   create the repo, push this history, wire branch protection / CI as
-   desired.
-5. **Dry-run, then release:**
-   ```bash
-   npm publish --dry-run -w @rocapine/community-core -w @rocapine/community-ui -w @rocapine/community
-   # review the tarball contents/version list, then:
-   npm run release   # = npm run build && changeset publish
-   ```
-6. **Post-release: full live QA.** The example app's degraded mode and
-   non-moderation-gated paths were verified live during development, but
-   everything downstream of moderation was blocked on a real
-   `OPENAI_API_KEY` (not available in that environment). Before calling this
-   production-ready:
-   - `supabase secrets set OPENAI_API_KEY=sk-...` on the target project.
-   - `supabase functions deploy` (all functions, including the
-     moderation-gated ones).
-   - Re-test post creation end to end: composer → POST → the post appears
-     with `status: "visible"` (or the rejected-notice path with clearly
-     flaggable content).
-   - Comment, like, poll vote, reaction, block/report, and the notification
-     inbox — none of these can be exercised without at least one genuinely
-     `visible` post to hang off of.
-   - Android (not covered by the development-time QA pass, iOS only).
-     A scratch Supabase project used during development
-     (`community-sdk-scratch`, ref `cozfrhmbjrvotpwjnqmu`) is available for
-     reuse if still live.
+1. **Every PR** that changes a package adds a changeset (`npx changeset`):
+   patch for a fix, minor for a feature or a new peer dependency (we are in 0.x).
+2. **Release PR:** on a `release/<package>-<version>` branch, run
+   `npx changeset version`, which bumps the versions, writes the CHANGELOGs and
+   removes the changesets. Then `npm install --package-lock-only`, open the PR,
+   review it and merge it.
+3. **Publish** from an up-to-date `main`: `npm run release` (build +
+   `changeset publish`). npm asks for web authentication (2FA): this is a manual
+   step, not CI.
+4. **Roll out to the apps.** Bump the packages in each app. If the release
+   touches migrations or functions, run `npx @rocapine/community upgrade` in
+   each app, then `supabase db push` and redeploy the functions it touched. Add
+   a row to [`docs/compat.md`](docs/compat.md) for every release line.
+
+A scratch Supabase project (`community-sdk-scratch`, ref
+`cozfrhmbjrvotpwjnqmu`) is used for QA before a release.

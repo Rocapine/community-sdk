@@ -216,7 +216,7 @@ Plus standalone components you can use directly: `CommunityPost`,
 `PollBlock` (takes `showOriginal?: boolean` to render each option's
 original `label` instead of its `translatedLabel`, mirroring the post/thread
 toggle below), `NoticeCard`, `ComposerCard`, `RulesSheet`, `ReportSheet`, and
-the package's own `CommunitySheet` primitive (no host sheet library needed).
+the package's own `CommunitySheet` primitive (built on `@gorhom/bottom-sheet`, installed as a peer; no provider to mount).
 
 See `examples/expo-app/App.tsx` for a complete, working wiring of
 `CommunityFeedScreen` + `ProfileScreen` + `NotificationInboxScreen` +
