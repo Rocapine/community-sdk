@@ -7,7 +7,15 @@
 // tallest version's height. Keyed list recycling remounts the card, which
 // resets `expanded` (accepted).
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from "react-native";
 import { useT } from "../ThemeProvider";
 import { anyOverflows, reservedHeight, type TextLine } from "../utils/clamp";
 
@@ -17,6 +25,7 @@ export function ClampedBody({
   clampLines,
   textStyle,
   viewMoreStyle,
+  style,
 }: {
   /** The version shown. */
   text: string;
@@ -24,7 +33,10 @@ export function ClampedBody({
   alternate?: string | null;
   clampLines: number;
   textStyle: StyleProp<TextStyle>;
-  viewMoreStyle: StyleProp<TextStyle>;
+  /** Omit for a plain clamped label (poll options): no "View more" toggle. */
+  viewMoreStyle?: StyleProp<TextStyle>;
+  /** Style of the box holding the text (e.g. `flex: 1` inside a row). */
+  style?: StyleProp<ViewStyle>;
 }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
@@ -33,6 +45,7 @@ export function ClampedBody({
   const versions = alternate != null && alternate !== text ? [text, alternate] : [text];
   const lineSets = versions.map((v) => measured[v] ?? null);
   const minHeight = reservedHeight(lineSets, clampLines, expanded);
+  const shownOverflows = anyOverflows([lineSets[0]], clampLines);
 
   return (
     <>
@@ -42,7 +55,7 @@ export function ClampedBody({
           below are never read out (accessibilityElementsHidden alone does not
           stop that aggregation on iOS). */}
       <View
-        style={minHeight === undefined ? undefined : { minHeight }}
+        style={[style, minHeight === undefined ? undefined : { minHeight }]}
         accessible
         accessibilityRole="text"
         accessibilityLabel={text}
@@ -71,8 +84,18 @@ export function ClampedBody({
           ))}
         </View>
       </View>
-      {anyOverflows(lineSets, clampLines) && (
-        <Pressable hitSlop={8} onPress={() => setExpanded((e) => !e)}>
+      {/* Offered when the shown version overflows. When only the other
+          version does, the link keeps its space (so switching versions never
+          moves the layout) but stays invisible and inert. */}
+      {viewMoreStyle !== undefined && anyOverflows(lineSets, clampLines) && (
+        <Pressable
+          hitSlop={8}
+          disabled={!shownOverflows}
+          accessibilityElementsHidden={!shownOverflows}
+          importantForAccessibility={shownOverflows ? "auto" : "no-hide-descendants"}
+          style={shownOverflows ? undefined : styles.hidden}
+          onPress={() => setExpanded((e) => !e)}
+        >
           <Text style={viewMoreStyle}>{expanded ? t("post.viewLess") : t("post.viewMore")}</Text>
         </Pressable>
       )}
@@ -81,6 +104,7 @@ export function ClampedBody({
 }
 
 const styles = StyleSheet.create({
+  hidden: { opacity: 0 },
   measure: { position: "absolute", top: 0, left: 0, right: 0, opacity: 0 },
   measureText: { position: "absolute", top: 0, left: 0, right: 0 },
 });
