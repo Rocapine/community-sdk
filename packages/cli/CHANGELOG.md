@@ -1,5 +1,11 @@
 # @rocapine/community
 
+## 0.4.1
+
+### Patch Changes
+
+- c9797a1: `init --help` / `adopt --help` list the `translation` module alongside the others.
+
 ## 0.3.3
 
 ### Patch Changes
