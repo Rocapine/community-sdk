@@ -46,16 +46,8 @@ import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { CommunitySheet } from "../Sheet";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 
@@ -171,7 +163,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
 
   return (
     <CommunitySheet visible={visible} onClose={onClose} snapTo="full">
-      <ScrollView
+      <SheetScrollView
         keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -208,7 +200,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
 
             <View style={styles.section}>
               <Text style={styles.label}>{t("profile.bioLabel")}</Text>
-              <TextInput
+              <SheetTextInput
                 value={bio}
                 onChangeText={setBio}
                 editable={!bioBusy}
@@ -241,7 +233,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
               <Text style={styles.label}>{t("profile.usernameLabel")}</Text>
               <View style={styles.handleField}>
                 <Text style={styles.handlePrefix}>@</Text>
-                <TextInput
+                <SheetTextInput
                   value={handle}
                   onChangeText={setHandle}
                   editable={!handleBusy}
@@ -273,7 +265,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
             </View>
           </>
         )}
-      </ScrollView>
+      </SheetScrollView>
     </CommunitySheet>
   );
 }

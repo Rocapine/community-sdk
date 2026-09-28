@@ -19,7 +19,7 @@
 import { COMMUNITY_EVENTS, emitEvent, useCommunityConfig } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { CommunitySheet } from "../Sheet";
+import { CommunitySheet, SheetView } from "../Sheet";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { markRulesAccepted } from "../utils/rulesAcceptance";
@@ -56,20 +56,22 @@ export function RulesSheet({
 
   return (
     <CommunitySheet visible={visible} onClose={onClose} snapTo="half">
-      <Text style={styles.title}>{t("rules.title")}</Text>
-      <View style={styles.rules}>
-        {RULE_KEYS.map((key) => (
-          <Text key={key} style={styles.rule}>
-            {"•"} {t(key)}
-          </Text>
-        ))}
-      </View>
-      <Pressable
-        onPress={handleAccept}
-        style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
-      >
-        <Text style={styles.ctaLabel}>{t("rules.accept")}</Text>
-      </Pressable>
+      <SheetView>
+        <Text style={styles.title}>{t("rules.title")}</Text>
+        <View style={styles.rules}>
+          {RULE_KEYS.map((key) => (
+            <Text key={key} style={styles.rule}>
+              {"•"} {t(key)}
+            </Text>
+          ))}
+        </View>
+        <Pressable
+          onPress={handleAccept}
+          style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+        >
+          <Text style={styles.ctaLabel}>{t("rules.accept")}</Text>
+        </Pressable>
+      </SheetView>
     </CommunitySheet>
   );
 }
