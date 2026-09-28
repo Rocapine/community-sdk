@@ -35,6 +35,7 @@ import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../
 import type { CommunityTheme } from "../theme";
 import { displayText, translationLine } from "../utils/translation";
 import { formatTimeAgo } from "../utils/time";
+import { ClampedBody } from "./ClampedBody";
 import { PollBlock } from "./PollBlock";
 
 const BODY_CLAMP_LINES = 6;
@@ -71,16 +72,6 @@ export function CommunityPost({
   const toggleLike = useToggleLike();
   const reactToPost = useReactToPost();
 
-  // Measure-then-clamp: the first layout pass renders unclamped and records
-  // the natural line count (iOS onTextLayout only reports visible lines once
-  // numberOfLines is set, so overflow cannot be detected after clamping).
-  // Keyed list recycling remounts the card, which resets both states; a card
-  // re-collapsing after scrolling far away is accepted (mold behavior, ported
-  // as-is).
-  const [fullLines, setFullLines] = useState<number | null>(null);
-  const [expanded, setExpanded] = useState(false);
-  const overflows = (fullLines ?? 0) > BODY_CLAMP_LINES;
-
   const [showOriginal, setShowOriginal] = useState(false);
   const toggleLine = translationLine(t, post, showOriginal);
   const toggleOriginal = () => {
@@ -88,7 +79,6 @@ export function CommunityPost({
       postId: post.id,
       to: showOriginal ? "translation" : "original",
     });
-    setFullLines(null);
     setShowOriginal(!showOriginal);
   };
 
@@ -215,20 +205,13 @@ export function CommunityPost({
         {authorHeader}
       </Pressable>
 
-      <Text
-        style={styles.body}
-        numberOfLines={fullLines !== null && !expanded ? BODY_CLAMP_LINES : undefined}
-        onTextLayout={(e) => {
-          if (fullLines === null) setFullLines(e.nativeEvent.lines.length);
-        }}
-      >
-        {displayText(post, showOriginal)}
-      </Text>
-      {overflows && (
-        <Pressable hitSlop={8} onPress={() => setExpanded((v) => !v)}>
-          <Text style={styles.viewMore}>{expanded ? t("post.viewLess") : t("post.viewMore")}</Text>
-        </Pressable>
-      )}
+      <ClampedBody
+        text={displayText(post, showOriginal)}
+        alternate={post.translation ? displayText(post, !showOriginal) : null}
+        clampLines={BODY_CLAMP_LINES}
+        textStyle={styles.body}
+        viewMoreStyle={styles.viewMore}
+      />
       {toggleLine && (
         <Pressable hitSlop={8} onPress={toggleOriginal}>
           <Text style={styles.translationLine}>{toggleLine}</Text>

@@ -64,6 +64,7 @@ import { CommunitySheet } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots } from "../components/CommunityPost";
+import { ClampedBody } from "../components/ClampedBody";
 import { NoticeCard } from "../components/NoticeCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { isQueryLoading } from "../utils/query";
@@ -404,10 +405,6 @@ function CommentRow({
   const styles = useThemedStyles(makeStyles);
   const cfg = useCommunityConfig();
 
-  const [fullLines, setFullLines] = useState<number | null>(null);
-  const [expanded, setExpanded] = useState(false);
-  const overflows = (fullLines ?? 0) > COMMENT_CLAMP_LINES;
-
   const [showOriginal, setShowOriginal] = useState(false);
   const toggleLine = translationLine(t, comment, showOriginal);
   const toggleOriginal = () => {
@@ -415,7 +412,6 @@ function CommentRow({
       commentId: comment.id,
       to: showOriginal ? "translation" : "original",
     });
-    setFullLines(null);
     setShowOriginal(!showOriginal);
   };
 
@@ -449,22 +445,13 @@ function CommentRow({
           )}
           <Text style={styles.cAgo}>· {formatTimeAgo(t, comment.createdAt, Date.now())}</Text>
         </Pressable>
-        <Text
-          style={styles.cText}
-          numberOfLines={fullLines !== null && !expanded ? COMMENT_CLAMP_LINES : undefined}
-          onTextLayout={(e) => {
-            if (fullLines === null) setFullLines(e.nativeEvent.lines.length);
-          }}
-        >
-          {displayText(comment, showOriginal)}
-        </Text>
-        {overflows && (
-          <Pressable hitSlop={8} onPress={() => setExpanded((v) => !v)}>
-            <Text style={styles.cViewMore}>
-              {expanded ? t("post.viewLess") : t("post.viewMore")}
-            </Text>
-          </Pressable>
-        )}
+        <ClampedBody
+          text={displayText(comment, showOriginal)}
+          alternate={comment.translation ? displayText(comment, !showOriginal) : null}
+          clampLines={COMMENT_CLAMP_LINES}
+          textStyle={styles.cText}
+          viewMoreStyle={styles.cViewMore}
+        />
         {toggleLine && (
           <Pressable hitSlop={8} onPress={toggleOriginal}>
             <Text style={styles.cTranslationLine}>{toggleLine}</Text>
