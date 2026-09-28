@@ -34,12 +34,13 @@
 //    slide-down instead of flashing empty (mirrors the mold's own `[shown,
 //    setShown]`).
 //  - Reporting the opened post or a comment closes this sheet first (calls
-//    `onClose()`) and opens `ReportSheet` after a 320ms delay — the same
-//    modal-handoff the mold/Eve use everywhere a second native `Modal` must
-//    replace one that's still animating closed (two `Modal`s cannot present
-//    at once on iOS). Delete/block act immediately, no handoff needed since
-//    they don't open another modal (deleting the opened post also closes the
-//    sheet, since there is nothing left in it to show).
+//    `onClose()`) and opens `ReportSheet` from the thread sheet's
+//    `onDismissed`, i.e. once its native `Modal` is fully dismissed — iOS
+//    silently refuses to present a `Modal` while another is being
+//    dismissed, so no fixed delay can be trusted. Delete/block act
+//    immediately, no handoff needed since they don't open another modal
+//    (deleting the opened post also closes the sheet, since there is nothing
+//    left in it to show).
 
 import {
   COMMENT_MAX_LENGTH,
@@ -58,9 +59,9 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { CommunitySheet } from "../Sheet";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots } from "../components/CommunityPost";
@@ -76,7 +77,6 @@ import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { RulesSheet } from "../components/RulesSheet";
 
 const COMMENT_CLAMP_LINES = 5;
-const HANDOFF_DELAY_MS = 320;
 
 const noop = () => {};
 
@@ -168,11 +168,16 @@ export function ThreadSheet({
   }, [postId, queryClient]);
 
   const [text, setText] = useState("");
+  // A draft belongs to its thread: reopening the same post keeps it, opening
+  // another one starts empty.
+  useEffect(() => setText(""), [shownId]);
   // Rules gate on commenting, same shared flag as the feed composer (both
   // source apps gated the first comment behind the UGC rules sheet too).
   const rulesAccepted = useRulesAccepted(cfg);
   const [rulesVisible, setRulesVisible] = useState(false);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  // Report chosen from this sheet: opened once the sheet is dismissed.
+  const pendingReport = useRef<ReportTarget | null>(null);
   const [notice, setNotice] = useState<"rejected" | "network" | null>(null);
   // Double-submit latch for the `beforeSubmitComment` await — see the
   // matching note in `ComposerCard.tsx`'s `gating` state.
@@ -212,8 +217,14 @@ export function ThreadSheet({
   };
 
   const closeThenReport = (target: ReportTarget) => {
+    pendingReport.current = target;
     onClose();
-    setTimeout(() => setReportTarget(target), HANDOFF_DELAY_MS);
+  };
+
+  const handleDismissed = () => {
+    if (!pendingReport.current) return;
+    setReportTarget(pendingReport.current);
+    pendingReport.current = null;
   };
 
   const openPostMenu = (p: FeedPost) => {
@@ -305,9 +316,42 @@ export function ThreadSheet({
 
   return (
     <>
-      <CommunitySheet visible={postId !== null} onClose={onClose} snapTo="full">
-        <ScrollView
-          style={styles.scroll}
+      <CommunitySheet
+        visible={postId !== null}
+        onClose={onClose}
+        onDismissed={handleDismissed}
+        snapTo="full"
+        footer={
+          <View style={styles.inputRow}>
+            <SheetTextInput
+              value={text}
+              onChangeText={setText}
+              placeholder={t("thread.commentPlaceholder")}
+              placeholderTextColor={theme.colors.textFaint}
+              style={styles.input}
+              multiline
+              maxLength={COMMENT_MAX_LENGTH}
+            />
+            <Pressable hitSlop={8} onPress={send} disabled={gating} style={styles.send}>
+              <icons.send
+                size={20}
+                color={text.trim() && !gating ? theme.colors.accent : theme.colors.textFaint}
+                weight="fill"
+              />
+            </Pressable>
+            {/* Rules gate: swallow every touch on the comment box until the UGC
+                rules are accepted (mirrors `ComposerCard`'s overlay). */}
+            {!rulesAccepted && (
+              <Pressable style={StyleSheet.absoluteFill} onPress={() => setRulesVisible(true)}>
+                <View />
+              </Pressable>
+            )}
+          </View>
+        }
+      >
+        {/* The whole thread (post + every comment) scrolls; the composer is the
+            sheet's footer, pinned above the keyboard. */}
+        <SheetScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -340,33 +384,7 @@ export function ThreadSheet({
               />
             ))
           )}
-        </ScrollView>
-
-        <View style={styles.inputRow}>
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder={t("thread.commentPlaceholder")}
-            placeholderTextColor={theme.colors.textFaint}
-            style={styles.input}
-            multiline
-            maxLength={COMMENT_MAX_LENGTH}
-          />
-          <Pressable hitSlop={8} onPress={send} disabled={gating} style={styles.send}>
-            <icons.send
-              size={20}
-              color={text.trim() && !gating ? theme.colors.accent : theme.colors.textFaint}
-              weight="fill"
-            />
-          </Pressable>
-          {/* Rules gate: swallow every touch on the comment box until the UGC
-              rules are accepted (mirrors `ComposerCard`'s overlay). */}
-          {!rulesAccepted && (
-            <Pressable style={StyleSheet.absoluteFill} onPress={() => setRulesVisible(true)}>
-              <View />
-            </Pressable>
-          )}
-        </View>
+        </SheetScrollView>
 
         <RulesSheet
           visible={rulesVisible}
@@ -467,7 +485,6 @@ function CommentRow({
 
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
-    scroll: { flexShrink: 1 },
     content: { paddingTop: theme.spacing(1), paddingBottom: theme.spacing(3) },
     commentsLabel: {
       fontFamily: theme.fonts.bold,

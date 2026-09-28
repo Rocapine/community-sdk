@@ -24,8 +24,8 @@
 import { useReport, type ReportReason } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { CommunitySheet } from "../Sheet";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 
@@ -93,7 +93,7 @@ export function ReportSheet({
           on the first tap while the keyboard is open (mold behavior, ported
           as-is — see that file's own note on why "handled" is not enough
           inside a Modal + reanimated sheet). */}
-      <ScrollView keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
+      <SheetScrollView keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>{t("report.title")}</Text>
         <View style={styles.reasonRow}>
           {REASONS.map((r) => {
@@ -114,7 +114,7 @@ export function ReportSheet({
             );
           })}
         </View>
-        <TextInput
+        <SheetTextInput
           value={details}
           onChangeText={setDetails}
           placeholder={t("report.detailsPlaceholder")}
@@ -133,7 +133,7 @@ export function ReportSheet({
         >
           <Text style={styles.ctaLabel}>{t("report.send")}</Text>
         </Pressable>
-      </ScrollView>
+      </SheetScrollView>
     </CommunitySheet>
   );
 }

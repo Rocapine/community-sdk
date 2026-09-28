@@ -9,11 +9,11 @@ notifications, and blocks/reports.
 
 It ships as three npm packages plus a versioned Supabase backend:
 
-| Package                                                                          | What it is                                                                                               | Peer deps                                                                                                                                                    |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`@rocapine/community-core`](packages/core/README.md)                            | Headless: config, models, Supabase queries, React Query hooks, anonymous identity, analytics event names | `react`, `@supabase/supabase-js`, `@tanstack/react-query`                                                                                                    |
-| [`@rocapine/community-ui`](packages/ui/README.md)                                | Themable screens and components (feed, thread, profile, inbox)                                           | the above, plus `react-native`, `react-native-reanimated`, `expo-image`, `expo-haptics`, `expo-image-picker`, `phosphor-react-native` (optional — see below) |
-| [`@rocapine/community`](packages/cli/README.md) (CLI, `npx @rocapine/community`) | Installs/upgrades the Supabase backend: migrations + Edge Functions                                      | none (Node CLI)                                                                                                                                              |
+| Package                                                                          | What it is                                                                                               | Peer deps                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`@rocapine/community-core`](packages/core/README.md)                            | Headless: config, models, Supabase queries, React Query hooks, anonymous identity, analytics event names | `react`, `@supabase/supabase-js`, `@tanstack/react-query`                                                                                                                                                                                              |
+| [`@rocapine/community-ui`](packages/ui/README.md)                                | Themable screens and components (feed, thread, profile, inbox)                                           | the above, plus `react-native`, `react-native-reanimated`, `@gorhom/bottom-sheet`, `react-native-gesture-handler`, `react-native-safe-area-context`, `expo-image`, `expo-haptics`, `expo-image-picker`, `phosphor-react-native` (optional — see below) |
+| [`@rocapine/community`](packages/cli/README.md) (CLI, `npx @rocapine/community`) | Installs/upgrades the Supabase backend: migrations + Edge Functions                                      | none (Node CLI)                                                                                                                                                                                                                                        |
 
 Why two runtime packages instead of one: a host that only wants the data
 layer (a custom UI, a web admin, a bot) should not have to pull in
@@ -39,7 +39,8 @@ npm install @rocapine/community-core @rocapine/community-ui
 
 (also needs the peer deps listed above if your Expo app doesn't already have
 them: `@supabase/supabase-js`, `@tanstack/react-query`, `react-native-reanimated`,
-`expo-image`, `expo-haptics`, `expo-image-picker`, `phosphor-react-native`)
+`@gorhom/bottom-sheet`, `react-native-gesture-handler`,
+`react-native-safe-area-context`, `expo-image`, `expo-haptics`, `expo-image-picker`, `phosphor-react-native`)
 
 ### 2. Install the backend
 

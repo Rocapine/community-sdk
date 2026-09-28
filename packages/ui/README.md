@@ -13,12 +13,19 @@ npm install @rocapine/community-ui
 
 Peer dependencies (beyond `@rocapine/community-core`'s own):
 `react-native >=0.74.0`, `react-native-reanimated >=3.16.0`,
-`expo-image >=1.10.0`, `expo-haptics >=13.0.0`,
+`@gorhom/bottom-sheet >=5.1.0`, `react-native-gesture-handler >=2.16.1`,
+`react-native-safe-area-context >=4.10.0`, `expo-image >=1.10.0`, `expo-haptics >=13.0.0`,
 `expo-image-picker >=16.0.0`, `phosphor-react-native >=2.0.0`.
 `phosphor-react-native` is an **optional** peer (`peerDependenciesMeta`) —
 skip it if you pass a complete `icons` set to `CommunityUIProvider` (see
 Icons below); the default icon set only requires it once a default icon
 actually renders.
+
+The sheets (thread, report, rules, profile edit) are built on
+`@gorhom/bottom-sheet` for swipe-to-close and keyboard handling; it is pure JS
+on top of gesture-handler and reanimated, and each sheet brings its own
+`GestureHandlerRootView`/`SafeAreaProvider`, so no provider is needed in your
+app.
 
 ## Provider
 
