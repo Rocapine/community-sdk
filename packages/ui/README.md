@@ -15,7 +15,10 @@ Peer dependencies (beyond `@rocapine/community-core`'s own):
 `react-native >=0.74.0`, `react-native-reanimated >=3.16.0`,
 `@gorhom/bottom-sheet >=5.1.0`, `react-native-gesture-handler >=2.16.1`,
 `react-native-safe-area-context >=4.10.0`, `expo-image >=1.10.0`, `expo-haptics >=13.0.0`,
-`expo-image-picker >=16.0.0`, `phosphor-react-native >=2.0.0`.
+`expo-image-picker >=16.0.0`, `phosphor-react-native >=2.0.0`, `expo-image-manipulator >=13.0.0`.
+`expo-image-manipulator` is optional too: with it, avatars are resized to
+512px JPEG before upload (`resizeAvatar`, also exported for your own
+picker); without it they upload as picked.
 `phosphor-react-native` is an **optional** peer (`peerDependenciesMeta`) —
 skip it if you pass a complete `icons` set to `CommunityUIProvider` (see
 Icons below); the default icon set only requires it once a default icon
@@ -157,7 +160,7 @@ so the icon set is injectable — `phosphor-react-native` is an optional peer
 looked up by a semantic role name (`CommunityIconName`: `like`, `comment`,
 `reaction`, `menu`, `back`, `close`, `send`, `bell`, `search`,
 `officialSeal`, `pin`, `announcement`, `checkmark`, `poll`, `add`,
-`warning`), never by a phosphor glyph name.
+`warning`, `compose`), never by a phosphor glyph name.
 
 ```tsx
 import { CommunityUIProvider, type CommunityIconSet } from "@rocapine/community-ui";
@@ -190,12 +193,20 @@ with your `icons` override), not just what you passed.
 Render-prop customization points that receive the SDK's own default node so
 you can wrap, replace, or ignore it:
 
-- `CommunityPost`'s `renderPostFooter?: (post: FeedPost, defaults: ReactNode) => ReactNode`
-  and `renderReactionButton?: (post: FeedPost, defaultButton: ReactNode) => ReactNode`
+- `CommunityPost`'s `renderPostFooter?: (post: FeedPost, defaults: ReactNode, ctx) => ReactNode`
+  and `renderReactionButton?: (post: FeedPost, defaultButton: ReactNode, ctx) => ReactNode`
   — passed through from `CommunityFeedScreen`'s own `slots` prop
   (`PostSlots`). `renderReactionButton` is how you swap the generic reaction
   button for something app-specific (e.g. a themed prayer/support sheet)
   while keeping everything else about the post card unchanged.
+  If your slot opens its own native `Modal`, open it through
+  `ctx.presentModal(() => setOpen(true))`: inside `ThreadSheet` (itself a
+  Modal) it closes the thread first and opens yours once it's gone — iOS
+  can't stack two Modals and would leave an invisible layer that blocks every
+  touch. Elsewhere it just runs your callback.
+- `isOptimistic(post)` (core): true while a just-sent post/comment still has
+  its temporary id. Server actions keyed on the id (reactions, likes, votes)
+  must wait; the author fields are already yours.
 - `NotificationInboxScreen`'s `renderInboxRow?: (item: InboxItem, defaults: ReactNode | null) => ReactNode`
   — called for every row; `defaults` is a built-in row for a recognized kind
   (`like`/`comment`/`reaction`/`official_post`) or `null` for an
@@ -204,13 +215,13 @@ you can wrap, replace, or ignore it:
 
 ## Screens
 
-| Screen                    | Key props                                                                                                                                                                                                                                       |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CommunityFeedScreen`     | `onOpenProfile(userId)`, `onOpenInbox?()`, `header?: ReactNode`, `slots?: PostSlots`, `beforeSubmitPost?`, `beforeSubmitComment?` (see Gating submissions)                                                                                      |
-| `ThreadSheet`             | `postId: string \| null`, `onClose()`, `onOpenProfile(userId)`, `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does |
-| `ProfileScreen`           | `userId: string`, `onOpenThread(postId)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `slots?: PostSlots`                                                                        |
-| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                 |
-| `NotificationInboxScreen` | `onOpenPost(postId)`, `renderInboxRow?(item, defaults, { unread })` (see Slots above)                                                                                                                                                           |
+| Screen                    | Key props                                                                                                                                                                                                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: ReactNode`, `slots?: PostSlots`, `beforeSubmitPost?`, `beforeSubmitComment?` (see Gating submissions)                      |
+| `ThreadSheet`             | `postId: string \| null`, `onClose()`, `onOpenProfile(userId, source?)`, `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does                              |
+| `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `slots?: PostSlots` |
+| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                       |
+| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                 |
 
 Plus standalone components you can use directly: `CommunityPost`,
 `PollBlock` (takes `showOriginal?: boolean` to render each option's

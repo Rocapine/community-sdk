@@ -15,23 +15,22 @@
 //    builds its own tap target (e.g. its own support route) there.
 //  - Eve's `"Eve's Rhythm"` brand-name fallback on `official_post` rows (that
 //    source's `translate("community.inbox.news", { name: n.actorUsername
-//    ?.trim() || "Eve's Rhythm" })`) is dropped along with the branding: this
-//    package's `inbox.someone` catalog key ("Someone") is the fallback for
-//    every kind here, official posts included — a host wanting a branded
-//    fallback supplies it via `translations.overrides`.
+//    ?.trim() || "Eve's Rhythm" })`) becomes the full-sentence
+//    `inbox.newsFromTeam` key ("News from the team"; a host puts its app name
+//    there via `translations.overrides`). Other kinds fall back to
+//    `inbox.someone`.
+//  - A row with no `postId` (e.g. an announcement whose post is gone) calls
+//    the optional `onOpenCommunity` instead of doing nothing (Eve source sent
+//    every row to the community tab).
 //  - Only the 4 standard kinds (`like`/`comment`/`reaction`/`official_post`)
 //    get a built-in row; anything else calls `renderInboxRow?.(item, null)`
 //    (mirrors `PostSlots`' `renderPostFooter?.(post, defaults) ?? defaults`
 //    pattern from `CommunityPost`, except the fallback here is `null` since
 //    there is no built-in row for an unknown kind to fall back to).
-//  - Eve's continuous re-mark-as-seen while the screen stays open (its own
-//    effect re-fires `markSeen.mutate(latest)` whenever a newer item lands)
-//    is not ported: this package's `markInboxSeen(cfg)` (Task 5) takes no
-//    "latest item" argument — it resolves its own clock-skew-safe anchor
-//    internally — and the brief's contract is the simpler "marks seen on
-//    mount", not a continuous watch. Mirrors this package's own
-//    `CommunityFeedScreen`, whose new-post polling likewise doesn't
-//    reconcile a "seen" marker mid-visit.
+//  - Marks seen on open, and again whenever a newer item lands while the
+//    screen stays open (Eve source did the same), so an arrival mid-visit
+//    doesn't relight the host's unread badge after leaving. `markInboxSeen`
+//    resolves its own clock-skew-safe anchor, so re-calling it is enough.
 //
 // `unread_count` on the `inboxOpened` event (and the unread dots below) is
 // computed from the inbox's pre-open seen marker, snapshotted the first time
@@ -65,9 +64,12 @@ const KNOWN_KINDS = new Set<InboxItem["kind"]>(["like", "comment", "reaction", "
 
 export function NotificationInboxScreen({
   onOpenPost,
+  onOpenCommunity,
   renderInboxRow,
 }: {
   onOpenPost(postId: string): void;
+  /** Tapped row with no post attached (e.g. a deleted announcement). */
+  onOpenCommunity?: () => void;
   /** Custom row renderer. `defaults` is the built-in row (or `null` for a
    * kind the SDK doesn't know); `meta.unread` is the same "newer than the
    * pre-open seen marker" flag the built-in rows use for their dot, so a host
@@ -92,9 +94,20 @@ export function NotificationInboxScreen({
   // the cache's `seenAt`. See file header for the emit-before-mutate ordering.
   const [frozenSeenAt, setFrozenSeenAt] = useState<string | null | undefined>(undefined);
   const opened = useRef(false);
+  // Newest item already marked seen during this visit.
+  const latestSeen = useRef<string | null>(null);
   useEffect(() => {
-    if (!inbox.data || opened.current) return;
+    if (!inbox.data) return;
+    const newest = inbox.data.items[0]?.createdAt ?? null;
+    if (opened.current) {
+      if (newest && (!latestSeen.current || newest > latestSeen.current)) {
+        latestSeen.current = newest;
+        markSeen.mutate();
+      }
+      return;
+    }
     opened.current = true;
+    latestSeen.current = newest;
     setFrozenSeenAt(inbox.data.seenAt);
     emitEvent(cfg, COMMUNITY_EVENTS.inboxOpened, {
       unread_count: unreadCount(inbox.data.items, inbox.data.seenAt),
@@ -128,6 +141,7 @@ export function NotificationInboxScreen({
                   unread={unread}
                   showDivider={i > 0}
                   onOpenPost={onOpenPost}
+                  onOpenCommunity={onOpenCommunity}
                 />
               ) : null;
               return (
@@ -162,7 +176,11 @@ function KindIcon({ kind }: { kind: InboxItem["kind"] }) {
 }
 
 function rowTitle(t: TFn, item: InboxItem): string {
-  const name = item.actorName?.trim() || t("inbox.someone");
+  const actor = item.actorName?.trim();
+  // An announcement with no named author reads "News from the team" (a host
+  // overrides `inbox.newsFromTeam` with its own name), not "from Someone".
+  if (item.kind === "official_post" && !actor) return t("inbox.newsFromTeam");
+  const name = actor || t("inbox.someone");
   switch (item.kind) {
     case "like":
       return t("inbox.liked", { name });
@@ -182,11 +200,13 @@ function NotificationRow({
   unread,
   showDivider,
   onOpenPost,
+  onOpenCommunity,
 }: {
   item: InboxItem;
   unread: boolean;
   showDivider: boolean;
   onOpenPost(postId: string): void;
+  onOpenCommunity?: () => void;
 }) {
   const t = useT();
   const styles = useThemedStyles(makeStyles);
@@ -197,6 +217,7 @@ function NotificationRow({
       onPress={() => {
         Haptics.selectionAsync().catch(() => {});
         if (item.postId) onOpenPost(item.postId);
+        else onOpenCommunity?.();
       }}
       style={({ pressed }) => [
         styles.row,

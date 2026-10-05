@@ -155,6 +155,7 @@ export const en: Record<string, string> = {
   "inbox.commented": "{name} commented on your post",
   "inbox.reacted": "{name} reacted to your post",
   "inbox.news": "News from {name}",
+  "inbox.newsFromTeam": "News from the team",
   "inbox.supportReply": "The support team replied to you",
 
   "translation.translatedFrom": "Translated from {language}",

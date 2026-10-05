@@ -64,6 +64,28 @@ import {
 } from "./service";
 
 const profileKey = (userId: string) => ["community", "profile", userId] as const;
+const MY_UID_KEY = ["community", "myUid"] as const;
+
+/** True while a post/comment is still the optimistic placeholder inserted by
+ * `useCreatePost`/`useCreateComment` (its temp id is swapped for the real one
+ * once moderation answers). Server actions keyed on the id (reactions, likes,
+ * votes) must wait until this is false. */
+export function isOptimistic(item: { id: string }): boolean {
+  return item.id.startsWith("optimistic-");
+}
+
+/** Our own author fields for an optimistic row, read from the query cache
+ * (`useMyUid` + `useProfile`), so the placeholder links to our profile and
+ * shows our avatar instead of an empty author until the next refetch. */
+export function ownAuthorFields(queryClient: QueryClient) {
+  const uid = queryClient.getQueryData<string>(MY_UID_KEY) ?? "";
+  const profile = uid ? queryClient.getQueryData<CommunityProfile>(profileKey(uid)) : undefined;
+  return {
+    authorId: uid,
+    authorHandle: profile?.handle ?? null,
+    authorAvatarUrl: profile?.avatarUrl ?? null,
+  };
+}
 
 /**
  * Adjust a post's commentCount across every cached feed page (all topic
@@ -263,7 +285,7 @@ export function useUserPosts(userId: string | null) {
 export function useMyUid(): string | null {
   const cfg = useCommunityConfig();
   const q = useQuery({
-    queryKey: ["community", "myUid"],
+    queryKey: MY_UID_KEY,
     queryFn: () => ensureIdentity(cfg),
     enabled: cfg.supabase !== null,
     staleTime: Infinity,
@@ -313,11 +335,9 @@ export function useCreatePost() {
       const tempId = `optimistic-${Date.now()}`;
       const optimistic: FeedPost = {
         id: tempId,
-        authorId: "",
         authorName,
         authorOfficial: false,
-        authorHandle: null,
-        authorAvatarUrl: null,
+        ...ownAuthorFields(queryClient),
         topic,
         text,
         status: "visible",
@@ -417,11 +437,9 @@ export function useCreateComment() {
       const optimistic: ThreadComment = {
         id: tempId,
         postId,
-        authorId: "",
         authorName,
         authorOfficial: false,
-        authorHandle: null,
-        authorAvatarUrl: null,
+        ...ownAuthorFields(queryClient),
         text,
         isOwn: true,
         createdAt: new Date().toISOString(),

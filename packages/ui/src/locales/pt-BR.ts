@@ -142,6 +142,7 @@ export const ptBR: Record<string, string> = {
   "inbox.commented": "{name} comentou na sua publicação",
   "inbox.reacted": "{name} reagiu à sua publicação",
   "inbox.news": "Novidades de {name}",
+  "inbox.newsFromTeam": "Novidades da equipe",
   "inbox.supportReply": "A equipe de suporte respondeu a você",
 
   "translation.translatedFrom": "Traduzido do {language}",

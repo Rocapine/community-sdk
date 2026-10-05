@@ -78,6 +78,7 @@ export const defaultIcons: CommunityIconSet = {
   poll: fromPhosphor("poll", "ChartBarHorizontal"),
   add: fromPhosphor("add", "Plus"),
   warning: fromPhosphor("warning", "ShieldWarning"),
+  compose: fromPhosphor("compose", "PencilSimple"),
 };
 
 /** Merges a host's `icons` override over `defaultIcons` — used by

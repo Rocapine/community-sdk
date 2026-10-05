@@ -12,11 +12,10 @@
 //    hardcoded `"toolbox"`/`"tab"` open-source string is meaningful here (this
 //    package doesn't know how the host navigated in), so no `source` prop is
 //    emitted; a host that wants one can still emit its own from `cfg.host.onEvent`.
-//  - The second `useFocusEffect` (screen-focus gate + `markCommunitySeen`) is
-//    dropped entirely: `markCommunitySeen` is store-based, an explicit
-//    out-of-scope "host concern" per the task brief. Only the `AppState`
-//    foreground/background gate on new-post polling is kept (plain RN API,
-//    no router/store dependency).
+//  - The second `useFocusEffect` (screen-focus gate + `markCommunitySeen`):
+//    `markCommunitySeen` is store-based, a host concern. The focus gate on
+//    new-post polling comes back as the `isFocused` prop (the host owns the
+//    router), alongside the `AppState` foreground/background gate.
 //  - `router.push(...)`/`router.back()` → `onOpenProfile(userId)` /
 //    the `header` prop (the app renders its own top bar, including any back
 //    button — this screen never had one of its own to begin with in the
@@ -29,11 +28,11 @@
 //  - No separate compose "bar + 90%-sheet" flow: `ComposerCard` (Task 11) is
 //    already the full inline composer (topic chips, poll editor, its own
 //    rules gate + embedded `RulesSheet`) — it renders directly as the
-//    `FlatList`'s `ListHeaderComponent`. This also means the mold/Eve's
-//    "floating compose pill that scrolls up and focuses the composer" has no
-//    equivalent here: `ComposerCard` dropped its imperative `focus()` API in
-//    Task 11 (brief: plain function component, no ref) — nothing to focus
-//    from a floating pill. Not replaced.
+//    `FlatList`'s `ListHeaderComponent`. Eve's floating compose bar is kept:
+//    once the inline composer scrolls out of view a pill appears at the
+//    bottom; tapping it scrolls back up and calls `ComposerCard`'s `focus()`
+//    (which opens the rules gate instead while still locked). Hidden while
+//    searching, like the source.
 //  - `ScrollView`-based `Screen` → a plain `FlatList` per the brief ("FlatList
 //    feed"), with `RefreshControl` for pull-to-refresh and `onEndReached` for
 //    infinite scroll instead of a manual "Load more" scroll position.
@@ -70,17 +69,21 @@
 
 import {
   COMMUNITY_EVENTS,
+  displayName,
   emitEvent,
   newestCreatedAt,
   useBlockUser,
   useCommunityConfig,
   useCommunityFeed,
   useDeleteContent,
+  useMyUid,
   useNewPostsCount,
+  useProfile,
   useSearchPosts,
   type FeedPost,
 } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
@@ -95,10 +98,12 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
-import { CommunityPost, type PostSlots } from "../components/CommunityPost";
-import { ComposerCard } from "../components/ComposerCard";
+import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
+import { ComposerCard, type ComposerCardHandle } from "../components/ComposerCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
 import { isQueryLoading } from "../utils/query";
@@ -108,13 +113,18 @@ import { ThreadSheet } from "./ThreadSheet";
 export function CommunityFeedScreen({
   onOpenProfile,
   onOpenInbox,
+  isFocused = true,
   header,
   slots,
   beforeSubmitPost,
   beforeSubmitComment,
 }: {
-  onOpenProfile(userId: string): void;
+  onOpenProfile(userId: string, source?: ProfileSource): void;
   onOpenInbox?: () => void;
+  /** Whether this screen is the one on display. A host whose navigator keeps
+   * it mounted while hidden (tabs) passes its focus state, so new-post
+   * polling stops while the user is on another tab. Defaults to `true`. */
+  isFocused?: boolean;
   header?: ReactNode;
   slots?: PostSlots;
   /** Forwarded to this screen's own `ComposerCard` as `beforeSubmit` — see
@@ -139,7 +149,7 @@ export function CommunityFeedScreen({
   const [searchTerm, setSearchTerm] = useState("");
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
-  const [notice, setNotice] = useState<"rejected" | null>(null);
+  const [notice, setNotice] = useState<"rejected" | "network" | null>(null);
 
   const blockUser = useBlockUser();
   const deleteContent = useDeleteContent();
@@ -199,19 +209,39 @@ export function CommunityFeedScreen({
     }
   };
 
-  // New-post polling pauses while backgrounded or while searching (the
-  // search result set is not a simple newest-first topic window). No
-  // screen-focus gate: see the router-free transformation note above.
+  // New-post polling pauses while hidden (`isFocused`), backgrounded, or
+  // searching (the search result set is not a simple newest-first topic
+  // window).
   const [appActive, setAppActive] = useState(true);
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => setAppActive(s === "active"));
     return () => sub.remove();
   }, []);
-  const polling = appActive && !searchActive;
+  const polling = isFocused && appActive && !searchActive;
   const sinceIso = newestCreatedAt(posts);
   const newCount = useNewPostsCount(sinceIso, topicFilter, polling);
 
   const listRef = useRef<FlatList<FeedPost>>(null);
+  const composerRef = useRef<ComposerCardHandle>(null);
+  const insets = useSafeAreaInsets();
+
+  // Floating compose bar: shown once the inline composer (the list header,
+  // so it starts at offset 0) has fully scrolled out of view.
+  const composerBottom = useRef(140);
+  const [composerHidden, setComposerHidden] = useState(false);
+  const showFloatingCompose = composerHidden && !searchActive;
+  const myUid = useMyUid();
+  const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
+  const myInitial = displayName(cfg.host.getDisplayName(), cfg.anonymousAuthorFallback)
+    .charAt(0)
+    .toUpperCase();
+  const focusComposer = () => {
+    Haptics.selectionAsync().catch(() => {});
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    // Let the scroll-to-top land before the keyboard (or rules sheet) opens.
+    setTimeout(() => composerRef.current?.focus(), 320);
+  };
+
   const showNewPosts = () => {
     Haptics.selectionAsync().catch(() => {});
     refetch();
@@ -370,12 +400,24 @@ export function CommunityFeedScreen({
           keyExtractor={(p) => p.id}
           renderItem={renderItem}
           ListHeaderComponent={
-            <ComposerCard
-              defaultTopic={composeDefaultTopic}
-              onModerationRejected={() => setNotice("rejected")}
-              beforeSubmit={beforeSubmitPost}
-            />
+            <View
+              onLayout={(e) =>
+                (composerBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height)
+              }
+            >
+              <ComposerCard
+                ref={composerRef}
+                defaultTopic={composeDefaultTopic}
+                onModerationRejected={() => setNotice("rejected")}
+                onPublishFailed={() => setNotice("network")}
+                beforeSubmit={beforeSubmitPost}
+              />
+            </View>
           }
+          onScroll={(e) =>
+            setComposerHidden(e.nativeEvent.contentOffset.y > composerBottom.current)
+          }
+          scrollEventThrottle={32}
           ListEmptyComponent={
             isPending ? (
               <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
@@ -415,6 +457,35 @@ export function CommunityFeedScreen({
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
         />
+
+        {showFloatingCompose && (
+          <Animated.View
+            entering={FadeInDown.duration(180)}
+            exiting={FadeOutDown.duration(140)}
+            style={[styles.floatingCompose, { bottom: insets.bottom + theme.spacing(3.5) }]}
+          >
+            <Pressable
+              onPress={focusComposer}
+              style={({ pressed }) => [styles.composeBar, pressed && styles.composeBarPressed]}
+            >
+              {myAvatarUrl ? (
+                <Image
+                  source={{ uri: myAvatarUrl }}
+                  style={styles.composeAvatarImage}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={styles.composeAvatar}>
+                  <Text style={styles.composeAvatarLetter}>{myInitial}</Text>
+                </View>
+              )}
+              <Text style={styles.composePrompt} numberOfLines={1}>
+                {t("feed.composePrompt")}
+              </Text>
+              <icons.compose size={18} color={theme.colors.accent} weight="regular" />
+            </Pressable>
+          </Animated.View>
+        )}
       </View>
 
       <ThreadSheet
@@ -543,6 +614,46 @@ function makeStyles(theme: CommunityTheme) {
       paddingVertical: theme.spacing(2),
       paddingHorizontal: theme.spacing(4.5),
       ...theme.shadow,
+    },
+    floatingCompose: {
+      position: "absolute",
+      left: theme.spacing(5),
+      right: theme.spacing(5),
+      ...theme.shadow,
+    },
+    composeBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(3),
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radius.pill,
+      paddingVertical: theme.spacing(2.5),
+      paddingHorizontal: theme.spacing(3),
+    },
+    composeBarPressed: { opacity: 0.85 },
+    composeAvatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: theme.colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    composeAvatarImage: { width: 32, height: 32, borderRadius: 16 },
+    composeAvatarLetter: {
+      fontFamily: theme.fonts.serifBold,
+      fontSize: 14,
+      color: theme.colors.accent,
+    },
+    composePrompt: {
+      flex: 1,
+      fontFamily: theme.fonts.regular,
+      fontSize: 14,
+      color: theme.colors.textMuted,
     },
     newPillText: { fontFamily: theme.fonts.bold, fontSize: 13, color: theme.colors.textInverse },
   });

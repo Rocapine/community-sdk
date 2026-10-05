@@ -5,11 +5,10 @@
 // mold's `UserProfileScreen` (`sdk/client/app/user/[id].tsx`).
 //
 // Router-free transformations (task brief):
-//  - `useLocalSearchParams<{ id, source }>()` -> the `userId` prop; `source`
-//    (used by the mold to distinguish a "post"/"comment"-origin visit for
-//    analytics) has no equivalent prop on this screen's brief signature, so
-//    `profileOpened` collapses the mold's three-way source into `"self"` vs
-//    `"post"` here — see the effect below.
+//  - `useLocalSearchParams<{ id, source }>()` -> the `userId` and optional
+//    `source` props. `source` is what `onOpenProfile(userId, source)` reported
+//    (`"post"`/`"comment"`); `profileOpened` sends `"self"` on one's own
+//    profile, else `source` (default `"post"`) — see the effect below.
 //  - `router.back()` -> the optional `onBack` prop (also fired after a
 //    successful self-block from the header menu, same as the mold's
 //    `router.back()` there).
@@ -38,9 +37,8 @@
 //  - `ProfileEditSheet` no longer takes a `profile` prop (Task 13 signature:
 //    `{ visible, onClose }` — it resolves its own identity/profile), so it's
 //    mounted here without one.
-//  - No shared `nowMs` prop (Task 9/10/11 convention change, `CommunityPost`
-//    already dropped it): `timeAgo` reads `Date.now()` at render inside
-//    `CommunityPost` itself.
+//  - No shared `nowMs` prop: `CommunityPost` reads the shared once-a-minute
+//    clock (`useNow`) itself.
 
 import {
   COMMUNITY_EVENTS,
@@ -68,7 +66,7 @@ import {
 } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
-import { CommunityPost, type PostSlots } from "../components/CommunityPost";
+import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { isQueryLoading } from "../utils/query";
 import { ProfileEditSheet } from "./ProfileEditSheet";
@@ -79,12 +77,16 @@ const noop = () => {};
 
 export function ProfileScreen({
   userId,
+  source = "post",
   onOpenThread,
   onBack,
   slots,
   topInset = 0,
 }: {
   userId: string;
+  /** Where the visit came from (see `onOpenProfile`'s second argument), for
+   * the `profileOpened` event. */
+  source?: ProfileSource;
   onOpenThread(postId: string): void;
   onBack?: () => void;
   slots?: PostSlots;
@@ -121,7 +123,7 @@ export function ProfileScreen({
   useEffect(() => {
     if (tracked.current || myUid === null) return;
     tracked.current = true;
-    emitEvent(cfg, COMMUNITY_EVENTS.profileOpened, { source: isMe ? "self" : "post" });
+    emitEvent(cfg, COMMUNITY_EVENTS.profileOpened, { source: isMe ? "self" : source });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUid, isMe]);
 
