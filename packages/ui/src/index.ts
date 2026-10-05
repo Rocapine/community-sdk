@@ -36,11 +36,11 @@ export { defaultIcons, mergeIcons } from "./icons-default";
 
 export { CommunitySheet } from "./Sheet";
 
-export type { PostSlots } from "./components/CommunityPost";
+export type { PostSlots, PostSlotContext, ProfileSource } from "./components/CommunityPost";
 export { CommunityPost } from "./components/CommunityPost";
 export { PollBlock } from "./components/PollBlock";
 export { NoticeCard } from "./components/NoticeCard";
-export { ComposerCard } from "./components/ComposerCard";
+export { ComposerCard, type ComposerCardHandle } from "./components/ComposerCard";
 export { RulesSheet } from "./components/RulesSheet";
 export type { ReportTarget } from "./components/ReportSheet";
 export { ReportSheet } from "./components/ReportSheet";
@@ -50,3 +50,6 @@ export { ThreadSheet } from "./screens/ThreadSheet";
 export { ProfileScreen } from "./screens/ProfileScreen";
 export { ProfileEditSheet } from "./screens/ProfileEditSheet";
 export { NotificationInboxScreen } from "./screens/NotificationInboxScreen";
+
+// Avatar downscale used by `ProfileEditSheet`, for hosts with their own picker.
+export { resizeAvatar, AVATAR_SIZE } from "./utils/avatar";

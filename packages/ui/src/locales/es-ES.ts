@@ -144,6 +144,7 @@ export const esES: Record<string, string> = {
   "inbox.commented": "{name} ha comentado tu publicación",
   "inbox.reacted": "{name} ha reaccionado a tu publicación",
   "inbox.news": "Noticias de {name}",
+  "inbox.newsFromTeam": "Noticias del equipo",
   "inbox.supportReply": "El equipo de soporte te ha respondido",
 
   "translation.translatedFrom": "Traducido del {language}",

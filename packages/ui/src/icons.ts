@@ -47,6 +47,7 @@ export type CommunityIconProps = {
  *  - `poll`           — composer poll toggle (phosphor: ChartBarHorizontal)
  *  - `add`            — composer "add poll option" (phosphor: Plus)
  *  - `warning`        — notice card (moderation/network error) (phosphor: ShieldWarning)
+ *  - `compose`        — floating "write a post" bar shown once the composer scrolls away (phosphor: PencilSimple)
  */
 export type CommunityIconName =
   | "like"
@@ -64,6 +65,7 @@ export type CommunityIconName =
   | "checkmark"
   | "poll"
   | "add"
-  | "warning";
+  | "warning"
+  | "compose";
 
 export type CommunityIconSet = Record<CommunityIconName, ComponentType<CommunityIconProps>>;

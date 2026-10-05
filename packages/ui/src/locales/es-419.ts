@@ -143,6 +143,7 @@ export const es419: Record<string, string> = {
   "inbox.commented": "{name} comentó tu publicación",
   "inbox.reacted": "{name} reaccionó a tu publicación",
   "inbox.news": "Novedades de {name}",
+  "inbox.newsFromTeam": "Novedades del equipo",
   "inbox.supportReply": "El equipo de soporte te respondió",
 
   "translation.translatedFrom": "Traducido del {language}",

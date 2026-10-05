@@ -26,8 +26,8 @@
 //    `CommunityThread` had none) — reporting/deleting/blocking from inside
 //    an open thread wasn't possible there. `onOpenThread` on that instance is
 //    a no-op: we're already inside the thread.
-//  - No shared `nowMs` prop (Task 9/10/11 convention change, `CommunityPost`
-//    already dropped it): `timeAgo` reads `Date.now()` at render.
+//  - No shared `nowMs` prop: each row reads the shared once-a-minute clock
+//    (`useNow`), so "2m" keeps counting while the thread stays open.
 //  - `open`/`post` collapse into the single `postId: string | null` prop; the
 //    sheet is visible whenever `postId !== null`. The last non-null id is
 //    kept in `shownId` so the post/comments stay mounted through the close
@@ -41,6 +41,12 @@
 //    immediately, no handoff needed since they don't open another modal
 //    (deleting the opened post also closes the sheet, since there is nothing
 //    left in it to show).
+//  - A rejected or failed comment closes the sheet and shows its notice once
+//    the sheet is dismissed (same handoff as Report): rendered behind the
+//    sheet's Modal, it would only appear after the user closed the thread.
+//  - A host slot opening its own Modal from the post card (e.g. Eve's prayer
+//    sheet) goes through `ctx.presentModal`, which this sheet provides as
+//    "close, then open once dismissed" (`ModalHandoffContext`).
 
 import {
   COMMENT_MAX_LENGTH,
@@ -52,6 +58,8 @@ import {
   useCommunityConfig,
   useCreateComment,
   useDeleteContent,
+  useMyUid,
+  useProfile,
   useThread,
   type FeedPost,
   type ThreadComment,
@@ -64,16 +72,17 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
-import { CommunityPost, type PostSlots } from "../components/CommunityPost";
+import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
 import { ClampedBody } from "../components/ClampedBody";
 import { NoticeCard } from "../components/NoticeCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { isQueryLoading } from "../utils/query";
 import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
-import { formatTimeAgo } from "../utils/time";
+import { formatTimeAgo, useNow } from "../utils/time";
 import { displayText, translationLine } from "../utils/translation";
 import { runGuarded } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
+import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { RulesSheet } from "../components/RulesSheet";
 
 const COMMENT_CLAMP_LINES = 5;
@@ -116,7 +125,7 @@ export function ThreadSheet({
 }: {
   postId: string | null;
   onClose(): void;
-  onOpenProfile(userId: string): void;
+  onOpenProfile(userId: string, source?: ProfileSource): void;
   slots?: PostSlots;
   /** Awaited before the comment is actually created (`useCreateComment().mutate`).
    * Absent ⇒ byte-identical behavior. Resolving/returning `false` (or
@@ -179,6 +188,28 @@ export function ThreadSheet({
   // Report chosen from this sheet: opened once the sheet is dismissed.
   const pendingReport = useRef<ReportTarget | null>(null);
   const [notice, setNotice] = useState<"rejected" | "network" | null>(null);
+  // Notice raised while the sheet is up: shown once it's dismissed.
+  const pendingNotice = useRef<"rejected" | "network" | null>(null);
+  const visibleRef = useRef(postId !== null);
+  visibleRef.current = postId !== null;
+  const shownIdRef = useRef(shownId);
+  shownIdRef.current = shownId;
+  // `forPostId`: the thread the comment was sent from. If the user has since
+  // moved to another thread, leave that one open; the notice waits for it.
+  const showNotice = (kind: "rejected" | "network", forPostId: string) => {
+    if (!visibleRef.current) {
+      setNotice(kind);
+      return;
+    }
+    pendingNotice.current = kind;
+    if (shownIdRef.current === forPostId) onClose();
+  };
+
+  const myUid = useMyUid();
+  const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
+  const myInitial = displayName(cfg.host.getDisplayName(), cfg.anonymousAuthorFallback)
+    .charAt(0)
+    .toUpperCase();
   // Double-submit latch for the `beforeSubmitComment` await — see the
   // matching note in `ComposerCard.tsx`'s `gating` state.
   const [gating, setGating] = useState(false);
@@ -200,9 +231,17 @@ export function ThreadSheet({
         { postId, text: trimmed, authorName },
         {
           onSuccess: (res) => {
-            if (res.verdict.status === "rejected") setNotice("rejected");
+            if (res.verdict.status === "rejected") showNotice("rejected", postId);
           },
-          onError: () => setNotice("network"),
+          onError: () => {
+            // Draft comes back when its thread is reopened (unless a new one
+            // was typed meanwhile), like the feed composer's — never into
+            // another thread the user has moved to.
+            if (shownIdRef.current === postId) {
+              setText((current) => (current.trim() ? current : trimmed));
+            }
+            showNotice("network", postId);
+          },
         },
       );
       setText("");
@@ -216,6 +255,14 @@ export function ThreadSheet({
     runGuarded(beforeSubmitComment, draft, doSend).finally(() => setGating(false));
   };
 
+  // A slot opening its own Modal from the post card (see `modalHandoff`):
+  // close this sheet, open theirs once it's gone.
+  const pendingOpen = useRef<(() => void) | null>(null);
+  const presentAfterClose: PresentModal = (open) => {
+    pendingOpen.current = open;
+    onClose();
+  };
+
   const closeThenReport = (target: ReportTarget) => {
     pendingReport.current = target;
     onClose();
@@ -224,12 +271,21 @@ export function ThreadSheet({
   // The sheet is a Modal, which stays above any route the host pushes: close
   // it first or the profile opens underneath. A push is not a modal
   // presentation, so unlike Report it needn't wait for the dismissal.
-  const openProfile = (userId: string) => {
+  const openProfile = (userId: string, source?: ProfileSource) => {
     onClose();
-    onOpenProfile(userId);
+    onOpenProfile(userId, source);
   };
 
   const handleDismissed = () => {
+    if (pendingOpen.current) {
+      const open = pendingOpen.current;
+      pendingOpen.current = null;
+      open();
+    }
+    if (pendingNotice.current) {
+      setNotice(pendingNotice.current);
+      pendingNotice.current = null;
+    }
     if (!pendingReport.current) return;
     setReportTarget(pendingReport.current);
     pendingReport.current = null;
@@ -331,6 +387,13 @@ export function ThreadSheet({
         snapTo="full"
         footer={
           <View style={styles.inputRow}>
+            {myAvatarUrl ? (
+              <Image source={{ uri: myAvatarUrl }} style={styles.cAvatarImage} contentFit="cover" />
+            ) : (
+              <View style={styles.cAvatar}>
+                <Text style={styles.cAvatarLetter}>{myInitial}</Text>
+              </View>
+            )}
             <SheetTextInput
               value={text}
               onChangeText={setText}
@@ -365,13 +428,15 @@ export function ThreadSheet({
           keyboardShouldPersistTaps="handled"
         >
           {post && (
-            <CommunityPost
-              post={post}
-              onOpenThread={noop}
-              onOpenProfile={openProfile}
-              onMenu={openPostMenu}
-              {...slots}
-            />
+            <ModalHandoffContext.Provider value={presentAfterClose}>
+              <CommunityPost
+                post={post}
+                onOpenThread={noop}
+                onOpenProfile={openProfile}
+                onMenu={openPostMenu}
+                {...slots}
+              />
+            </ModalHandoffContext.Provider>
           )}
 
           <Text style={styles.commentsLabel}>
@@ -422,9 +487,10 @@ function CommentRow({
   onMenu,
 }: {
   comment: ThreadComment;
-  onOpenProfile(userId: string): void;
+  onOpenProfile(userId: string, source?: ProfileSource): void;
   onMenu(comment: ThreadComment): void;
 }) {
+  const now = useNow();
   const theme = useCommunityTheme();
   const t = useT();
   const icons = useCommunityIcons();
@@ -441,7 +507,10 @@ function CommentRow({
     setShowOriginal(!showOriginal);
   };
 
-  const handleAuthor = () => onOpenProfile(comment.authorId);
+  // An optimistic own comment may not know our uid yet: nothing to open.
+  const handleAuthor = () => {
+    if (comment.authorId) onOpenProfile(comment.authorId, "comment");
+  };
 
   return (
     <View style={styles.comment}>
@@ -469,7 +538,7 @@ function CommentRow({
               @{comment.authorHandle}
             </Text>
           )}
-          <Text style={styles.cAgo}>· {formatTimeAgo(t, comment.createdAt, Date.now())}</Text>
+          <Text style={styles.cAgo}>· {formatTimeAgo(t, comment.createdAt, now)}</Text>
         </Pressable>
         <ClampedBody
           text={displayText(comment, showOriginal)}

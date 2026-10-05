@@ -13,6 +13,7 @@
 // verdict resolves and the feed refetches.
 
 import { pollPercent, useVotePoll, type FeedPost } from "@rocapine/community-core";
+import * as Haptics from "expo-haptics";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -46,7 +47,10 @@ export function PollBlock({
           <Pressable
             key={option.id}
             disabled={mine || optimistic}
-            onPress={() => votePoll.mutate({ postId: post.id, optionId: option.id })}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              votePoll.mutate({ postId: post.id, optionId: option.id });
+            }}
             style={({ pressed }) => [
               styles.option,
               mine && styles.optionMine,

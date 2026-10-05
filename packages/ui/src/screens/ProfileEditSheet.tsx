@@ -18,17 +18,11 @@
 //    `profile.data` hasn't arrived yet (sheet opened before the query
 //    settles), the body renders a spinner instead of a form.
 //  - `useAvatarPicker` (a separate mold hook) is folded directly into this
-//    file per the task brief ("fold its pick→upload flow into
-//    ProfileEditSheet"). The mold's resize/compress step
-//    (`expo-image-manipulator`'s `ImageManipulator.manipulate().resize()...
-//    .saveAsync({ base64: true })`) is dropped along with it — the brief only
-//    authorizes adding `expo-image-picker` to this package's dependencies,
-//    not `expo-image-manipulator` — so the picked image is passed straight to
-//    `uploadAvatar(cfg, uri)` after `ImagePicker`'s own built-in
-//    `allowsEditing`/`aspect` square crop. `uploadAvatar` itself already
-//    differs from the mold's base64 upload (Task 5 ruling): it takes a local
-//    `fileUri` and reads its bytes via `fetch`, so no Hermes/`atob` step was
-//    needed here either way.
+//    file per the task brief. The mold's resize/compress step comes back as
+//    `resizeAvatar` (`../utils/avatar`, optional `expo-image-manipulator`
+//    peer: 512px JPEG @0.8, or the photo unchanged without it) between the
+//    picker's square crop and `uploadAvatar(cfg, uri)`, which reads the
+//    local file's bytes via `fetch` (no base64/`atob` step).
 //  - No analytics calls in this file (controller ruling for this task):
 //    `useUpdateProfile` already emits `profileUpdated` itself on every
 //    successful mutation (`packages/core/src/hooks.ts`), so the mold's own
@@ -50,6 +44,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
+import { resizeAvatar } from "../utils/avatar";
 
 const BIO_MAX_LENGTH = 300;
 const HANDLE_MAX_LENGTH = 20;
@@ -100,7 +95,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
       if (result.canceled) return;
       const uri = result.assets[0]?.uri;
       if (!uri) return;
-      const path = await uploadAvatar(cfg, uri);
+      const path = await uploadAvatar(cfg, await resizeAvatar(uri));
       const res = await updateProfile.mutateAsync({ avatarUrl: path });
       if (res.status === "ok") {
         setAvatarUrl(res.avatarUrl);

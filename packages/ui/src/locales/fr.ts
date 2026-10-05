@@ -166,6 +166,7 @@ export const fr: Record<string, string> = {
   "inbox.commented": "{name} a commenté ta publication",
   "inbox.reacted": "{name} a réagi à ta publication",
   "inbox.news": "Actualités de {name}",
+  "inbox.newsFromTeam": "Actualités de l'équipe",
   "inbox.supportReply": "L'équipe support t'a répondu",
 
   "translation.translatedFrom": "Traduit {language}",

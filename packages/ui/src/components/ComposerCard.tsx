@@ -11,8 +11,9 @@
 //    (no store — Task 2's host adapter is the only source of truth) and
 //    re-opened via its own embedded `RulesSheet` when the locked overlay is
 //    tapped.
-//  - No `ComposerCardHandle`/`forwardRef` — the brief's signature is a plain
-//    function component.
+//  - `ComposerCardHandle` (`focus()`) via `forwardRef`, same as the Eve
+//    source: the feed's floating compose bar scrolls back up and calls it.
+//    A locked card opens the rules gate instead of focusing.
 //  - Topic chips are config-driven (`cfg.composeTopics()`, labeled
 //    `t("topics."+id)`) instead of the app's static `COMPOSE_TOPICS` list.
 //  - The poll toggle + editor only render when `cfg.modules.polls` is on.
@@ -29,10 +30,10 @@
 // explicitly authorized there): this card's own `createPost.mutate(...)` call
 // originally had no success/error callback at all, so `CommunityFeedScreen`
 // had no signal to show a `NoticeCard` on a rejected post — the mold/Eve both
-// show one. Kept minimal: only the "rejected" case is surfaced (a network/
-// mutation error stays silent here, same as before — the optimistic post
-// simply rolls back, matching `useCreatePost`'s own `onError`), since that's
-// the only gap the review flagged.
+// show one. `onPublishFailed` covers the network/server case: the optimistic
+// post rolls back (`useCreatePost`'s own `onError`), the draft is put back
+// into the field and the host is told, so it can show its notice (Eve source
+// showed one; silently losing the typed text was a regression).
 
 import {
   displayName,
@@ -44,7 +45,7 @@ import {
   useCreatePost,
 } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
-import { useState, type ReactNode } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from "react";
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -52,17 +53,16 @@ import { runGuarded } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { RulesSheet } from "./RulesSheet";
 
-export function ComposerCard({
-  defaultTopic,
-  renderComposerExtra,
-  onModerationRejected,
-  beforeSubmit,
-}: {
+type ComposerCardProps = {
   defaultTopic?: string;
   renderComposerExtra?: ReactNode;
   /** Called when a submitted post's moderation verdict comes back rejected —
    * a host can use this to show its own `NoticeCard`. */
   onModerationRejected?: (kind: "post") => void;
+  /** Called when publishing fails (network/server error). The optimistic
+   * post is rolled back and the draft is put back into the field, so a host
+   * only needs to tell the user (e.g. a "network" `NoticeCard`). */
+  onPublishFailed?: () => void;
   /** Awaited before the post is actually created (`useCreatePost().mutate`).
    * Absent ⇒ byte-identical behavior. Resolving/returning `false` (or
    * throwing) aborts the submit silently — no mutation, no error UI, and the
@@ -73,7 +73,17 @@ export function ComposerCard({
     body: string;
     pollOptions?: string[];
   }) => Promise<boolean>;
-}) {
+};
+
+export interface ComposerCardHandle {
+  /** Focuses the text field, or opens the rules gate while still locked. */
+  focus(): void;
+}
+
+export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(function ComposerCard(
+  { defaultTopic, renderComposerExtra, onModerationRejected, onPublishFailed, beforeSubmit },
+  ref,
+) {
   const theme = useCommunityTheme();
   const t = useT();
   const icons = useCommunityIcons();
@@ -87,6 +97,9 @@ export function ComposerCard({
   const [inputFocused, setInputFocused] = useState(false);
   // null = no poll on this draft; an array = the poll editor is open.
   const [pollDraft, setPollDraft] = useState<string[] | null>(null);
+  // Read by the async publish callbacks (the draft may have changed since).
+  const latestDraft = useRef({ text, pollDraft });
+  latestDraft.current = { text, pollDraft };
 
   // Rules gate: the shared in-memory mirror of `cfg.host.rulesAcceptance`
   // (see utils/rulesAcceptance.ts) — locked until the adapter answers, and
@@ -96,6 +109,11 @@ export function ComposerCard({
 
   const locked = !accepted;
   const openRulesGate = () => setRulesVisible(true);
+
+  const inputRef = useRef<TextInput>(null);
+  useImperativeHandle(ref, () => ({
+    focus: () => (locked ? openRulesGate() : inputRef.current?.focus()),
+  }));
 
   // The feed's filter chips sit right above this card in a typical layout, so
   // an always-visible topic row would read as a duplicate. Reveal it only
@@ -139,6 +157,16 @@ export function ComposerCard({
         {
           onSuccess: (result) => {
             if (result.verdict.status === "rejected") onModerationRejected?.("post");
+          },
+          onError: () => {
+            // Hand the draft (text + poll together) back unless a new one
+            // was started meanwhile.
+            const now = latestDraft.current;
+            if (!now.text.trim() && now.pollDraft === null) {
+              setText(draft.body);
+              setPollDraft(draft.pollOptions ? [...draft.pollOptions] : null);
+            }
+            onPublishFailed?.();
           },
         },
       );
@@ -187,6 +215,7 @@ export function ComposerCard({
       )}
 
       <TextInput
+        ref={inputRef}
         value={text}
         onChangeText={setText}
         onFocus={() => setInputFocused(true)}
@@ -270,12 +299,17 @@ export function ComposerCard({
 
       <RulesSheet
         visible={rulesVisible}
-        onAccepted={() => setRulesVisible(false)}
+        onAccepted={() => {
+          setRulesVisible(false);
+          // Land straight in the now-unlocked field once the sheet has
+          // dismissed (Eve source: same 320ms handoff).
+          setTimeout(() => inputRef.current?.focus(), 320);
+        }}
         onClose={() => setRulesVisible(false)}
       />
     </View>
   );
-}
+});
 
 const makeStyles = (theme: CommunityTheme) =>
   StyleSheet.create({

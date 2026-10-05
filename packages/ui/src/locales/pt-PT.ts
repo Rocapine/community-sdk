@@ -144,6 +144,7 @@ export const ptPT: Record<string, string> = {
   "inbox.commented": "{name} comentou a tua publicação",
   "inbox.reacted": "{name} reagiu à tua publicação",
   "inbox.news": "Notícias de {name}",
+  "inbox.newsFromTeam": "Notícias da equipa",
   "inbox.supportReply": "A equipa de apoio respondeu-te",
 
   "translation.translatedFrom": "Traduzido do {language}",

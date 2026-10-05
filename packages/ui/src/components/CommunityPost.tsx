@@ -22,6 +22,7 @@
 import {
   COMMUNITY_EVENTS,
   emitEvent,
+  isOptimistic,
   useCommunityConfig,
   useReactToPost,
   useToggleLike,
@@ -29,25 +30,41 @@ import {
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
-import { useState, type ReactNode } from "react";
+import { useContext, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { displayText, translationLine } from "../utils/translation";
-import { formatTimeAgo } from "../utils/time";
+import { formatTimeAgo, useNow } from "../utils/time";
+import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { ClampedBody } from "./ClampedBody";
 import { PollBlock } from "./PollBlock";
 
 const BODY_CLAMP_LINES = 6;
 
+/** Where a profile was opened from — forwarded to the host's
+ * `onOpenProfile` so it can hand it back to `ProfileScreen`'s `source` prop
+ * (the `profileOpened` analytics event). */
+export type ProfileSource = "post" | "comment";
+
+/** Passed to every slot. `presentModal(open)`: use it to open your own
+ * native Modal from a post — inside the thread sheet it closes the sheet
+ * first and calls `open` once it's gone (iOS can't stack two Modals);
+ * elsewhere it calls `open` right away. */
+export type PostSlotContext = { presentModal: PresentModal };
+
 export type PostSlots = {
   /** Wraps the whole footer row (like, reaction, comment, menu). Called with
    * the built-in row as `defaults` — return it as-is, restyle around it, or
    * replace it entirely. */
-  renderPostFooter?: (post: FeedPost, defaults: ReactNode) => ReactNode;
+  renderPostFooter?: (post: FeedPost, defaults: ReactNode, ctx: PostSlotContext) => ReactNode;
   /** Wraps the built-in reaction stat, only ever called when
    * `cfg.modules.reaction` is enabled. */
-  renderReactionButton?: (post: FeedPost, defaultButton: ReactNode) => ReactNode;
+  renderReactionButton?: (
+    post: FeedPost,
+    defaultButton: ReactNode,
+    ctx: PostSlotContext,
+  ) => ReactNode;
 };
 
 export function CommunityPost({
@@ -60,7 +77,7 @@ export function CommunityPost({
 }: {
   post: FeedPost;
   onOpenThread(postId: string): void;
-  onOpenProfile(userId: string): void;
+  onOpenProfile(userId: string, source?: ProfileSource): void;
   onMenu(post: FeedPost): void;
 } & PostSlots) {
   const theme = useCommunityTheme();
@@ -69,6 +86,8 @@ export function CommunityPost({
   const cfg = useCommunityConfig();
   const styles = useThemedStyles(makeStyles);
 
+  const now = useNow();
+  const slotCtx: PostSlotContext = { presentModal: useContext(ModalHandoffContext) };
   const toggleLike = useToggleLike();
   const reactToPost = useReactToPost();
 
@@ -83,16 +102,23 @@ export function CommunityPost({
   };
 
   const handleOpenThread = () => onOpenThread(post.id);
-  const handleOpenProfile = () => onOpenProfile(post.authorId);
+  // An optimistic own post may not know our uid yet (identity still
+  // resolving): no profile to open, rather than a broken empty-id route.
+  const handleOpenProfile = () => {
+    if (post.authorId) onOpenProfile(post.authorId, "post");
+  };
+  // The placeholder's temp id can't be liked/reacted to server-side yet.
+  const pending = isOptimistic(post);
   const handleMenu = () => onMenu(post);
 
   const handleToggleLike = () => {
+    if (pending) return;
     Haptics.selectionAsync().catch(() => {});
     toggleLike.mutate({ postId: post.id, liked: !post.likedByMe, topic: post.topic });
   };
 
   const handleReact = () => {
-    if (post.hasReacted) return;
+    if (post.hasReacted || pending) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     reactToPost.mutate({ postId: post.id });
   };
@@ -139,7 +165,7 @@ export function CommunityPost({
           )}
           <Text style={styles.meta}>
             {topicLabel ? `${topicLabel} · ` : ""}
-            {formatTimeAgo(t, post.createdAt, Date.now())}
+            {formatTimeAgo(t, post.createdAt, now)}
           </Text>
         </View>
       </View>
@@ -170,7 +196,7 @@ export function CommunityPost({
     </Pressable>
   );
   const reactionButton = cfg.modules.reaction
-    ? (renderReactionButton?.(post, defaultReactionButton) ?? defaultReactionButton)
+    ? (renderReactionButton?.(post, defaultReactionButton, slotCtx) ?? defaultReactionButton)
     : null;
 
   const commentButton = (
@@ -194,7 +220,7 @@ export function CommunityPost({
       {menuButton}
     </View>
   );
-  const footer = renderPostFooter?.(post, defaultFooter) ?? defaultFooter;
+  const footer = renderPostFooter?.(post, defaultFooter, slotCtx) ?? defaultFooter;
 
   return (
     <Pressable
