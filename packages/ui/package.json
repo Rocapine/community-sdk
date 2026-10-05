@@ -1,6 +1,6 @@
 {
   "name": "@rocapine/community-ui",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Drop-in React Native screens and components (feed, thread, profile, moderation) for @rocapine/community-core.",
   "license": "MIT",
   "repository": {
@@ -19,7 +19,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@rocapine/community-core": "^0.3.0"
+    "@rocapine/community-core": "^0.5.0"
   },
   "peerDependencies": {
     "@gorhom/bottom-sheet": ">=5.1.0",
