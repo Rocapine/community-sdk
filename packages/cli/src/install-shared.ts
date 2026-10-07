@@ -226,6 +226,6 @@ export function printSettingsSeedStep(
   step: number,
 ): void {
   log(`  ${step}. Seed the project settings (once per Supabase project, after db push):`);
-  log(`     supabase db query "${settingsSeedSql(values)}"`);
+  log(`     supabase db query --linked "${settingsSeedSql(values)}"`);
   log("     (or run that statement in the SQL editor — the migrations carry no project URL/key)");
 }
