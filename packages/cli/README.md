@@ -118,7 +118,7 @@ a sandbox and to production. What differs is one statement, run once per
 project after `db push`:
 
 ```bash
-supabase db query "select public.community_settings_set('https://<ref>.supabase.co', '<anon key>');"
+supabase db query --linked "select public.community_settings_set('https://<ref>.supabase.co', '<anon key>');"
 ```
 
 `init`/`upgrade` print it (filled in when `--project-url` / `--anon-key` are

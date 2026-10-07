@@ -48,7 +48,7 @@ exact signatures, see the per-package READMEs.
    `--anon-key`):
 
    ```bash
-   supabase db query "select public.community_settings_set('https://<ref>.supabase.co', '<anon key>');"
+   supabase db query --linked "select public.community_settings_set('https://<ref>.supabase.co', '<anon key>');"
    ```
 
 5. Set the secrets and deploy the functions:

@@ -47,7 +47,7 @@ URL and anon key from Supabase Vault through the helpers in
 first push:
 
 ```bash
-supabase db query "select public.community_settings_set('https://<ref>.supabase.co', '<anon key>');"
+supabase db query --linked "select public.community_settings_set('https://<ref>.supabase.co', '<anon key>');"
 ```
 
 (Idempotent — re-run it to rotate the key. Everything is `security definer`
