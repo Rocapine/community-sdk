@@ -9,20 +9,9 @@
 -- likes). Additive: no core table changes. poll_option_translations is
 -- guarded so this module installs on a backend without the polls module.
 --
--- ⚠️ PLACEHOLDERS: before pushing, replace __SUPABASE_PROJECT_URL__ with the
--- app's project URL (https://<ref>.supabase.co) and __SUPABASE_ANON_KEY__ with
--- its anon key. The anon key is public by design (shipped inside the app
--- binary): the Edge Functions do privileged work through their own
--- service-role env, the JWT only passes verify_jwt.
---
--- The DO block below fails the migration loudly if the placeholders were not
--- replaced.
-do $$ begin
-  if '__SUPABASE_PROJECT_URL__' like '\_\_SUPABASE%' escape '\' then
-    raise exception 'community-sdk: placeholders not substituted. Run: npx @rocapine/community init';
-  end if;
-end $$;
-
+-- The translate webhooks, their triggers and the daily sweep cron live in
+-- translation/002_webhooks.sql (they read the project URL / anon key from the
+-- settings seeded via core/000_settings.sql).
 create table public.post_translations (
   post_id       uuid not null references public.posts(id) on delete cascade,
   locale        text not null,
@@ -120,71 +109,3 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke execute on function public.items_missing_translations(text, text[], int) from public, anon, authenticated;
 grant execute on function public.items_missing_translations(text, text[], int) to service_role;
-
--- ============ TRIGGERS ============
-create or replace function public.translate_post_webhook()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  perform net.http_post(
-    url := '__SUPABASE_PROJECT_URL__/functions/v1/translate-one',
-    headers := jsonb_build_object('Content-Type','application/json','Authorization','Bearer __SUPABASE_ANON_KEY__'),
-    body := jsonb_build_object('kind', 'post', 'id', new.id)
-  );
-  return new;
-end; $$;
-
-create or replace function public.translate_comment_webhook()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  perform net.http_post(
-    url := '__SUPABASE_PROJECT_URL__/functions/v1/translate-one',
-    headers := jsonb_build_object('Content-Type','application/json','Authorization','Bearer __SUPABASE_ANON_KEY__'),
-    body := jsonb_build_object('kind', 'comment', 'id', new.id)
-  );
-  return new;
-end; $$;
-
-drop trigger if exists on_post_published_translate on public.posts;
-create trigger on_post_published_translate
-  after update of status on public.posts for each row
-  when (old.status = 'pending' and new.status = 'visible')
-  execute function public.translate_post_webhook();
-drop trigger if exists on_post_created_visible_translate on public.posts;
-create trigger on_post_created_visible_translate
-  after insert on public.posts for each row
-  when (new.status = 'visible')
-  execute function public.translate_post_webhook();
-
-drop trigger if exists on_comment_published_translate on public.comments;
-create trigger on_comment_published_translate
-  after update of status on public.comments for each row
-  when (old.status = 'pending' and new.status = 'visible')
-  execute function public.translate_comment_webhook();
-drop trigger if exists on_comment_created_visible_translate on public.comments;
-create trigger on_comment_created_visible_translate
-  after insert on public.comments for each row
-  when (new.status = 'visible')
-  execute function public.translate_comment_webhook();
-
--- ============ CRON ============
--- Daily sweep at 08:30 UTC (after the 08:00 moderation sweep): back-fills the
--- history on first installation, then catches anything translate-one missed.
-do $$
-begin
-  perform cron.schedule(
-    'community-translation-sweep',
-    '30 8 * * *',
-    $cron$
-    select net.http_post(
-      url := '__SUPABASE_PROJECT_URL__/functions/v1/daily-translation',
-      headers := jsonb_build_object('Authorization', 'Bearer __SUPABASE_ANON_KEY__')
-    );
-    $cron$
-  );
-exception when others then
-  if sqlerrm like '%already exists%' then
-    raise notice 'cron job community-translation-sweep already scheduled, skipping';
-  else
-    raise;
-  end if;
-end $$;

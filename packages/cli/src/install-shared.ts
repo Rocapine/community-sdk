@@ -155,67 +155,6 @@ export function readOwnPackageVersion(): string {
   return pkg.version;
 }
 
-export function deriveProjectUrlFromConfig(dir: string): string | null {
-  const configPath = path.join(dir, "config.toml");
-  if (!fs.existsSync(configPath)) return null;
-  const raw = fs.readFileSync(configPath, "utf8");
-  const match = raw.match(/^\s*project_id\s*=\s*"([^"]+)"/m);
-  if (!match) return null;
-  return `https://${match[1]}.supabase.co`;
-}
-
-function defaultPrompt(question: string): Promise<string> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return rl.question(question).then((answer) => {
-    rl.close();
-    return answer;
-  });
-}
-
-/**
- * Resolves the Supabase project URL + anon key from (in order) explicit
- * flags, `<dir>/config.toml` (URL only), or an interactive prompt — failing
- * loudly instead of hanging when stdin is not a TTY and no `prompt`
- * override was injected. Shared by `init` and `upgrade`, both of which only
- * need this when a placeholder-bearing file is about to be written.
- */
-export async function resolveProjectCredentials(options: {
-  dir: string;
-  projectUrl?: string;
-  anonKey?: string;
-  prompt?: (question: string) => Promise<string>;
-}): Promise<{ projectUrl: string; anonKey: string }> {
-  const usingDefaultPrompt = !options.prompt;
-  const prompt = options.prompt ?? defaultPrompt;
-  let projectUrl = options.projectUrl;
-  let anonKey = options.anonKey;
-
-  if (!projectUrl) {
-    projectUrl = deriveProjectUrlFromConfig(options.dir) ?? undefined;
-  }
-
-  const stillMissingFlags: string[] = [];
-  if (!projectUrl) stillMissingFlags.push("--project-url");
-  if (!anonKey) stillMissingFlags.push("--anon-key");
-
-  if (stillMissingFlags.length > 0 && usingDefaultPrompt && !process.stdin.isTTY) {
-    throw new Error(
-      `community-sdk: missing required flag(s) ${stillMissingFlags.join(", ")}. stdin is not a TTY, so this command cannot prompt for ${
-        stillMissingFlags.length > 1 ? "them" : "it"
-      } — pass ${stillMissingFlags.length > 1 ? "them" : "it"} explicitly.`,
-    );
-  }
-
-  if (!projectUrl) {
-    projectUrl = (await prompt("Supabase project URL (https://<ref>.supabase.co): ")).trim();
-  }
-  if (!anonKey) {
-    anonKey = (await prompt("Supabase anon key: ")).trim();
-  }
-
-  return { projectUrl, anonKey };
-}
-
 export function formatTimestamp(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return (
@@ -266,4 +205,27 @@ export function resolveContainedDir(cwd: string, dirRel: string): string {
     );
   }
   return dir;
+}
+
+/**
+ * The one statement to run once per Supabase project after `db push`: it
+ * stores the project's own URL and anon key in Vault, where the pg_cron jobs
+ * and pg_net webhooks read them (core/000_settings.sql). The migration files
+ * themselves carry no project-specific value, so the same files deploy to a
+ * sandbox and a production project.
+ */
+export function settingsSeedSql(values: { projectUrl?: string; anonKey?: string } = {}): string {
+  const url = values.projectUrl?.trim() || "https://<ref>.supabase.co";
+  const key = values.anonKey?.trim() || "<anon key>";
+  return `select public.community_settings_set('${url.replace(/'/g, "''")}', '${key.replace(/'/g, "''")}');`;
+}
+
+export function printSettingsSeedStep(
+  log: (message: string) => void,
+  values: { projectUrl?: string; anonKey?: string },
+  step: number,
+): void {
+  log(`  ${step}. Seed the project settings (once per Supabase project, after db push):`);
+  log(`     supabase db query --linked "${settingsSeedSql(values)}"`);
+  log("     (or run that statement in the SQL editor — the migrations carry no project URL/key)");
 }

@@ -37,16 +37,31 @@ supabase db push
 ```
 
 `init`/`upgrade` re-prefix every migration with a fresh timestamp at copy
-time (so ordering across modules stays correct regardless of install order)
-and substitute the `__SUPABASE_PROJECT_URL__` / `__SUPABASE_ANON_KEY__`
-placeholders that four migrations carry
-(`core/003_moderation.sql`, `push/002_triggers.sql`,
-`reaction/001_reactions.sql`, `translation/001_translations.sql` — each
-schedules a `pg_cron` job or trigger that calls back into this same project
-via `pg_net`). A migration with an
-unsubstituted placeholder fails loudly at `db push` (a `DO` block re-checks
-this at push time, in addition to the CLI's own pre-write check), rather
-than silently pushing and failing later at cron/webhook runtime.
+time (so ordering across modules stays correct regardless of install order).
+The files carry nothing project-specific: the `pg_cron` jobs and `pg_net`
+webhooks that call back into this project's Edge Functions
+(`core/008_webhooks.sql`, `push/003_webhooks.sql`,
+`reaction/002_webhooks.sql`, `translation/002_webhooks.sql`) read the project
+URL and anon key from Supabase Vault through the helpers in
+`core/000_settings.sql`. Seed them **once per project**, right after the
+first push:
+
+```bash
+supabase db query --linked "select public.community_settings_set('https://<ref>.supabase.co', '<anon key>');"
+```
+
+(Idempotent — re-run it to rotate the key. Everything is `security definer`
+and private: nothing is exposed over PostgREST.) Until a project is seeded,
+each webhook logs `community-sdk: could not call Edge Function …` and returns
+without aborting the insert; the daily sweeps catch up afterwards. The same
+`supabase/` folder therefore deploys to a sandbox and to production — only
+the seed differs: `supabase db push --project-ref <ref>` (or `--db-url`),
+then the seed against that project.
+
+**Upgrading an install from before 0.5 of the CLI** (migrations with the URL
+baked in): `npx @rocapine/community upgrade` copies `core/000_settings` and
+the `*_webhooks` migrations, whose `create or replace` / reschedule replace
+the baked functions and jobs. Push, then seed — the CLI prints the statement.
 
 Never renumber or hand-edit an already-applied migration; a new behavior is
 always a new migration file, added via `npx @rocapine/community upgrade`.
@@ -115,10 +130,11 @@ order by start_time desc
 limit 20;
 ```
 
-A job whose `return_message` shows an HTTP error usually means the
-`__SUPABASE_PROJECT_URL__`/`__SUPABASE_ANON_KEY__` substitution didn't
-happen correctly, or the target function isn't deployed yet — re-check
-Section 2/3 above.
+A job whose `return_message` shows an HTTP error usually means the project
+settings were not seeded (`select public.community_settings_set(...)`, see
+Section 2) or the target function isn't deployed yet — re-check Section 2/3
+above. `select name from vault.secrets` must list `community_project_url`
+and `community_anon_key`.
 
 ## 5. Moderation notes
 

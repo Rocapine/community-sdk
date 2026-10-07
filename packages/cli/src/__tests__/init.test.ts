@@ -40,7 +40,7 @@ describe("runInit", () => {
     await runInit(baseOptions({ modules: ["core"] }));
 
     const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
-    expect(files).toHaveLength(7);
+    expect(files).toHaveLength(9);
     expect(files.every((f) => /^\d{14}_community_core_/.test(f))).toBe(true);
   });
 
@@ -51,35 +51,30 @@ describe("runInit", () => {
     const modulesInFileOrder = files.map((f) => f.split("_community_")[1]!.split("_")[0]);
 
     expect(modulesInFileOrder).toEqual([
-      "core",
-      "core",
-      "core",
-      "core",
-      "core",
-      "core",
-      "core",
+      ...Array<string>(9).fill("core"),
+      "push",
       "push",
       "push",
       "polls",
+      "reaction",
       "reaction",
       "inbox",
     ]);
   });
 
-  it("substitutes placeholders in the copied migration output", async () => {
+  it("copies the migrations verbatim — no project value is ever baked in — with core/000_settings first", async () => {
     await runInit(baseOptions({ modules: ["core"] }));
 
     const migrationsDir = path.join(cwd, "supabase", "migrations");
-    const moderationFile = fs
-      .readdirSync(migrationsDir)
-      .find((f) => f.includes("_moderation.sql"))!;
-    const content = fs.readFileSync(path.join(migrationsDir, moderationFile), "utf8");
-
-    expect(content).toContain(projectUrl);
-    expect(content).toContain(anonKey);
-    expect(content).not.toContain("__SUPABASE");
+    const files = fs.readdirSync(migrationsDir).sort();
+    expect(files[0]).toMatch(/_community_core_settings\.sql$/);
+    for (const f of files) {
+      const content = fs.readFileSync(path.join(migrationsDir, f), "utf8");
+      expect(content).not.toContain("__SUPABASE");
+      expect(content).not.toContain(projectUrl);
+      expect(content).not.toContain(anonKey);
+    }
   });
-
   it("writes a manifest with schemaVersion 1, sdkVersion, modules and installedFiles", async () => {
     const result = await runInit(baseOptions({ modules: ["core", "push"] }));
 
@@ -185,7 +180,7 @@ describe("runInit", () => {
     const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
     const modulesInFileOrder = files.map((f) => f.split("_community_")[1]!.split("_")[0]);
     expect(modulesInFileOrder.at(-1)).toBe("translation");
-    expect(modulesInFileOrder.filter((m) => m === "translation")).toHaveLength(1);
+    expect(modulesInFileOrder.filter((m) => m === "translation")).toHaveLength(2);
     const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions")).sort();
     expect(fnDirs).toContain("translate-one");
     expect(fnDirs).toContain("daily-translation");
@@ -199,86 +194,15 @@ describe("runInit", () => {
     expect(result.manifest.modules).toEqual(["core", "translation"]);
   });
 
-  it("derives the project URL from <dir>/config.toml when not passed explicitly", async () => {
-    const supabaseDir = path.join(cwd, "supabase");
-    fs.mkdirSync(supabaseDir, { recursive: true });
-    fs.writeFileSync(path.join(supabaseDir, "config.toml"), 'project_id = "my-proj-ref"\n');
-
-    const prompt = vi.fn().mockResolvedValue(anonKey);
-    await runInit(
-      baseOptions({ modules: ["core"], projectUrl: undefined, anonKey: undefined, prompt }),
-    );
-
-    const migrationsDir = path.join(supabaseDir, "migrations");
-    const moderationFile = fs
-      .readdirSync(migrationsDir)
-      .find((f) => f.includes("_moderation.sql"))!;
-    const content = fs.readFileSync(path.join(migrationsDir, moderationFile), "utf8");
-
-    expect(content).toContain("https://my-proj-ref.supabase.co");
-    expect(prompt).toHaveBeenCalledTimes(1);
-  });
-
-  it("prompts for missing project url and anon key, in that order", async () => {
-    const prompt = vi.fn().mockResolvedValueOnce(projectUrl).mockResolvedValueOnce(anonKey);
-
-    await runInit(
-      baseOptions({ modules: ["core"], projectUrl: undefined, anonKey: undefined, prompt }),
-    );
-
-    expect(prompt).toHaveBeenCalledTimes(2);
-    const [firstQuestion] = prompt.mock.calls[0]!;
-    const [secondQuestion] = prompt.mock.calls[1]!;
-    expect(firstQuestion).toMatch(/project url/i);
-    expect(secondQuestion).toMatch(/anon key/i);
-  });
-
   it("prints next steps mentioning db push, secrets and functions deploy", async () => {
     const lines: string[] = [];
     await runInit(baseOptions({ modules: ["core"], log: (m) => lines.push(m) }));
 
     const output = lines.join("\n");
     expect(output).toMatch(/db push/i);
+    expect(output).toContain(`community_settings_set('${projectUrl}', '${anonKey}')`);
     expect(output).toContain("OPENAI_API_KEY");
     expect(output).toMatch(/functions deploy/i);
-  });
-
-  it("fails loudly instead of hanging when stdin is not a TTY and flags are missing", async () => {
-    const originalIsTTY = process.stdin.isTTY;
-    process.stdin.isTTY = false;
-    try {
-      await expect(
-        runInit(
-          baseOptions({
-            modules: ["core"],
-            projectUrl: undefined,
-            anonKey: undefined,
-            prompt: undefined,
-          }),
-        ),
-      ).rejects.toThrow(/--project-url.*--anon-key|not a TTY/i);
-
-      // Nothing should have been written: the check must fire before any copy.
-      expect(fs.existsSync(path.join(cwd, "supabase"))).toBe(false);
-      expect(readManifest(cwd)).toBeNull();
-    } finally {
-      process.stdin.isTTY = originalIsTTY;
-    }
-  });
-
-  it("does not block on a non-TTY stdin when a prompt function is injected", async () => {
-    const originalIsTTY = process.stdin.isTTY;
-    process.stdin.isTTY = false;
-    try {
-      const prompt = vi.fn().mockResolvedValueOnce(projectUrl).mockResolvedValueOnce(anonKey);
-      const result = await runInit(
-        baseOptions({ modules: ["core"], projectUrl: undefined, anonKey: undefined, prompt }),
-      );
-      expect(prompt).toHaveBeenCalledTimes(2);
-      expect(result.manifest.modules).toEqual(["core"]);
-    } finally {
-      process.stdin.isTTY = originalIsTTY;
-    }
   });
 
   it("rejects a --dir that escapes the project root", async () => {
@@ -287,46 +211,5 @@ describe("runInit", () => {
     );
     // Nothing should have been written outside (or inside) the temp root.
     expect(fs.existsSync(path.join(cwd, "..", "escape"))).toBe(false);
-  });
-
-  it("rolls back partially written files and names the source file when a mid-install copy fails", async () => {
-    const brokenTemplatesDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "community-sdk-broken-templates-"),
-    );
-    try {
-      const migrationsRoot = path.join(brokenTemplatesDir, "migrations");
-      fs.mkdirSync(path.join(migrationsRoot, "core"), { recursive: true });
-      fs.mkdirSync(path.join(migrationsRoot, "push"), { recursive: true });
-      fs.mkdirSync(path.join(brokenTemplatesDir, "functions"), { recursive: true });
-
-      fs.writeFileSync(path.join(migrationsRoot, "core", "001_a.sql"), "select 1;\n");
-      fs.writeFileSync(path.join(migrationsRoot, "core", "002_b.sql"), "select 2;\n");
-      // This file carries a placeholder substitutePlaceholders doesn't know
-      // how to fill, so it throws partway through the push module — after
-      // two core migrations have already been written to disk.
-      fs.writeFileSync(
-        path.join(migrationsRoot, "push", "001_broken.sql"),
-        "-- __SUPABASE_BROKEN__ placeholder\n",
-      );
-
-      let caught: unknown;
-      try {
-        await runInit(baseOptions({ modules: ["core", "push"], templatesDir: brokenTemplatesDir }));
-      } catch (err) {
-        caught = err;
-      }
-
-      expect(caught).toBeInstanceOf(Error);
-      const message = (caught as Error).message;
-      expect(message).toContain("__SUPABASE");
-      expect(message).toContain("push/001_broken.sql");
-
-      // Rollback: the migrations dir we created fresh must be gone entirely,
-      // and no manifest should exist for a retry to trip over.
-      expect(fs.existsSync(path.join(cwd, "supabase", "migrations"))).toBe(false);
-      expect(readManifest(cwd)).toBeNull();
-    } finally {
-      fs.rmSync(brokenTemplatesDir, { recursive: true, force: true });
-    }
   });
 });

@@ -37,12 +37,21 @@ exact signatures, see the per-package READMEs.
 
    Drop any module you don't want (`core` is always implied; omitting the flag
    installs every module). This copies migrations into `supabase/migrations/`
-   and Edge Functions into `supabase/functions/`. It substitutes the
-   project URL and anon-key placeholders (it prompts, or you pass
-   `--project-url` and `--anon-key`), and writes `community-sdk.json`.
+   and Edge Functions into `supabase/functions/`, and writes
+   `community-sdk.json`. Nothing project-specific is written into the
+   migrations: the same files deploy to a sandbox and to production.
 
 3. Review the copied migrations, then run `supabase db push`.
-4. Set the secrets and deploy the functions:
+4. **Seed the project settings** — once per Supabase project, right after the
+   push (the cron jobs and webhooks read the project URL / anon key from
+   Vault; `init` prints this line filled in when you pass `--project-url` and
+   `--anon-key`):
+
+   ```bash
+   supabase db query --linked "select public.community_settings_set('https://<ref>.supabase.co', '<anon key>');"
+   ```
+
+5. Set the secrets and deploy the functions:
 
    ```bash
    supabase secrets set OPENAI_API_KEY=... SLACK_WEBHOOK_URL=... \
