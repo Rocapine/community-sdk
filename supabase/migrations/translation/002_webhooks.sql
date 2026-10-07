@@ -20,24 +20,20 @@ begin
   return new;
 end; $$;
 
-drop trigger if exists on_post_published_translate on public.posts;
-create trigger on_post_published_translate
+create or replace trigger on_post_published_translate
   after update of status on public.posts for each row
   when (old.status = 'pending' and new.status = 'visible')
   execute function public.translate_post_webhook();
-drop trigger if exists on_post_created_visible_translate on public.posts;
-create trigger on_post_created_visible_translate
+create or replace trigger on_post_created_visible_translate
   after insert on public.posts for each row
   when (new.status = 'visible')
   execute function public.translate_post_webhook();
 
-drop trigger if exists on_comment_published_translate on public.comments;
-create trigger on_comment_published_translate
+create or replace trigger on_comment_published_translate
   after update of status on public.comments for each row
   when (old.status = 'pending' and new.status = 'visible')
   execute function public.translate_comment_webhook();
-drop trigger if exists on_comment_created_visible_translate on public.comments;
-create trigger on_comment_created_visible_translate
+create or replace trigger on_comment_created_visible_translate
   after insert on public.comments for each row
   when (new.status = 'visible')
   execute function public.translate_comment_webhook();

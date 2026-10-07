@@ -23,8 +23,7 @@ end; $$;
 -- ============ TRIGGERS ============
 -- Notify the post author only once a comment is actually published, never on
 -- the pending insert (a rejected comment must never send a push).
-drop trigger if exists on_comment_published on public.comments;
-create trigger on_comment_published
+create or replace trigger on_comment_published
   after update on public.comments
   for each row
   when (old.status = 'pending' and new.status = 'visible')
@@ -33,15 +32,13 @@ create trigger on_comment_published
 -- Dashboard comments are inserted directly as 'visible' (service role) and
 -- must notify too. App comments are always inserted 'pending' (RLS-enforced),
 -- so nothing double-notifies.
-drop trigger if exists on_comment_created_visible on public.comments;
-create trigger on_comment_created_visible
+create or replace trigger on_comment_created_visible
   after insert on public.comments
   for each row
   when (new.status = 'visible')
   execute function public.notify_comment_webhook();
 
-drop trigger if exists on_like_created on public.likes;
-create trigger on_like_created
+create or replace trigger on_like_created
   after insert on public.likes
   for each row execute function public.notify_like_webhook();
 

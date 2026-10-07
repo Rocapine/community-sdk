@@ -15,8 +15,7 @@ begin
 end;
 $$;
 
-drop trigger if exists on_report_created on public.reports;
-create trigger on_report_created
+create or replace trigger on_report_created
   after insert on public.reports
   for each row execute function public.notify_report_webhook();
 

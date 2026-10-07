@@ -12,8 +12,7 @@ begin
   return new;
 end; $$;
 
-drop trigger if exists on_post_reaction_created on public.post_reactions;
-create trigger on_post_reaction_created
+create or replace trigger on_post_reaction_created
   after insert on public.post_reactions
   for each row execute function public.notify_reaction_webhook();
 
