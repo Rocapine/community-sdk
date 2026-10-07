@@ -90,7 +90,7 @@ describe("runUpgrade", () => {
 
     const migrationsDir = path.join(cwd, "supabase", "migrations");
     const before = fs.readdirSync(migrationsDir).sort();
-    expect(before).toHaveLength(7);
+    expect(before).toHaveLength(9);
 
     // Simulate a newer SDK version shipping one additional core migration.
     fs.writeFileSync(
@@ -101,7 +101,7 @@ describe("runUpgrade", () => {
     const result = await runUpgrade(baseOptions());
 
     const after = fs.readdirSync(migrationsDir).sort();
-    expect(after).toHaveLength(8);
+    expect(after).toHaveLength(10);
 
     const newFiles = after.filter((f) => !before.includes(f));
     expect(newFiles).toHaveLength(1);
@@ -210,7 +210,9 @@ describe("runUpgrade", () => {
     expect(onWarn).not.toHaveBeenCalled();
   });
 
-  it("substitutes placeholders in a newly added migration that carries one", async () => {
+  it("prints the settings seed step when core/000_settings is among the new migrations", async () => {
+    // Simulate an install made before the settings template existed.
+    fs.rmSync(path.join(templatesDir, "migrations", "core", "000_settings.sql"));
     await runInit({
       cwd,
       templatesDir,
@@ -220,46 +222,16 @@ describe("runUpgrade", () => {
       now: new Date("2026-08-31T12:00:00Z"),
       log: () => {},
     });
-
     fs.writeFileSync(
-      path.join(templatesDir, "migrations", "core", "999_needs_secret.sql"),
-      "-- __SUPABASE_PROJECT_URL__ / __SUPABASE_ANON_KEY__\nselect 1;\n",
+      path.join(templatesDir, "migrations", "core", "000_settings.sql"),
+      "select 'settings';\n",
     );
 
-    await runUpgrade(baseOptions());
+    const lines: string[] = [];
+    const result = await runUpgrade(baseOptions({ log: (m) => lines.push(m) }));
 
-    const migrationsDir = path.join(cwd, "supabase", "migrations");
-    const newFile = fs.readdirSync(migrationsDir).find((f) => f.includes("needs_secret"))!;
-    const content = fs.readFileSync(path.join(migrationsDir, newFile), "utf8");
-
-    expect(content).toContain(projectUrl);
-    expect(content).toContain(anonKey);
-    expect(content).not.toContain("__SUPABASE");
-  });
-
-  it("prompts for missing credentials only when a pending migration needs them", async () => {
-    await runInit({
-      cwd,
-      templatesDir,
-      projectUrl,
-      anonKey,
-      modules: ["core"],
-      now: new Date("2026-08-31T12:00:00Z"),
-      log: () => {},
-    });
-
-    fs.writeFileSync(
-      path.join(templatesDir, "migrations", "core", "999_new_thing.sql"),
-      "select 1;\n",
-    );
-
-    const prompt = vi.fn();
-    const result = await runUpgrade(
-      baseOptions({ projectUrl: undefined, anonKey: undefined, prompt }),
-    );
-
-    expect(prompt).not.toHaveBeenCalled();
     expect(result.addedMigrations).toHaveLength(1);
+    expect(lines.join("\n")).toContain(`community_settings_set('${projectUrl}', '${anonKey}')`);
   });
 
   it("copies a brand-new function required by the currently installed modules", async () => {
@@ -350,7 +322,7 @@ describe("runUpgrade", () => {
 
     const after = fs.readdirSync(migrationsDir).sort();
     const translationFiles = after.filter((f) => f.includes("_community_translation_"));
-    expect(translationFiles).toHaveLength(1);
+    expect(translationFiles).toHaveLength(2);
     expect(Number(translationFiles[0]!.slice(0, 14))).toBeGreaterThan(maxBeforeTimestamp);
 
     expect(fs.existsSync(path.join(cwd, "supabase", "functions", "translate-one"))).toBe(true);

@@ -107,17 +107,23 @@ the _current_ template set and points at `docs/compat.md` to check/adjust
   is what `upgrade` diffs against (timestamped destination filenames can't
   be compared meaningfully run to run).
 
-## Placeholder guard
+## Project settings (no value is ever baked into a migration)
 
-Three backend migration files (`core/003_moderation.sql`,
-`push/002_triggers.sql`, `reaction/001_reactions.sql`) embed the project's
-own URL/anon key (pg_net crons and webhooks that call back into the same
-project) as `__SUPABASE_PROJECT_URL__` / `__SUPABASE_ANON_KEY__`
-placeholders in the shipped template. `init`/`upgrade` substitute real
-values before writing the
-file to disk; if a value is missing and can't be resolved (flag, then
-`config.toml`, then a TTY prompt), the command fails rather than writing a
-file with a literal placeholder still in it — a migration with an
-unsubstituted placeholder would push successfully to Postgres and then fail
-silently at cron/webhook runtime, so this guard turns that into a loud,
-immediate CLI error instead.
+The pg_cron jobs and pg_net webhooks that call back into the project's own
+Edge Functions read the project URL and anon key from Supabase Vault, through
+two private helpers defined by `core/000_settings.sql`
+(`community_project_url()` / `community_anon_key()`). The migration files are
+therefore identical for every project: the same `supabase/` folder deploys to
+a sandbox and to production. What differs is one statement, run once per
+project after `db push`:
+
+```bash
+supabase db query "select public.community_settings_set('https://<ref>.supabase.co', '<anon key>');"
+```
+
+`init`/`upgrade` print it (filled in when `--project-url` / `--anon-key` are
+passed, placeholders otherwise). Until a project is seeded, every webhook
+logs a warning instead of calling out — inserts are never blocked — and the
+daily sweeps catch up once it is. The anon key is public by design (it ships
+inside the app binary): the Edge Functions do privileged work through their
+own service-role env, the JWT only passes `verify_jwt`.
