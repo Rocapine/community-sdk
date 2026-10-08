@@ -81,6 +81,7 @@ import {
   useProfile,
   useSearchPosts,
   type FeedPost,
+  useUnreadNotificationCount,
 } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
@@ -337,11 +338,7 @@ export function CommunityFeedScreen({
       <View style={styles.controls}>
         <View style={styles.controlsRow}>
           <View style={styles.controlsSpacer} />
-          {cfg.modules.inbox && onOpenInbox && (
-            <Pressable hitSlop={10} onPress={onOpenInbox} style={styles.iconButton}>
-              <icons.bell size={20} color={theme.colors.textPrimary} weight="regular" />
-            </Pressable>
-          )}
+          {cfg.modules.inbox && onOpenInbox && <InboxBell onPress={onOpenInbox} />}
           <Pressable hitSlop={10} onPress={toggleSearch} style={styles.iconButton}>
             {searchOpen ? (
               <icons.close size={20} color={theme.colors.textPrimary} weight="bold" />
@@ -528,6 +525,24 @@ function FilterChip({
   );
 }
 
+/**
+ * The inbox entry point, with an unread dot — the only badge the SDK renders
+ * itself (`useUnreadNotificationCount`). Its own component so the inbox query
+ * only runs when the inbox module is on and the host wired `onOpenInbox`.
+ */
+function InboxBell({ onPress }: { onPress: () => void }) {
+  const theme = useCommunityTheme();
+  const icons = useCommunityIcons();
+  const styles = useThemedStyles(makeStyles);
+  const unread = useUnreadNotificationCount();
+  return (
+    <Pressable hitSlop={10} onPress={onPress} style={styles.iconButton}>
+      <icons.bell size={20} color={theme.colors.textPrimary} weight="regular" />
+      {unread > 0 && <View style={styles.bellDot} />}
+    </Pressable>
+  );
+}
+
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
@@ -539,6 +554,17 @@ function makeStyles(theme: CommunityTheme) {
     controlsRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1) },
     controlsSpacer: { flex: 1 },
     iconButton: { padding: theme.spacing(1.5) },
+    bellDot: {
+      position: "absolute",
+      top: theme.spacing(1),
+      right: theme.spacing(1),
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: theme.colors.accent,
+      borderWidth: 1.5,
+      borderColor: theme.colors.background,
+    },
     searchBar: {
       flexDirection: "row",
       alignItems: "center",

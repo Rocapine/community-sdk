@@ -11,6 +11,7 @@ export { en } from "./locales/en";
 export { esES } from "./locales/es-ES";
 export { es419 } from "./locales/es-419";
 export { fr } from "./locales/fr";
+export { frVous } from "./locales/fr-vous";
 export { de } from "./locales/de";
 export { it } from "./locales/it";
 export { pl } from "./locales/pl";

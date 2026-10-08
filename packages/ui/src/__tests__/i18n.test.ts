@@ -4,6 +4,7 @@ import { en } from "../locales/en";
 import { esES } from "../locales/es-ES";
 import { es419 } from "../locales/es-419";
 import { fr } from "../locales/fr";
+import { frVous } from "../locales/fr-vous";
 import { de } from "../locales/de";
 import { it as itLocale } from "../locales/it";
 import { pl } from "../locales/pl";
@@ -29,6 +30,17 @@ describe("makeT", () => {
   it("resolves the fr catalog", () => {
     const t = makeT("fr");
     expect(t("rules.accept")).toBe(fr["rules.accept"]);
+  });
+
+  it("resolves the fr-vous catalog (formal register) with the same key set as fr", () => {
+    expect(Object.keys(frVous).sort()).toEqual(Object.keys(fr).sort());
+    expect(makeT("fr-vous")("profile.emptyOwn")).toBe(frVous["profile.emptyOwn"]);
+    expect(frVous["profile.emptyOwn"]).not.toBe(fr["profile.emptyOwn"]);
+    // A "tu" form must not survive anywhere in the formal catalog.
+    const informal = /\b(tu|ton|ta|tes|toi)\b/i;
+    for (const [key, value] of Object.entries(frVous)) {
+      expect(informal.test(value), `${key}: ${value}`).toBe(false);
+    }
   });
 
   it("resolves the de catalog", () => {
