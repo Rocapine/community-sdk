@@ -6,6 +6,7 @@ import { en } from "./locales/en";
 import { esES } from "./locales/es-ES";
 import { es419 } from "./locales/es-419";
 import { fr } from "./locales/fr";
+import { frVous } from "./locales/fr-vous";
 import { de } from "./locales/de";
 import { it } from "./locales/it";
 import { pl } from "./locales/pl";
@@ -21,6 +22,9 @@ const catalog: Record<string, LocaleCatalog> = {
   "es-ES": esES,
   "es-419": es419,
   fr,
+  // Formal register. "fr-vous" resolves to this catalog exactly, and any
+  // key it lacks falls back to `fr` (its base language), then `en`.
+  "fr-vous": frVous,
   de,
   it,
   pl,
