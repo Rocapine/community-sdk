@@ -1,6 +1,5 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { substitutePlaceholders } from "../substitute";
 import {
   readManifest,
   writeManifest,
@@ -16,7 +15,7 @@ import {
   defaultTemplatesDir,
   resolveTemplateRoots,
   readOwnPackageVersion,
-  resolveProjectCredentials,
+  printSettingsSeedStep,
   formatTimestamp,
   addSeconds,
   templateBaseName,
@@ -35,6 +34,7 @@ export const ALREADY_INITIALIZED_MESSAGE =
 export interface InitOptions {
   /** Modules to install. Defaults to every module. `core` is always implied. */
   modules?: string[];
+  /** Optional: only used to print the settings seed statement ready to run. */
   projectUrl?: string;
   anonKey?: string;
   /** Target Supabase directory, relative to `cwd`. Defaults to "supabase". */
@@ -43,8 +43,6 @@ export interface InitOptions {
   cwd?: string;
   /** Source of the migrations/ + functions/ trees. Defaults to the shipped templates. */
   templatesDir?: string;
-  /** Used to ask for projectUrl/anonKey when missing and not derivable. */
-  prompt?: (question: string) => Promise<string>;
   /** Called for non-fatal dependency warnings (e.g. inbox without reaction). */
   onWarn?: (message: string) => void;
   /** Used to print the summary + next steps. */
@@ -75,19 +73,11 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
   const templatesDir = options.templatesDir ?? defaultTemplatesDir();
   const { migrationsSrcRoot, functionsSrcRoot } = resolveTemplateRoots(templatesDir);
 
-  const { projectUrl, anonKey } = await resolveProjectCredentials({
-    dir,
-    projectUrl: options.projectUrl,
-    anonKey: options.anonKey,
-    prompt: options.prompt,
-  });
-
   const now = options.now ?? new Date();
 
   // ---- migrations + functions, staged atomically: on any failure partway
-  // through, every file this run wrote (which may already contain the real
-  // project URL / anon key) is removed before the error propagates, so a
-  // retry starts clean instead of finding stale/duplicate files and no
+  // through, every file this run wrote is removed before the error
+  // propagates, so a retry starts clean instead of finding stale/duplicate files and no
   // manifest to explain them. The manifest itself is written last, only once
   // every file below has landed successfully.
   const migrationsDestRoot = path.join(dir, "migrations");
@@ -117,16 +107,8 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
         const destFilename = migrationDestFilename(timestamp, moduleName, name);
         const rawSql = fs.readFileSync(path.join(moduleSrcDir, filename), "utf8");
 
-        let substituted: string;
-        try {
-          substituted = substitutePlaceholders(rawSql, { projectUrl, anonKey });
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          throw new Error(`${message} (source: ${moduleName}/${filename})`);
-        }
-
         const destPath = path.join(migrationsDestRoot, destFilename);
-        fs.writeFileSync(destPath, substituted, "utf8");
+        fs.writeFileSync(destPath, rawSql, "utf8");
         writtenPaths.push(destPath);
         installedTemplates.push(migrationTemplateId(moduleName, name));
       }
@@ -165,17 +147,25 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
   };
   writeManifest(cwd, manifest);
 
-  printNextSteps(log, canonicalModules);
+  printNextSteps(log, canonicalModules, {
+    projectUrl: options.projectUrl,
+    anonKey: options.anonKey,
+  });
 
   return { manifest, dir };
 }
 
-function printNextSteps(log: (message: string) => void, modules: Module[]): void {
+function printNextSteps(
+  log: (message: string) => void,
+  modules: Module[],
+  values: { projectUrl?: string; anonKey?: string },
+): void {
   log("");
   log(`community-sdk initialized (${modules.join(", ")}).`);
   log("Next steps:");
   log("  1. Review the copied migrations, then: supabase db push");
-  log("  2. Set Edge Function secrets: supabase secrets set OPENAI_API_KEY=...");
+  printSettingsSeedStep(log, values, 2);
+  log("  3. Set Edge Function secrets: supabase secrets set OPENAI_API_KEY=...");
   log("     optional: SLACK_WEBHOOK_URL, COMMUNITY_APP_NAME, COMMUNITY_FALLBACK_NAME");
   if (modules.includes("push")) {
     log(
@@ -187,5 +177,5 @@ function printNextSteps(log: (message: string) => void, modules: Module[]): void
       '     translation module: COMMUNITY_TRANSLATION_LOCALES="en,es-419,..." (required, same list as modules.translation.locales in the app); optional: COMMUNITY_TRANSLATION_MODEL, COMMUNITY_TRANSLATION_STYLE',
     );
   }
-  log("  3. Deploy the Edge Functions: supabase functions deploy");
+  log("  4. Deploy the Edge Functions: supabase functions deploy");
 }

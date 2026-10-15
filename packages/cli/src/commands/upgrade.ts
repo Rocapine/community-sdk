@@ -1,7 +1,6 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { substitutePlaceholders } from "../substitute";
 import {
   readManifest,
   writeManifest,
@@ -17,7 +16,7 @@ import {
   defaultTemplatesDir,
   resolveTemplateRoots,
   readOwnPackageVersion,
-  resolveProjectCredentials,
+  printSettingsSeedStep,
   formatTimestamp,
   addSeconds,
   templateBaseName,
@@ -42,8 +41,6 @@ export interface UpgradeOptions {
   templatesDir?: string;
   /** Module names to install on top of what's already in the manifest — validated, ordered and merged via resolveModules, same rules as `init --modules` (unknown names throw, dependency gaps warn). */
   addModules?: string[];
-  /** Used to ask for projectUrl/anonKey when a newly copied migration needs them. */
-  prompt?: (question: string) => Promise<string>;
   /** Called for non-fatal warnings — most importantly, functions overwritten with new content. */
   onWarn?: (message: string) => void;
   /** Used to print the summary + next steps. */
@@ -149,21 +146,6 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
     };
   }
 
-  // ---- credentials, only if a pending migration actually needs them ----
-  const needsCredentials = pending.some((p) => p.rawSql.includes("__SUPABASE"));
-  let projectUrl: string | undefined;
-  let anonKey: string | undefined;
-  if (needsCredentials) {
-    const creds = await resolveProjectCredentials({
-      dir,
-      projectUrl: options.projectUrl,
-      anonKey: options.anonKey,
-      prompt: options.prompt,
-    });
-    projectUrl = creds.projectUrl;
-    anonKey = creds.anonKey;
-  }
-
   const migrationsDestRoot = path.join(dir, "migrations");
   const writtenMigrationPaths: string[] = [];
   const addedMigrations: string[] = [];
@@ -172,21 +154,8 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   const backups: { destDir: string; backupDir: string }[] = [];
 
   try {
-    // ---- prepare every migration's final content up front: a placeholder
-    // error here must throw before a single byte is written to disk. ----
     const now = options.now ?? new Date();
-    const prepared = pending.map((p) => {
-      if (!p.rawSql.includes("__SUPABASE")) return { ...p, content: p.rawSql };
-      try {
-        return {
-          ...p,
-          content: substitutePlaceholders(p.rawSql, { projectUrl: projectUrl!, anonKey: anonKey! }),
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        throw new Error(`${message} (source: ${p.moduleName}/${p.templateFilename})`);
-      }
-    });
+    const prepared = pending.map((p) => ({ ...p, content: p.rawSql }));
 
     if (prepared.length > 0) {
       fs.mkdirSync(migrationsDestRoot, { recursive: true });
@@ -268,6 +237,7 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   writeManifest(cwd, updatedManifest);
 
   printSummary(log, onWarn, {
+    values: { projectUrl: options.projectUrl, anonKey: options.anonKey },
     addedModules,
     addedMigrations,
     newFunctions,
@@ -325,6 +295,7 @@ function printSummary(
   log: (message: string) => void,
   onWarn: (message: string) => void,
   summary: {
+    values: { projectUrl?: string; anonKey?: string };
     addedModules: string[];
     addedMigrations: string[];
     newFunctions: string[];
@@ -351,6 +322,13 @@ function printSummary(
   log("Next steps:");
   if (summary.addedMigrations.length > 0) {
     log("  1. Review the new migrations, then: supabase db push");
+  }
+  if (summary.addedMigrations.some((f) => /_community_core_settings\.sql$/.test(f))) {
+    // First upgrade onto the Vault-backed settings: the new *_webhooks
+    // migrations read the project URL / anon key from there, so the seed must
+    // follow this push (until then every webhook logs a warning and the
+    // daily sweeps catch up — nothing is lost, nothing is blocked).
+    printSettingsSeedStep(log, summary.values, 2);
   }
   if (summary.newFunctions.length > 0 || summary.overwrittenFunctions.length > 0) {
     log("  2. Review the function changes, then: supabase functions deploy");

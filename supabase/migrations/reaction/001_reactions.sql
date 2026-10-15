@@ -13,20 +13,9 @@
 -- notify-reaction webhook below still fires either way — it is the Edge
 -- Function's job to look up push_tokens if/when that module is present).
 --
--- ⚠️ PLACEHOLDERS: before pushing, replace __SUPABASE_PROJECT_URL__ with the
--- app's project URL (https://<ref>.supabase.co) and __SUPABASE_ANON_KEY__ with
--- its anon key. The anon key is public by design (shipped inside the app
--- binary): the Edge Functions do privileged work through their own
--- service-role env, the JWT only passes verify_jwt.
---
--- The DO block below fails the migration loudly if the placeholders were not
--- replaced.
-do $$ begin
-  if '__SUPABASE_PROJECT_URL__' like '\_\_SUPABASE%' escape '\' then
-    raise exception 'community-sdk: placeholders not substituted. Run: npx @rocapine/community init';
-  end if;
-end $$;
-
+-- The reaction webhook, its trigger and the half-hourly digest cron live in
+-- reaction/002_webhooks.sql (they read the project URL / anon key from the
+-- settings seeded via core/000_settings.sql).
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
@@ -97,43 +86,3 @@ begin
     alter table public.push_tokens add column if not exists notify_reactions boolean not null default true;
   end if;
 end $$;
-
--- ============ WEBHOOK + DIGEST ============
--- Same pattern as push/002_triggers.sql's notify-like: an immediate webhook
--- on insert plus a coalescing digest cron for anything the webhook missed.
--- Requires the notify-reaction Edge Function.
-create or replace function public.notify_reaction_webhook()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  perform net.http_post(
-    url := '__SUPABASE_PROJECT_URL__/functions/v1/notify-reaction',
-    headers := jsonb_build_object('Content-Type','application/json','Authorization','Bearer __SUPABASE_ANON_KEY__'),
-    body := jsonb_build_object('record', to_jsonb(new))
-  );
-  return new;
-end; $$;
-
-create trigger on_post_reaction_created
-  after insert on public.post_reactions
-  for each row execute function public.notify_reaction_webhook();
-
--- Half-hourly digest: flush the tail of any coalesced reaction bursts.
-do $$
-begin
-  perform cron.schedule(
-    'community-reaction-digest', '30 * * * *',
-    $cron$
-    select net.http_post(
-      url := '__SUPABASE_PROJECT_URL__/functions/v1/notify-reaction',
-      headers := jsonb_build_object('Content-Type','application/json','Authorization','Bearer __SUPABASE_ANON_KEY__')
-    );
-    $cron$
-  );
-exception when others then
-  if sqlerrm like '%already exists%' then
-    raise notice 'cron job community-reaction-digest already scheduled, skipping';
-  else
-    raise;
-  end if;
-end;
-$$;

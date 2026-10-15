@@ -40,8 +40,14 @@ program
     "--modules <modules>",
     "comma-separated module list (core,push,polls,reaction,inbox,translation) — core is always implied; defaults to all modules",
   )
-  .option("--project-url <url>", "Supabase project URL, e.g. https://<ref>.supabase.co")
-  .option("--anon-key <key>", "Supabase anon key")
+  .option(
+    "--project-url <url>",
+    "Supabase project URL, e.g. https://<ref>.supabase.co — optional, only fills in the printed settings seed statement",
+  )
+  .option(
+    "--anon-key <key>",
+    "Supabase anon key — optional, only fills in the printed settings seed statement",
+  )
   .option("--dir <dir>", "target Supabase directory, relative to the current directory", "supabase")
   .action(
     async (opts: { modules?: string; projectUrl?: string; anonKey?: string; dir?: string }) => {
@@ -70,11 +76,11 @@ program
   )
   .option(
     "--project-url <url>",
-    "Supabase project URL, e.g. https://<ref>.supabase.co (only needed if a new migration carries a placeholder)",
+    "Supabase project URL, e.g. https://<ref>.supabase.co — optional, only fills in the printed settings seed statement",
   )
   .option(
     "--anon-key <key>",
-    "Supabase anon key (only needed if a new migration carries a placeholder)",
+    "Supabase anon key — optional, only fills in the printed settings seed statement",
   )
   .option("--dir <dir>", "target Supabase directory, relative to the current directory", "supabase")
   .action(
