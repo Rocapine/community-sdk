@@ -104,10 +104,10 @@ system fonts) — no app branding. `like`/`official`/`pinned` default to
 
 ## i18n
 
-Framework-free, no i18next. 9 built-in locales ship as plain objects:
-`en`, `es-ES`, `es-419`, `fr`, `de`, `it`, `pl`, `pt-PT`, `pt-BR` (all
-exported by name, e.g.
-`import { en, esES, es419, fr, de, it, pl, ptPT, ptBR } from "@rocapine/community-ui"`).
+Framework-free, no i18next. 13 built-in locales ship as plain objects:
+`en`, `es-ES`, `es-419`, `fr`, `fr-vous`, `de`, `it`, `pl`, `pt-PT`, `pt-BR`,
+`ko`, `ro`, `uk` (all exported by name, e.g.
+`import { en, esES, es419, fr, frVous, de, it, pl, ptPT, ptBR, ko, ro, uk } from "@rocapine/community-ui"`).
 
 ```tsx
 <CommunityUIProvider translations={{ locale: "pt-BR", overrides: { "rules.accept": "..." } }}>
@@ -137,8 +137,8 @@ catalogs.
 **Translation keys**: `translation.translatedFrom` / `translation.original` /
 `translation.showOriginal` / `translation.showTranslation` (the per-item
 caption line, see Translations below) and `language.en` / `.es` / `.pt` /
-`.it` / `.pl` / `.fr` / `.de` (language names used to fill in
-`translation.translatedFrom`) ship in all 9 built-in locales.
+`.it` / `.pl` / `.fr` / `.de` / `.ko` / `.ro` / `.uk` (language names used to fill in
+`translation.translatedFrom`) ship in all 13 built-in locales.
 
 **The `COMMUNITY_REACTION_PUSH_TEXT` caveat**: the reaction module's push
 copy (server-side, in the `notify-reaction` Edge Function) is built-in and

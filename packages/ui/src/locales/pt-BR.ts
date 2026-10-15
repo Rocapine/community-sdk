@@ -156,4 +156,7 @@ export const ptBR: Record<string, string> = {
   "language.pl": "polonês",
   "language.fr": "francês",
   "language.de": "alemão",
+  "language.ko": "coreano",
+  "language.ro": "romeno",
+  "language.uk": "ucraniano",
 };

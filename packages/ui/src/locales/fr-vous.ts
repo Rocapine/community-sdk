@@ -157,4 +157,7 @@ export const frVous: Record<string, string> = {
   "language.pl": "du polonais",
   "language.fr": "du français",
   "language.de": "de l'allemand",
+  "language.ko": "du coréen",
+  "language.ro": "du roumain",
+  "language.uk": "de l'ukrainien",
 };

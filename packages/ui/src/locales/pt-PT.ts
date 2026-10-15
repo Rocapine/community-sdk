@@ -158,4 +158,7 @@ export const ptPT: Record<string, string> = {
   "language.pl": "polaco",
   "language.fr": "francês",
   "language.de": "alemão",
+  "language.ko": "coreano",
+  "language.ro": "romeno",
+  "language.uk": "ucraniano",
 };

@@ -10,6 +10,9 @@ import { it as itLocale } from "../locales/it";
 import { pl } from "../locales/pl";
 import { ptPT } from "../locales/pt-PT";
 import { ptBR } from "../locales/pt-BR";
+import { ko } from "../locales/ko";
+import { ro } from "../locales/ro";
+import { uk } from "../locales/uk";
 
 describe("makeT", () => {
   it("resolves a key from the en catalog", () => {
@@ -130,6 +133,9 @@ describe("locale catalogs", () => {
     pl,
     "pt-PT": ptPT,
     "pt-BR": ptBR,
+    ko,
+    ro,
+    uk,
   };
 
   // `.few`/`.many` are optional per-locale plural refinements (see
@@ -151,6 +157,15 @@ describe("pluralCategory", () => {
   it("covers the Polish teens exception and the default binary split", () => {
     expect(pluralCategory("pl", 14)).toBe("many");
     expect(pluralCategory("pl", 24)).toBe("few");
+    expect(pluralCategory("uk", 21)).toBe("one");
+    expect(pluralCategory("uk", 11)).toBe("other");
+    expect(pluralCategory("uk", 23)).toBe("few");
+    expect(pluralCategory("ro", 0)).toBe("few");
+    expect(pluralCategory("ro", 19)).toBe("few");
+    expect(pluralCategory("ro", 20)).toBe("other");
+    expect(pluralCategory("ro", 101)).toBe("other");
+    expect(pluralCategory("ro", 102)).toBe("few");
+    expect(pluralCategory("ko", 2)).toBe("other");
     expect(pluralCategory("es-ES", 0)).toBe("other");
     expect(pluralCategory("de", 1)).toBe("one");
   });
