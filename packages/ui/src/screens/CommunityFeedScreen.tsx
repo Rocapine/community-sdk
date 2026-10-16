@@ -233,7 +233,7 @@ export function CommunityFeedScreen({
   const showFloatingCompose = composerHidden && !searchActive;
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
-  const myInitial = displayName(cfg.host.getDisplayName(), cfg.anonymousAuthorFallback)
+  const myInitial = displayName(cfg.host.getDisplayName(), cfg.authorFallback())
     .charAt(0)
     .toUpperCase();
   const focusComposer = () => {

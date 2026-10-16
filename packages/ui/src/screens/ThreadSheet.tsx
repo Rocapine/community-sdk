@@ -207,7 +207,7 @@ export function ThreadSheet({
 
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
-  const myInitial = displayName(cfg.host.getDisplayName(), cfg.anonymousAuthorFallback)
+  const myInitial = displayName(cfg.host.getDisplayName(), cfg.authorFallback())
     .charAt(0)
     .toUpperCase();
   // Double-submit latch for the `beforeSubmitComment` await — see the
@@ -222,7 +222,7 @@ export function ThreadSheet({
       return;
     }
     const postId = shownId;
-    const authorName = displayName(cfg.host.getDisplayName(), cfg.anonymousAuthorFallback);
+    const authorName = displayName(cfg.host.getDisplayName(), cfg.authorFallback());
     const draft = { postId, body: trimmed };
 
     const doSend = () => {

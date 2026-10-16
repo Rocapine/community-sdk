@@ -225,7 +225,7 @@ async function toFeedPosts(
     mapPostRow(
       r,
       uid,
-      cfg.anonymousAuthorFallback,
+      cfg.authorFallback(),
       cfg.topics,
       liked,
       pollData,
@@ -301,7 +301,7 @@ export async function fetchProfile(
     .eq("id", userId)
     .single();
   if (error) throw error;
-  return mapProfileRow(data as unknown as ProfileRow, cfg.anonymousAuthorFallback);
+  return mapProfileRow(data as unknown as ProfileRow, cfg.authorFallback());
 }
 
 /**
@@ -390,7 +390,7 @@ export async function fetchThread(
   const { data, error } = await query;
   if (error) throw error;
   return ((data ?? []) as unknown as CommentRow[]).map((r) =>
-    mapCommentRow(r, uid, cfg.anonymousAuthorFallback),
+    mapCommentRow(r, uid, cfg.authorFallback()),
   );
 }
 

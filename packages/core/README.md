@@ -24,7 +24,9 @@ const config: CommunityConfig = {
 
   // Product vocabulary
   appName: "My App", // pushes, inbox, broadcast fallback title
-  anonymousAuthorFallback: "Someone", // shown when an author has no username yet
+  // Shown when an author has no username yet. A function receives the host
+  // locale (`host.getLocale()`), e.g. (locale) => t("anonymous", { lng: locale }).
+  anonymousAuthorFallback: "Someone",
 
   // Topics — nothing hardcoded. `id` resolves to `topics.<id>` in the UI
   // package's i18n catalog (see packages/ui/README.md); the app supplies
