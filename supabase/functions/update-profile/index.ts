@@ -1,10 +1,10 @@
-// update-profile: the ONLY write path for profiles.handle / bio / avatar_url.
+// update-profile: the ONLY moderated write path for profiles.username / handle / bio / avatar_url.
 // JWT-authenticated: uid comes from the caller's anon session token, never the
 // body. Text fields run through OpenAI omni-moderation (same category logic
 // as moderate-one); avatarPath runs image moderation on the object's public
 // URL. Fail closed: if moderation is unreachable, nothing is written.
 //
-// Fields are applied sequentially (handle, then bio, then avatar); the first
+// Fields are applied sequentially (username, handle, bio, then avatar); the first
 // failure aborts and reports its field. The app's editors send one field at a
 // time, so partial application is not observable in practice.
 
@@ -24,22 +24,43 @@ Deno.serve(async (req) => {
   const uid = userData.user?.id;
   if (!uid) return json({ status: "error", error: "unauthorized" }, 401);
 
-  let body: { handle?: unknown; bio?: unknown; avatarPath?: unknown };
+  let body: { username?: unknown; handle?: unknown; bio?: unknown; avatarPath?: unknown };
   try {
     body = await req.json();
   } catch {
     return json({ status: "error", error: "bad request" }, 400);
   }
-  const { handle, bio, avatarPath } = body;
-  if (handle === undefined && bio === undefined && avatarPath === undefined) {
+  const { username, handle, bio, avatarPath } = body;
+  if (
+    username === undefined &&
+    handle === undefined &&
+    bio === undefined &&
+    avatarPath === undefined
+  ) {
     return json({ status: "error", error: "bad request" }, 400);
   }
   if (
+    (username !== undefined && typeof username !== "string") ||
     (handle !== undefined && typeof handle !== "string") ||
     (bio !== undefined && typeof bio !== "string") ||
     (avatarPath !== undefined && typeof avatarPath !== "string")
   ) {
     return json({ status: "error", error: "bad request" }, 400);
+  }
+
+  // ============ USERNAME (display name) ============
+  if (username !== undefined) {
+    const u = (username as string).trim();
+    if (u.length < 2 || u.length > 24) {
+      return json({ status: "error", error: "invalid_username" }, 400);
+    }
+    const verdict = await moderateInput(u);
+    if (!verdict) return json({ status: "error", error: "moderation unavailable" }, 503);
+    if (verdict.flagged) {
+      return json({ status: "rejected", field: "username", reason: verdict.reason });
+    }
+    const { error } = await admin.from("profiles").update({ username: u }).eq("id", uid);
+    if (error) return json({ status: "error", error: error.message }, 500);
   }
 
   // ============ HANDLE ============
@@ -119,11 +140,12 @@ Deno.serve(async (req) => {
   // ============ SUCCESS ============
   const { data: profile } = await admin
     .from("profiles")
-    .select("handle, bio, avatar_url")
+    .select("username, handle, bio, avatar_url")
     .eq("id", uid)
     .single();
   return json({
     status: "ok",
+    username: profile?.username ?? null,
     handle: profile?.handle ?? null,
     bio: profile?.bio ?? null,
     avatarUrl: profile?.avatar_url ?? null,

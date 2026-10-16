@@ -138,7 +138,6 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
 
   const submit = () => {
     if (!canPost) return;
-    const authorName = displayName(cfg.host.getDisplayName(), cfg.authorFallback());
     const draft = {
       topic,
       body: text.trim(),
@@ -146,6 +145,8 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
     };
 
     const doSubmit = () => {
+      // Read after the gate: a host may set the display name in `beforeSubmit`.
+      const authorName = displayName(cfg.host.getDisplayName(), cfg.authorFallback());
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       createPost.mutate(
         {

@@ -308,6 +308,7 @@ export function useUpdateProfile() {
         hasBio: !!input.bio,
         hasAvatar: !!input.avatarUrl,
         handleChanged: !!input.handle,
+        usernameChanged: !!input.username,
       });
     },
   });

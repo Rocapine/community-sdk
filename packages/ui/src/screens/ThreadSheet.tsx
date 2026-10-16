@@ -222,10 +222,11 @@ export function ThreadSheet({
       return;
     }
     const postId = shownId;
-    const authorName = displayName(cfg.host.getDisplayName(), cfg.authorFallback());
     const draft = { postId, body: trimmed };
 
     const doSend = () => {
+      // Read after the gate: a host may set the display name in `beforeSubmitComment`.
+      const authorName = displayName(cfg.host.getDisplayName(), cfg.authorFallback());
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       createComment.mutate(
         { postId, text: trimmed, authorName },
