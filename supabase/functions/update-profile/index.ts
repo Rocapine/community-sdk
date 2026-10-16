@@ -32,7 +32,10 @@ Deno.serve(async (req) => {
   }
   const { username, handle, bio, avatarPath } = body;
   if (
-    username === undefined && handle === undefined && bio === undefined && avatarPath === undefined
+    username === undefined &&
+    handle === undefined &&
+    bio === undefined &&
+    avatarPath === undefined
   ) {
     return json({ status: "error", error: "bad request" }, 400);
   }
