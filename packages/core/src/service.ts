@@ -571,11 +571,23 @@ export async function deleteOwnComment(
  * signature and translated to the Edge Function's expected `avatarPath` body
  * key at the call site below.
  */
-export type UpdateProfileInput = { handle?: string; bio?: string; avatarUrl?: string };
+/** `username` is the display name shown on posts; `handle` the @handle. All fields are moderated server-side. */
+export type UpdateProfileInput = {
+  username?: string;
+  handle?: string;
+  bio?: string;
+  avatarUrl?: string;
+};
 
 export type UpdateProfileResult =
-  | { status: "ok"; handle: string | null; bio: string | null; avatarUrl: string | null }
-  | { status: "rejected"; field: "handle" | "bio" | "avatar"; reason?: string }
+  | {
+      status: "ok";
+      username: string | null;
+      handle: string | null;
+      bio: string | null;
+      avatarUrl: string | null;
+    }
+  | { status: "rejected"; field: "username" | "handle" | "bio" | "avatar"; reason?: string }
   | { status: "error"; code?: "handle_taken"; error?: string };
 
 /**
@@ -589,9 +601,9 @@ export async function updateProfile(
   input: UpdateProfileInput,
 ): Promise<UpdateProfileResult> {
   const client = cfg.requireClient();
-  const { handle, bio, avatarUrl } = input;
+  const { username, handle, bio, avatarUrl } = input;
   const { data, error } = await client.functions.invoke("update-profile", {
-    body: { handle, bio, avatarPath: avatarUrl },
+    body: { username, handle, bio, avatarPath: avatarUrl },
   });
   if (!error) return data as UpdateProfileResult;
   if (error instanceof FunctionsHttpError) {
