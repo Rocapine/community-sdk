@@ -1,5 +1,13 @@
 # @rocapine/community-ui
 
+## 0.8.0
+
+### Patch Changes
+
+- 5db99b6: `anonymousAuthorFallback` accepts a `(locale: string) => string` as well as a string: hosts that ship several languages can localize the name shown for authors without a username. Read it through the new `cfg.authorFallback()` (resolved against `host.getLocale()`); the UI package does.
+- Updated dependencies [5db99b6]
+  - @rocapine/community-core@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes
