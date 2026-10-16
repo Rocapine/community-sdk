@@ -17,8 +17,8 @@
 // Placeholders: `{name}` (actor display name) and `{count}` (the number of
 // OTHER people in a coalesced push). A `*.many` value is either a string or a
 // `{ one, few, many, other }` object picked by the CLDR plural category of
-// `{count}` for the recipient's locale (Polish needs all three; French treats
-// 0 like 1; everything else is one/other).
+// `{count}` for the recipient's locale (Polish needs all three; Ukrainian and
+// Romanian one/few/other; French treats 0 like 1; everything else is one/other).
 //
 // Legacy single-string secrets still apply, below the JSON and above the
 // built-ins: COMMUNITY_FALLBACK_NAME (every locale's fallbackName) and
@@ -165,12 +165,22 @@ const BUILTIN: Record<string, LocaleCopy> = {
 // Same rule set as the UI package's `pluralCategory` (packages/ui/src/i18n.ts).
 export function pluralCategory(locale: string, n: number): keyof Forms {
   const lang = locale.split("-")[0]?.toLowerCase();
+  const m10 = n % 10;
+  const m100 = n % 100;
   if (lang === "pl") {
     if (n === 1) return "one";
-    const m10 = n % 10;
-    const m100 = n % 100;
     if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return "few";
     return "many";
+  }
+  if (lang === "uk") {
+    if (m10 === 1 && m100 !== 11) return "one";
+    if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return "few";
+    return "other";
+  }
+  if (lang === "ro") {
+    if (n === 1) return "one";
+    if (n === 0 || (m100 >= 2 && m100 <= 19)) return "few";
+    return "other";
   }
   if (lang === "fr") return n === 0 || n === 1 ? "one" : "other";
   return n === 1 ? "one" : "other";

@@ -178,4 +178,7 @@ export const de: Record<string, string> = {
   "language.pl": "Polnischen",
   "language.fr": "Französischen",
   "language.de": "Deutschen",
+  "language.ko": "Koreanischen",
+  "language.ro": "Rumänischen",
+  "language.uk": "Ukrainischen",
 };

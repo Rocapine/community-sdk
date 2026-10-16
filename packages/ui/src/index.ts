@@ -17,6 +17,9 @@ export { it } from "./locales/it";
 export { pl } from "./locales/pl";
 export { ptPT } from "./locales/pt-PT";
 export { ptBR } from "./locales/pt-BR";
+export { ko } from "./locales/ko";
+export { ro } from "./locales/ro";
+export { uk } from "./locales/uk";
 
 // Re-exported so hosts typing a `renderInboxRow` callback for
 // `NotificationInboxScreen` (whose prop signature is

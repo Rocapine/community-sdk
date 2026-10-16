@@ -157,4 +157,7 @@ export const es419: Record<string, string> = {
   "language.pl": "polaco",
   "language.fr": "francés",
   "language.de": "alemán",
+  "language.ko": "coreano",
+  "language.ro": "rumano",
+  "language.uk": "ucraniano",
 };

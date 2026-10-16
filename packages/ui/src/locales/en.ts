@@ -169,4 +169,7 @@ export const en: Record<string, string> = {
   "language.pl": "Polish",
   "language.fr": "French",
   "language.de": "German",
+  "language.ko": "Korean",
+  "language.ro": "Romanian",
+  "language.uk": "Ukrainian",
 };

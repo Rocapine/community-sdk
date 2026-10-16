@@ -12,6 +12,9 @@ import { it } from "./locales/it";
 import { pl } from "./locales/pl";
 import { ptPT } from "./locales/pt-PT";
 import { ptBR } from "./locales/pt-BR";
+import { ko } from "./locales/ko";
+import { ro } from "./locales/ro";
+import { uk } from "./locales/uk";
 
 export type TFn = (key: string, params?: Record<string, string | number>) => string;
 
@@ -30,6 +33,9 @@ const catalog: Record<string, LocaleCatalog> = {
   pl,
   "pt-PT": ptPT,
   "pt-BR": ptBR,
+  ko,
+  ro,
+  uk,
 };
 
 /**
@@ -38,7 +44,7 @@ const catalog: Record<string, LocaleCatalog> = {
  * both ship two regional catalogs (`es-ES`/`es-419`, `pt-PT`/`pt-BR`), so an
  * unlisted variant (`es-MX`, `pt-AO`, or the bare `es`/`pt`) needs a pick:
  * `es-ES` and `pt-PT` win. Every other language has exactly one catalog,
- * keyed by its bare language code (`fr`, `de`, `it`, `pl`) — those resolve
+ * keyed by its bare language code (`fr`, `de`, `it`, `pl`, `ko`, `ro`, `uk`) — those resolve
  * to themselves with no entry needed here (see `baseLocaleFor`): `fr-CA`,
  * `de-AT`, `it-CH`, etc. all fall back to their bare-language catalog by
  * the same default this map has no override for.
@@ -59,18 +65,30 @@ function baseLocaleFor(locale: string): string | undefined {
 /**
  * CLDR plural category for integer counts in the languages this package
  * ships. Polish distinguishes one/few/many (2 → "nowe posty", 5 → "nowych
- * postów"); French treats 0 like 1. Everything else is a binary one/other.
+ * postów"); Ukrainian likewise, except that 21, 31… are `one` (one/few/other);
+ * Romanian splits one (1) / few (0, 2–19, x02–x19) / other (20, 21, 100…);
+ * French treats 0 like 1. Everything else is a binary one/other.
  * Catalogs only need `.one`/`.other`; `.few`/`.many` are optional refinements
  * that fall back to `.other` when absent.
  */
 export function pluralCategory(locale: string, n: number): "one" | "few" | "many" | "other" {
   const lang = locale.split("-")[0]?.toLowerCase();
+  const m10 = n % 10;
+  const m100 = n % 100;
   if (lang === "pl") {
     if (n === 1) return "one";
-    const m10 = n % 10;
-    const m100 = n % 100;
     if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return "few";
     return "many";
+  }
+  if (lang === "uk") {
+    if (m10 === 1 && m100 !== 11) return "one";
+    if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return "few";
+    return "other";
+  }
+  if (lang === "ro") {
+    if (n === 1) return "one";
+    if (n === 0 || (m100 >= 2 && m100 <= 19)) return "few";
+    return "other";
   }
   if (lang === "fr") return n === 0 || n === 1 ? "one" : "other";
   return n === 1 ? "one" : "other";

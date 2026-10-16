@@ -158,4 +158,7 @@ export const it: Record<string, string> = {
   "language.pl": "dal polacco",
   "language.fr": "dal francese",
   "language.de": "dal tedesco",
+  "language.ko": "dal coreano",
+  "language.ro": "dal rumeno",
+  "language.uk": "dall'ucraino",
 };
