@@ -40,3 +40,29 @@ Deno.test("sendExpoPushBatch: a rejected fetch does not throw", async () => {
   await sendExpoPushBatch(messages(150), { fetchImpl: f.fetchImpl });
   assertEquals(f.sizes, [100, 50]);
 });
+
+Deno.test("sendExpoPushBatch: a rejected send is logged, not swallowed", async () => {
+  const seen: string[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => {
+    seen.push(args.map(String).join(" "));
+  };
+  try {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ errors: [{ code: "UNAUTHORIZED" }] }), {
+        status: 401,
+      })) as unknown as typeof fetch;
+    await sendExpoPushBatch(messages(1), { fetchImpl });
+    const ticketError = (async () =>
+      new Response(
+        JSON.stringify({ data: [{ status: "error", message: "DeviceNotRegistered" }] }),
+        { status: 200 },
+      )) as unknown as typeof fetch;
+    await sendExpoPushBatch(messages(1), { fetchImpl: ticketError });
+  } finally {
+    console.error = original;
+  }
+  assertEquals(seen.length, 2);
+  assertEquals(seen[0].includes("401"), true);
+  assertEquals(seen[1].includes("DeviceNotRegistered"), true);
+});

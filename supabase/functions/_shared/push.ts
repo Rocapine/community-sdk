@@ -28,14 +28,25 @@ export async function sendExpoPushBatch(
   if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
   const chunks: ExpoPushMessage[][] = [];
   for (let i = 0; i < messages.length; i += 100) chunks.push(messages.slice(i, i + 100));
-  await runPool(chunks, opts.concurrency ?? 4, (chunk) =>
-    fetchImpl("https://exp.host/--/api/v2/push/send", {
-      method: "POST",
-      headers,
-      body: JSON.stringify(chunk.length === 1 ? chunk[0] : chunk),
-      signal: AbortSignal.timeout(10_000),
-    }).catch(() => {}),
-  );
+  await runPool(chunks, opts.concurrency ?? 4, async (chunk) => {
+    try {
+      const res = await fetchImpl("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(chunk.length === 1 ? chunk[0] : chunk),
+        signal: AbortSignal.timeout(10_000),
+      });
+      // Best effort, but never silent: a project with push security enabled
+      // answers 401 UNAUTHORIZED without EXPO_ACCESS_TOKEN, and bad tokens
+      // come back as per-message tickets — both used to vanish here.
+      const body = await res.text();
+      if (!res.ok || /"status"\s*:\s*"error"/.test(body)) {
+        console.error(`expo push: HTTP ${res.status} ${body.slice(0, 500)}`);
+      }
+    } catch (error) {
+      console.error("expo push: request failed", error);
+    }
+  });
 }
 
 export async function sendExpoPush(message: ExpoPushMessage): Promise<void> {
