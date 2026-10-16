@@ -138,7 +138,7 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
 
   const submit = () => {
     if (!canPost) return;
-    const authorName = displayName(cfg.host.getDisplayName(), cfg.anonymousAuthorFallback);
+    const authorName = displayName(cfg.host.getDisplayName(), cfg.authorFallback());
     const draft = {
       topic,
       body: text.trim(),

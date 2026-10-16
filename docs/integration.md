@@ -64,7 +64,7 @@ exact signatures, see the per-package READMEs.
    - `COMMUNITY_TRANSLATION_LOCALES` is needed only for the translation module.
    - `EXPO_ACCESS_TOKEN` is needed only for the push module.
    - Two secrets must equal what the app sets in Phase 3:
-     - `COMMUNITY_FALLBACK_NAME` must equal `anonymousAuthorFallback`;
+     - `COMMUNITY_FALLBACK_NAME` (or the per-locale `fallbackName` in `COMMUNITY_PUSH_COPY`) must match `anonymousAuthorFallback`, which may itself be a `(locale) => string`;
      - `COMMUNITY_TRANSLATION_LOCALES` must equal `modules.translation.locales`.
 
      Otherwise pushes and the UI disagree.

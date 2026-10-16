@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { CommunityDisabledError, resolveConfig } from "../config";
+import { type CommunityConfig, CommunityDisabledError, resolveConfig } from "../config";
 
 const base = {
   supabase: null,
@@ -50,4 +50,28 @@ it("feed carries through the extension point when provided", () => {
   const r = resolveConfig({ ...base, feed: { extraPostColumns: ["seed_likes"], transformPost } });
   expect(r.feed.extraPostColumns).toEqual(["seed_likes"]);
   expect(r.feed.transformPost).toBe(transformPost);
+});
+
+describe("authorFallback", () => {
+  const base = {
+    supabase: null,
+    appName: "App",
+    topics: [],
+    modules: {},
+  } as unknown as Omit<CommunityConfig, "anonymousAuthorFallback">;
+
+  it("returns a plain string fallback as-is", () => {
+    const cfg = resolveConfig({ ...base, anonymousAuthorFallback: "A brother" });
+    expect(cfg.authorFallback()).toBe("A brother");
+  });
+
+  it("resolves a function fallback against the host locale", () => {
+    const cfg = resolveConfig({
+      ...base,
+      anonymousAuthorFallback: (locale: string) =>
+        locale.startsWith("fr") ? "Un frère" : "A brother",
+      host: { getLocale: () => "fr-vous" },
+    });
+    expect(cfg.authorFallback()).toBe("Un frère");
+  });
 });
