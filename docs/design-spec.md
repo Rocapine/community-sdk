@@ -123,7 +123,7 @@ CLI commands:
 
 ### Reaction (generalization of Eve's prayers)
 
-One secondary reaction per app, Eve's semantics kept: private rows, non-retractable, aggregate via a security-definer RPC returning count + last reactant's display name. Backend: table `post_reactions`, RPC `post_reaction_summary`, `notify-reaction` Edge Function (push text localized via the profile locale / function secrets). The **meaning** is 100% client-side: `modules.reaction = { key: "prayer" }` + i18n label + `renderReactionButton` slot; the core exposes `useReactToPost()`.
+One secondary reaction per app, Eve's semantics kept: private rows, retractable like a like (reaction/003), aggregate via a security-definer RPC returning count + last reactant's display name. Backend: table `post_reactions`, RPC `post_reaction_summary`, `notify-reaction` Edge Function (push text localized via the profile locale / function secrets). The **meaning** is 100% client-side: `modules.reaction = { key: "prayer" }` + i18n label + `renderReactionButton` slot; the core exposes `useReactToPost()`.
 
 Eve's adoption requires a local migration renaming `post_prayers` → `post_reactions` and `post_prayer_summary` → `post_reaction_summary` (data preserved). ⚠️ Coordinate with Rocactopus if the dashboard reads these objects (verify during planning).
 

@@ -51,9 +51,9 @@ import {
   useNotificationInbox,
   type InboxItem,
 } from "@rocapine/community-core";
-import * as Haptics from "expo-haptics";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { PressableScale } from "../components/PressableScale";
 import type { TFn } from "../i18n";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -213,17 +213,14 @@ function NotificationRow({
   const excerpt = typeof item.payload.postExcerpt === "string" ? item.payload.postExcerpt : null;
 
   return (
-    <Pressable
+    <PressableScale
+      scale="surface"
+      haptic="selection"
       onPress={() => {
-        Haptics.selectionAsync().catch(() => {});
         if (item.postId) onOpenPost(item.postId);
         else onOpenCommunity?.();
       }}
-      style={({ pressed }) => [
-        styles.row,
-        showDivider && styles.rowDivider,
-        pressed && styles.rowPressed,
-      ]}
+      style={[styles.row, showDivider && styles.rowDivider]}
     >
       <View style={styles.iconWrap}>
         <KindIcon kind={item.kind} />
@@ -242,7 +239,7 @@ function NotificationRow({
         <Text style={styles.rowDate}>{formatTimeAgo(t, item.createdAt, Date.now())}</Text>
         {unread && <View style={styles.unreadDot} />}
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -251,6 +248,7 @@ function makeStyles(theme: CommunityTheme) {
     root: { flex: 1, backgroundColor: theme.colors.background, padding: theme.spacing(5) },
     title: {
       fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
       fontSize: 26,
       color: theme.colors.textPrimary,
       marginBottom: theme.spacing(5),
@@ -258,6 +256,7 @@ function makeStyles(theme: CommunityTheme) {
     loader: { marginTop: theme.spacing(8) },
     empty: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 14,
       lineHeight: 22,
       color: theme.colors.textFaint,
@@ -280,7 +279,6 @@ function makeStyles(theme: CommunityTheme) {
       paddingVertical: theme.spacing(3.5),
     },
     rowDivider: { borderTopWidth: 1, borderTopColor: theme.colors.hairline },
-    rowPressed: { opacity: 0.8 },
     iconWrap: {
       width: 36,
       height: 36,
@@ -295,19 +293,30 @@ function makeStyles(theme: CommunityTheme) {
     rowBody: { flex: 1, gap: 3 },
     rowTitle: {
       fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
       fontSize: 14.5,
       lineHeight: 20,
       color: theme.colors.textSecondary,
     },
-    rowTitleUnread: { fontFamily: theme.fonts.bold, color: theme.colors.textPrimary },
+    rowTitleUnread: {
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      color: theme.colors.textPrimary,
+    },
     rowExcerpt: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 13,
       lineHeight: 18,
       color: theme.colors.textFaint,
     },
     rowMeta: { alignItems: "flex-end", gap: theme.spacing(1.5), marginTop: 2 },
-    rowDate: { fontFamily: theme.fonts.medium, fontSize: 12, color: theme.colors.textFaint },
+    rowDate: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 12,
+      color: theme.colors.textFaint,
+    },
     unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.accent },
   });
 }

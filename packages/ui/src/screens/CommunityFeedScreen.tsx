@@ -83,7 +83,6 @@ import {
   type FeedPost,
   useUnreadNotificationCount,
 } from "@rocapine/community-core";
-import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
@@ -91,7 +90,6 @@ import {
   Alert,
   AppState,
   FlatList,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -107,6 +105,7 @@ import { CommunityPost, type PostSlots, type ProfileSource } from "../components
 import { ComposerCard, type ComposerCardHandle } from "../components/ComposerCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
+import { haptic, PressableScale } from "../components/PressableScale";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
 import { ThreadSheet } from "./ThreadSheet";
@@ -149,6 +148,8 @@ export function CommunityFeedScreen({
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [activePostId, setActivePostId] = useState<string | null>(null);
+  // Opened from a post's comment button: land in the reply field.
+  const [focusComment, setFocusComment] = useState(false);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [notice, setNotice] = useState<"rejected" | "network" | null>(null);
 
@@ -230,27 +231,24 @@ export function CommunityFeedScreen({
   // so it starts at offset 0) has fully scrolled out of view.
   const composerBottom = useRef(140);
   const [composerHidden, setComposerHidden] = useState(false);
-  const showFloatingCompose = composerHidden && !searchActive;
+  const showFloatingCompose = composerHidden && !searchOpen;
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
   const myInitial = displayName(cfg.host.getDisplayName(), cfg.authorFallback())
     .charAt(0)
     .toUpperCase();
   const focusComposer = () => {
-    Haptics.selectionAsync().catch(() => {});
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
     // Let the scroll-to-top land before the keyboard (or rules sheet) opens.
     setTimeout(() => composerRef.current?.focus(), 320);
   };
 
   const showNewPosts = () => {
-    Haptics.selectionAsync().catch(() => {});
     refetch();
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
   };
 
   const toggleSearch = () => {
-    Haptics.selectionAsync().catch(() => {});
     setSearchOpen((open) => {
       if (open) setSearchTerm("");
       return !open;
@@ -262,13 +260,18 @@ export function CommunityFeedScreen({
   // reconcile every visible row on each unrelated re-render (e.g. every 5s
   // new-post poll tick, or a keystroke in the search bar).
   const openThread = useCallback((postId: string) => {
-    Haptics.selectionAsync().catch(() => {});
+    haptic("selection");
+    setFocusComment(false);
+    setActivePostId(postId);
+  }, []);
+  const openThreadToComment = useCallback((postId: string) => {
+    setFocusComment(true);
     setActivePostId(postId);
   }, []);
 
   const openPostMenu = useCallback(
     (post: FeedPost) => {
-      Haptics.selectionAsync().catch(() => {});
+      haptic("selection");
       if (post.isOwn) {
         Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
           { text: t("menu.cancel"), style: "cancel" },
@@ -318,12 +321,13 @@ export function CommunityFeedScreen({
       <CommunityPost
         post={item}
         onOpenThread={openThread}
+        onPressComment={openThreadToComment}
         onOpenProfile={onOpenProfile}
         onMenu={openPostMenu}
         {...slots}
       />
     ),
-    [openThread, onOpenProfile, openPostMenu, slots],
+    [openThread, openThreadToComment, onOpenProfile, openPostMenu, slots],
   );
 
   // An `officialOnly` filter (e.g. "News") must never become the composer's
@@ -337,58 +341,82 @@ export function CommunityFeedScreen({
 
       <View style={styles.controls}>
         <View style={styles.controlsRow}>
-          <View style={styles.controlsSpacer} />
           {cfg.modules.inbox && onOpenInbox && <InboxBell onPress={onOpenInbox} />}
-          <Pressable hitSlop={10} onPress={toggleSearch} style={styles.iconButton}>
+          <PressableScale
+            scale="icon"
+            haptic="selection"
+            onPress={toggleSearch}
+            style={styles.iconButton}
+            accessibilityRole="button"
+            accessibilityLabel={searchOpen ? t("a11y.closeSearch") : t("a11y.search")}
+          >
             {searchOpen ? (
-              <icons.close size={20} color={theme.colors.textPrimary} weight="bold" />
+              <icons.close size={22} color={theme.colors.textPrimary} weight="bold" />
             ) : (
-              <icons.search size={20} color={theme.colors.textPrimary} weight="regular" />
+              <icons.search size={22} color={theme.colors.textPrimary} weight="regular" />
             )}
-          </Pressable>
+          </PressableScale>
         </View>
 
-        {searchOpen ? (
-          <View style={styles.searchBar}>
-            <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
-            <TextInput
-              value={searchTerm}
-              onChangeText={setSearchTerm}
-              placeholder={t("feed.searchPlaceholder")}
-              placeholderTextColor={theme.colors.textFaint}
-              autoFocus
-              returnKeyType="search"
-              style={styles.searchInput}
-            />
-          </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filters}
-          >
-            <FilterChip
-              label={t("feed.all")}
-              active={filter === "all"}
-              onPress={() => setFilter("all")}
-            />
-            {cfg.topics.map((topic) => (
-              <FilterChip
-                key={topic.id}
-                label={t(`topics.${topic.id}`)}
-                active={filter === topic.id}
-                onPress={() => setFilter(topic.id)}
+        {/* Search bar and filter chips share one fixed-height slot, so
+            toggling between them never shifts the feed. */}
+        <View style={styles.switchRow}>
+          {searchOpen ? (
+            <View style={styles.searchBar}>
+              <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
+              <TextInput
+                value={searchTerm}
+                onChangeText={setSearchTerm}
+                placeholder={t("feed.searchPlaceholder")}
+                placeholderTextColor={theme.colors.textFaint}
+                autoFocus
+                returnKeyType="search"
+                style={styles.searchInput}
               />
-            ))}
-          </ScrollView>
-        )}
+              {searchTerm.length > 0 && (
+                <PressableScale
+                  scale="icon"
+                  hitSlop={10}
+                  haptic="selection"
+                  onPress={() => setSearchTerm("")}
+                  style={styles.clearButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("a11y.clearSearch")}
+                >
+                  <icons.close size={12} color={theme.colors.surface} weight="bold" />
+                </PressableScale>
+              )}
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.filtersScroll}
+              contentContainerStyle={styles.filters}
+            >
+              <FilterChip
+                label={t("feed.all")}
+                active={filter === "all"}
+                onPress={() => setFilter("all")}
+              />
+              {cfg.topics.map((topic) => (
+                <FilterChip
+                  key={topic.id}
+                  label={t(`topics.${topic.id}`)}
+                  active={filter === topic.id}
+                  onPress={() => setFilter(topic.id)}
+                />
+              ))}
+            </ScrollView>
+          )}
+        </View>
       </View>
 
       <View style={styles.listWrap}>
         {newCount > 0 && (
-          <Pressable onPress={showNewPosts} style={styles.newPill}>
+          <PressableScale haptic="selection" onPress={showNewPosts} style={styles.newPill}>
             <Text style={styles.newPillText}>{t("feed.newPosts", { count: newCount })}</Text>
-          </Pressable>
+          </PressableScale>
         )}
 
         <FlatList
@@ -397,7 +425,9 @@ export function CommunityFeedScreen({
           keyExtractor={(p) => p.id}
           renderItem={renderItem}
           ListHeaderComponent={
+            // A search shows results only. Hidden, not unmounted: a draft survives it.
             <View
+              style={searchOpen && styles.hidden}
               onLayout={(e) =>
                 (composerBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height)
               }
@@ -432,13 +462,13 @@ export function CommunityFeedScreen({
           }
           ListFooterComponent={
             hasNextPage ? (
-              <Pressable onPress={loadMore} style={styles.loadMore}>
+              <PressableScale haptic="selection" onPress={loadMore} style={styles.loadMore}>
                 {isFetchingNextPage ? (
                   <ActivityIndicator size="small" color={theme.colors.accent} />
                 ) : (
                   <Text style={styles.loadMoreText}>{t("feed.loadMore")}</Text>
                 )}
-              </Pressable>
+              </PressableScale>
             ) : null
           }
           onEndReached={loadMore}
@@ -452,7 +482,14 @@ export function CommunityFeedScreen({
           }
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            // Room for the floating compose bar under the last post.
+            {
+              paddingBottom:
+                insets.bottom + theme.spacing(3.5) + FLOATING_BAR_HEIGHT + theme.spacing(4),
+            },
+          ]}
         />
 
         {showFloatingCompose && (
@@ -461,10 +498,7 @@ export function CommunityFeedScreen({
             exiting={FadeOutDown.duration(140)}
             style={[styles.floatingCompose, { bottom: insets.bottom + theme.spacing(3.5) }]}
           >
-            <Pressable
-              onPress={focusComposer}
-              style={({ pressed }) => [styles.composeBar, pressed && styles.composeBarPressed]}
-            >
+            <PressableScale haptic="selection" onPress={focusComposer} style={styles.composeBar}>
               {myAvatarUrl ? (
                 <Image
                   source={{ uri: myAvatarUrl }}
@@ -480,13 +514,14 @@ export function CommunityFeedScreen({
                 {t("feed.composePrompt")}
               </Text>
               <icons.compose size={18} color={theme.colors.accent} weight="regular" />
-            </Pressable>
+            </PressableScale>
           </Animated.View>
         )}
       </View>
 
       <ThreadSheet
         postId={activePostId}
+        focusComment={focusComment}
         onClose={() => setActivePostId(null)}
         onOpenProfile={onOpenProfile}
         slots={slots}
@@ -513,15 +548,15 @@ function FilterChip({
 }) {
   const styles = useThemedStyles(makeStyles);
   return (
-    <Pressable
-      onPress={() => {
-        Haptics.selectionAsync().catch(() => {});
-        onPress();
-      }}
+    <PressableScale
+      haptic="selection"
+      onPress={onPress}
       style={[styles.filterChip, active && styles.filterChipOn]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
     >
       <Text style={[styles.filterChipText, active && styles.filterChipTextOn]}>{label}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -537,18 +572,25 @@ function InboxBell({ onPress }: { onPress: () => void }) {
   const styles = useThemedStyles(makeStyles);
   const unread = useUnreadNotificationCount();
   return (
-    <Pressable
-      hitSlop={10}
+    <PressableScale
+      scale="icon"
+      haptic="selection"
       onPress={onPress}
       style={styles.iconButton}
       accessibilityRole="button"
       accessibilityLabel={t("inbox.title")}
     >
-      <icons.bell size={20} color={theme.colors.textPrimary} weight="regular" />
+      <icons.bell size={22} color={theme.colors.textPrimary} weight="regular" />
       {unread > 0 && <View style={styles.bellDot} />}
-    </Pressable>
+    </PressableScale>
   );
 }
+
+/** Minimum touch target (Apple HIG / Material: 44pt / 48dp). */
+const ICON_TARGET = 44;
+/** Shared by the filter chips and the search bar that replaces them. */
+const CONTROL_HEIGHT = 40;
+const FLOATING_BAR_HEIGHT = 54;
 
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
@@ -558,13 +600,23 @@ function makeStyles(theme: CommunityTheme) {
       paddingTop: theme.spacing(1),
       paddingBottom: theme.spacing(3),
     },
-    controlsRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1) },
-    controlsSpacer: { flex: 1 },
-    iconButton: { padding: theme.spacing(1.5) },
+    // Icons sit flush with the content edge; each keeps a 44pt target.
+    controlsRow: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      gap: theme.spacing(1),
+      marginRight: -(ICON_TARGET - 22) / 2,
+    },
+    iconButton: {
+      width: ICON_TARGET,
+      height: ICON_TARGET,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     bellDot: {
       position: "absolute",
-      top: theme.spacing(1),
-      right: theme.spacing(1),
+      top: 10,
+      right: 10,
       width: 8,
       height: 8,
       borderRadius: 4,
@@ -572,51 +624,65 @@ function makeStyles(theme: CommunityTheme) {
       borderWidth: 1.5,
       borderColor: theme.colors.background,
     },
+    switchRow: { height: CONTROL_HEIGHT, marginTop: theme.spacing(2) },
     searchBar: {
+      height: CONTROL_HEIGHT,
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing(2),
-      marginTop: theme.spacing(3),
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: theme.radius.md,
-      paddingHorizontal: theme.spacing(3),
-      paddingVertical: theme.spacing(2.25),
+      borderRadius: theme.radius.pill,
+      paddingHorizontal: theme.spacing(3.5),
     },
     searchInput: {
       flex: 1,
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 15,
       color: theme.colors.textPrimary,
       padding: 0,
     },
+    clearButton: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: theme.colors.textFaint,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    // Bleeds past the screen padding so chips scroll edge to edge.
+    filtersScroll: { marginHorizontal: -theme.spacing(5) },
     filters: {
       flexDirection: "row",
       gap: theme.spacing(2),
-      marginTop: theme.spacing(3),
-      paddingRight: theme.spacing(1),
+      paddingHorizontal: theme.spacing(5),
     },
     filterChip: {
+      height: CONTROL_HEIGHT,
+      justifyContent: "center",
       backgroundColor: theme.colors.surfaceMuted,
       borderRadius: theme.radius.pill,
-      paddingVertical: theme.spacing(2),
-      paddingHorizontal: theme.spacing(3.5),
+      paddingHorizontal: theme.spacing(4),
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
     filterChipOn: { backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.accent },
     filterChipText: {
       fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
       fontSize: 12.5,
       color: theme.colors.textMuted,
     },
     filterChipTextOn: { color: theme.colors.accent },
     listWrap: { flex: 1, position: "relative" },
-    listContent: { paddingHorizontal: theme.spacing(5), paddingBottom: theme.spacing(8) },
+    hidden: { display: "none" },
+    listContent: { paddingHorizontal: theme.spacing(5) },
     spinner: { marginTop: theme.spacing(8) },
     stateText: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 13.5,
       color: theme.colors.textMuted,
       textAlign: "center",
@@ -636,7 +702,12 @@ function makeStyles(theme: CommunityTheme) {
       minWidth: 96,
       alignItems: "center",
     },
-    loadMoreText: { fontFamily: theme.fonts.medium, fontSize: 13, color: theme.colors.textMuted },
+    loadMoreText: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 13,
+      color: theme.colors.textMuted,
+    },
     newPill: {
       position: "absolute",
       top: theme.spacing(2),
@@ -655,6 +726,7 @@ function makeStyles(theme: CommunityTheme) {
       ...theme.shadow,
     },
     composeBar: {
+      height: FLOATING_BAR_HEIGHT,
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing(3),
@@ -662,10 +734,8 @@ function makeStyles(theme: CommunityTheme) {
       borderWidth: 1,
       borderColor: theme.colors.border,
       borderRadius: theme.radius.pill,
-      paddingVertical: theme.spacing(2.5),
       paddingHorizontal: theme.spacing(3),
     },
-    composeBarPressed: { opacity: 0.85 },
     composeAvatar: {
       width: 32,
       height: 32,
@@ -679,15 +749,22 @@ function makeStyles(theme: CommunityTheme) {
     composeAvatarImage: { width: 32, height: 32, borderRadius: 16 },
     composeAvatarLetter: {
       fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
       fontSize: 14,
       color: theme.colors.accent,
     },
     composePrompt: {
       flex: 1,
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 14,
       color: theme.colors.textMuted,
     },
-    newPillText: { fontFamily: theme.fonts.bold, fontSize: 13, color: theme.colors.textInverse },
+    newPillText: {
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 13,
+      color: theme.colors.textInverse,
+    },
   });
 }

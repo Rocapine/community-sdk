@@ -69,9 +69,11 @@ export const uk: Record<string, string> = {
   "composer.pollPlaceholder": "Постав своє запитання…",
   "composer.option": "Варіант {number}",
   "composer.addOption": "Додати варіант",
+  "composer.removeOption": "Видалити варіант",
   "composer.poll": "Опитування",
   "composer.removePoll": "Прибрати опитування",
   "composer.post": "ОПУБЛІКУВАТИ",
+  "composer.chooseTopic": "Опублікувати в",
 
   "poll.votes.one": "{count} голос",
   "poll.votes.few": "{count} голоси",
@@ -169,4 +171,7 @@ export const uk: Record<string, string> = {
   "a11y.back": "Назад",
   "a11y.more": "Більше опцій",
   "a11y.send": "Надіслати",
+  "a11y.search": "Пошук",
+  "a11y.closeSearch": "Закрити пошук",
+  "a11y.clearSearch": "Очистити пошук",
 };

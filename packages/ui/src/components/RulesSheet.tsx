@@ -18,7 +18,8 @@
 
 import { COMMUNITY_EVENTS, emitEvent, useCommunityConfig } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { PressableScale } from "./PressableScale";
 import { CommunitySheet, SheetView } from "../Sheet";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -65,12 +66,9 @@ export function RulesSheet({
             </Text>
           ))}
         </View>
-        <Pressable
-          onPress={handleAccept}
-          style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
-        >
+        <PressableScale onPress={handleAccept} style={styles.cta}>
           <Text style={styles.ctaLabel}>{t("rules.accept")}</Text>
-        </Pressable>
+        </PressableScale>
       </SheetView>
     </CommunitySheet>
   );
@@ -80,6 +78,7 @@ function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     title: {
       fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
       fontSize: 22,
       color: theme.colors.textPrimary,
       marginBottom: theme.spacing(4),
@@ -87,6 +86,7 @@ function makeStyles(theme: CommunityTheme) {
     rules: { gap: theme.spacing(3) },
     rule: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 14.5,
       lineHeight: 21,
       color: theme.colors.textSecondary,
@@ -98,7 +98,11 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
       marginTop: theme.spacing(6),
     },
-    ctaPressed: { opacity: 0.9 },
-    ctaLabel: { fontFamily: theme.fonts.bold, fontSize: 15, color: theme.colors.textInverse },
+    ctaLabel: {
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 15,
+      color: theme.colors.textInverse,
+    },
   });
 }

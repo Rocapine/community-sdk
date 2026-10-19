@@ -37,10 +37,10 @@ import {
   uploadAvatar,
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
-import * as Haptics from "expo-haptics";
+import { haptic, PressableScale } from "../components/PressableScale";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -82,7 +82,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
 
   const pickPhoto = async () => {
     if (photoBusy) return;
-    Haptics.selectionAsync().catch(() => {});
+    haptic("selection");
     setPhotoError(null);
     setPhotoBusy(true);
     try {
@@ -113,7 +113,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
 
   const saveBio = async () => {
     if (bioBusy) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    haptic("medium");
     setBioError(null);
     setBioBusy(true);
     try {
@@ -132,7 +132,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
 
   const saveHandle = async () => {
     if (handleBusy) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    haptic("medium");
     setHandleError(null);
     setHandleBusy(true);
     try {
@@ -179,17 +179,17 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
                   </Text>
                 </View>
               )}
-              <Pressable
+              <PressableScale
                 onPress={pickPhoto}
                 disabled={photoBusy}
-                style={({ pressed }) => [styles.pill, (photoBusy || pressed) && styles.pressed]}
+                style={[styles.pill, photoBusy && styles.pressed]}
               >
                 {photoBusy ? (
                   <ActivityIndicator size="small" color={theme.colors.textPrimary} />
                 ) : (
                   <Text style={styles.pillLabel}>{t("profile.changePhoto")}</Text>
                 )}
-              </Pressable>
+              </PressableScale>
             </View>
             {photoError && <Text style={styles.errorText}>{photoError}</Text>}
 
@@ -209,17 +209,17 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
                 <Text style={styles.counter}>
                   {bio.length}/{BIO_MAX_LENGTH}
                 </Text>
-                <Pressable
+                <PressableScale
                   onPress={saveBio}
                   disabled={bioBusy}
-                  style={({ pressed }) => [styles.saveBtn, (bioBusy || pressed) && styles.pressed]}
+                  style={[styles.saveBtn, bioBusy && styles.pressed]}
                 >
                   {bioBusy ? (
                     <ActivityIndicator size="small" color={theme.colors.textInverse} />
                   ) : (
                     <Text style={styles.saveBtnLabel}>{t("profile.save")}</Text>
                   )}
-                </Pressable>
+                </PressableScale>
               </View>
               {bioError && <Text style={styles.errorText}>{bioError}</Text>}
             </View>
@@ -241,21 +241,17 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
                 />
               </View>
               <Text style={styles.helper}>{t("profile.usernameHelper")}</Text>
-              <Pressable
+              <PressableScale
                 onPress={saveHandle}
                 disabled={handleBusy}
-                style={({ pressed }) => [
-                  styles.saveBtn,
-                  styles.saveBtnAlone,
-                  (handleBusy || pressed) && styles.pressed,
-                ]}
+                style={[styles.saveBtn, styles.saveBtnAlone, handleBusy && styles.pressed]}
               >
                 {handleBusy ? (
                   <ActivityIndicator size="small" color={theme.colors.textInverse} />
                 ) : (
                   <Text style={styles.saveBtnLabel}>{t("profile.save")}</Text>
                 )}
-              </Pressable>
+              </PressableScale>
               {handleError && <Text style={styles.errorText}>{handleError}</Text>}
             </View>
           </>
@@ -271,6 +267,7 @@ function makeStyles(theme: CommunityTheme) {
     loader: { marginTop: theme.spacing(8) },
     title: {
       fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
       fontSize: 22,
       color: theme.colors.textPrimary,
       marginBottom: theme.spacing(5),
@@ -287,7 +284,12 @@ function makeStyles(theme: CommunityTheme) {
       justifyContent: "center",
     },
     avatarImage: { width: 64, height: 64, borderRadius: 32 },
-    avatarLetter: { fontFamily: theme.fonts.serifBold, fontSize: 26, color: theme.colors.accent },
+    avatarLetter: {
+      fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 26,
+      color: theme.colors.accent,
+    },
     pill: {
       backgroundColor: theme.colors.surfaceMuted,
       borderRadius: theme.radius.pill,
@@ -299,10 +301,16 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
     },
     pressed: { opacity: 0.7 },
-    pillLabel: { fontFamily: theme.fonts.medium, fontSize: 13.5, color: theme.colors.textPrimary },
+    pillLabel: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 13.5,
+      color: theme.colors.textPrimary,
+    },
     section: { marginTop: theme.spacing(6.5) },
     label: {
       fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
       fontSize: 13,
       color: theme.colors.textMuted,
       marginBottom: theme.spacing(2),
@@ -315,6 +323,7 @@ function makeStyles(theme: CommunityTheme) {
       padding: theme.spacing(4),
       minHeight: 90,
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 15,
       lineHeight: 22,
       color: theme.colors.textPrimary,
@@ -326,7 +335,12 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
       marginTop: theme.spacing(2.5),
     },
-    counter: { fontFamily: theme.fonts.regular, fontSize: 11.5, color: theme.colors.textFaint },
+    counter: {
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 11.5,
+      color: theme.colors.textFaint,
+    },
     saveBtn: {
       backgroundColor: theme.colors.accent,
       borderRadius: theme.radius.pill,
@@ -337,7 +351,12 @@ function makeStyles(theme: CommunityTheme) {
       minWidth: 76,
     },
     saveBtnAlone: { alignSelf: "flex-start", marginTop: theme.spacing(3) },
-    saveBtnLabel: { fontFamily: theme.fonts.bold, fontSize: 13.5, color: theme.colors.textInverse },
+    saveBtnLabel: {
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 13.5,
+      color: theme.colors.textInverse,
+    },
     handleField: {
       flexDirection: "row",
       alignItems: "center",
@@ -349,6 +368,7 @@ function makeStyles(theme: CommunityTheme) {
     },
     handlePrefix: {
       fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
       fontSize: 15,
       color: theme.colors.textFaint,
       marginRight: 2,
@@ -356,18 +376,21 @@ function makeStyles(theme: CommunityTheme) {
     handleInput: {
       flex: 1,
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 15,
       color: theme.colors.textPrimary,
       paddingVertical: theme.spacing(3),
     },
     helper: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 12,
       color: theme.colors.textFaint,
       marginTop: theme.spacing(2),
     },
     errorText: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 12.5,
       color: theme.colors.danger,
       marginTop: theme.spacing(2),

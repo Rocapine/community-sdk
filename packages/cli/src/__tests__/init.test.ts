@@ -59,6 +59,7 @@ describe("runInit", () => {
       "polls",
       "reaction",
       "reaction",
+      "reaction",
       "inbox",
     ]);
   });

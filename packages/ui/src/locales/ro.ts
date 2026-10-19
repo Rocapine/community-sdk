@@ -66,9 +66,11 @@ export const ro: Record<string, string> = {
   "composer.pollPlaceholder": "Pune întrebarea ta…",
   "composer.option": "Opțiunea {number}",
   "composer.addOption": "Adaugă o opțiune",
+  "composer.removeOption": "Elimină opțiunea",
   "composer.poll": "Sondaj",
   "composer.removePoll": "Elimină sondajul",
   "composer.post": "PUBLICĂ",
+  "composer.chooseTopic": "Publică în",
 
   "poll.votes.one": "{count} vot",
   "poll.votes.few": "{count} voturi",
@@ -166,4 +168,7 @@ export const ro: Record<string, string> = {
   "a11y.back": "Înapoi",
   "a11y.more": "Mai multe opțiuni",
   "a11y.send": "Trimite",
+  "a11y.search": "Caută",
+  "a11y.closeSearch": "Închide căutarea",
+  "a11y.clearSearch": "Șterge căutarea",
 };

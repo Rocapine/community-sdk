@@ -66,8 +66,7 @@ import {
 } from "@rocapine/community-core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import * as Haptics from "expo-haptics";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ComponentRef } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
@@ -84,6 +83,7 @@ import { runGuarded } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { RulesSheet } from "../components/RulesSheet";
+import { haptic, PressableScale } from "../components/PressableScale";
 
 const COMMENT_CLAMP_LINES = 5;
 
@@ -118,12 +118,15 @@ function useCachedPost(postId: string | null, locale: string | null): FeedPost |
 
 export function ThreadSheet({
   postId,
+  focusComment = false,
   onClose,
   onOpenProfile,
   slots,
   beforeSubmitComment,
 }: {
   postId: string | null;
+  /** Open with the reply field focused (e.g. from a post's comment button). */
+  focusComment?: boolean;
   onClose(): void;
   onOpenProfile(userId: string, source?: ProfileSource): void;
   slots?: PostSlots;
@@ -184,6 +187,18 @@ export function ThreadSheet({
   // source apps gated the first comment behind the UGC rules sheet too).
   const rulesAccepted = useRulesAccepted(cfg);
   const [rulesVisible, setRulesVisible] = useState(false);
+  const inputRef = useRef<ComponentRef<typeof SheetTextInput>>(undefined);
+  const focusReply = () => {
+    if (rulesAccepted) inputRef.current?.focus();
+    else setRulesVisible(true);
+  };
+  useEffect(() => {
+    if (!postId || !focusComment) return;
+    // Once the sheet has slid up: focusing mid-animation fights the keyboard.
+    const timer = setTimeout(focusReply, 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postId, focusComment]);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   // Report chosen from this sheet: opened once the sheet is dismissed.
   const pendingReport = useRef<ReportTarget | null>(null);
@@ -227,7 +242,7 @@ export function ThreadSheet({
     const doSend = () => {
       // Read after the gate: a host may set the display name in `beforeSubmitComment`.
       const authorName = displayName(cfg.host.getDisplayName(), cfg.authorFallback());
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      haptic("medium");
       createComment.mutate(
         { postId, text: trimmed, authorName },
         {
@@ -293,7 +308,7 @@ export function ThreadSheet({
   };
 
   const openPostMenu = (p: FeedPost) => {
-    Haptics.selectionAsync().catch(() => {});
+    haptic("selection");
     if (p.isOwn) {
       Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
         { text: t("menu.cancel"), style: "cancel" },
@@ -338,7 +353,7 @@ export function ThreadSheet({
   };
 
   const openCommentMenu = (c: ThreadComment) => {
-    Haptics.selectionAsync().catch(() => {});
+    haptic("selection");
     if (c.isOwn) {
       Alert.alert(t("menu.deleteCommentTitle"), undefined, [
         { text: t("menu.cancel"), style: "cancel" },
@@ -396,6 +411,7 @@ export function ThreadSheet({
               </View>
             )}
             <SheetTextInput
+              ref={inputRef}
               value={text}
               onChangeText={setText}
               placeholder={t("thread.commentPlaceholder")}
@@ -404,8 +420,9 @@ export function ThreadSheet({
               multiline
               maxLength={COMMENT_MAX_LENGTH}
             />
-            <Pressable
-              hitSlop={8}
+            <PressableScale
+              scale="icon"
+              hitSlop={4}
               onPress={send}
               disabled={gating}
               style={styles.send}
@@ -417,7 +434,7 @@ export function ThreadSheet({
                 color={text.trim() && !gating ? theme.colors.accent : theme.colors.textFaint}
                 weight="fill"
               />
-            </Pressable>
+            </PressableScale>
             {/* Rules gate: swallow every touch on the comment box until the UGC
                 rules are accepted (mirrors `ComposerCard`'s overlay). */}
             {!rulesAccepted && (
@@ -440,6 +457,10 @@ export function ThreadSheet({
               <CommunityPost
                 post={post}
                 onOpenThread={noop}
+                onPressComment={() => {
+                  haptic("selection");
+                  focusReply();
+                }}
                 onOpenProfile={openProfile}
                 onMenu={openPostMenu}
                 {...slots}
@@ -522,7 +543,7 @@ function CommentRow({
 
   return (
     <View style={styles.comment}>
-      <Pressable onPress={handleAuthor} hitSlop={4}>
+      <PressableScale scale="icon" haptic="selection" onPress={handleAuthor} hitSlop={4}>
         {comment.authorAvatarUrl ? (
           <Image
             source={{ uri: comment.authorAvatarUrl }}
@@ -534,9 +555,15 @@ function CommentRow({
             <Text style={styles.cAvatarLetter}>{comment.authorName.charAt(0).toUpperCase()}</Text>
           </View>
         )}
-      </Pressable>
+      </PressableScale>
       <View style={styles.commentBody}>
-        <Pressable onPress={handleAuthor} hitSlop={4} style={styles.nameRow}>
+        <PressableScale
+          scale="surface"
+          haptic="selection"
+          onPress={handleAuthor}
+          hitSlop={4}
+          style={styles.nameRow}
+        >
           <Text style={styles.cName}>{comment.authorName}</Text>
           {comment.authorOfficial && (
             <icons.officialSeal size={13} color={theme.colors.official} weight="fill" />
@@ -547,7 +574,7 @@ function CommentRow({
             </Text>
           )}
           <Text style={styles.cAgo}>· {formatTimeAgo(t, comment.createdAt, now)}</Text>
-        </Pressable>
+        </PressableScale>
         <ClampedBody
           text={displayText(comment, showOriginal)}
           alternate={comment.translation ? displayText(comment, !showOriginal) : null}
@@ -556,12 +583,18 @@ function CommentRow({
           viewMoreStyle={styles.cViewMore}
         />
         {toggleLine && (
-          <Pressable hitSlop={8} onPress={toggleOriginal}>
+          <PressableScale
+            hitSlop={8}
+            haptic="selection"
+            onPress={toggleOriginal}
+            style={styles.link}
+          >
             <Text style={styles.cTranslationLine}>{toggleLine}</Text>
-          </Pressable>
+          </PressableScale>
         )}
       </View>
-      <Pressable
+      <PressableScale
+        scale="icon"
         hitSlop={8}
         onPress={() => onMenu(comment)}
         style={styles.cMenu}
@@ -569,7 +602,7 @@ function CommentRow({
         accessibilityLabel={t("a11y.more")}
       >
         <icons.menu size={18} color={theme.colors.textFaint} weight="bold" />
-      </Pressable>
+      </PressableScale>
     </View>
   );
 }
@@ -579,6 +612,7 @@ function makeStyles(theme: CommunityTheme) {
     content: { paddingTop: theme.spacing(1), paddingBottom: theme.spacing(3) },
     commentsLabel: {
       fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
       fontSize: 11,
       letterSpacing: 1.5,
       textTransform: "uppercase",
@@ -591,6 +625,7 @@ function makeStyles(theme: CommunityTheme) {
     },
     stateText: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 13.5,
       color: theme.colors.textMuted,
       textAlign: "center",
@@ -608,19 +643,42 @@ function makeStyles(theme: CommunityTheme) {
       justifyContent: "center",
     },
     cAvatarImage: { width: 30, height: 30, borderRadius: 15 },
-    cAvatarLetter: { fontFamily: theme.fonts.serifBold, fontSize: 13, color: theme.colors.accent },
+    cAvatarLetter: {
+      fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 13,
+      color: theme.colors.accent,
+    },
     commentBody: { flex: 1 },
-    nameRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1) },
-    cName: { fontFamily: theme.fonts.bold, fontSize: 13, color: theme.colors.textPrimary },
+    nameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(1),
+      alignSelf: "flex-start",
+    },
+    link: { alignSelf: "flex-start" },
+    cName: {
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 13,
+      color: theme.colors.textPrimary,
+    },
     handle: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 11.5,
       color: theme.colors.textFaint,
       flexShrink: 1,
     },
-    cAgo: { fontFamily: theme.fonts.regular, fontSize: 12, color: theme.colors.textFaint },
+    cAgo: {
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 12,
+      color: theme.colors.textFaint,
+    },
     cText: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 14,
       lineHeight: 21,
       color: theme.colors.textSecondary,
@@ -628,12 +686,14 @@ function makeStyles(theme: CommunityTheme) {
     },
     cViewMore: {
       fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
       fontSize: 12.5,
       color: theme.colors.accent,
       marginTop: theme.spacing(1),
     },
     cTranslationLine: {
       fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
       fontSize: 12.5,
       color: theme.colors.textFaint,
       marginTop: theme.spacing(1.5),
@@ -657,6 +717,7 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(4),
       paddingVertical: theme.spacing(2.5),
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 14.5,
       color: theme.colors.textPrimary,
     },

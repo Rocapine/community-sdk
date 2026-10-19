@@ -29,9 +29,8 @@ import {
   type FeedPost,
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
-import * as Haptics from "expo-haptics";
 import { useContext, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { displayText, translationLine } from "../utils/translation";
@@ -39,6 +38,7 @@ import { formatTimeAgo, useNow } from "../utils/time";
 import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { ClampedBody } from "./ClampedBody";
 import { PollBlock } from "./PollBlock";
+import { haptic, PressableScale } from "./PressableScale";
 
 const BODY_CLAMP_LINES = 6;
 
@@ -70,6 +70,7 @@ export type PostSlots = {
 export function CommunityPost({
   post,
   onOpenThread,
+  onPressComment,
   onOpenProfile,
   onMenu,
   renderPostFooter,
@@ -77,6 +78,9 @@ export function CommunityPost({
 }: {
   post: FeedPost;
   onOpenThread(postId: string): void;
+  /** The comment button. Defaults to `onOpenThread`; the feed opens the
+   * thread with the reply field focused, the thread sheet focuses it. */
+  onPressComment?(postId: string): void;
   onOpenProfile(userId: string, source?: ProfileSource): void;
   onMenu(post: FeedPost): void;
 } & PostSlots) {
@@ -113,14 +117,14 @@ export function CommunityPost({
 
   const handleToggleLike = () => {
     if (pending) return;
-    Haptics.selectionAsync().catch(() => {});
+    haptic(post.likedByMe ? "light" : "medium");
     toggleLike.mutate({ postId: post.id, liked: !post.likedByMe, topic: post.topic });
   };
 
   const handleReact = () => {
-    if (post.hasReacted || pending) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    reactToPost.mutate({ postId: post.id });
+    if (pending) return;
+    haptic(post.hasReacted ? "light" : "medium");
+    reactToPost.mutate({ postId: post.id, on: !post.hasReacted });
   };
 
   // `topics.*` only covers the host-config-driven topic list; an unknown
@@ -173,49 +177,66 @@ export function CommunityPost({
   );
 
   const likeButton = (
-    <Pressable hitSlop={8} onPress={handleToggleLike} style={styles.stat}>
+    <PressableScale scale="icon" hitSlop={4} onPress={handleToggleLike} style={styles.stat}>
       <icons.like
         size={18}
         color={post.likedByMe ? theme.colors.like : theme.colors.textFaint}
         weight={post.likedByMe ? "fill" : "regular"}
       />
-      <Text style={[styles.statText, post.likedByMe && styles.statTextOn]}>{post.likeCount}</Text>
-    </Pressable>
+      <Text
+        numberOfLines={1}
+        style={[styles.statText, post.likedByMe && { color: theme.colors.like }]}
+      >
+        {post.likeCount}
+      </Text>
+    </PressableScale>
   );
 
   const defaultReactionButton = (
-    <Pressable hitSlop={8} onPress={handleReact} disabled={post.hasReacted} style={styles.stat}>
+    <PressableScale scale="icon" hitSlop={4} onPress={handleReact} style={styles.stat}>
       <icons.reaction
         size={18}
-        color={post.hasReacted ? theme.colors.accent : theme.colors.textFaint}
+        color={post.hasReacted ? theme.colors.reaction : theme.colors.textFaint}
         weight={post.hasReacted ? "fill" : "regular"}
       />
-      <Text style={[styles.statText, post.hasReacted && styles.statTextOn]}>
+      <Text
+        numberOfLines={1}
+        style={[styles.statText, post.hasReacted && { color: theme.colors.reaction }]}
+      >
         {post.reactionCount}
       </Text>
-    </Pressable>
+    </PressableScale>
   );
   const reactionButton = cfg.modules.reaction
     ? (renderReactionButton?.(post, defaultReactionButton, slotCtx) ?? defaultReactionButton)
     : null;
 
   const commentButton = (
-    <Pressable hitSlop={8} onPress={handleOpenThread} style={styles.stat}>
+    <PressableScale
+      scale="icon"
+      hitSlop={4}
+      haptic="selection"
+      onPress={() => (onPressComment ?? onOpenThread)(post.id)}
+      style={styles.stat}
+    >
       <icons.comment size={18} color={theme.colors.textFaint} weight="regular" />
-      <Text style={styles.statText}>{post.commentCount}</Text>
-    </Pressable>
+      <Text numberOfLines={1} style={styles.statText}>
+        {post.commentCount}
+      </Text>
+    </PressableScale>
   );
 
   const menuButton = (
-    <Pressable
-      hitSlop={8}
+    <PressableScale
+      scale="icon"
+      hitSlop={4}
       onPress={handleMenu}
       style={[styles.stat, styles.menuButton]}
       accessibilityRole="button"
       accessibilityLabel={t("a11y.more")}
     >
       <icons.menu size={20} color={theme.colors.textFaint} weight="bold" />
-    </Pressable>
+    </PressableScale>
   );
 
   const defaultFooter = (
@@ -229,13 +250,16 @@ export function CommunityPost({
   const footer = renderPostFooter?.(post, defaultFooter, slotCtx) ?? defaultFooter;
 
   return (
-    <Pressable
-      onPress={handleOpenThread}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-    >
-      <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.header}>
+    <PressableScale scale="surface" onPress={handleOpenThread} style={styles.card}>
+      <PressableScale
+        scale="surface"
+        haptic="selection"
+        onPress={handleOpenProfile}
+        hitSlop={4}
+        style={styles.header}
+      >
         {authorHeader}
-      </Pressable>
+      </PressableScale>
 
       <ClampedBody
         text={displayText(post, showOriginal)}
@@ -245,15 +269,15 @@ export function CommunityPost({
         viewMoreStyle={styles.viewMore}
       />
       {toggleLine && (
-        <Pressable hitSlop={8} onPress={toggleOriginal}>
+        <PressableScale hitSlop={8} haptic="selection" onPress={toggleOriginal} style={styles.link}>
           <Text style={styles.translationLine}>{toggleLine}</Text>
-        </Pressable>
+        </PressableScale>
       )}
 
       {post.poll && <PollBlock post={post} showOriginal={showOriginal} />}
 
       {footer}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -264,10 +288,9 @@ function makeStyles(theme: CommunityTheme) {
       borderRadius: theme.radius.lg,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      padding: theme.spacing(4.5),
+      padding: theme.spacing(4),
       marginBottom: theme.spacing(3),
     },
-    pressed: { opacity: 0.9 },
     header: {
       flexDirection: "row",
       alignItems: "center",
@@ -286,11 +309,22 @@ function makeStyles(theme: CommunityTheme) {
       justifyContent: "center",
     },
     avatarImage: { width: 40, height: 40, borderRadius: 20 },
-    avatarLetter: { fontFamily: theme.fonts.serifBold, fontSize: 18, color: theme.colors.accent },
+    avatarLetter: {
+      fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 18,
+      color: theme.colors.accent,
+    },
     nameRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1) },
-    name: { fontFamily: theme.fonts.bold, fontSize: 14.5, color: theme.colors.textPrimary },
+    name: {
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 14.5,
+      color: theme.colors.textPrimary,
+    },
     handle: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 12,
       color: theme.colors.textFaint,
       flexShrink: 1,
@@ -301,30 +335,63 @@ function makeStyles(theme: CommunityTheme) {
       gap: theme.spacing(1),
       marginTop: 2,
     },
-    pinnedText: { fontFamily: theme.fonts.bold, fontSize: 11.5, color: theme.colors.pinned },
-    meta: { fontFamily: theme.fonts.regular, fontSize: 12, color: theme.colors.textFaint },
+    pinnedText: {
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 11.5,
+      color: theme.colors.pinned,
+    },
+    meta: {
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 12,
+      color: theme.colors.textFaint,
+    },
     body: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 14.5,
       lineHeight: 22,
       color: theme.colors.textSecondary,
     },
     viewMore: {
       fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
       fontSize: 13,
       color: theme.colors.accent,
       marginTop: theme.spacing(1.5),
     },
     translationLine: {
       fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
       fontSize: 12.5,
       color: theme.colors.textFaint,
       marginTop: theme.spacing(1.5),
     },
-    footer: { flexDirection: "row", gap: theme.spacing(6), marginTop: theme.spacing(3.5) },
-    stat: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1.5) },
-    menuButton: { marginLeft: "auto" },
-    statText: { fontFamily: theme.fonts.medium, fontSize: 13, color: theme.colors.textFaint },
-    statTextOn: { color: theme.colors.accent },
+    footer: { flexDirection: "row", alignItems: "center", marginTop: theme.spacing(2) },
+    // Fixed width + tabular digits: the row never shifts as counts change
+    // (fits four digits).
+    stat: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(1.5),
+      width: 64,
+      height: 40,
+    },
+    menuButton: {
+      width: 40,
+      marginLeft: "auto",
+      marginRight: -theme.spacing(2.5),
+      justifyContent: "center",
+    },
+    link: { alignSelf: "flex-start" },
+    statText: {
+      flex: 1,
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 13,
+      fontVariant: ["tabular-nums"],
+      color: theme.colors.textFaint,
+    },
   });
 }

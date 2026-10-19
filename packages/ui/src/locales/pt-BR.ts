@@ -63,9 +63,11 @@ export const ptBR: Record<string, string> = {
   "composer.pollPlaceholder": "Faça sua pergunta…",
   "composer.option": "Opção {number}",
   "composer.addOption": "Adicionar opção",
+  "composer.removeOption": "Remover opção",
   "composer.poll": "Enquete",
   "composer.removePoll": "Remover enquete",
   "composer.post": "PUBLICAR",
+  "composer.chooseTopic": "Publicar em",
 
   "poll.votes.one": "{count} voto",
   "poll.votes.other": "{count} votos",
@@ -163,4 +165,7 @@ export const ptBR: Record<string, string> = {
   "a11y.back": "Voltar",
   "a11y.more": "Mais opções",
   "a11y.send": "Enviar",
+  "a11y.search": "Pesquisar",
+  "a11y.closeSearch": "Fechar pesquisa",
+  "a11y.clearSearch": "Limpar pesquisa",
 };

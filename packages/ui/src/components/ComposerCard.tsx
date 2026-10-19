@@ -22,9 +22,9 @@
 //    without forking this file — rendered between the poll toggle and the
 //    POST pill.
 //
-// The topic chips only appear while composing (focus, text or an open poll)
-// so they don't duplicate a feed's own filter chips sitting above this card
-// (same reasoning as the Eve source).
+// No topic chips (they duplicated the feed's filter row and shifted the
+// layout): while composing, the field grows downwards and a topic select sits
+// in its bottom-right corner, preset to the feed's current topic.
 //
 // `onModerationRejected` (added in Task 12's review round, cross-file touch
 // explicitly authorized there): this card's own `createPost.mutate(...)` call
@@ -44,13 +44,22 @@ import {
   useCommunityConfig,
   useCreatePost,
 } from "@rocapine/community-core";
-import * as Haptics from "expo-haptics";
-import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from "react";
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { CommunitySheet, SheetScrollView } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { runGuarded } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
+import { AnimatedHeight } from "./AnimatedHeight";
+import { haptic, PressableScale } from "./PressableScale";
 import { RulesSheet } from "./RulesSheet";
 
 type ComposerCardProps = {
@@ -92,7 +101,11 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
   const createPost = useCreatePost();
 
   const topics = cfg.composeTopics();
-  const [topic, setTopic] = useState<string>(defaultTopic ?? topics[0]?.id ?? "general");
+  const fallbackTopic = defaultTopic ?? topics[0]?.id ?? "general";
+  const [topic, setTopic] = useState<string>(fallbackTopic);
+  // Follows the feed's filter: a post goes to the topic being browsed.
+  useEffect(() => setTopic(fallbackTopic), [fallbackTopic]);
+  const [topicPickerOpen, setTopicPickerOpen] = useState(false);
   const [text, setText] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
   // null = no poll on this draft; an array = the poll editor is open.
@@ -115,10 +128,7 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
     focus: () => (locked ? openRulesGate() : inputRef.current?.focus()),
   }));
 
-  // The feed's filter chips sit right above this card in a typical layout, so
-  // an always-visible topic row would read as a duplicate. Reveal it only
-  // while composing.
-  const composing = inputFocused || text.trim().length > 0 || pollDraft !== null;
+  const composing = inputFocused || topicPickerOpen || text.trim().length > 0 || pollDraft !== null;
 
   const filledPollOptions = (pollDraft ?? []).map((o) => o.trim()).filter((o) => o.length > 0);
   const pollInvalid = pollDraft !== null && filledPollOptions.length < POLL_MIN_OPTIONS;
@@ -131,8 +141,13 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
   const [gating, setGating] = useState(false);
   const canPost = text.trim().length > 0 && !pollInvalid && !pending && !gating;
 
+  const openTopicPicker = () => {
+    // The keyboard would cover the sheet; the field is refocused on dismiss.
+    Keyboard.dismiss();
+    setTopicPickerOpen(true);
+  };
+
   const togglePoll = () => {
-    Haptics.selectionAsync().catch(() => {});
     setPollDraft((prev) => (prev === null ? ["", ""] : null));
   };
 
@@ -147,7 +162,7 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
     const doSubmit = () => {
       // Read after the gate: a host may set the display name in `beforeSubmit`.
       const authorName = displayName(cfg.host.getDisplayName(), cfg.authorFallback());
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      haptic("medium");
       createPost.mutate(
         {
           topic,
@@ -186,47 +201,40 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
 
   return (
     <View style={styles.card}>
-      {/* Single scrollable line, bleeding to the card edge like a feed's own filter row. */}
-      {composing && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.topicScroll}
-          contentContainerStyle={styles.topicRow}
-          keyboardShouldPersistTaps="always"
-        >
-          {topics.map((option) => {
-            const on = topic === option.id;
-            return (
-              <Pressable
-                key={option.id}
-                onPress={() => {
-                  Haptics.selectionAsync().catch(() => {});
-                  setTopic(option.id);
-                }}
-                style={[styles.topicChip, on && styles.topicChipOn]}
-              >
-                <Text style={[styles.topicChipText, on && styles.topicChipTextOn]}>
-                  {t(`topics.${option.id}`)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      )}
-
-      <TextInput
-        ref={inputRef}
-        value={text}
-        onChangeText={setText}
-        onFocus={() => setInputFocused(true)}
-        onBlur={() => setInputFocused(false)}
-        placeholder={pollDraft !== null ? t("composer.pollPlaceholder") : t("composer.placeholder")}
-        placeholderTextColor={theme.colors.textFaint}
-        multiline
-        maxLength={POST_MAX_LENGTH}
-        style={styles.input}
-      />
+      <AnimatedHeight>
+        <View style={styles.inputBox}>
+          <TextInput
+            ref={inputRef}
+            value={text}
+            onChangeText={setText}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
+            placeholder={
+              pollDraft !== null ? t("composer.pollPlaceholder") : t("composer.placeholder")
+            }
+            placeholderTextColor={theme.colors.textFaint}
+            multiline
+            maxLength={POST_MAX_LENGTH}
+            style={[styles.input, composing && styles.inputComposing]}
+          />
+          {composing && topics.length > 1 && (
+            <PressableScale
+              haptic="selection"
+              onPress={openTopicPicker}
+              style={styles.topicSelect}
+              accessibilityRole="button"
+              accessibilityLabel={`${t("composer.chooseTopic")} ${t(`topics.${topic}`)}`}
+            >
+              <Text style={styles.topicSelectText} numberOfLines={1}>
+                {t(`topics.${topic}`)}
+              </Text>
+              <View style={styles.chevron}>
+                <icons.back size={12} color={theme.colors.textMuted} weight="bold" />
+              </View>
+            </PressableScale>
+          )}
+        </View>
+      </AnimatedHeight>
 
       {cfg.modules.polls && pollDraft !== null && (
         <View style={styles.pollEditor}>
@@ -243,52 +251,56 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
                 style={styles.pollOptionInput}
               />
               {pollDraft.length > POLL_MIN_OPTIONS && (
-                <Pressable
+                <PressableScale
+                  scale="icon"
                   hitSlop={8}
+                  haptic="selection"
                   onPress={() =>
                     setPollDraft((prev) => (prev ? prev.filter((_, j) => j !== i) : prev))
                   }
+                  accessibilityRole="button"
+                  accessibilityLabel={t("composer.removeOption")}
                 >
                   <icons.close size={16} color={theme.colors.textFaint} weight="bold" />
-                </Pressable>
+                </PressableScale>
               )}
             </View>
           ))}
           {pollDraft.length < POLL_MAX_OPTIONS && (
-            <Pressable
+            <PressableScale
+              haptic="selection"
               onPress={() => setPollDraft((prev) => (prev ? [...prev, ""] : prev))}
               style={styles.pollAdd}
             >
               <icons.add size={14} color={theme.colors.accent} weight="bold" />
               <Text style={styles.pollAddText}>{t("composer.addOption")}</Text>
-            </Pressable>
+            </PressableScale>
           )}
         </View>
       )}
 
       <View style={styles.footer}>
         {cfg.modules.polls && (
-          <Pressable onPress={togglePoll} hitSlop={6} style={styles.pollToggle}>
+          <PressableScale
+            haptic="selection"
+            onPress={togglePoll}
+            hitSlop={6}
+            style={styles.pollToggle}
+          >
             <icons.poll size={18} color={theme.colors.accent} weight="regular" />
             <Text style={styles.pollToggleText}>
               {pollDraft !== null ? t("composer.removePoll") : t("composer.poll")}
             </Text>
-          </Pressable>
+          </PressableScale>
         )}
         {renderComposerExtra}
-        <Pressable
+        <PressableScale
           onPress={submit}
           disabled={!canPost}
-          style={({ pressed }) => [
-            styles.postBtn,
-            !canPost && styles.postBtnDisabled,
-            pressed && canPost && styles.postBtnPressed,
-          ]}
+          style={[styles.postBtn, !canPost && styles.postBtnDisabled]}
         >
-          <Text style={[styles.postBtnLabel, !canPost && styles.postBtnLabelDisabled]}>
-            {t("composer.post")}
-          </Text>
-        </Pressable>
+          <Text style={styles.postBtnLabel}>{t("composer.post")}</Text>
+        </PressableScale>
       </View>
 
       {/* Rules gate: swallow every touch until the UGC rules are accepted. */}
@@ -308,6 +320,38 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
         }}
         onClose={() => setRulesVisible(false)}
       />
+
+      <CommunitySheet
+        visible={topicPickerOpen}
+        onClose={() => setTopicPickerOpen(false)}
+        onDismissed={() => inputRef.current?.focus()}
+      >
+        <SheetScrollView showsVerticalScrollIndicator={false}>
+          <Text style={styles.pickerTitle}>{t("composer.chooseTopic")}</Text>
+          {topics.map((option) => {
+            const on = topic === option.id;
+            return (
+              <PressableScale
+                key={option.id}
+                scale="surface"
+                haptic="selection"
+                onPress={() => {
+                  setTopic(option.id);
+                  setTopicPickerOpen(false);
+                }}
+                style={[styles.pickerRow, on && styles.pickerRowOn]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+              >
+                <Text style={[styles.pickerLabel, on && styles.pickerLabelOn]}>
+                  {t(`topics.${option.id}`)}
+                </Text>
+                {on && <icons.checkmark size={18} color={theme.colors.accent} weight="fill" />}
+              </PressableScale>
+            );
+          })}
+        </SheetScrollView>
+      </CommunitySheet>
     </View>
   );
 });
@@ -323,43 +367,84 @@ const makeStyles = (theme: CommunityTheme) =>
       marginTop: theme.spacing(4),
       marginBottom: theme.spacing(4.5),
     },
-    topicScroll: { marginHorizontal: -theme.spacing(4), marginBottom: theme.spacing(3) },
-    topicRow: { flexDirection: "row", gap: theme.spacing(2), paddingHorizontal: theme.spacing(4) },
-    topicChip: {
+    // Concentric with the card: radius.lg − spacing(4) padding = radius.sm.
+    inputBox: {
       backgroundColor: theme.colors.surfaceMuted,
-      borderRadius: theme.radius.pill,
-      paddingVertical: theme.spacing(2.25),
-      paddingHorizontal: theme.spacing(3.75),
+      borderRadius: theme.radius.sm,
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
-    topicChipOn: { backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.accent },
-    topicChipText: { fontFamily: theme.fonts.medium, fontSize: 13, color: theme.colors.textMuted },
-    topicChipTextOn: { color: theme.colors.accent },
     input: {
-      backgroundColor: theme.colors.surfaceMuted,
-      borderRadius: theme.radius.md,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
       padding: theme.spacing(3.5),
       minHeight: 84,
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 15,
       lineHeight: 22,
       color: theme.colors.textPrimary,
       textAlignVertical: "top",
     },
+    // Taller while composing, with room for the topic select underneath.
+    inputComposing: { minHeight: 132, paddingBottom: theme.spacing(12) },
+    topicSelect: {
+      position: "absolute",
+      right: theme.spacing(2),
+      bottom: theme.spacing(2),
+      maxWidth: "70%",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(1),
+      height: 32,
+      paddingHorizontal: theme.spacing(3),
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    topicSelectText: {
+      flexShrink: 1,
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 13,
+      color: theme.colors.textPrimary,
+    },
+    chevron: { transform: [{ rotate: "-90deg" }] },
+    pickerTitle: {
+      fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 20,
+      color: theme.colors.textPrimary,
+      marginBottom: theme.spacing(3),
+    },
+    pickerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 48,
+      paddingHorizontal: theme.spacing(4),
+      borderRadius: theme.radius.md,
+      marginBottom: theme.spacing(1),
+    },
+    pickerRowOn: { backgroundColor: theme.colors.surfaceMuted },
+    pickerLabel: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 15,
+      color: theme.colors.textSecondary,
+    },
+    pickerLabelOn: { color: theme.colors.textPrimary },
     pollEditor: { marginTop: theme.spacing(3), gap: theme.spacing(2) },
     pollOptionRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(2.5) },
     pollOptionInput: {
       flex: 1,
       backgroundColor: theme.colors.surfaceMuted,
-      borderRadius: theme.radius.sm + 4,
+      borderRadius: theme.radius.sm,
       borderWidth: 1,
       borderColor: theme.colors.border,
       paddingHorizontal: theme.spacing(3.5),
       paddingVertical: theme.spacing(2.75),
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 14,
       color: theme.colors.textPrimary,
     },
@@ -369,7 +454,12 @@ const makeStyles = (theme: CommunityTheme) =>
       gap: theme.spacing(1.5),
       paddingVertical: theme.spacing(1.5),
     },
-    pollAddText: { fontFamily: theme.fonts.medium, fontSize: 13, color: theme.colors.accent },
+    pollAddText: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 13,
+      color: theme.colors.accent,
+    },
     footer: { flexDirection: "row", alignItems: "center", marginTop: theme.spacing(3) },
     pollToggle: {
       flexDirection: "row",
@@ -377,21 +467,28 @@ const makeStyles = (theme: CommunityTheme) =>
       gap: theme.spacing(1.75),
       paddingVertical: theme.spacing(1.5),
     },
-    pollToggleText: { fontFamily: theme.fonts.medium, fontSize: 13.5, color: theme.colors.accent },
+    pollToggleText: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 13.5,
+      color: theme.colors.accent,
+    },
+    // Concentric with the card corner it sits in (radius.lg − spacing(4)).
     postBtn: {
       marginLeft: "auto",
       backgroundColor: theme.colors.accent,
-      borderRadius: theme.radius.pill,
-      paddingVertical: theme.spacing(3),
-      paddingHorizontal: theme.spacing(7),
+      borderRadius: theme.radius.sm,
+      height: 44,
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing(6),
     },
-    postBtnPressed: { opacity: 0.9 },
-    postBtnDisabled: { backgroundColor: theme.colors.surfaceMuted },
+    // Dimmed rather than recolored: stays visible on any card color.
+    postBtnDisabled: { opacity: 0.35 },
     postBtnLabel: {
       fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
       fontSize: 13.5,
       letterSpacing: 1.2,
       color: theme.colors.textInverse,
     },
-    postBtnLabelDisabled: { color: theme.colors.textFaint },
   });

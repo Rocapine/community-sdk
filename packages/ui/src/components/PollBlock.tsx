@@ -13,8 +13,8 @@
 // verdict resolves and the feed refetches.
 
 import { pollPercent, useVotePoll, type FeedPost } from "@rocapine/community-core";
-import * as Haptics from "expo-haptics";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { haptic, PressableScale } from "./PressableScale";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { AnimatedHeight } from "./AnimatedHeight";
@@ -44,18 +44,15 @@ export function PollBlock({
         const optimistic = option.id.startsWith("temp-");
         const pct = pollPercent(option.votes, poll.totalVotes);
         return (
-          <Pressable
+          <PressableScale
             key={option.id}
+            scale="surface"
             disabled={mine || optimistic}
             onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
+              haptic("medium");
               votePoll.mutate({ postId: post.id, optionId: option.id });
             }}
-            style={({ pressed }) => [
-              styles.option,
-              mine && styles.optionMine,
-              pressed && styles.optionPressed,
-            ]}
+            style={[styles.option, mine && styles.optionMine]}
           >
             {showResults && (
               <View
@@ -72,7 +69,7 @@ export function PollBlock({
               {mine && <icons.checkmark size={16} color={theme.colors.accent} weight="fill" />}
               {showResults && <Text style={[styles.pct, mine && styles.labelMine]}>{pct}%</Text>}
             </View>
-          </Pressable>
+          </PressableScale>
         );
       })}
       <Text style={styles.total}>
@@ -88,12 +85,11 @@ function makeStyles(theme: CommunityTheme) {
     option: {
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: theme.radius.sm + 4,
+      borderRadius: theme.radius.sm,
       backgroundColor: theme.colors.surfaceMuted,
       overflow: "hidden",
     },
     optionMine: { borderColor: theme.colors.borderStrong },
-    optionPressed: { opacity: 0.85 },
     fill: {
       position: "absolute",
       top: 0,
@@ -112,12 +108,14 @@ function makeStyles(theme: CommunityTheme) {
     labelBox: { flex: 1 },
     label: {
       fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
       fontSize: 13.5,
       color: theme.colors.textSecondary,
     },
     labelMine: { color: theme.colors.accent },
     pct: {
       fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
       fontSize: 13,
       color: theme.colors.textMuted,
       minWidth: 38,
@@ -125,6 +123,7 @@ function makeStyles(theme: CommunityTheme) {
     },
     total: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 12,
       color: theme.colors.textFaint,
       marginTop: 2,

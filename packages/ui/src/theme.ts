@@ -31,6 +31,8 @@ export interface ShadowToken {
   elevation: number;
 }
 
+type FontWeight = "400" | "500" | "600" | "700" | "800" | "normal" | "bold";
+
 export type CommunityTheme = {
   colors: {
     background: string;
@@ -59,6 +61,9 @@ export type CommunityTheme = {
     danger: string;
     success: string;
     like: string;
+    /** Active state of the secondary reaction (icon tint and count). Defaults
+     * to `accent`. */
+    reaction: string;
     official: string;
     pinned: string;
   };
@@ -80,6 +85,17 @@ export type CommunityTheme = {
      * file, but part of the seam's public surface for future emphasis use). */
     serifBoldItalic: string | undefined;
   };
+  /** Weight paired with each `fonts` family. A host loading one family with
+   * several weights (expo-font `fontDefinitions`) gets real bold text this
+   * way; a host passing one file per weight can leave the defaults. */
+  fontWeights: {
+    regular: FontWeight;
+    medium: FontWeight;
+    bold: FontWeight;
+  };
+  /** The only four corner radii the package uses. Nested surfaces follow the
+   * concentric rule: inner radius = outer radius − the padding between them
+   * (a `lg` card with `spacing(4)` padding holds `sm` children). */
   radius: { sm: number; md: number; lg: number; pill: number };
   spacing: (n: number) => number; // default n * 4
   /** Added beyond the brief — mold: `Palette.shadow`. See `ShadowToken`. */
@@ -111,6 +127,7 @@ export const defaultTheme: CommunityTheme = {
     // indicators; default these to `accent` too, kept as separate tokens so
     // hosts can diverge them independently.
     like: accent,
+    reaction: accent,
     official: accent,
     pinned: accent,
   },
@@ -121,6 +138,7 @@ export const defaultTheme: CommunityTheme = {
     serifBold: undefined,
     serifBoldItalic: undefined,
   },
+  fontWeights: { regular: "400", medium: "500", bold: "600" },
   radius: { sm: 8, md: 16, lg: 24, pill: 9999 },
   spacing: (n: number) => n * 4,
   shadow: {
@@ -136,6 +154,7 @@ export function mergeTheme(partial: DeepPartial<CommunityTheme> = {}): Community
   return {
     colors: { ...defaultTheme.colors, ...partial.colors },
     fonts: { ...defaultTheme.fonts, ...partial.fonts },
+    fontWeights: { ...defaultTheme.fontWeights, ...partial.fontWeights },
     radius: { ...defaultTheme.radius, ...partial.radius },
     spacing: partial.spacing ?? defaultTheme.spacing,
     shadow: {

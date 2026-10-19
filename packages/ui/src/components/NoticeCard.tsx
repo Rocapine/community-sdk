@@ -21,6 +21,7 @@
 // mold's existing comment copy.
 
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { PressableScale } from "./PressableScale";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
@@ -62,12 +63,9 @@ export function NoticeCard({
         </View>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.body}>{body}</Text>
-        <Pressable
-          onPress={handleDismiss}
-          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-        >
+        <PressableScale onPress={handleDismiss} style={styles.button}>
           <Text style={styles.buttonLabel}>{t("notice.gotIt")}</Text>
-        </Pressable>
+        </PressableScale>
       </Animated.View>
     </Animated.View>
   );
@@ -106,6 +104,7 @@ function makeStyles(theme: CommunityTheme) {
     },
     title: {
       fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
       fontSize: 20,
       color: theme.colors.textPrimary,
       textAlign: "center",
@@ -113,6 +112,7 @@ function makeStyles(theme: CommunityTheme) {
     },
     body: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 14.5,
       lineHeight: 21,
       color: theme.colors.textMuted,
@@ -126,9 +126,9 @@ function makeStyles(theme: CommunityTheme) {
       paddingVertical: theme.spacing(3.5),
       alignItems: "center",
     },
-    buttonPressed: { opacity: 0.9 },
     buttonLabel: {
       fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
       fontSize: 15,
       color: theme.colors.textInverse,
     },
