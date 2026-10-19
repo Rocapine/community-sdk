@@ -162,4 +162,8 @@ export const ro: Record<string, string> = {
   "language.ko": "coreeană",
   "language.ro": "română",
   "language.uk": "ucraineană",
+  // Accessibility labels of icon-only buttons (screen readers).
+  "a11y.back": "Înapoi",
+  "a11y.more": "Mai multe opțiuni",
+  "a11y.send": "Trimite",
 };

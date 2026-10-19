@@ -21,6 +21,9 @@ import type { CommunityIconName, CommunityIconProps, CommunityIconSet } from "./
 // hoist and resolve eagerly. React Native's Metro runtime provides `require`
 // globally; this declaration only satisfies the type checker.
 declare function require(id: string): unknown;
+declare const __DEV__: boolean | undefined;
+
+let warnedDefaultIcons = false;
 
 type PhosphorModule = Record<string, ComponentType<CommunityIconProps>>;
 
@@ -42,6 +45,13 @@ function fromPhosphor(
   glyphName: string,
 ): ComponentType<CommunityIconProps> {
   function DefaultIcon(props: CommunityIconProps) {
+    if (!warnedDefaultIcons && typeof __DEV__ !== "undefined" && __DEV__) {
+      warnedDefaultIcons = true;
+      console.warn(
+        "@rocapine/community-ui: rendering the phosphor default icons — pass a complete `icons` set to " +
+          "CommunityUIProvider so the community matches the host's icon style. The default set goes away in the next major.",
+      );
+    }
     const mod = loadPhosphor();
     const Glyph = mod?.[glyphName];
     if (!Glyph) {

@@ -75,6 +75,9 @@ export {
   deleteOwnPost,
   deleteOwnComment,
   updateProfile,
+  fetchNotificationPreferences,
+  setNotificationPreference,
+  NOTIFICATION_PREFERENCE_KEYS,
   uploadAvatar,
 } from "./service";
 export type {
@@ -84,6 +87,8 @@ export type {
   ReportInput,
   UpdateProfileInput,
   UpdateProfileResult,
+  NotificationPreferenceKey,
+  NotificationPreferences,
 } from "./service";
 
 export {
@@ -95,6 +100,7 @@ export {
   useProfile,
   useUserPosts,
   useMyUid,
+  useNotificationPreferences,
   useUpdateProfile,
   useCreatePost,
   useCreateComment,

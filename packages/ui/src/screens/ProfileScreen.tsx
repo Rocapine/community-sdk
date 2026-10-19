@@ -220,7 +220,13 @@ export function ProfileScreen({
       >
         <View style={styles.topRow}>
           {onBack ? (
-            <Pressable hitSlop={10} onPress={onBack} style={styles.backBtn}>
+            <Pressable
+              hitSlop={10}
+              onPress={onBack}
+              style={styles.backBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t("a11y.back")}
+            >
               <icons.back size={22} color={theme.colors.textPrimary} weight="bold" />
             </Pressable>
           ) : (
@@ -228,7 +234,13 @@ export function ProfileScreen({
           )}
           <View style={styles.topRowSpacer} />
           {myUid != null && !isMe && (
-            <Pressable hitSlop={10} onPress={openHeaderMenu} style={styles.dotsBtn}>
+            <Pressable
+              hitSlop={10}
+              onPress={openHeaderMenu}
+              style={styles.dotsBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t("a11y.more")}
+            >
               <icons.menu size={22} color={theme.colors.textPrimary} weight="bold" />
             </Pressable>
           )}

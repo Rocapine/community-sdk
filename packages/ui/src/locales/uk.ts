@@ -165,4 +165,8 @@ export const uk: Record<string, string> = {
   "language.ko": "корейської",
   "language.ro": "румунської",
   "language.uk": "української",
+  // Accessibility labels of icon-only buttons (screen readers).
+  "a11y.back": "Назад",
+  "a11y.more": "Більше опцій",
+  "a11y.send": "Надіслати",
 };

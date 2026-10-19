@@ -207,7 +207,13 @@ export function CommunityPost({
   );
 
   const menuButton = (
-    <Pressable hitSlop={8} onPress={handleMenu} style={[styles.stat, styles.menuButton]}>
+    <Pressable
+      hitSlop={8}
+      onPress={handleMenu}
+      style={[styles.stat, styles.menuButton]}
+      accessibilityRole="button"
+      accessibilityLabel={t("a11y.more")}
+    >
       <icons.menu size={20} color={theme.colors.textFaint} weight="bold" />
     </Pressable>
   );

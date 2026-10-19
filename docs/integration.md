@@ -168,7 +168,7 @@ e.g. `lib/community-config.ts`.
   (thread, report, rules, profile edit) bring their own
   `GestureHandlerRootView` and safe-area provider, so there is nothing more to
   mount.
-- **Entry-point badges.** `useCommunityUnseenCount(lastSeenAtIso)` gives the "new
+- **Entry-point badges.** `useCommunityUnseenCount(lastSeenAtIso, { enabled })` gives the "new
   posts" dot, and `useUnreadNotificationCount()` gives the inbox count. If the
   screen stays mounted across tab switches (native tabs), stamp the last-seen
   watermark on focus, not on mount.
