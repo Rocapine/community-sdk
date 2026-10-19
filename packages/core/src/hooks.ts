@@ -47,7 +47,10 @@ import {
   deleteOwnComment,
   deleteOwnPost,
   fetchFeedPage,
+  fetchNotificationPreferences,
   fetchProfile,
+  type NotificationPreferenceKey,
+  type NotificationPreferences,
   fetchThread,
   fetchUserPosts,
   moderateOne,
@@ -55,6 +58,7 @@ import {
   searchPosts,
   setLike,
   setReaction,
+  setNotificationPreference,
   updateProfile,
   votePoll,
   type ModerationVerdict,
@@ -226,12 +230,16 @@ export function useNewPostsCount(sinceIso: string | null, topic?: string, pollin
  * package has no store access at all, so the host now owns that value and
  * passes it in).
  */
-export function useCommunityUnseenCount(lastSeenAtIso: string | null): number {
+export function useCommunityUnseenCount(
+  lastSeenAtIso: string | null,
+  options: { enabled?: boolean } = {},
+): number {
   const cfg = useCommunityConfig();
   const q = useQuery({
     queryKey: ["community", "unseen", lastSeenAtIso ?? "never"],
     queryFn: () => countNewPosts(cfg, lastSeenAtIso ?? "1970-01-01T00:00:00Z"),
-    enabled: cfg.supabase !== null,
+    // `enabled: false` keeps a host's kill-switch arm from creating the identity or polling.
+    enabled: cfg.supabase !== null && options.enabled !== false,
     staleTime: 1000 * 60,
     refetchInterval: 1000 * 120,
     refetchIntervalInBackground: false,
@@ -282,6 +290,45 @@ export function useUserPosts(userId: string | null) {
 }
 
 /** Our own stable community uid, resolved once and cached for the app session. */
+const NOTIFICATION_PREFS_KEY = ["community", "notificationPreferences"] as const;
+
+/** The caller's push preferences (push module). `preferences` is `null` until the
+ * device has a push row; `setPreference` updates one flag optimistically. */
+export function useNotificationPreferences() {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  const q = useQuery({
+    queryKey: NOTIFICATION_PREFS_KEY,
+    queryFn: () => fetchNotificationPreferences(cfg),
+    enabled: cfg.supabase !== null && cfg.modules.push,
+    staleTime: 1000 * 60,
+  });
+  const mutation = useMutation({
+    mutationFn: ({ key, enabled }: { key: NotificationPreferenceKey; enabled: boolean }) =>
+      setNotificationPreference(cfg, key, enabled),
+    onMutate: async ({ key, enabled }) => {
+      await queryClient.cancelQueries({ queryKey: NOTIFICATION_PREFS_KEY });
+      const previous = queryClient.getQueryData<NotificationPreferences | null>(
+        NOTIFICATION_PREFS_KEY,
+      );
+      if (previous)
+        queryClient.setQueryData(NOTIFICATION_PREFS_KEY, { ...previous, [key]: enabled });
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context) queryClient.setQueryData(NOTIFICATION_PREFS_KEY, context.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: NOTIFICATION_PREFS_KEY }),
+  });
+  return {
+    preferences: q.data ?? null,
+    isLoading: q.isLoading,
+    refetch: q.refetch,
+    setPreference: (key: NotificationPreferenceKey, enabled: boolean) =>
+      mutation.mutateAsync({ key, enabled }),
+  };
+}
+
 export function useMyUid(): string | null {
   const cfg = useCommunityConfig();
   const q = useQuery({

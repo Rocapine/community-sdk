@@ -160,4 +160,8 @@ export const frVous: Record<string, string> = {
   "language.ko": "du coréen",
   "language.ro": "du roumain",
   "language.uk": "de l'ukrainien",
+  // Accessibility labels of icon-only buttons (screen readers).
+  "a11y.back": "Retour",
+  "a11y.more": "Plus d'options",
+  "a11y.send": "Envoyer",
 };

@@ -548,6 +548,43 @@ export async function blockUser(cfg: ResolvedCommunityConfig, blockedId: string)
   if (error && error.code !== "23505") throw error; // already blocked is fine
 }
 
+export const NOTIFICATION_PREFERENCE_KEYS = [
+  "notify_likes",
+  "notify_comments",
+  "notify_reactions",
+] as const;
+export type NotificationPreferenceKey = (typeof NOTIFICATION_PREFERENCE_KEYS)[number];
+export type NotificationPreferences = Record<NotificationPreferenceKey, boolean>;
+
+/** The caller's `push_tokens` preferences (push module); `null` while the device has no push row. */
+export async function fetchNotificationPreferences(
+  cfg: ResolvedCommunityConfig,
+): Promise<NotificationPreferences | null> {
+  const client = cfg.requireClient();
+  const uid = await requireUid(cfg);
+  const { data, error } = await client
+    .from("push_tokens")
+    .select(NOTIFICATION_PREFERENCE_KEYS.join(","))
+    .eq("user_id", uid)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as unknown as NotificationPreferences | null) ?? null;
+}
+
+export async function setNotificationPreference(
+  cfg: ResolvedCommunityConfig,
+  key: NotificationPreferenceKey,
+  enabled: boolean,
+): Promise<void> {
+  const client = cfg.requireClient();
+  const uid = await requireUid(cfg);
+  const { error } = await client
+    .from("push_tokens")
+    .update({ [key]: enabled })
+    .eq("user_id", uid);
+  if (error) throw error;
+}
+
 export async function deleteOwnPost(cfg: ResolvedCommunityConfig, postId: string): Promise<void> {
   const client = cfg.requireClient();
   await requireUid(cfg);

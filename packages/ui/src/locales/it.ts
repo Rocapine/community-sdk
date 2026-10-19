@@ -161,4 +161,8 @@ export const it: Record<string, string> = {
   "language.ko": "dal coreano",
   "language.ro": "dal rumeno",
   "language.uk": "dall'ucraino",
+  // Accessibility labels of icon-only buttons (screen readers).
+  "a11y.back": "Indietro",
+  "a11y.more": "Altre opzioni",
+  "a11y.send": "Invia",
 };

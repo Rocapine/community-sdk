@@ -159,4 +159,8 @@ export const ptBR: Record<string, string> = {
   "language.ko": "coreano",
   "language.ro": "romeno",
   "language.uk": "ucraniano",
+  // Accessibility labels of icon-only buttons (screen readers).
+  "a11y.back": "Voltar",
+  "a11y.more": "Mais opções",
+  "a11y.send": "Enviar",
 };

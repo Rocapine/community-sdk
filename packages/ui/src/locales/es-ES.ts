@@ -161,4 +161,8 @@ export const esES: Record<string, string> = {
   "language.ko": "coreano",
   "language.ro": "rumano",
   "language.uk": "ucraniano",
+  // Accessibility labels of icon-only buttons (screen readers).
+  "a11y.back": "Atrás",
+  "a11y.more": "Más opciones",
+  "a11y.send": "Enviar",
 };

@@ -404,7 +404,14 @@ export function ThreadSheet({
               multiline
               maxLength={COMMENT_MAX_LENGTH}
             />
-            <Pressable hitSlop={8} onPress={send} disabled={gating} style={styles.send}>
+            <Pressable
+              hitSlop={8}
+              onPress={send}
+              disabled={gating}
+              style={styles.send}
+              accessibilityRole="button"
+              accessibilityLabel={t("a11y.send")}
+            >
               <icons.send
                 size={20}
                 color={text.trim() && !gating ? theme.colors.accent : theme.colors.textFaint}
@@ -554,7 +561,13 @@ function CommentRow({
           </Pressable>
         )}
       </View>
-      <Pressable hitSlop={8} onPress={() => onMenu(comment)} style={styles.cMenu}>
+      <Pressable
+        hitSlop={8}
+        onPress={() => onMenu(comment)}
+        style={styles.cMenu}
+        accessibilityRole="button"
+        accessibilityLabel={t("a11y.more")}
+      >
         <icons.menu size={18} color={theme.colors.textFaint} weight="bold" />
       </Pressable>
     </View>

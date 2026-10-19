@@ -11,7 +11,7 @@
 // notifications early.
 
 import { adminClient } from "../_shared/client.ts";
-import { sendExpoPush } from "../_shared/push.ts";
+import { sendExpoPush, unreadBadge } from "../_shared/push.ts";
 import { pushCopy } from "../_shared/copy.ts";
 
 const supabase = adminClient();
@@ -81,7 +81,7 @@ async function flushPost(postId: string) {
     to: pref.expo_push_token,
     title,
     data: { route: "/community", kind: "community_like" },
-    badge: 1,
+    badge: await unreadBadge(supabase, post.author_id),
   });
 }
 

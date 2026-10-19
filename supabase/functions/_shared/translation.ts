@@ -18,7 +18,29 @@ export const TARGET_LOCALES: string[] = (Deno.env.get("COMMUNITY_TRANSLATION_LOC
   .map((l) => l.trim())
   .filter(Boolean);
 export const TRANSLATION_MODEL = Deno.env.get("COMMUNITY_TRANSLATION_MODEL") ?? "gpt-5-mini";
+// COMMUNITY_TRANSLATION_STYLE: a sentence (same voice for every target) or a JSON
+// object { "<locale>": "<hint>" } for per-locale register hints — e.g.
+// { "fr": "address the reader as vous", "de": "address the reader as Sie" }.
 export const TRANSLATION_STYLE = Deno.env.get("COMMUNITY_TRANSLATION_STYLE") ?? "";
+
+/** The "App voice" instruction lines for the given targets; empty when unset. */
+export function translationStyleLines(style: string, targets: string[]): string[] {
+  const raw = style.trim();
+  if (!raw) return [];
+  if (!raw.startsWith("{")) return [`App voice: ${raw}`];
+  let byLocale: Record<string, unknown>;
+  try {
+    byLocale = JSON.parse(raw);
+  } catch {
+    return [`App voice: ${raw}`];
+  }
+  return targets.flatMap((locale) => {
+    const hint = byLocale[locale] ?? byLocale[locale.split("-")[0]];
+    return typeof hint === "string" && hint.trim()
+      ? [`App voice for ${locale}: ${hint.trim()}`]
+      : [];
+  });
+}
 export const ENGINE = `openai:${TRANSLATION_MODEL}`;
 
 export type TranslationRow = {
@@ -140,7 +162,7 @@ export async function translateItem(input: {
     input.options.length > 0
       ? `The text is a poll: also translate the ${input.options.length} option labels, in the same order and count, into "options". Return an empty options array when there are none.`
       : "Return an empty options array for every locale.",
-    TRANSLATION_STYLE ? `App voice: ${TRANSLATION_STYLE}` : "",
+    ...translationStyleLines(TRANSLATION_STYLE, input.targets),
   ]
     .filter(Boolean)
     .join("\n");

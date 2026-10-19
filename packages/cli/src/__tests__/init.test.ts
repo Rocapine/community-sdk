@@ -55,6 +55,7 @@ describe("runInit", () => {
       "push",
       "push",
       "push",
+      "push",
       "polls",
       "reaction",
       "reaction",

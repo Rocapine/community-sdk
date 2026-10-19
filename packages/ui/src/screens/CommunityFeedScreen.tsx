@@ -532,11 +532,18 @@ function FilterChip({
  */
 function InboxBell({ onPress }: { onPress: () => void }) {
   const theme = useCommunityTheme();
+  const t = useT();
   const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
   const unread = useUnreadNotificationCount();
   return (
-    <Pressable hitSlop={10} onPress={onPress} style={styles.iconButton}>
+    <Pressable
+      hitSlop={10}
+      onPress={onPress}
+      style={styles.iconButton}
+      accessibilityRole="button"
+      accessibilityLabel={t("inbox.title")}
+    >
       <icons.bell size={20} color={theme.colors.textPrimary} weight="regular" />
       {unread > 0 && <View style={styles.bellDot} />}
     </Pressable>

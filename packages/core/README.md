@@ -175,7 +175,8 @@ runs in production and is silent in degraded mode.
   (pure helper behind `feed.extraPostColumns`, see below).
 - **React Query hooks** (`hooks.ts`): `useCommunityFeed`, `useSearchPosts`,
   `useNewPostsCount`, `useCommunityUnseenCount`, `useThread`, `useProfile`,
-  `useUserPosts`, `useMyUid`, `useUpdateProfile`, `useCreatePost`,
+  `useUserPosts`, `useMyUid`, `useNotificationPreferences` (push module: the
+  caller's `notify_*` flags), `useUpdateProfile`, `useCreatePost`,
   `useCreateComment`, `useToggleLike`, `useVotePoll`, `useReactToPost`,
   `useReport`, `useBlockUser`, `useDeleteContent`.
 - **Inbox** (opt-in via `modules.inbox`): `fetchInbox`, `markInboxSeen`,
