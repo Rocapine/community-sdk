@@ -78,10 +78,10 @@ exact signatures, see the per-package READMEs.
 npm install @rocapine/community-core @rocapine/community-ui
 npx expo install @supabase/supabase-js @tanstack/react-query react-native-reanimated \
   @gorhom/bottom-sheet react-native-gesture-handler react-native-safe-area-context \
-  expo-image expo-haptics expo-image-picker phosphor-react-native
+  expo-image expo-haptics expo-image-picker expo-symbols
 ```
 
-- **Install only the peers the app is missing.** `phosphor-react-native` is optional
+- **Install only the peers the app is missing.** `expo-symbols` is optional
   if you pass a full `icons` map. Any new native peer (reanimated,
   gesture-handler, image-picker…) means a new native build.
 - **Pin `@tanstack/react-query` in Metro. This is mandatory.** The SDK ships

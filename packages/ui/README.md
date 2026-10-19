@@ -15,11 +15,11 @@ Peer dependencies (beyond `@rocapine/community-core`'s own):
 `react-native >=0.74.0`, `react-native-reanimated >=3.16.0`,
 `@gorhom/bottom-sheet >=5.1.0`, `react-native-gesture-handler >=2.16.1`,
 `react-native-safe-area-context >=4.10.0`, `expo-image >=1.10.0`, `expo-haptics >=13.0.0`,
-`expo-image-picker >=16.0.0`, `phosphor-react-native >=2.0.0`, `expo-image-manipulator >=13.0.0`.
+`expo-image-picker >=16.0.0`, `expo-symbols >=0.4.0`, `expo-image-manipulator >=13.0.0`.
 `expo-image-manipulator` is optional too: with it, avatars are resized to
 512px JPEG before upload (`resizeAvatar`, also exported for your own
 picker); without it they upload as picked.
-`phosphor-react-native` is an **optional** peer (`peerDependenciesMeta`) —
+`expo-symbols` is an **optional** peer (`peerDependenciesMeta`) —
 skip it if you pass a complete `icons` set to `CommunityUIProvider` (see
 Icons below); the default icon set only requires it once a default icon
 actually renders.
@@ -154,13 +154,13 @@ per-locale table regardless — there is no secret for it.
 
 ## Icons
 
-Not every app uses [phosphor-react-native](https://github.com/duongdev/phosphor-react-native),
-so the icon set is injectable — `phosphor-react-native` is an optional peer
+Not every app uses [expo-symbols](https://docs.expo.dev/versions/latest/sdk/symbols/),
+so the icon set is injectable — `expo-symbols` is an optional peer
 (see above), not a hard dependency. Every icon this package renders is
 looked up by a semantic role name (`CommunityIconName`: `like`, `comment`,
 `reaction`, `menu`, `back`, `close`, `send`, `bell`, `search`,
 `officialSeal`, `pin`, `announcement`, `checkmark`, `poll`, `add`,
-`warning`, `compose`), never by a phosphor glyph name.
+`warning`, `compose`), never by a glyph name.
 
 ```tsx
 import { CommunityUIProvider, type CommunityIconSet } from "@rocapine/community-ui";
@@ -172,17 +172,17 @@ const icons: Partial<CommunityIconSet> = {
   like: ({ size, color }) => <Feather name="heart" size={size} color={color} />,
   comment: ({ size, color }) => <Feather name="message-circle" size={size} color={color} />,
   menu: ({ size, color }) => <Feather name="more-horizontal" size={size} color={color} />,
-  // ...the rest fall back to the built-in phosphor-backed defaults
+  // ...the rest fall back to the built-in expo-symbols-backed (SF Symbols on iOS, Material Symbols on Android) defaults
 };
 
 <CommunityUIProvider icons={icons}>{/* your screens */}</CommunityUIProvider>;
 ```
 
-Unset names fall back to `defaultIcons` (exported, phosphor-backed). Supply
-every `CommunityIconName` and you never need `phosphor-react-native`
+Unset names fall back to `defaultIcons` (exported, expo-symbols-backed (SF Symbols on iOS, Material Symbols on Android)). Supply
+every `CommunityIconName` and you never need `expo-symbols`
 installed at all — the default set only `require`s it lazily, inside a
 default icon's own render, so it throws a clear error (naming the fix:
-install phosphor-react-native, or pass a complete `icons` set to
+install expo-symbols, or pass a complete `icons` set to
 `CommunityUIProvider`) only if a default icon actually renders without it.
 Read the merged set yourself with `useCommunityIcons()` (e.g. to build your
 own slot content) — it returns the full `CommunityIconSet` (defaults merged

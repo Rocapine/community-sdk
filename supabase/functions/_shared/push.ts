@@ -8,9 +8,34 @@ export interface ExpoPushMessage {
   title: string;
   body?: string;
   data: Record<string, string>;
-  // badge: 1 is a "something new" dot, not a real unread count — the app
-  // clears it on every foreground.
+  // The recipient's unread inbox count at send time (see `unreadBadge`); the
+  // app re-syncs the icon badge from the SDK's own count while it runs.
   badge?: number;
+}
+
+/** Unread inbox rows for `uid` (newer than the seen marker), at least 1 since a push
+ * is being sent. Falls back to 1 when the inbox module is not installed. */
+export async function unreadBadge(
+  supabase: { from: (table: string) => any },
+  uid: string,
+): Promise<number> {
+  try {
+    const { data: seen } = await supabase
+      .from("notification_seen")
+      .select("seen_at")
+      .eq("user_id", uid)
+      .maybeSingle();
+    let query = supabase
+      .from("notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", uid);
+    if (seen?.seen_at) query = query.gt("created_at", seen.seen_at);
+    const { count, error } = await query;
+    if (error) return 1;
+    return Math.max(1, count ?? 0);
+  } catch {
+    return 1;
+  }
 }
 
 // Sends in chunks of 100 (Expo API limit), 4 requests in flight at a time, each

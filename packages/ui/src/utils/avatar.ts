@@ -3,7 +3,7 @@
 // pre-migration picker resized to 512px JPEG @0.8; this restores that.
 //
 // `expo-image-manipulator` is an OPTIONAL peer (same lazy-require pattern as
-// phosphor in `icons-default.ts`): without it the photo is uploaded unchanged,
+// expo-symbols in `icons-default.ts`): without it the photo is uploaded unchanged,
 // so a host that skipped the peer keeps working.
 
 // Ambient `require` — see `icons-default.ts` for why this isn't an `import`.

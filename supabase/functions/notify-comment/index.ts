@@ -8,7 +8,7 @@
 // push comes from the request itself.
 
 import { adminClient } from "../_shared/client.ts";
-import { sendExpoPush } from "../_shared/push.ts";
+import { sendExpoPush, unreadBadge } from "../_shared/push.ts";
 import { pushCopy } from "../_shared/copy.ts";
 import { ensureTranslations, resolveTargetLocale, languageOf } from "../_shared/translation.ts";
 
@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
     title: copy.text("comment.title"),
     body,
     data: { route: "/community", kind: "community_comment" },
-    badge: 1,
+    badge: await unreadBadge(supabase, post.author_id),
   });
   return new Response("ok");
 });

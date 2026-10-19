@@ -11,9 +11,9 @@ const IconsContext = createContext<CommunityIconSet>(defaultIcons);
 export function CommunityUIProvider(props: {
   theme?: DeepPartial<CommunityTheme>;
   translations?: { locale?: string; overrides?: Record<string, string> };
-  /** Overrides part or all of the built-in phosphor-backed icon set — a
+  /** Overrides part or all of the built-in expo-symbols icon set — a
    * host that supplies every `CommunityIconName` never needs
-   * phosphor-react-native installed at all (see `icons.ts`/`icons-default.ts`). */
+   * expo-symbols installed at all (see `icons.ts`/`icons-default.ts`). */
   icons?: Partial<CommunityIconSet>;
   children: ReactNode;
 }): ReactElement {

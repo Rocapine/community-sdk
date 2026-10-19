@@ -1,9 +1,8 @@
 // Pure merge-behavior test for the injectable icon set (see `icons.ts` /
 // `icons-default.ts`). `defaultIcons`' entries are plain function
 // references — importing them, or merging over them, never touches
-// phosphor-react-native or React Native rendering (the lazy phosphor
-// `require` only runs once a default icon actually renders, which this
-// test never does). No mocking needed to keep this a pure merge test.
+// expo-symbols or React Native rendering (the lazy `require` only runs once a
+// default icon actually renders, which this test never does).
 import { describe, expect, it } from "vitest";
 import { defaultIcons, mergeIcons } from "../icons-default";
 import type { CommunityIconName, CommunityIconProps, CommunityIconSet } from "../icons";

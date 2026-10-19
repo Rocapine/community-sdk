@@ -36,7 +36,7 @@ community-sdk/
 └── docs/                → integration guide (SKILL.md heritage), backend runbook
 ```
 
-Rationale for two runtime packages: a headless consumer must not inherit the UI's peer deps (reanimated, expo-image, phosphor). This is the Stream/Sendbird model RN developers already know. Packages are versioned **together** (linked versioning via changesets).
+Rationale for two runtime packages: a headless consumer must not inherit the UI's peer deps (reanimated, expo-image, expo-symbols). This is the Stream/Sendbird model RN developers already know. Packages are versioned **together** (linked versioning via changesets).
 
 Once the repo exists, `Rocacommu/sdk/` is deleted and replaced by a pointer to the public repo.
 
@@ -98,7 +98,7 @@ Delivered as **components, not routes** — the app mounts them in its own scree
 - **Theme by tokens**: a `CommunityTheme` (semantic palette ~15 colors, 3 font families, radius, spacing scale) passed to a UI provider; neutral default shipped. Eve/Nightward fill it from their design systems.
 - **Slots** for heavy customization points: `renderPostFooter`, `renderComposerExtra`, `renderReactionButton` (how Eve keeps `PrayForSisterSheet` on top of the generic reaction), `renderInboxRow` (custom inbox kinds, §6).
 - **i18n injectable, framework-free**: catalogs ship as plain objects (the 7 existing locales, cleaned of gendered vocabulary); the app passes `translations: { locale, overrides? }`; internal `t(key, params)`. Eve overrides ~10 keys ("A sister", "Eve's News", …). Topic labels resolve via `topics.<id>` keys that the app supplies for custom topics.
-- **Assumed peer deps**: `react-native-reanimated`, `expo-image`, `expo-haptics`, `phosphor-react-native` (icons deliberately not injectable in v1).
+- **Assumed peer deps**: `react-native-reanimated`, `expo-image`, `expo-haptics`, `expo-symbols` (icons deliberately not injectable in v1).
 - **Sheets**: the SDK ships its own self-contained sheet component (replacing `EveSheet`), so consumer apps need no sheet machinery. (Confirmed choice over a `renderSheet` slot.)
 
 ## 5. Backend distribution — versioned SQL + CLI
