@@ -232,7 +232,9 @@ you can wrap, replace, or ignore it:
 | `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                       |
 | `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                 |
 
-Plus standalone components you can use directly: `CommunityPost`,
+Plus standalone components you can use directly: `PressableScale` (the
+package's press feedback — scale + dim + optional `haptic`, for host-side
+buttons around these screens), `CommunityPost`,
 `PollBlock` (takes `showOriginal?: boolean` to render each option's
 original `label` instead of its `translatedLabel`, mirroring the post/thread
 toggle below), `NoticeCard`, `ComposerCard`, `RulesSheet`, `ReportSheet`, and
