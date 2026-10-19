@@ -86,7 +86,9 @@ export function ProfileScreen({
   /** Where the visit came from (see `onOpenProfile`'s second argument), for
    * the `profileOpened` event. */
   source?: ProfileSource;
-  onOpenThread(postId: string): void;
+  /** `focusComment`: opened from the post's comment button — open the
+   * thread with the reply field focused (`ThreadSheet`'s `focusComment`). */
+  onOpenThread(postId: string, focusComment?: boolean): void;
   onBack?: () => void;
   slots?: PostSlots;
   // Top safe-area inset in px. This screen owns its back button and is meant
@@ -303,6 +305,7 @@ export function ProfileScreen({
                     key={post.id}
                     post={post}
                     onOpenThread={onOpenThread}
+                    onPressComment={(postId) => onOpenThread(postId, true)}
                     onOpenProfile={noop}
                     onMenu={openPostMenu}
                     {...slots}
