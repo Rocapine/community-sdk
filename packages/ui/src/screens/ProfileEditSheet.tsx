@@ -82,7 +82,6 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
 
   const pickPhoto = async () => {
     if (photoBusy) return;
-    haptic("selection");
     setPhotoError(null);
     setPhotoBusy(true);
     try {

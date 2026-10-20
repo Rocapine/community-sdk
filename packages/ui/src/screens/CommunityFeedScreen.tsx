@@ -84,12 +84,21 @@ import {
   useUnreadNotificationCount,
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
   AppState,
   FlatList,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -105,7 +114,7 @@ import { CommunityPost, type PostSlots, type ProfileSource } from "../components
 import { ComposerCard, type ComposerCardHandle } from "../components/ComposerCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
-import { haptic, PressableScale } from "../components/PressableScale";
+import { PressableScale } from "../components/PressableScale";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
 import { ThreadSheet } from "./ThreadSheet";
@@ -165,10 +174,13 @@ export function CommunityFeedScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const searchActive = searchOpen && searchTerm.trim().length >= 2;
+  // The field updates at once; the list (switching to/from results) follows
+  // when React has time — clearing the field must feel instant.
+  const deferredTerm = useDeferredValue(searchTerm);
+  const searchActive = searchOpen && deferredTerm.trim().length >= 2;
   const topicFilter = filter === "all" ? undefined : filter;
   const categoryFeed = useCommunityFeed(topicFilter, !searchActive);
-  const searchFeed = useSearchPosts(searchActive ? searchTerm : "");
+  const searchFeed = useSearchPosts(searchActive ? deferredTerm : "");
 
   // `useCommunityFeed` and `useSearchPosts` are both infinite queries
   // (`.data.pages`) — the search branch used to be a single flat query, but
@@ -197,13 +209,16 @@ export function CommunityFeedScreen({
   // degraded-mode acceptance test (empty state, not an infinite spinner).
   const isPending = searchActive ? isQueryLoading(searchFeed) : isQueryLoading(categoryFeed);
   const isError = searchActive ? searchFeed.isError : categoryFeed.isError;
-  const isRefetching = searchActive ? searchFeed.isRefetching : categoryFeed.isRefetching;
   const activeFeed = searchActive ? searchFeed : categoryFeed;
   const hasNextPage = !!activeFeed.hasNextPage;
   const isFetchingNextPage = activeFeed.isFetchingNextPage;
-  const refetch = () => {
-    if (searchActive) searchFeed.refetch();
-    else categoryFeed.refetch();
+  const refetch = () => (searchActive ? searchFeed.refetch() : categoryFeed.refetch());
+  // The spinner only answers a pull: a background refetch (e.g. back from a
+  // search) must not push the list down.
+  const [pulling, setPulling] = useState(false);
+  const pullToRefresh = () => {
+    setPulling(true);
+    refetch().finally(() => setPulling(false));
   };
   const loadMore = () => {
     if (activeFeed.hasNextPage && !activeFeed.isFetchingNextPage) {
@@ -248,6 +263,14 @@ export function CommunityFeedScreen({
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
   };
 
+  const searchInputRef = useRef<TextInput>(null);
+  const clearSearch = () => {
+    // Native clear too: with a predictive-text word pending, iOS puts it back
+    // when only the JS value is reset, so the first tap seemed to do nothing.
+    searchInputRef.current?.clear();
+    setSearchTerm("");
+  };
+
   const toggleSearch = () => {
     setSearchOpen((open) => {
       if (open) setSearchTerm("");
@@ -260,7 +283,6 @@ export function CommunityFeedScreen({
   // reconcile every visible row on each unrelated re-render (e.g. every 5s
   // new-post poll tick, or a keystroke in the search bar).
   const openThread = useCallback((postId: string) => {
-    haptic("selection");
     setFocusComment(false);
     setActivePostId(postId);
   }, []);
@@ -271,7 +293,6 @@ export function CommunityFeedScreen({
 
   const openPostMenu = useCallback(
     (post: FeedPost) => {
-      haptic("selection");
       if (post.isOwn) {
         Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
           { text: t("menu.cancel"), style: "cancel" },
@@ -342,9 +363,7 @@ export function CommunityFeedScreen({
       <View style={styles.controls}>
         <View style={styles.controlsRow}>
           {cfg.modules.inbox && onOpenInbox && <InboxBell onPress={onOpenInbox} />}
-          <PressableScale
-            scale="icon"
-            haptic="selection"
+          <Pressable
             onPress={toggleSearch}
             style={styles.iconButton}
             accessibilityRole="button"
@@ -355,7 +374,7 @@ export function CommunityFeedScreen({
             ) : (
               <icons.search size={22} color={theme.colors.textPrimary} weight="regular" />
             )}
-          </PressableScale>
+          </Pressable>
         </View>
 
         {/* Search bar and filter chips share one fixed-height slot, so
@@ -365,6 +384,7 @@ export function CommunityFeedScreen({
             <View style={styles.searchBar}>
               <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
               <TextInput
+                ref={searchInputRef}
                 value={searchTerm}
                 onChangeText={setSearchTerm}
                 placeholder={t("feed.searchPlaceholder")}
@@ -374,17 +394,15 @@ export function CommunityFeedScreen({
                 style={styles.searchInput}
               />
               {searchTerm.length > 0 && (
-                <PressableScale
-                  scale="icon"
+                <Pressable
                   hitSlop={10}
-                  haptic="selection"
-                  onPress={() => setSearchTerm("")}
+                  onPress={clearSearch}
                   style={styles.clearButton}
                   accessibilityRole="button"
                   accessibilityLabel={t("a11y.clearSearch")}
                 >
                   <icons.close size={12} color={theme.colors.surface} weight="bold" />
-                </PressableScale>
+                </Pressable>
               )}
             </View>
           ) : (
@@ -414,7 +432,7 @@ export function CommunityFeedScreen({
 
       <View style={styles.listWrap}>
         {newCount > 0 && (
-          <PressableScale haptic="selection" onPress={showNewPosts} style={styles.newPill}>
+          <PressableScale onPress={showNewPosts} style={styles.newPill}>
             <Text style={styles.newPillText}>{t("feed.newPosts", { count: newCount })}</Text>
           </PressableScale>
         )}
@@ -425,21 +443,25 @@ export function CommunityFeedScreen({
           keyExtractor={(p) => p.id}
           renderItem={renderItem}
           ListHeaderComponent={
-            // A search shows results only. Hidden, not unmounted: a draft survives it.
-            <View
-              style={searchOpen && styles.hidden}
-              onLayout={(e) =>
-                (composerBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height)
-              }
-            >
-              <ComposerCard
-                ref={composerRef}
-                defaultTopic={composeDefaultTopic}
-                onModerationRejected={() => setNotice("rejected")}
-                onPublishFailed={() => setNotice("network")}
-                beforeSubmit={beforeSubmitPost}
-              />
-            </View>
+            <>
+              {/* Same gap above the results as the composer's own top margin. */}
+              {searchOpen && <View style={styles.searchGap} />}
+              {/* A search shows results only. Hidden, not unmounted: a draft survives it. */}
+              <View
+                style={searchOpen && styles.hidden}
+                onLayout={(e) =>
+                  (composerBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height)
+                }
+              >
+                <ComposerCard
+                  ref={composerRef}
+                  defaultTopic={composeDefaultTopic}
+                  onModerationRejected={() => setNotice("rejected")}
+                  onPublishFailed={() => setNotice("network")}
+                  beforeSubmit={beforeSubmitPost}
+                />
+              </View>
+            </>
           }
           onScroll={(e) =>
             setComposerHidden(e.nativeEvent.contentOffset.y > composerBottom.current)
@@ -462,7 +484,7 @@ export function CommunityFeedScreen({
           }
           ListFooterComponent={
             hasNextPage ? (
-              <PressableScale haptic="selection" onPress={loadMore} style={styles.loadMore}>
+              <PressableScale onPress={loadMore} style={styles.loadMore}>
                 {isFetchingNextPage ? (
                   <ActivityIndicator size="small" color={theme.colors.accent} />
                 ) : (
@@ -475,8 +497,8 @@ export function CommunityFeedScreen({
           onEndReachedThreshold={0.4}
           refreshControl={
             <RefreshControl
-              refreshing={isRefetching && !isFetchingNextPage}
-              onRefresh={refetch}
+              refreshing={pulling}
+              onRefresh={pullToRefresh}
               tintColor={theme.colors.accent}
             />
           }
@@ -498,7 +520,7 @@ export function CommunityFeedScreen({
             exiting={FadeOutDown.duration(140)}
             style={[styles.floatingCompose, { bottom: insets.bottom + theme.spacing(3.5) }]}
           >
-            <PressableScale haptic="selection" onPress={focusComposer} style={styles.composeBar}>
+            <PressableScale onPress={focusComposer} style={styles.composeBar}>
               {myAvatarUrl ? (
                 <Image
                   source={{ uri: myAvatarUrl }}
@@ -549,7 +571,7 @@ function FilterChip({
   const styles = useThemedStyles(makeStyles);
   return (
     <PressableScale
-      haptic="selection"
+      haptic={active ? undefined : "selection"}
       onPress={onPress}
       style={[styles.filterChip, active && styles.filterChipOn]}
       accessibilityRole="button"
@@ -572,9 +594,7 @@ function InboxBell({ onPress }: { onPress: () => void }) {
   const styles = useThemedStyles(makeStyles);
   const unread = useUnreadNotificationCount();
   return (
-    <PressableScale
-      scale="icon"
-      haptic="selection"
+    <Pressable
       onPress={onPress}
       style={styles.iconButton}
       accessibilityRole="button"
@@ -582,7 +602,7 @@ function InboxBell({ onPress }: { onPress: () => void }) {
     >
       <icons.bell size={22} color={theme.colors.textPrimary} weight="regular" />
       {unread > 0 && <View style={styles.bellDot} />}
-    </PressableScale>
+    </Pressable>
   );
 }
 
@@ -678,6 +698,8 @@ function makeStyles(theme: CommunityTheme) {
     filterChipTextOn: { color: theme.colors.accent },
     listWrap: { flex: 1, position: "relative" },
     hidden: { display: "none" },
+    // = ComposerCard's marginTop: results start where the composer would.
+    searchGap: { height: theme.spacing(4) },
     listContent: { paddingHorizontal: theme.spacing(5) },
     spinner: { marginTop: theme.spacing(8) },
     stateText: {

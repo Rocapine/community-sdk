@@ -30,7 +30,7 @@ import {
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
 import { useContext, useState, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { displayText, translationLine } from "../utils/translation";
@@ -77,7 +77,8 @@ export function CommunityPost({
   renderReactionButton,
 }: {
   post: FeedPost;
-  onOpenThread(postId: string): void;
+  /** Absent (e.g. inside the thread itself): the card is not tappable. */
+  onOpenThread?(postId: string): void;
   /** The comment button. Defaults to `onOpenThread`; the feed opens the
    * thread with the reply field focused, the thread sheet focuses it. */
   onPressComment?(postId: string): void;
@@ -105,7 +106,6 @@ export function CommunityPost({
     setShowOriginal(!showOriginal);
   };
 
-  const handleOpenThread = () => onOpenThread(post.id);
   // An optimistic own post may not know our uid yet (identity still
   // resolving): no profile to open, rather than a broken empty-id route.
   const handleOpenProfile = () => {
@@ -177,7 +177,7 @@ export function CommunityPost({
   );
 
   const likeButton = (
-    <PressableScale scale="icon" hitSlop={4} onPress={handleToggleLike} style={styles.stat}>
+    <Pressable hitSlop={4} onPress={handleToggleLike} style={styles.stat}>
       <icons.like
         size={18}
         color={post.likedByMe ? theme.colors.like : theme.colors.textFaint}
@@ -189,11 +189,11 @@ export function CommunityPost({
       >
         {post.likeCount}
       </Text>
-    </PressableScale>
+    </Pressable>
   );
 
   const defaultReactionButton = (
-    <PressableScale scale="icon" hitSlop={4} onPress={handleReact} style={styles.stat}>
+    <Pressable hitSlop={4} onPress={handleReact} style={styles.stat}>
       <icons.reaction
         size={18}
         color={post.hasReacted ? theme.colors.reaction : theme.colors.textFaint}
@@ -205,30 +205,27 @@ export function CommunityPost({
       >
         {post.reactionCount}
       </Text>
-    </PressableScale>
+    </Pressable>
   );
   const reactionButton = cfg.modules.reaction
     ? (renderReactionButton?.(post, defaultReactionButton, slotCtx) ?? defaultReactionButton)
     : null;
 
   const commentButton = (
-    <PressableScale
-      scale="icon"
+    <Pressable
       hitSlop={4}
-      haptic="selection"
-      onPress={() => (onPressComment ?? onOpenThread)(post.id)}
+      onPress={() => (onPressComment ?? onOpenThread)?.(post.id)}
       style={styles.stat}
     >
       <icons.comment size={18} color={theme.colors.textFaint} weight="regular" />
       <Text numberOfLines={1} style={styles.statText}>
         {post.commentCount}
       </Text>
-    </PressableScale>
+    </Pressable>
   );
 
   const menuButton = (
-    <PressableScale
-      scale="icon"
+    <Pressable
       hitSlop={4}
       onPress={handleMenu}
       style={[styles.stat, styles.menuButton]}
@@ -236,7 +233,7 @@ export function CommunityPost({
       accessibilityLabel={t("a11y.more")}
     >
       <icons.menu size={20} color={theme.colors.textFaint} weight="bold" />
-    </PressableScale>
+    </Pressable>
   );
 
   const defaultFooter = (
@@ -249,17 +246,11 @@ export function CommunityPost({
   );
   const footer = renderPostFooter?.(post, defaultFooter, slotCtx) ?? defaultFooter;
 
-  return (
-    <PressableScale scale="surface" onPress={handleOpenThread} style={styles.card}>
-      <PressableScale
-        scale="surface"
-        haptic="selection"
-        onPress={handleOpenProfile}
-        hitSlop={4}
-        style={styles.header}
-      >
+  const content = (
+    <>
+      <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.header}>
         {authorHeader}
-      </PressableScale>
+      </Pressable>
 
       <ClampedBody
         text={displayText(post, showOriginal)}
@@ -269,15 +260,23 @@ export function CommunityPost({
         viewMoreStyle={styles.viewMore}
       />
       {toggleLine && (
-        <PressableScale hitSlop={8} haptic="selection" onPress={toggleOriginal} style={styles.link}>
+        <Pressable hitSlop={8} onPress={toggleOriginal} style={styles.link}>
           <Text style={styles.translationLine}>{toggleLine}</Text>
-        </PressableScale>
+        </Pressable>
       )}
 
       {post.poll && <PollBlock post={post} showOriginal={showOriginal} />}
 
       {footer}
+    </>
+  );
+
+  return onOpenThread ? (
+    <PressableScale scale="surface" onPress={() => onOpenThread(post.id)} style={styles.card}>
+      {content}
     </PressableScale>
+  ) : (
+    <View style={styles.card}>{content}</View>
   );
 }
 

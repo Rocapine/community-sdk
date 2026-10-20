@@ -10,8 +10,7 @@
 // the switch, so the whole change animates as one. Keyed list recycling
 // remounts the card, which resets `expanded` (accepted).
 import { useState } from "react";
-import { StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
-import { PressableScale } from "./PressableScale";
+import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
 import { useT } from "../ThemeProvider";
 import { AnimatedHeight } from "./AnimatedHeight";
 
@@ -70,14 +69,9 @@ export function ClampedBody({
         </View>
       </View>
       {overflows && (
-        <PressableScale
-          hitSlop={8}
-          haptic="selection"
-          onPress={() => setExpanded((e) => !e)}
-          style={styles.toggle}
-        >
+        <Pressable hitSlop={8} onPress={() => setExpanded((e) => !e)} style={styles.toggle}>
           <Text style={viewMoreStyle}>{expanded ? t("post.viewLess") : t("post.viewMore")}</Text>
-        </PressableScale>
+        </Pressable>
       )}
     </AnimatedHeight>
   );

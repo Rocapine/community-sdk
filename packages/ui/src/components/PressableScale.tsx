@@ -1,34 +1,34 @@
-// Every tappable element of the package goes through this Pressable: it
-// shrinks a touch and dims slightly while held (UI thread, Reanimated, so it
-// stays smooth during JS work), and fires an optional haptic on press.
+// Press feedback for the package's buttons with a visible surface (pills,
+// chips, cards): a barely-there scale-down while held, on the UI thread
+// (Reanimated) — no opacity change, no spring. Icon buttons and text links
+// use a plain `Pressable`: their state change (or the screen they open) is the
+// feedback.
 import * as Haptics from "expo-haptics";
 import {
   Pressable,
-  StyleSheet,
   type GestureResponderEvent,
   type PressableProps,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from "react-native-reanimated";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-/** Pressed scale by element size: an icon can shrink further than a card
- * without looking broken. */
-const SCALES = { icon: 0.9, button: 0.96, surface: 0.985 } as const;
-const PRESSED_OPACITY = 0.85;
+/** Pressed scale: a button can give a little more than a whole card. */
+const SCALES = { button: 0.98, surface: 0.99 } as const;
+const EASE_OUT = Easing.out(Easing.quad);
 
 export type HapticKind = "selection" | "light" | "medium" | "success";
 
-/** Light (`selection`) for plain UI — chips, toggles, navigation; `medium` for
- * an action that commits something (like, reaction, publish); `success` for
- * an outcome. */
+/** `selection` when a choice changes (chip, topic, toggle); `light`/`medium`
+ * when something is committed (undo / like, reaction, vote, publish, send);
+ * `success` for an outcome. Never on plain navigation. */
 export function haptic(kind: HapticKind): void {
   const run =
     kind === "selection"
@@ -58,11 +58,7 @@ export function PressableScale({
 }) {
   const pressed = useSharedValue(0);
   const to = SCALES[scale];
-  // The animated opacity would override a static one (e.g. a disabled look).
-  const staticOpacity = StyleSheet.flatten(style)?.opacity;
-  const baseOpacity = typeof staticOpacity === "number" ? staticOpacity : 1;
   const animatedStyle = useAnimatedStyle(() => ({
-    opacity: baseOpacity * (1 - (1 - PRESSED_OPACITY) * pressed.value),
     transform: [{ scale: 1 - (1 - to) * pressed.value }],
   }));
 
@@ -70,11 +66,11 @@ export function PressableScale({
     <AnimatedPressable
       {...rest}
       onPressIn={(e: GestureResponderEvent) => {
-        pressed.value = withTiming(1, { duration: 90 });
+        pressed.value = withTiming(1, { duration: 80, easing: EASE_OUT });
         onPressIn?.(e);
       }}
       onPressOut={(e: GestureResponderEvent) => {
-        pressed.value = withSpring(0, { damping: 18, stiffness: 320 });
+        pressed.value = withTiming(0, { duration: 160, easing: EASE_OUT });
         onPressOut?.(e);
       }}
       onPress={

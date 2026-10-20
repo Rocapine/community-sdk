@@ -52,8 +52,7 @@ import {
   type InboxItem,
 } from "@rocapine/community-core";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
-import { PressableScale } from "../components/PressableScale";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { TFn } from "../i18n";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -213,14 +212,16 @@ function NotificationRow({
   const excerpt = typeof item.payload.postExcerpt === "string" ? item.payload.postExcerpt : null;
 
   return (
-    <PressableScale
-      scale="surface"
-      haptic="selection"
+    <Pressable
       onPress={() => {
         if (item.postId) onOpenPost(item.postId);
         else onOpenCommunity?.();
       }}
-      style={[styles.row, showDivider && styles.rowDivider]}
+      style={({ pressed }) => [
+        styles.row,
+        showDivider && styles.rowDivider,
+        pressed && styles.rowPressed,
+      ]}
     >
       <View style={styles.iconWrap}>
         <KindIcon kind={item.kind} />
@@ -239,7 +240,7 @@ function NotificationRow({
         <Text style={styles.rowDate}>{formatTimeAgo(t, item.createdAt, Date.now())}</Text>
         {unread && <View style={styles.unreadDot} />}
       </View>
-    </PressableScale>
+    </Pressable>
   );
 }
 
@@ -278,6 +279,8 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(4),
       paddingVertical: theme.spacing(3.5),
     },
+    // A tint, not a scale: rows sit edge to edge inside their card.
+    rowPressed: { backgroundColor: theme.colors.hairline },
     rowDivider: { borderTopWidth: 1, borderTopColor: theme.colors.hairline },
     iconWrap: {
       width: 36,

@@ -83,11 +83,9 @@ import { runGuarded } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { RulesSheet } from "../components/RulesSheet";
-import { haptic, PressableScale } from "../components/PressableScale";
+import { haptic } from "../components/PressableScale";
 
 const COMMENT_CLAMP_LINES = 5;
-
-const noop = () => {};
 
 /** Re-renders the caller only when the cached `FeedPost` it reads actually
  * changes (by reference — `useSyncExternalStore` bails out on an `Object.is`
@@ -308,7 +306,6 @@ export function ThreadSheet({
   };
 
   const openPostMenu = (p: FeedPost) => {
-    haptic("selection");
     if (p.isOwn) {
       Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
         { text: t("menu.cancel"), style: "cancel" },
@@ -353,7 +350,6 @@ export function ThreadSheet({
   };
 
   const openCommentMenu = (c: ThreadComment) => {
-    haptic("selection");
     if (c.isOwn) {
       Alert.alert(t("menu.deleteCommentTitle"), undefined, [
         { text: t("menu.cancel"), style: "cancel" },
@@ -420,8 +416,7 @@ export function ThreadSheet({
               multiline
               maxLength={COMMENT_MAX_LENGTH}
             />
-            <PressableScale
-              scale="icon"
+            <Pressable
               hitSlop={4}
               onPress={send}
               disabled={gating}
@@ -434,7 +429,7 @@ export function ThreadSheet({
                 color={text.trim() && !gating ? theme.colors.accent : theme.colors.textFaint}
                 weight="fill"
               />
-            </PressableScale>
+            </Pressable>
             {/* Rules gate: swallow every touch on the comment box until the UGC
                 rules are accepted (mirrors `ComposerCard`'s overlay). */}
             {!rulesAccepted && (
@@ -456,11 +451,7 @@ export function ThreadSheet({
             <ModalHandoffContext.Provider value={presentAfterClose}>
               <CommunityPost
                 post={post}
-                onOpenThread={noop}
-                onPressComment={() => {
-                  haptic("selection");
-                  focusReply();
-                }}
+                onPressComment={focusReply}
                 onOpenProfile={openProfile}
                 onMenu={openPostMenu}
                 {...slots}
@@ -543,7 +534,7 @@ function CommentRow({
 
   return (
     <View style={styles.comment}>
-      <PressableScale scale="icon" haptic="selection" onPress={handleAuthor} hitSlop={4}>
+      <Pressable onPress={handleAuthor} hitSlop={4}>
         {comment.authorAvatarUrl ? (
           <Image
             source={{ uri: comment.authorAvatarUrl }}
@@ -555,15 +546,9 @@ function CommentRow({
             <Text style={styles.cAvatarLetter}>{comment.authorName.charAt(0).toUpperCase()}</Text>
           </View>
         )}
-      </PressableScale>
+      </Pressable>
       <View style={styles.commentBody}>
-        <PressableScale
-          scale="surface"
-          haptic="selection"
-          onPress={handleAuthor}
-          hitSlop={4}
-          style={styles.nameRow}
-        >
+        <Pressable onPress={handleAuthor} hitSlop={4} style={styles.nameRow}>
           <Text style={styles.cName}>{comment.authorName}</Text>
           {comment.authorOfficial && (
             <icons.officialSeal size={13} color={theme.colors.official} weight="fill" />
@@ -574,7 +559,7 @@ function CommentRow({
             </Text>
           )}
           <Text style={styles.cAgo}>· {formatTimeAgo(t, comment.createdAt, now)}</Text>
-        </PressableScale>
+        </Pressable>
         <ClampedBody
           text={displayText(comment, showOriginal)}
           alternate={comment.translation ? displayText(comment, !showOriginal) : null}
@@ -583,18 +568,12 @@ function CommentRow({
           viewMoreStyle={styles.cViewMore}
         />
         {toggleLine && (
-          <PressableScale
-            hitSlop={8}
-            haptic="selection"
-            onPress={toggleOriginal}
-            style={styles.link}
-          >
+          <Pressable hitSlop={8} onPress={toggleOriginal} style={styles.link}>
             <Text style={styles.cTranslationLine}>{toggleLine}</Text>
-          </PressableScale>
+          </Pressable>
         )}
       </View>
-      <PressableScale
-        scale="icon"
+      <Pressable
         hitSlop={8}
         onPress={() => onMenu(comment)}
         style={styles.cMenu}
@@ -602,7 +581,7 @@ function CommentRow({
         accessibilityLabel={t("a11y.more")}
       >
         <icons.menu size={18} color={theme.colors.textFaint} weight="bold" />
-      </PressableScale>
+      </Pressable>
     </View>
   );
 }

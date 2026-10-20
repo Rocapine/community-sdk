@@ -106,6 +106,9 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
   // Follows the feed's filter: a post goes to the topic being browsed.
   useEffect(() => setTopic(fallbackTopic), [fallbackTopic]);
   const [topicPickerOpen, setTopicPickerOpen] = useState(false);
+  // Keeps the field expanded from the picker's opening until the field is
+  // focused again, so closing the sheet doesn't collapse then re-expand it.
+  const [holdExpanded, setHoldExpanded] = useState(false);
   const [text, setText] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
   // null = no poll on this draft; an array = the poll editor is open.
@@ -128,7 +131,7 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
     focus: () => (locked ? openRulesGate() : inputRef.current?.focus()),
   }));
 
-  const composing = inputFocused || topicPickerOpen || text.trim().length > 0 || pollDraft !== null;
+  const composing = inputFocused || holdExpanded || text.trim().length > 0 || pollDraft !== null;
 
   const filledPollOptions = (pollDraft ?? []).map((o) => o.trim()).filter((o) => o.length > 0);
   const pollInvalid = pollDraft !== null && filledPollOptions.length < POLL_MIN_OPTIONS;
@@ -143,11 +146,13 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
 
   const openTopicPicker = () => {
     // The keyboard would cover the sheet; the field is refocused on dismiss.
+    setHoldExpanded(true);
     Keyboard.dismiss();
     setTopicPickerOpen(true);
   };
 
   const togglePoll = () => {
+    haptic("selection");
     setPollDraft((prev) => (prev === null ? ["", ""] : null));
   };
 
@@ -199,27 +204,42 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
     runGuarded(beforeSubmit, draft, doSubmit).finally(() => setGating(false));
   };
 
+  const placeholder =
+    pollDraft !== null ? t("composer.pollPlaceholder") : t("composer.placeholder");
+
   return (
     <View style={styles.card}>
       <AnimatedHeight>
         <View style={styles.inputBox}>
+          {/* Our own placeholder: iOS doesn't re-lay the native one when it
+              changes while focused (poll toggle), leaving it off-center. */}
+          {text.length === 0 && (
+            <Text
+              style={[styles.input, styles.placeholder]}
+              pointerEvents="none"
+              // The field itself announces it (accessibilityLabel).
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            >
+              {placeholder}
+            </Text>
+          )}
           <TextInput
             ref={inputRef}
             value={text}
             onChangeText={setText}
-            onFocus={() => setInputFocused(true)}
+            onFocus={() => {
+              setInputFocused(true);
+              setHoldExpanded(false);
+            }}
             onBlur={() => setInputFocused(false)}
-            placeholder={
-              pollDraft !== null ? t("composer.pollPlaceholder") : t("composer.placeholder")
-            }
-            placeholderTextColor={theme.colors.textFaint}
+            accessibilityLabel={placeholder}
             multiline
             maxLength={POST_MAX_LENGTH}
             style={[styles.input, composing && styles.inputComposing]}
           />
           {composing && topics.length > 1 && (
             <PressableScale
-              haptic="selection"
               onPress={openTopicPicker}
               style={styles.topicSelect}
               accessibilityRole="button"
@@ -251,10 +271,8 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
                 style={styles.pollOptionInput}
               />
               {pollDraft.length > POLL_MIN_OPTIONS && (
-                <PressableScale
-                  scale="icon"
+                <Pressable
                   hitSlop={8}
-                  haptic="selection"
                   onPress={() =>
                     setPollDraft((prev) => (prev ? prev.filter((_, j) => j !== i) : prev))
                   }
@@ -262,36 +280,30 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
                   accessibilityLabel={t("composer.removeOption")}
                 >
                   <icons.close size={16} color={theme.colors.textFaint} weight="bold" />
-                </PressableScale>
+                </Pressable>
               )}
             </View>
           ))}
           {pollDraft.length < POLL_MAX_OPTIONS && (
-            <PressableScale
-              haptic="selection"
+            <Pressable
               onPress={() => setPollDraft((prev) => (prev ? [...prev, ""] : prev))}
               style={styles.pollAdd}
             >
               <icons.add size={14} color={theme.colors.accent} weight="bold" />
               <Text style={styles.pollAddText}>{t("composer.addOption")}</Text>
-            </PressableScale>
+            </Pressable>
           )}
         </View>
       )}
 
       <View style={styles.footer}>
         {cfg.modules.polls && (
-          <PressableScale
-            haptic="selection"
-            onPress={togglePoll}
-            hitSlop={6}
-            style={styles.pollToggle}
-          >
+          <Pressable onPress={togglePoll} hitSlop={6} style={styles.pollToggle}>
             <icons.poll size={18} color={theme.colors.accent} weight="regular" />
             <Text style={styles.pollToggleText}>
               {pollDraft !== null ? t("composer.removePoll") : t("composer.poll")}
             </Text>
-          </PressableScale>
+          </Pressable>
         )}
         {renderComposerExtra}
         <PressableScale
@@ -331,15 +343,14 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
           {topics.map((option) => {
             const on = topic === option.id;
             return (
-              <PressableScale
+              <Pressable
                 key={option.id}
-                scale="surface"
-                haptic="selection"
                 onPress={() => {
+                  if (!on) haptic("selection");
                   setTopic(option.id);
                   setTopicPickerOpen(false);
                 }}
-                style={[styles.pickerRow, on && styles.pickerRowOn]}
+                style={({ pressed }) => [styles.pickerRow, (on || pressed) && styles.pickerRowOn]}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
               >
@@ -347,7 +358,7 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
                   {t(`topics.${option.id}`)}
                 </Text>
                 {on && <icons.checkmark size={18} color={theme.colors.accent} weight="fill" />}
-              </PressableScale>
+              </Pressable>
             );
           })}
         </SheetScrollView>
@@ -384,6 +395,7 @@ const makeStyles = (theme: CommunityTheme) =>
       color: theme.colors.textPrimary,
       textAlignVertical: "top",
     },
+    placeholder: { position: "absolute", left: 0, right: 0, color: theme.colors.textFaint },
     // Taller while composing, with room for the topic select underneath.
     inputComposing: { minHeight: 132, paddingBottom: theme.spacing(12) },
     topicSelect: {

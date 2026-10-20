@@ -56,6 +56,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -66,7 +67,7 @@ import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
-import { haptic, PressableScale } from "../components/PressableScale";
+import { PressableScale } from "../components/PressableScale";
 import { isQueryLoading } from "../utils/query";
 import { ProfileEditSheet } from "./ProfileEditSheet";
 
@@ -113,6 +114,8 @@ export function ProfileScreen({
 
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  // Spinner only for a pull, never for a background refetch.
+  const [pulling, setPulling] = useState(false);
 
   // Fires once, but only once identity has actually resolved: `useMyUid`'s
   // query is uncached on a session's first profile visit, so `myUid` is null
@@ -136,7 +139,6 @@ export function ProfileScreen({
   };
 
   const openPostMenu = (post: FeedPost) => {
-    haptic("selection");
     if (post.isOwn) {
       Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
         { text: t("menu.cancel"), style: "cancel" },
@@ -176,7 +178,6 @@ export function ProfileScreen({
 
   const openHeaderMenu = () => {
     if (!profile.data) return;
-    haptic("selection");
     const targetName = profile.data.name;
     Alert.alert(targetName, undefined, [
       {
@@ -210,10 +211,12 @@ export function ProfileScreen({
         ]}
         refreshControl={
           <RefreshControl
-            refreshing={profile.isRefetching || userPosts.isRefetching}
+            refreshing={pulling}
             onRefresh={() => {
-              profile.refetch();
-              userPosts.refetch();
+              setPulling(true);
+              Promise.all([profile.refetch(), userPosts.refetch()]).finally(() =>
+                setPulling(false),
+              );
             }}
             tintColor={theme.colors.accent}
           />
@@ -221,30 +224,27 @@ export function ProfileScreen({
       >
         <View style={styles.topRow}>
           {onBack ? (
-            <PressableScale
-              scale="icon"
-              haptic="selection"
+            <Pressable
               onPress={onBack}
               style={styles.backBtn}
               accessibilityRole="button"
               accessibilityLabel={t("a11y.back")}
             >
               <icons.back size={22} color={theme.colors.textPrimary} weight="bold" />
-            </PressableScale>
+            </Pressable>
           ) : (
             <View style={styles.topRowSpacer} />
           )}
           <View style={styles.topRowSpacer} />
           {myUid != null && !isMe && (
-            <PressableScale
-              scale="icon"
+            <Pressable
               onPress={openHeaderMenu}
               style={styles.dotsBtn}
               accessibilityRole="button"
               accessibilityLabel={t("a11y.more")}
             >
               <icons.menu size={22} color={theme.colors.textPrimary} weight="bold" />
-            </PressableScale>
+            </Pressable>
           )}
         </View>
 
@@ -279,11 +279,7 @@ export function ProfileScreen({
               )}
               {profile.data.bio ? <Text style={styles.bio}>{profile.data.bio}</Text> : null}
               {isMe && (
-                <PressableScale
-                  haptic="selection"
-                  onPress={() => setEditOpen(true)}
-                  style={styles.editPill}
-                >
+                <PressableScale onPress={() => setEditOpen(true)} style={styles.editPill}>
                   <Text style={styles.editPillLabel}>{t("profile.editProfile")}</Text>
                 </PressableScale>
               )}
@@ -313,7 +309,7 @@ export function ProfileScreen({
                 ))
               )}
               {hasNextPage && (
-                <PressableScale haptic="selection" onPress={loadMore} style={styles.loadMore}>
+                <PressableScale onPress={loadMore} style={styles.loadMore}>
                   {isFetchingNextPage ? (
                     <ActivityIndicator size="small" color={theme.colors.accent} />
                   ) : (
