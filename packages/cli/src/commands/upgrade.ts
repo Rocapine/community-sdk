@@ -22,8 +22,8 @@ import {
   templateBaseName,
   migrationDestFilename,
   parseMigrationDestFilename,
-  listFilesRecursive,
   isShippedFunctionFile,
+  shippedRelFiles,
   toRelativePosix,
   resolveContainedDir,
 } from "../install-shared";
@@ -276,12 +276,6 @@ function reconstructInstalledTemplateIds(installedFiles: string[]): string[] {
     ids.push(migrationTemplateId(parsed.moduleName, parsed.name));
   }
   return ids;
-}
-
-function shippedRelFiles(srcDir: string): string[] {
-  return listFilesRecursive(srcDir)
-    .filter(isShippedFunctionFile)
-    .map((f) => path.relative(srcDir, f));
 }
 
 /** Files a previous upgrade installed in `destDir` (per the manifest) that the

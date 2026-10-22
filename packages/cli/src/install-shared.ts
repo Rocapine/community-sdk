@@ -191,6 +191,13 @@ export function listFilesRecursive(dir: string): string[] {
   return files;
 }
 
+/** A template function dir's shipped files, relative to `srcDir`. */
+export function shippedRelFiles(srcDir: string): string[] {
+  return listFilesRecursive(srcDir)
+    .filter(isShippedFunctionFile)
+    .map((f) => path.relative(srcDir, f));
+}
+
 export function toRelativePosix(base: string, target: string): string {
   return path.relative(base, target).split(path.sep).join("/");
 }
