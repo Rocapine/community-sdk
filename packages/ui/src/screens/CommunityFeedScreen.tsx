@@ -98,6 +98,7 @@ import {
   Alert,
   AppState,
   FlatList,
+  Keyboard,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -283,10 +284,13 @@ export function CommunityFeedScreen({
   // reconcile every visible row on each unrelated re-render (e.g. every 5s
   // new-post poll tick, or a keystroke in the search bar).
   const openThread = useCallback((postId: string) => {
+    // Leaving the composer: it must not grab the keyboard back once the sheet closes.
+    Keyboard.dismiss();
     setFocusComment(false);
     setActivePostId(postId);
   }, []);
   const openThreadToComment = useCallback((postId: string) => {
+    Keyboard.dismiss();
     setFocusComment(true);
     setActivePostId(postId);
   }, []);

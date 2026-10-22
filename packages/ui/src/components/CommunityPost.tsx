@@ -177,7 +177,7 @@ export function CommunityPost({
   );
 
   const likeButton = (
-    <Pressable hitSlop={4} onPress={handleToggleLike} style={styles.stat}>
+    <PressableScale hitSlop={4} onPress={handleToggleLike} style={styles.stat}>
       <icons.like
         size={18}
         color={post.likedByMe ? theme.colors.like : theme.colors.textFaint}
@@ -189,11 +189,11 @@ export function CommunityPost({
       >
         {post.likeCount}
       </Text>
-    </Pressable>
+    </PressableScale>
   );
 
   const defaultReactionButton = (
-    <Pressable hitSlop={4} onPress={handleReact} style={styles.stat}>
+    <PressableScale hitSlop={4} onPress={handleReact} style={styles.stat}>
       <icons.reaction
         size={18}
         color={post.hasReacted ? theme.colors.reaction : theme.colors.textFaint}
@@ -205,14 +205,14 @@ export function CommunityPost({
       >
         {post.reactionCount}
       </Text>
-    </Pressable>
+    </PressableScale>
   );
   const reactionButton = cfg.modules.reaction
     ? (renderReactionButton?.(post, defaultReactionButton, slotCtx) ?? defaultReactionButton)
     : null;
 
   const commentButton = (
-    <Pressable
+    <PressableScale
       hitSlop={4}
       onPress={() => (onPressComment ?? onOpenThread)?.(post.id)}
       style={styles.stat}
@@ -221,7 +221,7 @@ export function CommunityPost({
       <Text numberOfLines={1} style={styles.statText}>
         {post.commentCount}
       </Text>
-    </Pressable>
+    </PressableScale>
   );
 
   const menuButton = (
