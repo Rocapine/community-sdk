@@ -157,6 +157,67 @@ describe("runUpgrade", () => {
     expect(result.upToDate).toBe(false);
   });
 
+  it("keeps the host's own files in an overwritten function folder, and removes stale SDK files", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+    const sharedDir = path.join(cwd, "supabase", "functions", "_shared");
+    // The host's own code living next to the SDK's shared files.
+    fs.mkdirSync(path.join(sharedDir, "web-subs"), { recursive: true });
+    fs.writeFileSync(path.join(sharedDir, "web-subs", "verify.ts"), "// host code\n");
+    fs.writeFileSync(path.join(sharedDir, "host.ts"), "// host code\n");
+    // A file an older SDK shipped, recorded in the manifest, no longer in the template.
+    fs.writeFileSync(path.join(sharedDir, "retired.ts"), "// old sdk file\n");
+    const manifest = readManifest(cwd)!;
+    writeManifest(cwd, {
+      ...manifest,
+      installedFiles: [...manifest.installedFiles, "supabase/functions/_shared/retired.ts"],
+    });
+
+    const fnPath = path.join(templatesDir, "functions", "_shared", "config.ts");
+    fs.writeFileSync(fnPath, `${fs.readFileSync(fnPath, "utf8")}\n// upgraded behavior\n`);
+
+    const result = await runUpgrade(baseOptions());
+
+    expect(result.overwrittenFunctions).toContain("_shared");
+    expect(fs.readFileSync(path.join(sharedDir, "config.ts"), "utf8")).toContain(
+      "// upgraded behavior",
+    );
+    expect(fs.readFileSync(path.join(sharedDir, "web-subs", "verify.ts"), "utf8")).toBe(
+      "// host code\n",
+    );
+    expect(fs.existsSync(path.join(sharedDir, "host.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(sharedDir, "retired.ts"))).toBe(false);
+
+    const installed = readManifest(cwd)!.installedFiles;
+    expect(installed).toContain("supabase/functions/_shared/config.ts");
+    expect(installed.filter((f) => /web-subs|host\.ts|retired\.ts/.test(f))).toEqual([]);
+  });
+
+  it("does not count a host's own file in a function folder as a diff", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+    fs.writeFileSync(path.join(cwd, "supabase", "functions", "_shared", "host.ts"), "// mine\n");
+
+    const result = await runUpgrade(baseOptions());
+
+    expect(result.overwrittenFunctions).toEqual([]);
+    expect(fs.existsSync(path.join(cwd, "supabase", "functions", "_shared", "host.ts"))).toBe(true);
+  });
+
   it("treats a host's leftover *_test.ts as no diff, and keeps the manifest's modules as they are", async () => {
     await runInit({
       cwd,

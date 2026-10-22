@@ -128,7 +128,9 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
     const destDir = path.join(functionsDestRoot, fnName);
     if (!fs.existsSync(destDir)) {
       newFunctions.push(fnName);
-    } else if (functionDirDiffers(srcDir, destDir)) {
+    } else if (
+      functionDirDiffers(srcDir, destDir, staleFiles(srcDir, destDir, cwd, manifest.installedFiles))
+    ) {
       changedFunctions.push(fnName);
     }
   }
@@ -184,15 +186,16 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
     }
 
     for (const fnName of changedFunctions) {
+      const srcDir = path.join(functionsSrcRoot, fnName);
       const destDir = path.join(functionsDestRoot, fnName);
       const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), "community-sdk-upgrade-backup-"));
       fs.cpSync(destDir, backupDir, { recursive: true });
       backups.push({ destDir, backupDir });
-      fs.rmSync(destDir, { recursive: true, force: true });
-      fs.cpSync(path.join(functionsSrcRoot, fnName), destDir, {
-        recursive: true,
-        filter: isShippedFunctionFile,
-      });
+      // Only the SDK's own files: a host keeps its files in the same folder
+      // (e.g. its own helpers under `_shared/`), so the folder is never wiped.
+      for (const stale of staleFiles(srcDir, destDir, cwd, manifest.installedFiles))
+        fs.rmSync(stale, { force: true });
+      fs.cpSync(srcDir, destDir, { recursive: true, force: true, filter: isShippedFunctionFile });
     }
   } catch (err) {
     for (const p of writtenMigrationPaths) fs.rmSync(p, { force: true });
@@ -214,8 +217,11 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
     ...changedFunctions.map((fnName) => path.join(functionsDestRoot, fnName)),
   ];
   const touchedFunctionDirPrefixes = touchedFunctionDirs.map((d) => `${toRelativePosix(cwd, d)}/`);
+  // The template's files only — never host files living in the same folder.
   const touchedFunctionFiles = touchedFunctionDirs.flatMap((d) =>
-    listFilesRecursive(d).map((f) => toRelativePosix(cwd, f)),
+    shippedRelFiles(path.join(functionsSrcRoot, path.basename(d))).map((rel) =>
+      toRelativePosix(cwd, path.join(d, rel)),
+    ),
   );
   const survivingOldFiles = manifest.installedFiles.filter(
     (f) => !touchedFunctionDirPrefixes.some((prefix) => f.startsWith(prefix)),
@@ -272,23 +278,38 @@ function reconstructInstalledTemplateIds(installedFiles: string[]): string[] {
   return ids;
 }
 
-function functionDirDiffers(srcDir: string, destDir: string): boolean {
-  const rel = (dir: string) =>
-    new Set(
-      listFilesRecursive(dir)
-        .filter(isShippedFunctionFile)
-        .map((f) => path.relative(dir, f)),
+function shippedRelFiles(srcDir: string): string[] {
+  return listFilesRecursive(srcDir)
+    .filter(isShippedFunctionFile)
+    .map((f) => path.relative(srcDir, f));
+}
+
+/** Files a previous upgrade installed in `destDir` (per the manifest) that the
+ * current template no longer ships. */
+function staleFiles(
+  srcDir: string,
+  destDir: string,
+  cwd: string,
+  installedFiles: string[],
+): string[] {
+  const shipped = new Set(shippedRelFiles(srcDir).map((rel) => rel.split(path.sep).join("/")));
+  const prefix = `${toRelativePosix(cwd, destDir)}/`;
+  return installedFiles
+    .filter((f) => f.startsWith(prefix) && !shipped.has(f.slice(prefix.length)))
+    .map((f) => path.join(cwd, f))
+    .filter((f) => fs.existsSync(f));
+}
+
+/** True when a template file is missing or different in `destDir`, or an old
+ * SDK file is left over. Files the host added to the folder don't count. */
+function functionDirDiffers(srcDir: string, destDir: string, stale: string[]): boolean {
+  if (stale.length > 0) return true;
+  return shippedRelFiles(srcDir).some((rel) => {
+    const dest = path.join(destDir, rel);
+    return (
+      !fs.existsSync(dest) || !fs.readFileSync(path.join(srcDir, rel)).equals(fs.readFileSync(dest))
     );
-  const srcRel = rel(srcDir);
-  const destRel = rel(destDir);
-  if (srcRel.size !== destRel.size) return true;
-  for (const rel of srcRel) {
-    if (!destRel.has(rel)) return true;
-    const a = fs.readFileSync(path.join(srcDir, rel));
-    const b = fs.readFileSync(path.join(destDir, rel));
-    if (!a.equals(b)) return true;
-  }
-  return false;
+  });
 }
 
 function printSummary(
