@@ -20,7 +20,7 @@ import {
   addSeconds,
   templateBaseName,
   migrationDestFilename,
-  listFilesRecursive,
+  shippedRelFiles,
   isShippedFunctionFile,
   toRelativePosix,
   resolveContainedDir,
@@ -122,7 +122,9 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
       if (!fs.existsSync(srcDir)) continue;
       const destDir = path.join(functionsDestRoot, fnName);
       fs.cpSync(srcDir, destDir, { recursive: true, filter: isShippedFunctionFile });
-      writtenPaths.push(...listFilesRecursive(destDir));
+      // Only what we copied: a host file already in the folder (e.g. `_shared`)
+      // must neither land in the manifest nor be deleted by the rollback below.
+      writtenPaths.push(...shippedRelFiles(srcDir).map((rel) => path.join(destDir, rel)));
     }
   } catch (err) {
     for (const p of writtenPaths) {

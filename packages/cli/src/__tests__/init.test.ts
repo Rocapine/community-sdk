@@ -137,6 +137,18 @@ describe("runInit", () => {
     ]);
   });
 
+  it("leaves a host file already in a function folder out of the manifest", async () => {
+    const hostFile = path.join(cwd, "supabase", "functions", "_shared", "web-subs", "verify.ts");
+    fs.mkdirSync(path.dirname(hostFile), { recursive: true });
+    fs.writeFileSync(hostFile, "// host code\n");
+
+    const result = await runInit(baseOptions({ modules: ["core"] }));
+
+    expect(fs.readFileSync(hostFile, "utf8")).toBe("// host code\n");
+    expect(result.manifest.installedFiles).toContain("supabase/functions/_shared/config.ts");
+    expect(result.manifest.installedFiles.filter((f) => f.includes("web-subs"))).toEqual([]);
+  });
+
   it("never copies Deno test files (*_test.ts) into the host's functions", async () => {
     // The repo template does carry one, so this asserts the filter, not its absence.
     expect(
