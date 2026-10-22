@@ -584,13 +584,10 @@ export function useVotePoll() {
 }
 
 /**
- * Optimistic reaction across every post cache (mirror of useVotePoll; renamed
- * from the mold's `usePrayForPost`). `applyReaction(post)` is single-argument
- * (Task 3 ruling — it does not filter by post id), so the mapper here pre-filters
- * to the target post itself before calling it, and separately tracks whether
- * that post already had `hasReacted` so a retap of an already-reacted post
- * (the reaction is non-retractable, `setReaction` is idempotent) does not
- * re-emit the analytics event.
+ * Optimistic reaction toggle across every post cache (mirror of useToggleLike;
+ * renamed from the mold's `usePrayForPost`). `on` defaults to true (react);
+ * `on: false` withdraws it. `alreadyReacted` keeps a retap of an
+ * already-reacted post from re-emitting the analytics event.
  */
 export function useReactToPost() {
   const cfg = useCommunityConfig();
@@ -598,24 +595,25 @@ export function useReactToPost() {
   return useMutation<
     void,
     Error,
-    { postId: string },
+    { postId: string; on?: boolean },
     PostCacheSnapshot & { alreadyReacted: boolean }
   >({
-    mutationFn: ({ postId }) => setReaction(cfg, postId),
-    onMutate: async ({ postId }) => {
+    mutationFn: ({ postId, on = true }) => setReaction(cfg, postId, on),
+    onMutate: async ({ postId, on = true }) => {
       let alreadyReacted = false;
       const snapshot = await applyOptimisticToAllPostCaches(queryClient, (post) => {
         if (post.id !== postId) return post;
         if (post.hasReacted) alreadyReacted = true;
-        return applyReaction(post);
+        return applyReaction(post, on);
       });
       return { ...snapshot, alreadyReacted };
     },
     onError: (_err, _vars, context) => {
       if (context) rollbackPostCaches(queryClient, context);
     },
-    onSuccess: (_data, { postId }, context) => {
-      if (!context?.alreadyReacted) emitEvent(cfg, COMMUNITY_EVENTS.reactionAdded, { postId });
+    onSuccess: (_data, { postId, on = true }, context) => {
+      if (on && !context?.alreadyReacted)
+        emitEvent(cfg, COMMUNITY_EVENTS.reactionAdded, { postId });
     },
   });
 }

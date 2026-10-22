@@ -24,7 +24,8 @@
 import { useReport, type ReportReason } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
+import { PressableScale } from "./PressableScale";
 import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -99,18 +100,16 @@ export function ReportSheet({
           {REASONS.map((r) => {
             const on = reason === r;
             return (
-              <Pressable
+              <PressableScale
                 key={r}
-                onPress={() => {
-                  Haptics.selectionAsync().catch(() => {});
-                  setReason(r);
-                }}
+                haptic="selection"
+                onPress={() => setReason(r)}
                 style={[styles.chip, on && styles.chipOn]}
               >
                 <Text style={[styles.chipText, on && styles.chipTextOn]}>
                   {t(`report.reasons.${r}`)}
                 </Text>
-              </Pressable>
+              </PressableScale>
             );
           })}
         </View>
@@ -122,17 +121,13 @@ export function ReportSheet({
           multiline
           style={styles.input}
         />
-        <Pressable
+        <PressableScale
           onPress={submit}
           disabled={!reason || report.isPending}
-          style={({ pressed }) => [
-            styles.cta,
-            (!reason || report.isPending) && styles.ctaDisabled,
-            pressed && styles.ctaPressed,
-          ]}
+          style={[styles.cta, (!reason || report.isPending) && styles.ctaDisabled]}
         >
           <Text style={styles.ctaLabel}>{t("report.send")}</Text>
-        </Pressable>
+        </PressableScale>
       </SheetScrollView>
     </CommunitySheet>
   );
@@ -142,6 +137,7 @@ function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     title: {
       fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
       fontSize: 22,
       color: theme.colors.textPrimary,
       marginBottom: theme.spacing(4),
@@ -161,7 +157,12 @@ function makeStyles(theme: CommunityTheme) {
       borderColor: theme.colors.border,
     },
     chipOn: { backgroundColor: theme.colors.accent, borderColor: theme.colors.accent },
-    chipText: { fontFamily: theme.fonts.medium, fontSize: 13, color: theme.colors.textSecondary },
+    chipText: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 13,
+      color: theme.colors.textSecondary,
+    },
     chipTextOn: { color: theme.colors.textInverse },
     input: {
       backgroundColor: theme.colors.surfaceMuted,
@@ -171,6 +172,7 @@ function makeStyles(theme: CommunityTheme) {
       padding: theme.spacing(4),
       minHeight: 80,
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 15,
       lineHeight: 22,
       color: theme.colors.textPrimary,
@@ -184,7 +186,11 @@ function makeStyles(theme: CommunityTheme) {
       marginTop: theme.spacing(4),
     },
     ctaDisabled: { opacity: 0.5 },
-    ctaPressed: { opacity: 0.9 },
-    ctaLabel: { fontFamily: theme.fonts.bold, fontSize: 15, color: theme.colors.textInverse },
+    ctaLabel: {
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 15,
+      color: theme.colors.textInverse,
+    },
   });
 }

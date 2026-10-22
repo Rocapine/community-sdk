@@ -51,7 +51,6 @@ import {
   useNotificationInbox,
   type InboxItem,
 } from "@rocapine/community-core";
-import * as Haptics from "expo-haptics";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { TFn } from "../i18n";
@@ -215,7 +214,6 @@ function NotificationRow({
   return (
     <Pressable
       onPress={() => {
-        Haptics.selectionAsync().catch(() => {});
         if (item.postId) onOpenPost(item.postId);
         else onOpenCommunity?.();
       }}
@@ -251,6 +249,7 @@ function makeStyles(theme: CommunityTheme) {
     root: { flex: 1, backgroundColor: theme.colors.background, padding: theme.spacing(5) },
     title: {
       fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
       fontSize: 26,
       color: theme.colors.textPrimary,
       marginBottom: theme.spacing(5),
@@ -258,6 +257,7 @@ function makeStyles(theme: CommunityTheme) {
     loader: { marginTop: theme.spacing(8) },
     empty: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 14,
       lineHeight: 22,
       color: theme.colors.textFaint,
@@ -279,8 +279,9 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(4),
       paddingVertical: theme.spacing(3.5),
     },
+    // A tint, not a scale: rows sit edge to edge inside their card.
+    rowPressed: { backgroundColor: theme.colors.hairline },
     rowDivider: { borderTopWidth: 1, borderTopColor: theme.colors.hairline },
-    rowPressed: { opacity: 0.8 },
     iconWrap: {
       width: 36,
       height: 36,
@@ -295,19 +296,30 @@ function makeStyles(theme: CommunityTheme) {
     rowBody: { flex: 1, gap: 3 },
     rowTitle: {
       fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
       fontSize: 14.5,
       lineHeight: 20,
       color: theme.colors.textSecondary,
     },
-    rowTitleUnread: { fontFamily: theme.fonts.bold, color: theme.colors.textPrimary },
+    rowTitleUnread: {
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      color: theme.colors.textPrimary,
+    },
     rowExcerpt: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 13,
       lineHeight: 18,
       color: theme.colors.textFaint,
     },
     rowMeta: { alignItems: "flex-end", gap: theme.spacing(1.5), marginTop: 2 },
-    rowDate: { fontFamily: theme.fonts.medium, fontSize: 12, color: theme.colors.textFaint },
+    rowDate: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 12,
+      color: theme.colors.textFaint,
+    },
     unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.accent },
   });
 }

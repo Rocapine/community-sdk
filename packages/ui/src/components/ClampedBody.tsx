@@ -69,7 +69,7 @@ export function ClampedBody({
         </View>
       </View>
       {overflows && (
-        <Pressable hitSlop={8} onPress={() => setExpanded((e) => !e)}>
+        <Pressable hitSlop={8} onPress={() => setExpanded((e) => !e)} style={styles.toggle}>
           <Text style={viewMoreStyle}>{expanded ? t("post.viewLess") : t("post.viewMore")}</Text>
         </Pressable>
       )}
@@ -78,6 +78,7 @@ export function ClampedBody({
 }
 
 const styles = StyleSheet.create({
+  toggle: { alignSelf: "flex-start" },
   measure: { position: "absolute", top: 0, left: 0, right: 0, opacity: 0 },
   measureText: { position: "absolute", top: 0, left: 0, right: 0 },
 });

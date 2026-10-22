@@ -44,6 +44,7 @@ export type { PostSlots, PostSlotContext, ProfileSource } from "./components/Com
 export { CommunityPost } from "./components/CommunityPost";
 export { PollBlock } from "./components/PollBlock";
 export { NoticeCard } from "./components/NoticeCard";
+export { PressableScale, haptic, type HapticKind } from "./components/PressableScale";
 export { ComposerCard, type ComposerCardHandle } from "./components/ComposerCard";
 export { RulesSheet } from "./components/RulesSheet";
 export type { ReportTarget } from "./components/ReportSheet";

@@ -502,16 +502,28 @@ export async function setLike(
 }
 
 /**
- * `setPrayed` generalized to `setReaction`: insert my private, non-retractable
- * reaction row (rows are never deleted — see spec §6). Gated on `cfg.modules.reaction`.
+ * `setPrayed` generalized to `setReaction`: insert (`on`) or delete my private
+ * reaction row, like `setLike`. Gated on `cfg.modules.reaction`.
  */
-export async function setReaction(cfg: ResolvedCommunityConfig, postId: string): Promise<void> {
+export async function setReaction(
+  cfg: ResolvedCommunityConfig,
+  postId: string,
+  on = true,
+): Promise<void> {
   if (!cfg.modules.reaction) throw new Error("reaction module is not enabled");
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
-  const { error } = await client.from("post_reactions").insert({ post_id: postId, user_id: uid });
-  // 23505 = already reacted to this post: the desired state holds.
-  if (error && error.code !== "23505") throw error;
+  if (on) {
+    const { error } = await client.from("post_reactions").insert({ post_id: postId, user_id: uid });
+    // 23505 = already reacted to this post: the desired state holds.
+    if (error && error.code !== "23505") throw error;
+  } else {
+    const { error } = await client
+      .from("post_reactions")
+      .delete()
+      .match({ post_id: postId, user_id: uid });
+    if (error) throw error;
+  }
 }
 
 export type ReportReason = "spam" | "harassment" | "hate" | "inappropriate" | "other";

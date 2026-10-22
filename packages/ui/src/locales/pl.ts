@@ -94,9 +94,11 @@ export const pl: Record<string, string> = {
   "composer.pollPlaceholder": "Zadaj swoje pytanie…",
   "composer.option": "Opcja {number}",
   "composer.addOption": "Dodaj opcję",
+  "composer.removeOption": "Usuń opcję",
   "composer.poll": "Ankieta",
   "composer.removePoll": "Usuń ankietę",
   "composer.post": "OPUBLIKUJ",
+  "composer.chooseTopic": "Opublikuj w",
 
   "poll.votes.one": "{count} głos",
   "poll.votes.few": "{count} głosy",
@@ -194,4 +196,7 @@ export const pl: Record<string, string> = {
   "a11y.back": "Wstecz",
   "a11y.more": "Więcej opcji",
   "a11y.send": "Wyślij",
+  "a11y.search": "Szukaj",
+  "a11y.closeSearch": "Zamknij wyszukiwanie",
+  "a11y.clearSearch": "Wyczyść wyszukiwanie",
 };

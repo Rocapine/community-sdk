@@ -58,9 +58,11 @@ export const ko: Record<string, string> = {
   "composer.pollPlaceholder": "질문을 적어 보세요…",
   "composer.option": "선택지 {number}",
   "composer.addOption": "선택지 추가",
+  "composer.removeOption": "선택지 삭제",
   "composer.poll": "투표",
   "composer.removePoll": "투표 삭제",
   "composer.post": "게시",
+  "composer.chooseTopic": "게시할 주제",
 
   "poll.votes.one": "{count}표",
   "poll.votes.other": "{count}표",
@@ -156,4 +158,7 @@ export const ko: Record<string, string> = {
   "a11y.back": "뒤로",
   "a11y.more": "더 보기",
   "a11y.send": "보내기",
+  "a11y.search": "검색",
+  "a11y.closeSearch": "검색 닫기",
+  "a11y.clearSearch": "검색어 지우기",
 };

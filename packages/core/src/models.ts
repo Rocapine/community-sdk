@@ -334,9 +334,13 @@ export function applyPollVote(post: FeedPost, postId: string, optionId: string):
  * caller is expected to have already located the target post (e.g. via
  * `posts.map((p) => (p.id === postId ? applyReaction(p) : p))`).
  */
-export function applyReaction(post: FeedPost): FeedPost {
-  if (post.hasReacted) return post;
-  return { ...post, hasReacted: true, reactionCount: post.reactionCount + 1 };
+export function applyReaction(post: FeedPost, on = true): FeedPost {
+  if (post.hasReacted === on) return post;
+  return {
+    ...post,
+    hasReacted: on,
+    reactionCount: Math.max(0, post.reactionCount + (on ? 1 : -1)),
+  };
 }
 
 export function mapCommentRow(row: CommentRow, myUid: string, fallback: string): ThreadComment {

@@ -389,6 +389,16 @@ it("applyReaction increments count and marks reacted, idempotent", () => {
   expect(applyReaction(once)).toEqual(once);
 });
 
+it("applyReaction(post, false) withdraws it, idempotent, never below zero", () => {
+  const reacted = makePost({ reactionCount: 1, hasReacted: true });
+  const off = applyReaction(reacted, false);
+  expect(off).toMatchObject({ reactionCount: 0, hasReacted: false });
+  expect(applyReaction(off, false)).toEqual(off);
+  expect(applyReaction(makePost({ reactionCount: 0, hasReacted: true }), false).reactionCount).toBe(
+    0,
+  );
+});
+
 it("applyReaction leaves other fields untouched", () => {
   const post = makePost({ reactionCount: 0, hasReacted: false, likeCount: 5 });
   expect(applyReaction(post)).toEqual({ ...post, reactionCount: 1, hasReacted: true });

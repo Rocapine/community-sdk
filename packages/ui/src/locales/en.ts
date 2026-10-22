@@ -73,9 +73,11 @@ export const en: Record<string, string> = {
   "composer.pollPlaceholder": "Ask your question…",
   "composer.option": "Option {number}",
   "composer.addOption": "Add option",
+  "composer.removeOption": "Remove option",
   "composer.poll": "Poll",
   "composer.removePoll": "Remove poll",
   "composer.post": "POST",
+  "composer.chooseTopic": "Post in",
 
   "poll.votes.one": "{count} vote",
   "poll.votes.other": "{count} votes",
@@ -176,4 +178,7 @@ export const en: Record<string, string> = {
   "a11y.back": "Back",
   "a11y.more": "More options",
   "a11y.send": "Send",
+  "a11y.search": "Search",
+  "a11y.closeSearch": "Close search",
+  "a11y.clearSearch": "Clear search",
 };

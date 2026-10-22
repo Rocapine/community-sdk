@@ -76,6 +76,7 @@ type CommunityTheme = {
     danger: string;
     success: string;
     like: string;
+    reaction: string; // active reaction icon + count
     official: string;
     pinned: string;
   };
@@ -86,6 +87,11 @@ type CommunityTheme = {
     serifBold: string | undefined;
     serifBoldItalic: string | undefined;
   };
+  // Paired with each family; default 400 / 500 / 600. Lets a host that loads one
+  // family with several weights (expo-font `fontDefinitions`) get real bold text.
+  fontWeights: { regular: FontWeight; medium: FontWeight; bold: FontWeight };
+  // The only four radii used. Nested surfaces are concentric: a `lg` card with
+  // `spacing(4)` padding holds `sm` children.
   radius: { sm: number; md: number; lg: number; pill: number };
   spacing: (n: number) => number; // default: n * 4
   shadow: {
@@ -99,8 +105,11 @@ type CommunityTheme = {
 ```
 
 The default theme is a neutral placeholder palette (`accent: "#4C6FFF"`,
-system fonts) — no app branding. `like`/`official`/`pinned` default to
+system fonts) — no app branding. `like`/`reaction`/`official`/`pinned` default to
 `accent` too but are separate tokens so you can diverge them.
+
+Icons receive `weight: "fill"` in their active state (liked, reacted), so a
+custom icon can swap glyphs there instead of filling the outline one.
 
 ## i18n
 
@@ -215,15 +224,17 @@ you can wrap, replace, or ignore it:
 
 ## Screens
 
-| Screen                    | Key props                                                                                                                                                                                                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: ReactNode`, `slots?: PostSlots`, `beforeSubmitPost?`, `beforeSubmitComment?` (see Gating submissions)                      |
-| `ThreadSheet`             | `postId: string \| null`, `onClose()`, `onOpenProfile(userId, source?)`, `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does                              |
-| `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `slots?: PostSlots` |
-| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                       |
-| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                 |
+| Screen                    | Key props                                                                                                                                                                                                                                                                                                              |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: ReactNode`, `slots?: PostSlots`, `beforeSubmitPost?`, `beforeSubmitComment?` (see Gating submissions)                                                       |
+| `ThreadSheet`             | `postId: string \| null`, `focusComment?: boolean` (open with the reply field focused), `onClose()`, `onOpenProfile(userId, source?)`, `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does |
+| `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId, focusComment?)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `slots?: PostSlots`                   |
+| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                                                        |
+| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                  |
 
-Plus standalone components you can use directly: `CommunityPost`,
+Plus standalone components you can use directly: `PressableScale` (the
+package's press feedback for buttons with a visible surface — a 0.98 scale-down,
+no opacity change, optional `haptic`; icon buttons and links stay plain `Pressable`s), `CommunityPost`,
 `PollBlock` (takes `showOriginal?: boolean` to render each option's
 original `label` instead of its `translatedLabel`, mirroring the post/thread
 toggle below), `NoticeCard`, `ComposerCard`, `RulesSheet`, `ReportSheet`, and

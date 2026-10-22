@@ -52,7 +52,6 @@ import {
   type FeedPost,
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
-import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -68,6 +67,7 @@ import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
+import { PressableScale } from "../components/PressableScale";
 import { isQueryLoading } from "../utils/query";
 import { ProfileEditSheet } from "./ProfileEditSheet";
 
@@ -87,7 +87,9 @@ export function ProfileScreen({
   /** Where the visit came from (see `onOpenProfile`'s second argument), for
    * the `profileOpened` event. */
   source?: ProfileSource;
-  onOpenThread(postId: string): void;
+  /** `focusComment`: opened from the post's comment button — open the
+   * thread with the reply field focused (`ThreadSheet`'s `focusComment`). */
+  onOpenThread(postId: string, focusComment?: boolean): void;
   onBack?: () => void;
   slots?: PostSlots;
   // Top safe-area inset in px. This screen owns its back button and is meant
@@ -112,6 +114,8 @@ export function ProfileScreen({
 
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  // Spinner only for a pull, never for a background refetch.
+  const [pulling, setPulling] = useState(false);
 
   // Fires once, but only once identity has actually resolved: `useMyUid`'s
   // query is uncached on a session's first profile visit, so `myUid` is null
@@ -135,7 +139,6 @@ export function ProfileScreen({
   };
 
   const openPostMenu = (post: FeedPost) => {
-    Haptics.selectionAsync().catch(() => {});
     if (post.isOwn) {
       Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
         { text: t("menu.cancel"), style: "cancel" },
@@ -175,7 +178,6 @@ export function ProfileScreen({
 
   const openHeaderMenu = () => {
     if (!profile.data) return;
-    Haptics.selectionAsync().catch(() => {});
     const targetName = profile.data.name;
     Alert.alert(targetName, undefined, [
       {
@@ -209,10 +211,12 @@ export function ProfileScreen({
         ]}
         refreshControl={
           <RefreshControl
-            refreshing={profile.isRefetching || userPosts.isRefetching}
+            refreshing={pulling}
             onRefresh={() => {
-              profile.refetch();
-              userPosts.refetch();
+              setPulling(true);
+              Promise.all([profile.refetch(), userPosts.refetch()]).finally(() =>
+                setPulling(false),
+              );
             }}
             tintColor={theme.colors.accent}
           />
@@ -221,7 +225,6 @@ export function ProfileScreen({
         <View style={styles.topRow}>
           {onBack ? (
             <Pressable
-              hitSlop={10}
               onPress={onBack}
               style={styles.backBtn}
               accessibilityRole="button"
@@ -235,7 +238,6 @@ export function ProfileScreen({
           <View style={styles.topRowSpacer} />
           {myUid != null && !isMe && (
             <Pressable
-              hitSlop={10}
               onPress={openHeaderMenu}
               style={styles.dotsBtn}
               accessibilityRole="button"
@@ -277,15 +279,9 @@ export function ProfileScreen({
               )}
               {profile.data.bio ? <Text style={styles.bio}>{profile.data.bio}</Text> : null}
               {isMe && (
-                <Pressable
-                  onPress={() => {
-                    Haptics.selectionAsync().catch(() => {});
-                    setEditOpen(true);
-                  }}
-                  style={({ pressed }) => [styles.editPill, pressed && styles.pressed]}
-                >
+                <PressableScale onPress={() => setEditOpen(true)} style={styles.editPill}>
                   <Text style={styles.editPillLabel}>{t("profile.editProfile")}</Text>
-                </Pressable>
+                </PressableScale>
               )}
             </View>
 
@@ -305,6 +301,7 @@ export function ProfileScreen({
                     key={post.id}
                     post={post}
                     onOpenThread={onOpenThread}
+                    onPressComment={(postId) => onOpenThread(postId, true)}
                     onOpenProfile={noop}
                     onMenu={openPostMenu}
                     {...slots}
@@ -312,13 +309,13 @@ export function ProfileScreen({
                 ))
               )}
               {hasNextPage && (
-                <Pressable onPress={loadMore} style={styles.loadMore}>
+                <PressableScale onPress={loadMore} style={styles.loadMore}>
                   {isFetchingNextPage ? (
                     <ActivityIndicator size="small" color={theme.colors.accent} />
                   ) : (
                     <Text style={styles.loadMoreText}>{t("feed.loadMore")}</Text>
                   )}
-                </Pressable>
+                </PressableScale>
               )}
             </View>
           </>
@@ -349,9 +346,22 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
       marginBottom: theme.spacing(1),
     },
-    backBtn: { padding: theme.spacing(1.5), marginLeft: -theme.spacing(1.5) },
+    // 44pt targets, glyphs flush with the content edge.
+    backBtn: {
+      width: 44,
+      height: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: -11,
+    },
     topRowSpacer: { flex: 1 },
-    dotsBtn: { padding: theme.spacing(1.5), marginRight: -theme.spacing(1.5) },
+    dotsBtn: {
+      width: 44,
+      height: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: -11,
+    },
     spinner: { marginTop: theme.spacing(8) },
     spinnerSmall: { marginTop: theme.spacing(3) },
     header: { alignItems: "center", marginTop: theme.spacing(2), marginBottom: theme.spacing(7) },
@@ -367,17 +377,29 @@ function makeStyles(theme: CommunityTheme) {
       marginBottom: theme.spacing(3.5),
     },
     avatarImage: { width: 72, height: 72, borderRadius: 36, marginBottom: theme.spacing(3.5) },
-    avatarLetter: { fontFamily: theme.fonts.serifBold, fontSize: 30, color: theme.colors.accent },
+    avatarLetter: {
+      fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 30,
+      color: theme.colors.accent,
+    },
     nameRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1.5) },
-    name: { fontFamily: theme.fonts.serifBold, fontSize: 24, color: theme.colors.textPrimary },
+    name: {
+      fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 24,
+      color: theme.colors.textPrimary,
+    },
     handle: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 13,
       color: theme.colors.textFaint,
       marginTop: theme.spacing(1),
     },
     bio: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 14,
       lineHeight: 21,
       color: theme.colors.textMuted,
@@ -394,14 +416,15 @@ function makeStyles(theme: CommunityTheme) {
       paddingVertical: theme.spacing(2.5),
       paddingHorizontal: theme.spacing(5),
     },
-    pressed: { opacity: 0.85 },
     editPillLabel: {
       fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
       fontSize: 13.5,
       color: theme.colors.textPrimary,
     },
     sectionLabel: {
       fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
       fontSize: 11,
       letterSpacing: 1.5,
       textTransform: "uppercase",
@@ -421,9 +444,15 @@ function makeStyles(theme: CommunityTheme) {
       minWidth: 96,
       alignItems: "center",
     },
-    loadMoreText: { fontFamily: theme.fonts.medium, fontSize: 13, color: theme.colors.textMuted },
+    loadMoreText: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 13,
+      color: theme.colors.textMuted,
+    },
     stateText: {
       fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
       fontSize: 13.5,
       color: theme.colors.textMuted,
       textAlign: "center",
