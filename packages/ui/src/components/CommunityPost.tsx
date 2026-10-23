@@ -186,7 +186,7 @@ export function CommunityPost({
   );
 
   const likeButton = (
-    <PressableScale scale="stat" hitSlop={4} onPress={handleToggleLike} style={styles.stat}>
+    <PressableScale hitSlop={4} onPress={handleToggleLike} style={styles.stat}>
       <icons.like
         size={18}
         color={post.likedByMe ? theme.colors.like : theme.colors.textFaint}
@@ -201,7 +201,7 @@ export function CommunityPost({
   );
 
   const defaultReactionButton = (
-    <PressableScale scale="stat" hitSlop={4} onPress={handleReact} style={styles.stat}>
+    <PressableScale hitSlop={4} onPress={handleReact} style={styles.stat}>
       <icons.reaction
         size={18}
         color={post.hasReacted ? theme.colors.reaction : theme.colors.textFaint}
@@ -220,7 +220,6 @@ export function CommunityPost({
 
   const commentButton = (
     <PressableScale
-      scale="stat"
       hitSlop={4}
       onPress={() => (onPressComment ?? onOpenThread)?.(post.id)}
       style={styles.stat}
