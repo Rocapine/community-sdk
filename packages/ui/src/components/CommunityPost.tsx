@@ -29,8 +29,17 @@ import {
   type FeedPost,
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
-import { useContext, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from "react-native";
+import Animated, { FadeInDown, FadeInUp, LayoutAnimationConfig } from "react-native-reanimated";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { displayText, translationLine } from "../utils/translation";
@@ -183,12 +192,11 @@ export function CommunityPost({
         color={post.likedByMe ? theme.colors.like : theme.colors.textFaint}
         weight={post.likedByMe ? "fill" : "regular"}
       />
-      <Text
-        numberOfLines={1}
+      <StatCount
+        value={post.likeCount}
+        boxStyle={styles.statCount}
         style={[styles.statText, post.likedByMe && { color: theme.colors.like }]}
-      >
-        {post.likeCount}
-      </Text>
+      />
     </PressableScale>
   );
 
@@ -199,12 +207,11 @@ export function CommunityPost({
         color={post.hasReacted ? theme.colors.reaction : theme.colors.textFaint}
         weight={post.hasReacted ? "fill" : "regular"}
       />
-      <Text
-        numberOfLines={1}
+      <StatCount
+        value={post.reactionCount}
+        boxStyle={styles.statCount}
         style={[styles.statText, post.hasReacted && { color: theme.colors.reaction }]}
-      >
-        {post.reactionCount}
-      </Text>
+      />
     </PressableScale>
   );
   const reactionButton = cfg.modules.reaction
@@ -218,9 +225,7 @@ export function CommunityPost({
       style={styles.stat}
     >
       <icons.comment size={18} color={theme.colors.textFaint} weight="regular" />
-      <Text numberOfLines={1} style={styles.statText}>
-        {post.commentCount}
-      </Text>
+      <StatCount value={post.commentCount} boxStyle={styles.statCount} style={styles.statText} />
     </PressableScale>
   );
 
@@ -384,8 +389,8 @@ function makeStyles(theme: CommunityTheme) {
       justifyContent: "center",
     },
     link: { alignSelf: "flex-start" },
+    statCount: { flex: 1, overflow: "hidden" },
     statText: {
-      flex: 1,
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
       fontSize: 13,
@@ -393,4 +398,37 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textFaint,
     },
   });
+}
+
+/** A stat count that rolls in when it changes: from above when it goes up,
+ * from below when it goes down (clipped by `boxStyle`). Not on first render,
+ * so a freshly loaded feed stays still. */
+function StatCount({
+  value,
+  boxStyle,
+  style,
+}: {
+  value: number;
+  boxStyle: StyleProp<ViewStyle>;
+  style: StyleProp<TextStyle>;
+}) {
+  const prev = useRef(value);
+  const up = value >= prev.current;
+  useEffect(() => {
+    prev.current = value;
+  }, [value]);
+  return (
+    <View style={boxStyle}>
+      <LayoutAnimationConfig skipEntering>
+        <Animated.Text
+          key={value}
+          entering={(up ? FadeInUp : FadeInDown).duration(220)}
+          numberOfLines={1}
+          style={style}
+        >
+          {value}
+        </Animated.Text>
+      </LayoutAnimationConfig>
+    </View>
+  );
 }
