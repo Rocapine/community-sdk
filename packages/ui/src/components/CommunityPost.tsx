@@ -401,8 +401,8 @@ function makeStyles(theme: CommunityTheme) {
   });
 }
 
-/** A stat count that rolls in when it changes: from below when it goes up,
- * from above when it goes down (clipped by `boxStyle`). Not on first render,
+/** A stat count that rolls in when it changes: from above when it goes up,
+ * from below when it goes down (clipped by `boxStyle`). Not on first render,
  * so a freshly loaded feed stays still. */
 function StatCount({
   value,
@@ -423,7 +423,7 @@ function StatCount({
       <LayoutAnimationConfig skipEntering>
         <Animated.Text
           key={value}
-          entering={(up ? FadeInDown : FadeInUp).duration(220)}
+          entering={(up ? FadeInUp : FadeInDown).duration(220)}
           numberOfLines={1}
           style={style}
         >
