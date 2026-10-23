@@ -20,8 +20,9 @@ import Animated, {
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-/** Pressed scale: a button can give a little more than a whole card. */
-const SCALES = { button: 0.98, surface: 0.99 } as const;
+/** Pressed scale: a button can give a little more than a whole card, and a
+ * small icon + count stat needs more still to read under a thumb. */
+const SCALES = { button: 0.98, surface: 0.99, stat: 0.92 } as const;
 const EASE_OUT = Easing.out(Easing.quad);
 
 export type HapticKind = "selection" | "light" | "medium" | "success";

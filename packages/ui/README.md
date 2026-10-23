@@ -233,8 +233,9 @@ you can wrap, replace, or ignore it:
 | `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                  |
 
 Plus standalone components you can use directly: `PressableScale` (the
-package's press feedback for buttons with a visible surface — a 0.98 scale-down,
-no opacity change, optional `haptic`; icon buttons and links stay plain `Pressable`s), `CommunityPost`,
+package's press feedback for buttons with a visible surface — a 0.98 scale-down
+(`scale="surface"` 0.99 for cards, `scale="stat"` 0.92 for the like/reaction/comment
+stats), no opacity change, optional `haptic`; icon buttons and links stay plain `Pressable`s), `CommunityPost`,
 `PollBlock` (takes `showOriginal?: boolean` to render each option's
 original `label` instead of its `translatedLabel`, mirroring the post/thread
 toggle below), `NoticeCard`, `ComposerCard`, `RulesSheet`, `ReportSheet`, and

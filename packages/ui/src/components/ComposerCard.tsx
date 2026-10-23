@@ -131,7 +131,8 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
     focus: () => (locked ? openRulesGate() : inputRef.current?.focus()),
   }));
 
-  const composing = inputFocused || holdExpanded || text.trim().length > 0 || pollDraft !== null;
+  // Like a plain post: adding a poll alone doesn't expand the field.
+  const composing = inputFocused || holdExpanded || text.trim().length > 0;
 
   const filledPollOptions = (pollDraft ?? []).map((o) => o.trim()).filter((o) => o.length > 0);
   const pollInvalid = pollDraft !== null && filledPollOptions.length < POLL_MIN_OPTIONS;
