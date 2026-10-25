@@ -85,6 +85,7 @@ export function CommunitySheet({
   children,
   snapTo = "half",
   footer,
+  overlay,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -98,6 +99,9 @@ export function CommunitySheet({
    * (e.g. a comment composer). Scroll content is padded so it never hides
    * under it. */
   footer?: ReactNode;
+  /** A full-screen layer drawn above the sheet, inside the same Modal (e.g.
+   * the image viewer): never stack a second Modal over this one on iOS. */
+  overlay?: ReactNode;
 }) {
   const [phase, setPhase] = useState<SheetPhase>(visible ? "open" : "hidden");
   const sheetRef = useRef<BottomSheet>(null);
@@ -158,6 +162,7 @@ export function CommunitySheet({
           >
             {children}
           </SheetBody>
+          {overlay}
         </GestureHandlerRootView>
       </SafeAreaProvider>
     </Modal>

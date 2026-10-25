@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { makeT } from "../i18n";
 import {
   __setModuleLoader,
   imageFrame,
   imagesSupported,
+  inboxExcerpt,
   pickImage,
   prepareImage,
 } from "../utils/postImage";
@@ -132,5 +134,17 @@ describe("pickImage", () => {
       quality: 1,
       exif: false,
     });
+  });
+});
+
+describe("inboxExcerpt", () => {
+  const t = makeT("en");
+  it("labels an image-only item as a photo", () => {
+    expect(inboxExcerpt("", t)).toBe(t("image.photo"));
+  });
+  it("keeps text and returns null when absent", () => {
+    expect(inboxExcerpt("hi", t)).toBe("hi");
+    expect(inboxExcerpt(null, t)).toBeNull();
+    expect(inboxExcerpt(undefined, t)).toBeNull();
   });
 });

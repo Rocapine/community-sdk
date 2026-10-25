@@ -66,6 +66,7 @@ import {
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
+import { ImageViewerHost } from "../components/ImageViewer";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { PressableScale } from "../components/PressableScale";
 import { isQueryLoading } from "../utils/query";
@@ -202,133 +203,135 @@ export function ProfileScreen({
   };
 
   return (
-    <View style={styles.root}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          topInset > 0 ? { paddingTop: topInset + theme.spacing(2) } : null,
-        ]}
-        refreshControl={
-          <RefreshControl
-            refreshing={pulling}
-            onRefresh={() => {
-              setPulling(true);
-              Promise.all([profile.refetch(), userPosts.refetch()]).finally(() =>
-                setPulling(false),
-              );
-            }}
-            tintColor={theme.colors.accent}
-          />
-        }
-      >
-        <View style={styles.topRow}>
-          {onBack ? (
-            <Pressable
-              onPress={onBack}
-              style={styles.backBtn}
-              accessibilityRole="button"
-              accessibilityLabel={t("a11y.back")}
-            >
-              <icons.back size={22} color={theme.colors.textPrimary} weight="bold" />
-            </Pressable>
-          ) : (
+    <ImageViewerHost>
+      <View style={styles.root}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            topInset > 0 ? { paddingTop: topInset + theme.spacing(2) } : null,
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={pulling}
+              onRefresh={() => {
+                setPulling(true);
+                Promise.all([profile.refetch(), userPosts.refetch()]).finally(() =>
+                  setPulling(false),
+                );
+              }}
+              tintColor={theme.colors.accent}
+            />
+          }
+        >
+          <View style={styles.topRow}>
+            {onBack ? (
+              <Pressable
+                onPress={onBack}
+                style={styles.backBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t("a11y.back")}
+              >
+                <icons.back size={22} color={theme.colors.textPrimary} weight="bold" />
+              </Pressable>
+            ) : (
+              <View style={styles.topRowSpacer} />
+            )}
             <View style={styles.topRowSpacer} />
-          )}
-          <View style={styles.topRowSpacer} />
-          {myUid != null && !isMe && (
-            <Pressable
-              onPress={openHeaderMenu}
-              style={styles.dotsBtn}
-              accessibilityRole="button"
-              accessibilityLabel={t("a11y.more")}
-            >
-              <icons.menu size={22} color={theme.colors.textPrimary} weight="bold" />
-            </Pressable>
-          )}
-        </View>
+            {myUid != null && !isMe && (
+              <Pressable
+                onPress={openHeaderMenu}
+                style={styles.dotsBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t("a11y.more")}
+              >
+                <icons.menu size={22} color={theme.colors.textPrimary} weight="bold" />
+              </Pressable>
+            )}
+          </View>
 
-        {isQueryLoading(profile) ? (
-          <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
-        ) : profile.isError || !profile.data ? (
-          <Text style={styles.stateText}>{t("feed.unreachable")}</Text>
-        ) : (
-          <>
-            <View style={styles.header}>
-              {profile.data.avatarUrl ? (
-                <Image
-                  source={{ uri: profile.data.avatarUrl }}
-                  style={styles.avatarImage}
-                  contentFit="cover"
-                />
-              ) : (
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarLetter}>
-                    {profile.data.name.charAt(0).toUpperCase()}
-                  </Text>
+          {isQueryLoading(profile) ? (
+            <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
+          ) : profile.isError || !profile.data ? (
+            <Text style={styles.stateText}>{t("feed.unreachable")}</Text>
+          ) : (
+            <>
+              <View style={styles.header}>
+                {profile.data.avatarUrl ? (
+                  <Image
+                    source={{ uri: profile.data.avatarUrl }}
+                    style={styles.avatarImage}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarLetter}>
+                      {profile.data.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.nameRow}>
+                  <Text style={styles.name}>{profile.data.name}</Text>
+                  {profile.data.official && (
+                    <icons.officialSeal size={17} color={theme.colors.official} weight="fill" />
+                  )}
                 </View>
-              )}
-              <View style={styles.nameRow}>
-                <Text style={styles.name}>{profile.data.name}</Text>
-                {profile.data.official && (
-                  <icons.officialSeal size={17} color={theme.colors.official} weight="fill" />
+                {profile.data.handle != null && (
+                  <Text style={styles.handle}>@{profile.data.handle}</Text>
+                )}
+                {profile.data.bio ? <Text style={styles.bio}>{profile.data.bio}</Text> : null}
+                {isMe && (
+                  <PressableScale onPress={() => setEditOpen(true)} style={styles.editPill}>
+                    <Text style={styles.editPillLabel}>{t("profile.editProfile")}</Text>
+                  </PressableScale>
                 )}
               </View>
-              {profile.data.handle != null && (
-                <Text style={styles.handle}>@{profile.data.handle}</Text>
-              )}
-              {profile.data.bio ? <Text style={styles.bio}>{profile.data.bio}</Text> : null}
-              {isMe && (
-                <PressableScale onPress={() => setEditOpen(true)} style={styles.editPill}>
-                  <Text style={styles.editPillLabel}>{t("profile.editProfile")}</Text>
-                </PressableScale>
-              )}
-            </View>
 
-            <Text style={styles.sectionLabel}>{t("profile.postsSection")}</Text>
-            <View style={styles.feed}>
-              {isQueryLoading(userPosts) ? (
-                <ActivityIndicator color={theme.colors.accent} style={styles.spinnerSmall} />
-              ) : userPosts.isError ? (
-                <Text style={styles.stateText}>{t("feed.unreachableRetry")}</Text>
-              ) : posts.length === 0 ? (
-                <Text style={styles.stateText}>
-                  {isMe ? t("profile.emptyOwn") : t("profile.emptyOther")}
-                </Text>
-              ) : (
-                posts.map((post) => (
-                  <CommunityPost
-                    key={post.id}
-                    post={post}
-                    onOpenThread={onOpenThread}
-                    onPressComment={(postId) => onOpenThread(postId, true)}
-                    onOpenProfile={noop}
-                    onMenu={openPostMenu}
-                    {...slots}
-                  />
-                ))
-              )}
-              {hasNextPage && (
-                <PressableScale onPress={loadMore} style={styles.loadMore}>
-                  {isFetchingNextPage ? (
-                    <ActivityIndicator size="small" color={theme.colors.accent} />
-                  ) : (
-                    <Text style={styles.loadMoreText}>{t("feed.loadMore")}</Text>
-                  )}
-                </PressableScale>
-              )}
-            </View>
-          </>
-        )}
-      </ScrollView>
+              <Text style={styles.sectionLabel}>{t("profile.postsSection")}</Text>
+              <View style={styles.feed}>
+                {isQueryLoading(userPosts) ? (
+                  <ActivityIndicator color={theme.colors.accent} style={styles.spinnerSmall} />
+                ) : userPosts.isError ? (
+                  <Text style={styles.stateText}>{t("feed.unreachableRetry")}</Text>
+                ) : posts.length === 0 ? (
+                  <Text style={styles.stateText}>
+                    {isMe ? t("profile.emptyOwn") : t("profile.emptyOther")}
+                  </Text>
+                ) : (
+                  posts.map((post) => (
+                    <CommunityPost
+                      key={post.id}
+                      post={post}
+                      onOpenThread={onOpenThread}
+                      onPressComment={(postId) => onOpenThread(postId, true)}
+                      onOpenProfile={noop}
+                      onMenu={openPostMenu}
+                      {...slots}
+                    />
+                  ))
+                )}
+                {hasNextPage && (
+                  <PressableScale onPress={loadMore} style={styles.loadMore}>
+                    {isFetchingNextPage ? (
+                      <ActivityIndicator size="small" color={theme.colors.accent} />
+                    ) : (
+                      <Text style={styles.loadMoreText}>{t("feed.loadMore")}</Text>
+                    )}
+                  </PressableScale>
+                )}
+              </View>
+            </>
+          )}
+        </ScrollView>
 
-      {isMe && <ProfileEditSheet visible={editOpen} onClose={() => setEditOpen(false)} />}
-      <ReportSheet
-        visible={reportTarget !== null}
-        target={reportTarget}
-        onClose={() => setReportTarget(null)}
-      />
-    </View>
+        {isMe && <ProfileEditSheet visible={editOpen} onClose={() => setEditOpen(false)} />}
+        <ReportSheet
+          visible={reportTarget !== null}
+          target={reportTarget}
+          onClose={() => setReportTarget(null)}
+        />
+      </View>
+    </ImageViewerHost>
   );
 }
 

@@ -75,6 +75,7 @@ import { CommunityPost, type PostSlots, type ProfileSource } from "../components
 import { ClampedBody } from "../components/ClampedBody";
 import { NoticeCard } from "../components/NoticeCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
+import { ImageViewerContext, useImageViewerOverlay } from "../components/ImageViewer";
 import { isQueryLoading } from "../utils/query";
 import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
 import { formatTimeAgo, useNow } from "../utils/time";
@@ -272,6 +273,10 @@ export function ThreadSheet({
   // A slot opening its own Modal from the post card (see `modalHandoff`):
   // close this sheet, open theirs once it's gone.
   const pendingOpen = useRef<(() => void) | null>(null);
+  // The image viewer renders inside this sheet's Modal (`overlay`): a second
+  // Modal over this one is what froze iOS in 0.4.2.
+  const viewer = useImageViewerOverlay();
+
   const presentAfterClose: PresentModal = (open) => {
     pendingOpen.current = open;
     onClose();
@@ -291,6 +296,7 @@ export function ThreadSheet({
   };
 
   const handleDismissed = () => {
+    viewer.close();
     if (pendingOpen.current) {
       const open = pendingOpen.current;
       pendingOpen.current = null;
@@ -392,99 +398,107 @@ export function ThreadSheet({
 
   return (
     <>
-      <CommunitySheet
-        visible={postId !== null}
-        onClose={onClose}
-        onDismissed={handleDismissed}
-        snapTo="full"
-        footer={
-          <View style={styles.inputRow}>
-            {myAvatarUrl ? (
-              <Image source={{ uri: myAvatarUrl }} style={styles.cAvatarImage} contentFit="cover" />
-            ) : (
-              <View style={styles.cAvatar}>
-                <Text style={styles.cAvatarLetter}>{myInitial}</Text>
-              </View>
-            )}
-            <SheetTextInput
-              ref={inputRef}
-              value={text}
-              onChangeText={setText}
-              placeholder={t("thread.commentPlaceholder")}
-              placeholderTextColor={theme.colors.textFaint}
-              style={styles.input}
-              multiline
-              maxLength={COMMENT_MAX_LENGTH}
-            />
-            <Pressable
-              hitSlop={4}
-              onPress={send}
-              disabled={gating}
-              style={styles.send}
-              accessibilityRole="button"
-              accessibilityLabel={t("a11y.send")}
-            >
-              <icons.send
-                size={20}
-                color={text.trim() && !gating ? theme.colors.accent : theme.colors.textFaint}
-                weight="fill"
+      <ImageViewerContext.Provider value={viewer.open}>
+        <CommunitySheet
+          visible={postId !== null}
+          // Android back with the viewer up closes the viewer, not the thread.
+          onClose={viewer.overlay ? viewer.close : onClose}
+          onDismissed={handleDismissed}
+          snapTo="full"
+          overlay={viewer.overlay}
+          footer={
+            <View style={styles.inputRow}>
+              {myAvatarUrl ? (
+                <Image
+                  source={{ uri: myAvatarUrl }}
+                  style={styles.cAvatarImage}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={styles.cAvatar}>
+                  <Text style={styles.cAvatarLetter}>{myInitial}</Text>
+                </View>
+              )}
+              <SheetTextInput
+                ref={inputRef}
+                value={text}
+                onChangeText={setText}
+                placeholder={t("thread.commentPlaceholder")}
+                placeholderTextColor={theme.colors.textFaint}
+                style={styles.input}
+                multiline
+                maxLength={COMMENT_MAX_LENGTH}
               />
-            </Pressable>
-            {/* Rules gate: swallow every touch on the comment box until the UGC
-                rules are accepted (mirrors `ComposerCard`'s overlay). */}
-            {!rulesAccepted && (
-              <Pressable style={StyleSheet.absoluteFill} onPress={() => setRulesVisible(true)}>
-                <View />
+              <Pressable
+                hitSlop={4}
+                onPress={send}
+                disabled={gating}
+                style={styles.send}
+                accessibilityRole="button"
+                accessibilityLabel={t("a11y.send")}
+              >
+                <icons.send
+                  size={20}
+                  color={text.trim() && !gating ? theme.colors.accent : theme.colors.textFaint}
+                  weight="fill"
+                />
               </Pressable>
-            )}
-          </View>
-        }
-      >
-        {/* The whole thread (post + every comment) scrolls; the composer is the
-            sheet's footer, pinned above the keyboard. */}
-        <SheetScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+              {/* Rules gate: swallow every touch on the comment box until the UGC
+                rules are accepted (mirrors `ComposerCard`'s overlay). */}
+              {!rulesAccepted && (
+                <Pressable style={StyleSheet.absoluteFill} onPress={() => setRulesVisible(true)}>
+                  <View />
+                </Pressable>
+              )}
+            </View>
+          }
         >
-          {post && (
-            <ModalHandoffContext.Provider value={presentAfterClose}>
-              <CommunityPost
-                post={post}
-                onPressComment={focusReply}
-                onOpenProfile={openProfile}
-                onMenu={openPostMenu}
-                {...slots}
-              />
-            </ModalHandoffContext.Provider>
-          )}
+          {/* The whole thread (post + every comment) scrolls; the composer is the
+            sheet's footer, pinned above the keyboard. */}
+          <SheetScrollView
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {post && (
+              <ModalHandoffContext.Provider value={presentAfterClose}>
+                <CommunityPost
+                  post={post}
+                  onPressComment={focusReply}
+                  onOpenProfile={openProfile}
+                  onMenu={openPostMenu}
+                  {...slots}
+                />
+              </ModalHandoffContext.Provider>
+            )}
 
-          <Text style={styles.commentsLabel}>
-            {t("thread.comments", { count: comments.length })}
-          </Text>
+            <Text style={styles.commentsLabel}>
+              {t("thread.comments", { count: comments.length })}
+            </Text>
 
-          {isQueryLoading(thread) && comments.length === 0 ? (
-            <Text style={styles.stateText}>{t("thread.loadingComments")}</Text>
-          ) : comments.length === 0 ? (
-            <Text style={styles.stateText}>{t("thread.emptyComments")}</Text>
-          ) : (
-            comments.map((c) => (
-              <CommentRow
-                key={c.id}
-                comment={c}
-                onOpenProfile={openProfile}
-                onMenu={openCommentMenu}
-              />
-            ))
-          )}
-        </SheetScrollView>
+            {isQueryLoading(thread) && comments.length === 0 ? (
+              <Text style={styles.stateText}>{t("thread.loadingComments")}</Text>
+            ) : comments.length === 0 ? (
+              <Text style={styles.stateText}>{t("thread.emptyComments")}</Text>
+            ) : (
+              comments.map((c) => (
+                <CommentRow
+                  key={c.id}
+                  comment={c}
+                  onOpenProfile={openProfile}
+                  onMenu={openCommentMenu}
+                />
+              ))
+            )}
+          </SheetScrollView>
 
-        <RulesSheet
-          visible={rulesVisible}
-          onAccepted={() => setRulesVisible(false)}
-          onClose={() => setRulesVisible(false)}
-        />
-      </CommunitySheet>
+          <RulesSheet
+            visible={rulesVisible}
+            onAccepted={() => setRulesVisible(false)}
+            onClose={() => setRulesVisible(false)}
+          />
+        </CommunitySheet>
+      </ImageViewerContext.Provider>
 
       {notice && <NoticeCard kind={notice} target="comment" onDismiss={() => setNotice(null)} />}
 

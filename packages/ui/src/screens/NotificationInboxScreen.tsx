@@ -56,6 +56,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import type { TFn } from "../i18n";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
+import { inboxExcerpt } from "../utils/postImage";
 import { isQueryLoading } from "../utils/query";
 import { formatTimeAgo } from "../utils/time";
 
@@ -209,7 +210,7 @@ function NotificationRow({
 }) {
   const t = useT();
   const styles = useThemedStyles(makeStyles);
-  const excerpt = typeof item.payload.postExcerpt === "string" ? item.payload.postExcerpt : null;
+  const excerpt = inboxExcerpt(item.payload.postExcerpt, t);
 
   return (
     <Pressable

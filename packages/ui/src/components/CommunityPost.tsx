@@ -46,6 +46,8 @@ import { displayText, translationLine } from "../utils/translation";
 import { formatTimeAgo, useNow } from "../utils/time";
 import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { ClampedBody } from "./ClampedBody";
+import { ImageViewerContext } from "./ImageViewer";
+import { PostImage } from "./PostImage";
 import { PollBlock } from "./PollBlock";
 import { haptic, PressableScale } from "./PressableScale";
 
@@ -102,6 +104,9 @@ export function CommunityPost({
 
   const now = useNow();
   const slotCtx: PostSlotContext = { presentModal: useContext(ModalHandoffContext) };
+  const openImage = useContext(ImageViewerContext);
+  // Image-only posts store `content = ''`: no text block (nor toggle line).
+  const hasText = post.text !== "";
   const toggleLike = useToggleLike();
   const reactToPost = useReactToPost();
 
@@ -257,17 +262,27 @@ export function CommunityPost({
         {authorHeader}
       </Pressable>
 
-      <ClampedBody
-        text={displayText(post, showOriginal)}
-        alternate={post.translation ? displayText(post, !showOriginal) : null}
-        clampLines={BODY_CLAMP_LINES}
-        textStyle={styles.body}
-        viewMoreStyle={styles.viewMore}
-      />
-      {toggleLine && (
-        <Pressable hitSlop={8} onPress={toggleOriginal} style={styles.link}>
-          <Text style={styles.translationLine}>{toggleLine}</Text>
-        </Pressable>
+      {hasText && (
+        <>
+          <ClampedBody
+            text={displayText(post, showOriginal)}
+            alternate={post.translation ? displayText(post, !showOriginal) : null}
+            clampLines={BODY_CLAMP_LINES}
+            textStyle={styles.body}
+            viewMoreStyle={styles.viewMore}
+          />
+          {toggleLine && (
+            <Pressable hitSlop={8} onPress={toggleOriginal} style={styles.link}>
+              <Text style={styles.translationLine}>{toggleLine}</Text>
+            </Pressable>
+          )}
+        </>
+      )}
+
+      {post.image && (
+        <View style={hasText && styles.imageGap}>
+          <PostImage image={post.image} onOpen={openImage} />
+        </View>
       )}
 
       {post.poll && <PollBlock post={post} showOriginal={showOriginal} />}
@@ -389,6 +404,7 @@ function makeStyles(theme: CommunityTheme) {
       justifyContent: "center",
     },
     link: { alignSelf: "flex-start" },
+    imageGap: { marginTop: theme.spacing(3) },
     statCount: { flex: 1, overflow: "hidden" },
     statText: {
       fontFamily: theme.fonts.medium,

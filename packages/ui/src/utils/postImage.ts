@@ -6,6 +6,7 @@
 // `resizeAvatar`, this NEVER falls back to the original uri: the original may
 // carry GPS EXIF, so no manipulator / any failure => null.
 import type { LocalImage } from "@rocapine/community-core";
+import type { TFn } from "../i18n";
 
 // Ambient `require` — see `icons-default.ts` for why this isn't an `import`.
 declare function require(id: string): unknown;
@@ -66,13 +67,24 @@ export function imagesSupported(): boolean {
   return ok;
 }
 
+/** Display aspect ratio (w:h): the image's own, clamped to 4:5 .. 1.91:1. */
+export function imageRatio(image: { width: number; height: number }): number {
+  return Math.min(Math.max(image.width / image.height, IMAGE_MIN_RATIO), IMAGE_MAX_RATIO);
+}
+
 /** Display frame: full `maxWidth`, aspect kept but clamped to 4:5 .. 1.91:1. */
 export function imageFrame(
   image: { width: number; height: number },
   maxWidth: number,
 ): { width: number; height: number } {
-  const ratio = Math.min(Math.max(image.width / image.height, IMAGE_MIN_RATIO), IMAGE_MAX_RATIO);
-  return { width: maxWidth, height: Math.round(maxWidth / ratio) };
+  return { width: maxWidth, height: Math.round(maxWidth / imageRatio(image)) };
+}
+
+/** Inbox row excerpt: an image-only post/comment has an empty excerpt, shown
+ * as the localized "Photo"; anything that isn't a string means no excerpt. */
+export function inboxExcerpt(excerpt: unknown, t: TFn): string | null {
+  if (typeof excerpt !== "string") return null;
+  return excerpt === "" ? t("image.photo") : excerpt;
 }
 
 /** Re-encodes to JPEG @0.8 with the long edge <= `IMAGE_MAX_EDGE` (never
