@@ -88,6 +88,7 @@ export {
 export type {
   ModerationVerdict,
   CreatePostInput,
+  UploadedImage,
   ReportReason,
   ReportInput,
   UpdateProfileInput,

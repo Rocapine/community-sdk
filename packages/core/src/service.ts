@@ -425,7 +425,7 @@ export async function fetchThread(
 export type ModerationVerdict = { status: "published" | "rejected" | "pending"; reason?: string };
 
 /** What `uploadPostImage` returns and `createPost`/`createComment` store. */
-type UploadedImage = { path: string; width: number; height: number };
+export type UploadedImage = { path: string; width: number; height: number };
 
 export type CreatePostInput = {
   topic: string;
