@@ -133,15 +133,20 @@ async function sweepUsernames(): Promise<{
 
 /** Deletes storage objects no live post/comment references (abandoned uploads,
  * deleted authors' files), capped per run. Skipped silently without the images
- * module (the RPC doesn't exist). Returns how many files were removed. */
-async function sweepUnreferencedImages(): Promise<number> {
+ * module (the RPC doesn't exist). Returns how many files were removed, and the
+ * storage error when the removal failed (surfaced in the Slack summary). */
+async function sweepUnreferencedImages(): Promise<{ removed: number; error?: string }> {
   const { data, error } = await supabase.rpc("post_images_unreferenced", { p_limit: 500 });
   const names = (data ?? []) as string[];
-  if (error || names.length === 0) return 0;
+  if (error || names.length === 0) return { removed: 0 };
   const { data: removed, error: removeError } = await supabase.storage
     .from(POST_IMAGES_BUCKET)
     .remove(names);
-  return removeError ? 0 : (removed?.length ?? 0);
+  if (removeError) {
+    console.error("image sweep: remove failed", removeError.message);
+    return { removed: 0, error: removeError.message };
+  }
+  return { removed: removed?.length ?? 0 };
 }
 
 Deno.serve(async () => {
@@ -253,10 +258,17 @@ Deno.serve(async () => {
   // Status guards: a row the author soft-deleted while the sweep ran must not
   // be resurrected as hidden/visible, so every write re-checks the status it
   // was selected with.
+  const imageErrors: string[] = [];
   for (const { item, categories } of flagged) {
     // Child-safety hit: the file goes now. Any other hide keeps it.
     if (item.imagePath && categories.includes("sexual/minors")) {
-      await supabase.storage.from(POST_IMAGES_BUCKET).remove([item.imagePath]);
+      const { error } = await supabase.storage.from(POST_IMAGES_BUCKET).remove([item.imagePath]);
+      if (error) {
+        console.error("sexual/minors image not deleted", item.imagePath, error.message);
+        imageErrors.push(
+          `sexual/minors image \`${item.imagePath}\` NOT deleted (${error.message}), remove it by hand`,
+        );
+      }
     }
     await supabase
       .from(item.table)
@@ -294,12 +306,20 @@ Deno.serve(async () => {
   }
 
   const usernames = await sweepUsernames();
-  const imagesSwept = await sweepUnreferencedImages();
+  const sweep = await sweepUnreferencedImages();
+  const imagesSwept = sweep.removed;
+  if (sweep.error) imageErrors.push(`image sweep failed: ${sweep.error}`);
   const allFailedBatches = failedBatches + usernames.failedBatches;
 
   // Quiet when there was nothing to check at all (a stray or duplicate call
   // finds every item already stamped): no Slack noise, no API cost.
-  if (totalItems === 0 && usernames.checked === 0 && allFailedBatches === 0 && imagesSwept === 0) {
+  if (
+    totalItems === 0 &&
+    usernames.checked === 0 &&
+    allFailedBatches === 0 &&
+    imagesSwept === 0 &&
+    imageErrors.length === 0
+  ) {
     return new Response(
       JSON.stringify({
         checked: 0,
@@ -342,6 +362,9 @@ Deno.serve(async () => {
     summaryText =
       `Daily moderation: ${flagged.length}/${processed.length} items hidden.${usernameSummary}${sweepSummary}\n\n` +
       [...lines, ...usernameLines].join("\n");
+  }
+  if (imageErrors.length > 0) {
+    summaryText += `\n\n${imageErrors.map((e) => `* WARNING: ${e}`).join("\n")}`;
   }
   await postToSlack({ text: summaryText });
 

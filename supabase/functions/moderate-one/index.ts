@@ -13,6 +13,7 @@
 import { adminClient, callerUserId, isServiceCaller, json } from "../_shared/client.ts";
 import { fetchImagePath, POST_IMAGES_BUCKET, postImageUrl } from "../_shared/images.ts";
 import { assertModerationConfigured, moderateItem } from "../_shared/moderation.ts";
+import { postToSlack } from "../_shared/slack.ts";
 
 assertModerationConfigured();
 
@@ -77,7 +78,14 @@ Deno.serve(async (req) => {
   if (verdict.flagged) {
     // Child-safety hit: the file goes now. Any other hide keeps it.
     if (imagePath && verdict.categories.includes("sexual/minors")) {
-      await supabase.storage.from(POST_IMAGES_BUCKET).remove([imagePath]);
+      const { error } = await supabase.storage.from(POST_IMAGES_BUCKET).remove([imagePath]);
+      if (error) {
+        console.error("sexual/minors image not deleted", imagePath, error.message);
+        // The row is hidden below; the file stays public until removed by hand.
+        await postToSlack({
+          text: `Moderation: sexual/minors image \`${imagePath}\` (${kind} ${id}) NOT deleted (${error.message}), remove it by hand.`,
+        }).catch((e) => console.error("slack alert failed", e));
+      }
     }
     await supabase
       .from(table)
