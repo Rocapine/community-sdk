@@ -47,6 +47,8 @@ export const SCORE_THRESHOLD =
 export interface ModerationResult {
   categories: Record<string, boolean>;
   category_scores: Record<string, number>;
+  // Per category, which input kinds the score was computed from.
+  category_applied_input_types?: Record<string, ("text" | "image")[]>;
 }
 
 export function flaggedCategories(result: ModerationResult): string[] {
@@ -55,7 +57,12 @@ export function flaggedCategories(result: ModerationResult): string[] {
     if (v && CATEGORIES_TO_HIDE.includes(cat)) cats.add(cat);
   }
   for (const [cat, score] of Object.entries(result.category_scores)) {
-    if (SCORE_HIDE.includes(cat) && score >= SCORE_THRESHOLD) cats.add(cat);
+    // Image-applied categories ignore MODERATION_EXCLUDED_CATEGORIES: the
+    // exclusion exists for text discussion, never for pictures.
+    const hide = result.category_applied_input_types?.[cat]?.includes("image")
+      ? CATEGORIES_TO_HIDE
+      : SCORE_HIDE;
+    if (hide.includes(cat) && score >= SCORE_THRESHOLD) cats.add(cat);
   }
   return [...cats];
 }
@@ -73,14 +80,30 @@ export function assertModerationConfigured(): void {
   }
 }
 
-export type ImageInput = { type: "image_url"; image_url: { url: string } }[];
+export type ContentPart =
+  { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 
-// POSTs to OpenAI moderation. `input` is a string for text or the image_url
-// content-part array for an avatar. Returns null on a non-OK response so the
+// Kept as an alias for update-profile (avatars).
+export type ImageInput = ContentPart[];
+
+// Text only => the plain string (unchanged request shape); with an image =>
+// content parts (text part only when non-empty).
+export function moderationParts(text: string, imageUrl: string | null): string | ContentPart[] {
+  if (!imageUrl) return text;
+  const image: ContentPart = { type: "image_url", image_url: { url: imageUrl } };
+  return text ? [{ type: "text", text }, image] : [image];
+}
+
+// POSTs to OpenAI moderation. `input` is a string for text or a content-part
+// array (image, optionally with text). `imageCategories` are the flagged
+// categories applied to the image. Returns null on a non-OK response so the
 // caller can fail closed (nothing published / nothing written).
-export async function moderateInput(
-  input: string | ImageInput,
-): Promise<{ flagged: boolean; reason: string | null } | null> {
+export async function moderateInput(input: string | ContentPart[]): Promise<{
+  flagged: boolean;
+  reason: string | null;
+  categories: string[];
+  imageCategories: string[];
+} | null> {
   const res = await fetch("https://api.openai.com/v1/moderations", {
     method: "POST",
     headers: {
@@ -95,8 +118,15 @@ export async function moderateInput(
     return null;
   }
   const { results } = await res.json();
-  const cats = flaggedCategories(results[0]);
-  return cats.length > 0
-    ? { flagged: true, reason: cats.join(",") }
-    : { flagged: false, reason: null };
+  const result: ModerationResult = results[0];
+  const categories = flaggedCategories(result);
+  const imageCategories = categories.filter((c) =>
+    result.category_applied_input_types?.[c]?.includes("image"),
+  );
+  return {
+    flagged: categories.length > 0,
+    reason: categories.length > 0 ? categories.join(",") : null,
+    categories,
+    imageCategories,
+  };
 }
