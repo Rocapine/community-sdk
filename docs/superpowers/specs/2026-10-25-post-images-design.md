@@ -31,7 +31,7 @@ else sees it.
 | Composer preview          | The chosen image shows as a thumbnail under the text with a ✕ to remove it. Tapping Image again replaces it. Publish is enabled with text **or** an image.                                                                                                                    |
 | Comments                  | Image shown smaller than in the feed (max ≈ 60% of the comment column width, same 4:5 cap), tap ⇒ full screen. In the reply bar, while the field is focused, **the user's avatar on the left becomes the add-image button**.                                                  |
 | Comment reply bar preview | The chosen image shows as a small thumbnail above the bar with a ✕. While an image is attached the image button stays shown even if the keyboard closes, so the reply visibly isn't empty. Tapping it again replaces the image.                                               |
-| Sending                   | Same as today: the item appears immediately (local image), goes through moderation; on rejection or network failure the draft comes back **with its image**.                                                                                                                  |
+| Sending                   | Same as today: the item appears immediately (local image), goes through moderation; on a network failure the draft comes back **with its image**; a moderation rejection keeps today's behavior (notice, no draft restore).                                                   |
 
 Mockups (local, not committed): `.superpowers/brainstorm/*/content/feed-image.html`,
 `compose-and-comments.html`, `compose-v2.html`. Note: in `compose-v2.html` neither composer
