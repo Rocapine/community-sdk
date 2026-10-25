@@ -10,6 +10,7 @@
 //     "comment.title": { "pl": "Otrzymałaś komentarz" },
 //     "like.one":      { "pl": "{name} polubiła twój post" },
 //     "reaction.one":  { "en": "{name} prayed for you 🙏" },
+//     "photo":         { "en": "📷 A picture" },
 //     "reaction.many": { "en": "{name} and {count} others prayed for you 🙏",
 //                        "pl": { "one": "…", "few": "…", "many": "…" } }
 //   }'
@@ -29,11 +30,18 @@ type CopyValue = string | Forms;
 type LocaleCopy = Record<string, CopyValue>;
 
 export type PushCopyKey =
-  "fallbackName" | "comment.title" | "like.one" | "like.many" | "reaction.one" | "reaction.many";
+  | "fallbackName"
+  | "comment.title"
+  | "like.one"
+  | "like.many"
+  | "reaction.one"
+  | "reaction.many"
+  | "photo";
 
 const BUILTIN: Record<string, LocaleCopy> = {
   en: {
     fallbackName: "Someone",
+    photo: "📷 Photo",
     "comment.title": "You received a comment",
     "like.one": "{name} liked your post",
     "like.many": {
@@ -48,6 +56,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
   },
   "pt-PT": {
     fallbackName: "Alguém",
+    photo: "📷 Foto",
     "comment.title": "Recebeste um comentário",
     "like.one": "{name} gostou da tua publicação",
     "like.many": {
@@ -62,6 +71,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
   },
   "pt-BR": {
     fallbackName: "Alguém",
+    photo: "📷 Foto",
     "comment.title": "Você recebeu um comentário",
     "like.one": "{name} curtiu seu post",
     "like.many": {
@@ -76,6 +86,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
   },
   "es-ES": {
     fallbackName: "Alguien",
+    photo: "📷 Foto",
     "comment.title": "Has recibido un comentario",
     "like.one": "A {name} le ha gustado tu publicación",
     "like.many": {
@@ -90,6 +101,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
   },
   "es-419": {
     fallbackName: "Alguien",
+    photo: "📷 Foto",
     "comment.title": "Recibiste un comentario",
     "like.one": "A {name} le gustó tu publicación",
     "like.many": {
@@ -104,6 +116,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
   },
   it: {
     fallbackName: "Qualcuno",
+    photo: "📷 Foto",
     "comment.title": "Hai ricevuto un commento",
     "like.one": "A {name} piace il tuo post",
     "like.many": {
@@ -118,6 +131,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
   },
   pl: {
     fallbackName: "Ktoś",
+    photo: "📷 Zdjęcie",
     "comment.title": "Masz nowy komentarz",
     "like.one": "{name} polubił(a) twój post",
     "like.many": {
@@ -134,6 +148,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
   },
   fr: {
     fallbackName: "Quelqu'un",
+    photo: "📷 Photo",
     "comment.title": "Tu as reçu un commentaire",
     "like.one": "{name} a aimé ta publication",
     "like.many": {
@@ -148,6 +163,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
   },
   de: {
     fallbackName: "Jemand",
+    photo: "📷 Foto",
     "comment.title": "Du hast einen Kommentar erhalten",
     "like.one": "{name} gefällt dein Beitrag",
     "like.many": {
@@ -230,6 +246,12 @@ function fill(template: string, params: { name?: string; count?: number }): stri
   return template
     .replace(/\{name\}/g, params.name ?? "")
     .replace(/\{count\}/g, params.count === undefined ? "" : String(params.count));
+}
+
+/** Push/inbox excerpt: the first 140 characters, or `photo` for an image-only item. */
+export function excerptOrPhoto(content: string, photo: string): string {
+  if (!content.trim()) return photo;
+  return content.length > 140 ? `${content.slice(0, 137)}...` : content;
 }
 
 /** Copy resolver for one recipient (`profiles.locale`). */
