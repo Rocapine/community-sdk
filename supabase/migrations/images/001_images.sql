@@ -30,6 +30,18 @@ alter table public.comments add constraint comments_image_check check (
   or (image_path is not null and image_width > 0 and image_height > 0)
 );
 
+-- The path is `{uid}/{name}.jpg` (name: a uuid, or the client's
+-- `{Date.now()}-{base36}` fallback when crypto.randomUUID is missing), so a
+-- crafted insert can't point at another bucket path or a non-JPEG name.
+alter table public.posts drop constraint if exists posts_image_path_format;
+alter table public.posts add constraint posts_image_path_format check (
+  image_path is null or image_path ~ '^[0-9a-f-]{36}/[A-Za-z0-9_-]+\.jpg$'
+);
+alter table public.comments drop constraint if exists comments_image_path_format;
+alter table public.comments add constraint comments_image_path_format check (
+  image_path is null or image_path ~ '^[0-9a-f-]{36}/[A-Za-z0-9_-]+\.jpg$'
+);
+
 -- Text becomes optional when an image is present (image-only items store '').
 -- core/001_tables.sql leaves the inline check auto-named <table>_content_check.
 alter table public.posts drop constraint if exists posts_content_check;
