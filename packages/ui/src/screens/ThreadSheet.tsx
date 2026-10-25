@@ -80,7 +80,7 @@ import {
   useSyncExternalStore,
   type ComponentRef,
 } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -256,20 +256,30 @@ export function ThreadSheet({
   // matching note in `ComposerCard.tsx`'s `gating` state.
   const [gating, setGating] = useState(false);
 
-  const canSend = (text.trim().length > 0 || image !== null) && !gating;
+  // True while a photo is picked and re-encoded (1–2 s for a large one): Send
+  // waits for it so the text can't go out without its photo.
+  const [preparing, setPreparing] = useState(false);
+  const canSend = (text.trim().length > 0 || image !== null) && !gating && !preparing;
   // Hidden while the gate runs: a photo picked meanwhile would be cleared by the send.
-  const showImageButton = imagesOn && (inputFocused || image !== null) && !gating;
+  // Kept while preparing (the library blurs the field) to show the spinner.
+  const showImageButton = imagesOn && (inputFocused || image !== null || preparing) && !gating;
 
   const attachImage = async () => {
-    const picked = await pickImage();
-    // Cancelled/failed: any attached image stays. A new pick replaces it.
-    if (picked) setImage(picked);
+    if (preparing) return;
+    setPreparing(true);
+    try {
+      const picked = await pickImage();
+      // Cancelled/failed: any attached image stays. A new pick replaces it.
+      if (picked) setImage(picked);
+    } finally {
+      setPreparing(false);
+    }
   };
 
   const send = () => {
     const trimmed = text.trim();
     const sentImage = image;
-    if ((!trimmed && !sentImage) || !shownId || gating) return;
+    if ((!trimmed && !sentImage) || !shownId || gating || preparing) return;
     if (!rulesAccepted) {
       setRulesVisible(true);
       return;
@@ -472,12 +482,18 @@ export function ThreadSheet({
                 {showImageButton ? (
                   <Pressable
                     onPress={attachImage}
+                    disabled={preparing}
                     hitSlop={7}
                     style={styles.imageButton}
                     accessibilityRole="button"
                     accessibilityLabel={t("composer.addImage")}
+                    accessibilityState={{ busy: preparing, disabled: preparing }}
                   >
-                    <icons.image size={20} color={theme.colors.accent} weight="regular" />
+                    {preparing ? (
+                      <ActivityIndicator size="small" color={theme.colors.accent} />
+                    ) : (
+                      <icons.image size={20} color={theme.colors.accent} weight="regular" />
+                    )}
                   </Pressable>
                 ) : myAvatarUrl ? (
                   <Image
@@ -505,7 +521,7 @@ export function ThreadSheet({
                 <Pressable
                   hitSlop={4}
                   onPress={send}
-                  disabled={gating}
+                  disabled={gating || preparing}
                   style={styles.send}
                   accessibilityRole="button"
                   accessibilityLabel={t("a11y.send")}

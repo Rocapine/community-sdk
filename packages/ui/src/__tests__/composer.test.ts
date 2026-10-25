@@ -12,7 +12,14 @@ vi.mock("../components/RulesSheet", () => ({}));
 
 const { canPublish } = await import("../components/ComposerCard");
 
-const base = { text: "", image: null, pollInvalid: false, pending: false, gating: false };
+const base = {
+  text: "",
+  image: null,
+  pollInvalid: false,
+  pending: false,
+  gating: false,
+  preparing: false,
+};
 const image = { url: "file:///a.jpg", width: 1200, height: 900 };
 
 describe("canPublish", () => {
@@ -36,5 +43,10 @@ describe("canPublish", () => {
   it("pending or gating blocks it", () => {
     expect(canPublish({ ...base, image, pending: true })).toBe(false);
     expect(canPublish({ ...base, text: "hi", gating: true })).toBe(false);
+  });
+
+  it("a photo still being prepared blocks it, even with text", () => {
+    expect(canPublish({ ...base, text: "hi", preparing: true })).toBe(false);
+    expect(canPublish({ ...base, image, preparing: true })).toBe(false);
   });
 });

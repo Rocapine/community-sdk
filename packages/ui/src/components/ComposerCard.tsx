@@ -59,7 +59,15 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { CommunitySheet, SheetScrollView } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -94,16 +102,22 @@ type ComposerCardProps = {
 };
 
 /** The POST pill's enabled state: text or an image, a valid poll (if any),
- * and no publish or `beforeSubmit` gate in flight. */
+ * and no publish, `beforeSubmit` gate or photo pick/re-encode in flight (so
+ * the text can't go out alone while its photo is still being prepared). */
 export function canPublish(s: {
   text: string;
   image: LocalImage | null;
   pollInvalid: boolean;
   pending: boolean;
   gating: boolean;
+  preparing: boolean;
 }): boolean {
   return (
-    (s.text.trim().length > 0 || s.image !== null) && !s.pollInvalid && !s.pending && !s.gating
+    (s.text.trim().length > 0 || s.image !== null) &&
+    !s.pollInvalid &&
+    !s.pending &&
+    !s.gating &&
+    !s.preparing
   );
 }
 
@@ -170,7 +184,9 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
   // gate resolves. Without this, a second tap during the await could invoke
   // `beforeSubmit` a second time concurrently.
   const [gating, setGating] = useState(false);
-  const canPost = canPublish({ text, image, pollInvalid, pending, gating });
+  // True while a photo is picked and re-encoded (1–2 s for a large one).
+  const [preparing, setPreparing] = useState(false);
+  const canPost = canPublish({ text, image, pollInvalid, pending, gating, preparing });
 
   const openTopicPicker = () => {
     // The keyboard would cover the sheet; the field is refocused on dismiss.
@@ -180,13 +196,19 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
   };
 
   const attachImage = async () => {
+    if (preparing) return;
     // Same hold as the topic picker: the library sheet blurs the field.
     setHoldExpanded(true);
     Keyboard.dismiss();
-    const picked = await pickImage();
-    // Cancelled/failed: the draft (and any attached image) stays as it was.
-    if (picked) setImage(picked);
-    setHoldExpanded(false);
+    setPreparing(true);
+    try {
+      const picked = await pickImage();
+      // Cancelled/failed: the draft (and any attached image) stays as it was.
+      if (picked) setImage(picked);
+    } finally {
+      setPreparing(false);
+      setHoldExpanded(false);
+    }
   };
 
   const togglePoll = () => {
@@ -304,12 +326,18 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
           {composing && imagesOn && pollDraft === null && (
             <Pressable
               onPress={attachImage}
+              disabled={preparing}
               hitSlop={6}
               style={styles.imageButton}
               accessibilityRole="button"
               accessibilityLabel={t("composer.addImage")}
+              accessibilityState={{ busy: preparing, disabled: preparing }}
             >
-              <icons.image size={20} color={theme.colors.accent} weight="regular" />
+              {preparing ? (
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+              ) : (
+                <icons.image size={20} color={theme.colors.accent} weight="regular" />
+              )}
             </Pressable>
           )}
           {composing && topics.length > 1 && (
