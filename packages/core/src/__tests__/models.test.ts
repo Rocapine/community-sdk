@@ -5,6 +5,7 @@ import {
   buildPoll,
   displayName,
   mapCommentRow,
+  mapImage,
   mapPostRow,
   mapProfileRow,
   newestCreatedAt,
@@ -78,6 +79,7 @@ const makePost = (over: Partial<FeedPost> = {}): FeedPost => ({
   hasReacted: false,
   lastReactorName: null,
   translation: null,
+  image: null,
   ...over,
 });
 
@@ -125,6 +127,7 @@ it("mapPostRow extracts counts, like state and ownership", () => {
     hasReacted: false,
     lastReactorName: null,
     translation: null,
+    image: null,
   });
 });
 
@@ -265,6 +268,7 @@ it("mapCommentRow maps author name and ownership", () => {
     isOwn: false,
     createdAt: "2026-07-08T11:00:00Z",
     translation: null,
+    image: null,
   });
 });
 
@@ -497,5 +501,48 @@ describe("translations", () => {
     );
     expect(comment.text).toBe("Thanks");
     expect(comment.translation).toEqual({ text: "Dzięki", sourceLocale: "en" });
+  });
+});
+
+describe("images", () => {
+  const row = { image_path: "u/a.jpg", image_width: 1200, image_height: 1600 };
+
+  it("mapImage builds the public url", () => {
+    expect(mapImage(row, "https://x/post-images/")).toEqual({
+      url: "https://x/post-images/u/a.jpg",
+      width: 1200,
+      height: 1600,
+    });
+  });
+
+  it("mapImage is null without dimensions or without a base", () => {
+    expect(
+      mapImage({ image_path: "u/a.jpg", image_width: null, image_height: null }, "https://x/"),
+    ).toBeNull();
+    expect(
+      mapImage({ image_path: "u/a.jpg", image_width: 1, image_height: 1 }, undefined),
+    ).toBeNull();
+  });
+
+  it("mapPostRow gives a null image for a row without image fields", () => {
+    expect(mapPostRow(postRow(), "u1", ANON_NAME_FALLBACK, TOPICS, new Set()).image).toBeNull();
+  });
+
+  it("mapPostRow and mapCommentRow map the image", () => {
+    const base = "https://x/post-images/";
+    const want = { url: `${base}u/a.jpg`, width: 1200, height: 1600 };
+    const post = mapPostRow(
+      postRow(row),
+      "u1",
+      ANON_NAME_FALLBACK,
+      TOPICS,
+      new Set(),
+      undefined,
+      undefined,
+      undefined,
+      base,
+    );
+    expect(post.image).toEqual(want);
+    expect(mapCommentRow(commentRow(row), "u1", "x", base).image).toEqual(want);
   });
 });

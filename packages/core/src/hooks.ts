@@ -414,6 +414,7 @@ export function useCreatePost() {
         hasReacted: false,
         lastReactorName: null,
         translation: null,
+        image: null,
       };
       const prepend = (key: readonly unknown[]) =>
         queryClient.setQueryData<InfiniteData<FeedPost[]>>(key, (d) =>
@@ -492,6 +493,7 @@ export function useCreateComment() {
         isOwn: true,
         createdAt: new Date().toISOString(),
         translation: null,
+        image: null,
       };
       queryClient.setQueryData<ThreadComment[]>(threadKey(postId, locale), (d) => [
         ...(d ?? []),

@@ -65,12 +65,18 @@ const base = {
   modules: { polls: false, push: false, inbox: false, reaction: false as const },
 };
 const locales = ["en", "es-ES", "es-419"];
-const cfgFor = (opts: { translation: boolean; polls?: boolean; locale?: string }) =>
+const cfgFor = (opts: {
+  translation: boolean;
+  polls?: boolean;
+  images?: boolean;
+  locale?: string;
+}) =>
   resolveConfig({
     ...base,
     modules: {
       ...base.modules,
       polls: opts.polls ?? false,
+      images: opts.images ?? false,
       translation: opts.translation ? { locales } : false,
     },
     host: { getLocale: () => opts.locale ?? "es-419" },
@@ -126,5 +132,25 @@ describe("threadSelect", () => {
     expect(threadSelect(cfgFor({ translation: true, locale: "fr" }))).not.toContain(
       "comment_translations",
     );
+  });
+});
+
+describe("images module selects", () => {
+  const cols = "image_path, image_width, image_height";
+
+  it("buildFeedSelect adds the image columns only when images is on", () => {
+    expect(buildFeedSelect(undefined, false, false, false)).not.toContain("image_path");
+    expect(buildFeedSelect(undefined, false, false, true)).toContain(cols);
+  });
+
+  it("puts the image columns before the extra columns", () => {
+    expect(
+      buildFeedSelect(["seed_likes"], false, false, true).endsWith("image_height, seed_likes"),
+    ).toBe(true);
+  });
+
+  it("threadSelect adds the image columns only when images is on", () => {
+    expect(threadSelect(cfgFor({ translation: false, images: true }))).toContain("image_path");
+    expect(threadSelect(cfgFor({ translation: false }))).not.toContain("image_path");
   });
 });

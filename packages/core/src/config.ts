@@ -12,6 +12,10 @@ export type CommunityModules = {
    * into these locales (must equal the backend's COMMUNITY_TRANSLATION_LOCALES
    * secret). Absent or false ⇒ every query and screen behaves as before. */
   translation?: { locales: string[] } | false;
+  /** Images module: one photo per post and per comment (public `post-images`
+   * bucket, columns added by the images migration). Absent or false ⇒ every
+   * query and screen behaves as before. */
+  images?: boolean;
 };
 
 export type CommunityHostAdapters = {
