@@ -277,7 +277,7 @@ export function ThreadSheet({
     const postId = shownId;
     const draft = { postId, body: trimmed, image: sentImage ?? undefined };
 
-    // The draft (text + image) comes back when its thread is reopened, unless
+    // A failed send: the draft (text + image) comes back when its thread is reopened, unless
     // a new one was started meanwhile — never into another thread the user
     // has moved to.
     const restoreDraft = () => {
@@ -295,11 +295,7 @@ export function ThreadSheet({
         { postId, text: trimmed, authorName, image: draft.image },
         {
           onSuccess: (res) => {
-            if (res.verdict.status !== "rejected") return;
-            // Images module (spec §2): a rejected draft comes back too. Off:
-            // 0.10 behavior, the rejected text is not restored.
-            if (cfg.modules.images) restoreDraft();
-            showNotice("rejected", postId);
+            if (res.verdict.status === "rejected") showNotice("rejected", postId);
           },
           onError: () => {
             restoreDraft();
