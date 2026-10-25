@@ -11,7 +11,8 @@
 // resurrected.
 
 import { adminClient, callerUserId, isServiceCaller, json } from "../_shared/client.ts";
-import { assertModerationConfigured, moderateInput } from "../_shared/moderation.ts";
+import { fetchImagePath, POST_IMAGES_BUCKET, postImageUrl } from "../_shared/images.ts";
+import { assertModerationConfigured, moderateItem } from "../_shared/moderation.ts";
 
 assertModerationConfigured();
 
@@ -60,7 +61,10 @@ Deno.serve(async (req) => {
     }
   }
 
-  const verdict = await moderateInput(input);
+  // Optional images module: null (also on any error) = text-only, as before.
+  const imagePath = await fetchImagePath(supabase, table, id);
+
+  const verdict = await moderateItem(input, imagePath ? postImageUrl(imagePath) : null);
   if (!verdict) {
     // Fail closed: leave pending, let the client retry / the daily sweep catch it.
     return json({ status: "pending", error: "moderation unavailable" });
@@ -68,6 +72,10 @@ Deno.serve(async (req) => {
 
   const now = new Date().toISOString();
   if (verdict.flagged) {
+    // Child-safety hit: the file goes now. Any other hide keeps it.
+    if (imagePath && verdict.categories.includes("sexual/minors")) {
+      await supabase.storage.from(POST_IMAGES_BUCKET).remove([imagePath]);
+    }
     await supabase
       .from(table)
       .update({ status: "hidden", moderation_reason: verdict.reason, moderated_at: now })
