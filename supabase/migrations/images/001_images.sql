@@ -104,3 +104,4 @@ as $$
 $$;
 
 revoke all on function public.post_images_unreferenced(int) from public, anon, authenticated;
+grant execute on function public.post_images_unreferenced(int) to service_role;
