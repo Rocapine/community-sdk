@@ -189,12 +189,12 @@ describe("runInit", () => {
     expect(fnDirs).not.toContain("notify-reaction");
   });
 
-  it("installs the translation module last, with its two functions", async () => {
+  it("installs the translation module last, with its migrations and two functions", async () => {
     await runInit(baseOptions({ modules: ["core", "polls", "translation"] }));
     const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
     const modulesInFileOrder = files.map((f) => f.split("_community_")[1]!.split("_")[0]);
     expect(modulesInFileOrder.at(-1)).toBe("translation");
-    expect(modulesInFileOrder.filter((m) => m === "translation")).toHaveLength(2);
+    expect(modulesInFileOrder.filter((m) => m === "translation")).toHaveLength(3);
     const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions")).sort();
     expect(fnDirs).toContain("translate-one");
     expect(fnDirs).toContain("daily-translation");

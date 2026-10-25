@@ -383,7 +383,7 @@ describe("runUpgrade", () => {
 
     const after = fs.readdirSync(migrationsDir).sort();
     const translationFiles = after.filter((f) => f.includes("_community_translation_"));
-    expect(translationFiles).toHaveLength(2);
+    expect(translationFiles).toHaveLength(3);
     expect(Number(translationFiles[0]!.slice(0, 14))).toBeGreaterThan(maxBeforeTimestamp);
 
     expect(fs.existsSync(path.join(cwd, "supabase", "functions", "translate-one"))).toBe(true);
