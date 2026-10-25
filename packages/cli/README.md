@@ -13,7 +13,7 @@ version. The binary is named `community`.
 ## `init`
 
 ```bash
-npx @rocapine/community init [--modules core,push,polls,reaction,inbox,translation] [--project-url <url>] [--anon-key <key>] [--dir supabase]
+npx @rocapine/community init [--modules core,push,polls,reaction,inbox,translation,images] [--project-url <url>] [--anon-key <key>] [--dir supabase]
 ```
 
 Copies the migrations and Edge Functions for the requested modules into
@@ -21,10 +21,10 @@ Copies the migrations and Edge Functions for the requested modules into
 relative to the current directory), and writes a `community-sdk.json`
 manifest at the repo root recording what was installed.
 
-- `--modules` — comma-separated (`core,push,polls,reaction,inbox,translation`). `core`
+- `--modules` — comma-separated (`core,push,polls,reaction,inbox,translation,images`). `core`
   is always implied even if omitted. Omit the flag entirely to install every
   module. Regardless of the order you type them, modules are installed
-  `core → push → polls → reaction → inbox → translation` — this order is load-bearing:
+  `core → push → polls → reaction → inbox → translation → images` — this order is load-bearing:
   the inbox module's reaction trigger is guarded at install time and must
   find the reaction module's table already present, so reaction has to land
   first. Requesting `inbox` without `reaction`, or `translation` without `polls`, prints a (non-fatal) warning (reactions missing from the inbox; poll labels left untranslated).
@@ -64,7 +64,14 @@ are only needed if a newly-added migration carries a placeholder. Fails if
 `--add-modules <modules>` installs one or more modules not yet in
 `community-sdk.json` on top of the existing backend (comma-separated, same
 parsing as `init --modules`) — e.g. `upgrade --add-modules translation` to
-add the translation module to an already-initialized app.
+add the translation module to an already-initialized app, or
+`upgrade --add-modules images` for post and comment images (then
+`supabase db push` and `supabase functions deploy`: the moderation, push-copy
+and report functions changed too). `images` ships `images/001_images.sql`
+(columns, the public `post-images` bucket with its 2 MB / JPEG-only /
+own-folder rules, and the sweep RPC); a host that already has the translation
+module also receives `translation/003_skip_empty.sql` through the plain
+`upgrade`, so image-only items are not picked again by the translation sweep.
 
 ## `adopt`
 

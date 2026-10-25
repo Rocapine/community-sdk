@@ -3,17 +3,17 @@
 A drop-in social/community layer for React Native (Expo) apps: a feed with
 topics and search, threaded comments, likes, a generic "reaction" (a second,
 private engagement signal beyond like — think prayers, cheers, support),
-polls, moderated profiles (username/bio/avatar), AI moderation
+polls, photos on posts and comments, moderated profiles (username/bio/avatar), AI moderation
 (moderate-before-publish + a daily sweep), a notification inbox, push
 notifications, and blocks/reports.
 
 It ships as three npm packages plus a versioned Supabase backend:
 
-| Package                                                                          | What it is                                                                                               | Peer deps                                                                                                                                                                                                                                     |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@rocapine/community-core`](packages/core/README.md)                            | Headless: config, models, Supabase queries, React Query hooks, anonymous identity, analytics event names | `react`, `@supabase/supabase-js`, `@tanstack/react-query`                                                                                                                                                                                     |
-| [`@rocapine/community-ui`](packages/ui/README.md)                                | Themable screens and components (feed, thread, profile, inbox)                                           | the above, plus `react-native`, `react-native-reanimated`, `@gorhom/bottom-sheet`, `react-native-gesture-handler`, `react-native-safe-area-context`, `expo-image`, `expo-haptics`, `expo-image-picker`, `expo-symbols` (optional — see below) |
-| [`@rocapine/community`](packages/cli/README.md) (CLI, `npx @rocapine/community`) | Installs/upgrades the Supabase backend: migrations + Edge Functions                                      | none (Node CLI)                                                                                                                                                                                                                               |
+| Package                                                                          | What it is                                                                                               | Peer deps                                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@rocapine/community-core`](packages/core/README.md)                            | Headless: config, models, Supabase queries, React Query hooks, anonymous identity, analytics event names | `react`, `@supabase/supabase-js`, `@tanstack/react-query`                                                                                                                                                                                                                                                               |
+| [`@rocapine/community-ui`](packages/ui/README.md)                                | Themable screens and components (feed, thread, profile, inbox)                                           | the above, plus `react-native`, `react-native-reanimated`, `@gorhom/bottom-sheet`, `react-native-gesture-handler`, `react-native-safe-area-context`, `expo-image`, `expo-haptics`, `expo-image-picker`, `expo-symbols` (optional — see below), `expo-image-manipulator` (optional; **required** with the images module) |
+| [`@rocapine/community`](packages/cli/README.md) (CLI, `npx @rocapine/community`) | Installs/upgrades the Supabase backend: migrations + Edge Functions                                      | none (Node CLI)                                                                                                                                                                                                                                                                                                         |
 
 Why two runtime packages instead of one: a host that only wants the data
 layer (a custom UI, a web admin, a bot) should not have to pull in
@@ -40,7 +40,8 @@ npm install @rocapine/community-core @rocapine/community-ui
 (also needs the peer deps listed above if your Expo app doesn't already have
 them: `@supabase/supabase-js`, `@tanstack/react-query`, `react-native-reanimated`,
 `@gorhom/bottom-sheet`, `react-native-gesture-handler`,
-`react-native-safe-area-context`, `expo-image`, `expo-haptics`, `expo-image-picker`, `expo-symbols`)
+`react-native-safe-area-context`, `expo-image`, `expo-haptics`, `expo-image-picker`, `expo-symbols`,
+and `expo-image-manipulator` if you turn on the images module)
 
 ### 2. Install the backend
 
@@ -100,6 +101,7 @@ const config: CommunityConfig = {
     reaction: { key: "cheer" },
     // must equal the backend's COMMUNITY_TRANSLATION_LOCALES secret
     translation: { locales: ["en", "es-419"] },
+    images: true, // needs expo-image-manipulator (native module)
   },
   host: {
     onEvent: (name, props) => myAnalytics.track(name, props),
@@ -159,9 +161,10 @@ backend (`--modules` at `init` time / `community-sdk.json`).
 | reaction    | `modules.reaction: { key: string } \| false`          | one generic, private, retractable secondary reaction per post (label/meaning is entirely client-side via i18n + `renderReactionButton`)                                                                                              | `supabase/migrations/reaction/*`, `notify-reaction`                                                                    |
 | inbox       | `modules.inbox: boolean`                              | server-event notification center (likes/comments/reactions/official posts, plus custom app-defined kinds)                                                                                                                            | `supabase/migrations/inbox/*`                                                                                          |
 | translation | `modules.translation: { locales: string[] } \| false` | posts, comments and poll labels translated at publication into the listed locales, shown in the reader's language with a per-item "see original"; comment pushes, official broadcasts and inbox excerpts in the recipient's language | `supabase/migrations/translation/*`, `translate-one`, `daily-translation` (+ `notify-comment`/`broadcast-post` use it) |
+| images      | `modules.images: boolean`                             | one photo per post and per comment (text optional; not combined with a poll), re-encoded on device, moderated before anyone else sees it, full-screen viewer; **needs `expo-image-manipulator`** (native module ⇒ new build)         | `supabase/migrations/images/*`, the `post-images` bucket                                                               |
 
 **Ordering note:** the CLI installs modules `core → push → polls → reaction →
-inbox → translation` regardless of the order you pass to `--modules`, because inbox's
+inbox → translation → images` regardless of the order you pass to `--modules`, because inbox's
 reaction trigger is guarded at install time and needs the reaction module's
 table to already exist. You never need to think about this — just don't
 enable `inbox` without `reaction` if you want reaction pushes to show up in
@@ -169,6 +172,27 @@ the inbox (the CLI warns if you do). Already initialized a backend and just
 want to add one more module? `npx @rocapine/community upgrade --add-modules
 translation` installs it on top of the existing backend (and applies any other
 pending upgrade: new migrations, changed function templates).
+
+## Images
+
+`modules.images: true` lets a member attach one photo to a post and one to a
+comment, alone or with text (not together with a poll). Setup:
+
+1. `npx expo install expo-image-manipulator` — a native module, so it needs a
+   new build. Without it the image buttons are hidden (and a dev build warns
+   once). Photos are re-encoded on the device (JPEG 0.8, long edge ≤ 1600 px),
+   which strips EXIF/GPS: an un-re-encoded original is never uploaded.
+2. Backend: `npx @rocapine/community upgrade --add-modules images`, then
+   `supabase db push` and `supabase functions deploy` (the moderation, push and
+   report functions changed). A translation host also gets
+   `translation/003_skip_empty.sql` on its next `upgrade`.
+3. `modules: { images: true }` in the client config.
+
+Moderation, file lifecycle and what moderators see are in
+[`docs/backend-runbook.md`](docs/backend-runbook.md#images). Type changes for
+hosts (`FeedPost.image`, `ThreadComment.image`, the `image` icon role) are in
+[`packages/core/README.md`](packages/core/README.md) and
+[`packages/ui/README.md`](packages/ui/README.md).
 
 ## Dashboard
 

@@ -44,6 +44,10 @@ const config: CommunityConfig = {
     // locales — must equal the backend's COMMUNITY_TRANSLATION_LOCALES.
     // Absent or `false` ⇒ every query and screen behaves as before.
     translation: { locales: ["en", "es-419"] },
+    // One photo per post and per comment. Needs the backend `images` module
+    // and, in the UI package, expo-image-manipulator. Absent or `false` ⇒
+    // every query and screen behaves as before.
+    images: true,
   },
 
   // Host adapters — every field optional, no-op defaults.
@@ -136,7 +140,8 @@ import { COMMUNITY_EVENTS, type CommunityEventName } from "@rocapine/community-c
 `commentPublished`, `profileOpened`, `profileUpdated`, `reactionAdded`,
 `userReported`, `userBlocked`, `contentDeleted`, `inboxOpened`,
 `translationToggled` (`community_translation_toggled`, props `{ postId | commentId, to: "original" | "translation" }`) — forwarded to
-`host.onEvent` by the exported `emitEvent(cfg, name, props)` helper. Route or
+`host.onEvent` by the exported `emitEvent(cfg, name, props)` helper. `postPublished` and `commentPublished` carry
+`hasImage: boolean` (alongside `hasPoll`). Route or
 ignore these in your own tracking plan; nothing else in the package calls an
 analytics provider directly.
 
@@ -160,6 +165,13 @@ runs in production and is silent in degraded mode.
   only when the translation module is on and the reader locale resolves);
   `text`/`content` always stay the original. Poll options carry
   `translatedLabel: string | null` alongside the original `label`.
+  `FeedPost.image` / `ThreadComment.image` are `PostImage | null`
+  (`{ url, width, height }`; `url` is a local `file://` on an optimistic item)
+  — always `null` unless `modules.images` is on. **They are required fields:**
+  a host that builds `FeedPost`/`ThreadComment` literals by hand (tests,
+  fixtures, mocks) must add `image: null`. `LocalImage` is the same shape: a
+  re-encoded local JPEG ready to upload. `mapImage(row, imageBase)` turns the
+  `image_path`/`image_width`/`image_height` columns into a `PostImage`.
 - **Locale** (`locale.ts`): `readerLocale(cfg)` — the locale translations
   are read in (the host's `getLocale()` resolved against
   `modules.translation.locales`), or `null` when the module is off or
@@ -171,7 +183,11 @@ runs in production and is silent in degraded mode.
   `fetchUserPosts`, `searchPosts`, `fetchThread`, `createPost`, `votePoll`,
   `createComment`, `moderateOne`, `setLike`, `setReaction`,
   `fetchReactionSummaries`, `reportContent`, `blockUser`, `deleteOwnPost`,
-  `deleteOwnComment`, `updateProfile`, `uploadAvatar`, `buildFeedSelect`
+  `deleteOwnComment`, `updateProfile`, `uploadAvatar`, `uploadPostImage`
+  (re-encoded JPEG → the public `post-images` bucket, `POST_IMAGES_BUCKET`,
+  under the caller's own folder; `createPost` / `createComment` take its
+  result, and `useCreatePost` / `useCreateComment` take an `image?: LocalImage`
+  and do both steps), `buildFeedSelect`
   (pure helper behind `feed.extraPostColumns`, see below).
 - **React Query hooks** (`hooks.ts`): `useCommunityFeed`, `useSearchPosts`,
   `useNewPostsCount`, `useCommunityUnseenCount`, `useThread`, `useProfile`,
