@@ -86,23 +86,14 @@ export type ContentPart =
 // Kept as an alias for update-profile (avatars).
 export type ImageInput = ContentPart[];
 
-// Text only => the plain string (unchanged request shape); with an image =>
-// content parts (text part only when non-empty).
-export function moderationParts(text: string, imageUrl: string | null): string | ContentPart[] {
-  if (!imageUrl) return text;
-  const image: ContentPart = { type: "image_url", image_url: { url: imageUrl } };
-  return text ? [{ type: "text", text }, image] : [image];
-}
-
 // POSTs to OpenAI moderation. `input` is a string for text or a content-part
-// array (image, optionally with text). `imageCategories` are the flagged
-// categories applied to the image. Returns null on a non-OK response so the
-// caller can fail closed (nothing published / nothing written).
+// array (an image-only call, so the strict image rules in flaggedCategories
+// apply). Returns null on a non-OK response so the caller can fail closed
+// (nothing published / nothing written).
 export async function moderateInput(input: string | ContentPart[]): Promise<{
   flagged: boolean;
   reason: string | null;
   categories: string[];
-  imageCategories: string[];
 } | null> {
   const res = await fetch("https://api.openai.com/v1/moderations", {
     method: "POST",
@@ -119,14 +110,33 @@ export async function moderateInput(input: string | ContentPart[]): Promise<{
   }
   const { results } = await res.json();
   const result: ModerationResult = results[0];
-  const categories = flaggedCategories(result);
-  const imageCategories = categories.filter((c) =>
-    result.category_applied_input_types?.[c]?.includes("image"),
-  );
+  const categories = flaggedCategories(results[0]);
   return {
     flagged: categories.length > 0,
     reason: categories.length > 0 ? categories.join(",") : null,
     categories,
-    imageCategories,
+  };
+}
+
+// One verdict for a post/comment. Text and image are moderated in separate
+// calls: in a combined call category_applied_input_types only says what a
+// category was evaluated over, not which part drove the score, so allowed
+// (excluded) text would be judged by the strict image rules.
+export async function moderateItem(
+  text: string,
+  imageUrl: string | null,
+): Promise<{ flagged: boolean; reason: string | null; categories: string[] } | null> {
+  const verdicts = await Promise.all([
+    text ? moderateInput(text) : { categories: [] as string[] },
+    imageUrl
+      ? moderateInput([{ type: "image_url", image_url: { url: imageUrl } }])
+      : { categories: [] as string[] },
+  ]);
+  if (verdicts.some((v) => v === null)) return null;
+  const categories = [...new Set(verdicts.flatMap((v) => v!.categories))];
+  return {
+    flagged: categories.length > 0,
+    reason: categories.length > 0 ? categories.join(",") : null,
+    categories,
   };
 }
