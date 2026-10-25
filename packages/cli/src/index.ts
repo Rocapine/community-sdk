@@ -38,7 +38,7 @@ program
   )
   .option(
     "--modules <modules>",
-    "comma-separated module list (core,push,polls,reaction,inbox,translation) — core is always implied; defaults to all modules",
+    "comma-separated module list (core,push,polls,reaction,inbox,translation,images) — core is always implied; defaults to all modules",
   )
   .option(
     "--project-url <url>",
@@ -110,7 +110,7 @@ program
   )
   .requiredOption(
     "--modules <modules>",
-    "comma-separated module list (core,push,polls,reaction,inbox,translation) — core is always implied",
+    "comma-separated module list (core,push,polls,reaction,inbox,translation,images) — core is always implied",
   )
   .option(
     "--dir <dir>",

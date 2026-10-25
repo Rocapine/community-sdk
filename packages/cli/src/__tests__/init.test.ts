@@ -200,6 +200,13 @@ describe("runInit", () => {
     expect(fnDirs).toContain("daily-translation");
   });
 
+  it("installs the images migration when the images module is selected", async () => {
+    const result = await runInit(baseOptions({ modules: ["images"] }));
+    const files = fs.readdirSync(path.join(cwd, "supabase", "migrations"));
+    expect(files.some((f) => /_community_images_images\.sql$/.test(f))).toBe(true);
+    expect(result.manifest.modules).toEqual(["core", "images"]);
+  });
+
   it("warns when translation is selected without polls, but proceeds", async () => {
     const onWarn = vi.fn();
     const result = await runInit(baseOptions({ modules: ["core", "translation"], onWarn }));
