@@ -131,8 +131,11 @@ e.g. `lib/community-config.ts`.
 2. **Modules.** Mirror exactly what Phase 1 installed: the `push`, `polls` and
    `inbox` booleans, `reaction: { key } | false`,
    `translation: { locales } | false` and `images` (boolean). Turn `images` on only
-   once `expo-image-manipulator` is in the build: without it the image buttons
-   stay hidden and a dev build warns once. If the app builds `FeedPost` or
+   once `expo-image-manipulator` is in the build (without it the image buttons
+   stay hidden and a dev build warns once) **and** the backend has the module:
+   `supabase db push` + `supabase functions deploy` first, then ship the client.
+   A client with `images` on selects the image columns in every posts query, so
+   against a backend without them the feed fails to load. If the app builds `FeedPost` or
    `ThreadComment` objects by hand (tests, fixtures), add `image: null`; a host
    that types a complete `CommunityIconSet` adds the new `image` role.
 3. **Host adapters.** Every field is optional and defaults to a no-op.
@@ -180,8 +183,9 @@ e.g. `lib/community-config.ts`.
   screen stays mounted across tab switches (native tabs), stamp the last-seen
   watermark on focus, not on mount.
 - **Profile.** `ProfileEditSheet` handles the moderated username, bio and avatar.
-  If you use the avatar picker, set `expo-image-picker`'s `photosPermission` to
-  mention the community profile photo; App Review reads this text.
+  If you use the avatar picker or the images module, set `expo-image-picker`'s
+  `photosPermission` to mention every use: the community profile photo and the
+  photos members add to posts and comments. App Review reads this text.
 - **Push module.** The SDK doesn't register the device. The app upserts its
   Expo push token into `push_tokens` (`user_id` = the community uid,
   `expo_push_token`, `notify_*` preferences) after permission is granted. It

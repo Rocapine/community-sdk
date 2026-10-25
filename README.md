@@ -186,7 +186,10 @@ comment, alone or with text (not together with a poll). Setup:
    `supabase db push` and `supabase functions deploy` (the moderation, push and
    report functions changed). A translation host also gets
    `translation/003_skip_empty.sql` on its next `upgrade`.
-3. `modules: { images: true }` in the client config.
+3. `modules: { images: true }` in the client config — only in a build that
+   ships **after** step 2 is live: with images on, every posts/comments select
+   asks for the image columns, so against a backend without them the feed and
+   threads fail to load.
 
 Moderation, file lifecycle and what moderators see are in
 [`docs/backend-runbook.md`](docs/backend-runbook.md#images). Type changes for

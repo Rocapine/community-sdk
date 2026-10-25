@@ -70,7 +70,9 @@ backend: `npx @rocapine/community upgrade --add-modules translation`. For the
 images module: `upgrade --add-modules images`, `supabase db push`, then
 `supabase functions deploy` (moderate-one, daily-moderation, update-profile,
 the notify-/broadcast- senders and report-to-slack changed with it) — see
-[Images](#images).
+[Images](#images). Do both **before** shipping a client build with
+`modules.images: true`: that client selects the image columns in every posts
+and comments query, so against a backend without them the feed breaks.
 
 ## 3. Edge Function secrets
 
@@ -261,13 +263,15 @@ the Edge Functions with the service role) and the `post_images_unreferenced()`
 sweep RPC (service role only). The client re-encodes every photo (JPEG 0.8, long
 edge ≤ 1600 px), which strips EXIF/GPS. Image-only items store `content = ''`.
 Install on an existing backend: `npx @rocapine/community upgrade --add-modules
-images`, `supabase db push`, `supabase functions deploy`. A translation host
+images`, `supabase db push`, `supabase functions deploy`, and only then ship a
+client build with `modules.images: true` (it selects the image columns: a
+backend without them breaks every posts select). A translation host
 also receives `translation/003_skip_empty.sql` (the sweep skips image-only
 items) on its next `upgrade`.
 
-- **Moderation.** `moderate-one` and `daily-moderation` make two OpenAI calls
-  for an item with an image: the text with the normal rules, the image alone
-  with the strict ones (`MODERATION_EXCLUDED_CATEGORIES` never applies to
+- **Moderation.** `moderate-one` and `daily-moderation` moderate an item's
+  text with the normal rules and its image alone with the strict ones (two
+  OpenAI calls for text + image, one for an image-only item) (`MODERATION_EXCLUDED_CATEGORIES` never applies to
   images; avatars are strict the same way). One verdict is the union. Fail
   closed: an image lookup that errors, or an image the API can't read, leaves
   the item pending (the sweep retries it); it is never published unchecked.
