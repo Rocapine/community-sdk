@@ -47,6 +47,11 @@
 //  - A host slot opening its own Modal from the post card (e.g. Eve's prayer
 //    sheet) goes through `ctx.presentModal`, which this sheet provides as
 //    "close, then open once dismissed" (`ModalHandoffContext`).
+//  - Images module (`cfg.modules.images`): while the reply field is focused or
+//    an image is attached, the avatar on the left of the reply bar becomes the
+//    add-image button; the attached photo shows as a thumbnail above the bar.
+//    A comment's image renders at 60% of its column (percentage width +
+//    aspect ratio: sized on the first layout pass, nothing jumps).
 
 import {
   COMMENT_MAX_LENGTH,
@@ -62,11 +67,19 @@ import {
   useProfile,
   useThread,
   type FeedPost,
+  type LocalImage,
   type ThreadComment,
 } from "@rocapine/community-core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { useEffect, useRef, useState, useSyncExternalStore, type ComponentRef } from "react";
+import {
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ComponentRef,
+} from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
@@ -76,6 +89,8 @@ import { ClampedBody } from "../components/ClampedBody";
 import { NoticeCard } from "../components/NoticeCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { ImageViewerContext, useImageViewerOverlay } from "../components/ImageViewer";
+import { PostImage } from "../components/PostImage";
+import { imagesSupported, pickImage } from "../utils/postImage";
 import { isQueryLoading } from "../utils/query";
 import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
 import { formatTimeAgo, useNow } from "../utils/time";
@@ -134,7 +149,11 @@ export function ThreadSheet({
    * throwing) aborts the submit silently — no mutation, no error UI, and the
    * draft text is kept exactly as typed. Meant for a host-side async gate,
    * e.g. a paywall that resolves once the user is entitled. */
-  beforeSubmitComment?: (draft: { postId: string; body: string }) => Promise<boolean>;
+  beforeSubmitComment?: (draft: {
+    postId: string;
+    body: string;
+    image?: LocalImage;
+  }) => Promise<boolean>;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -179,9 +198,18 @@ export function ThreadSheet({
   }, [postId, queryClient]);
 
   const [text, setText] = useState("");
+  const [image, setImage] = useState<LocalImage | null>(null);
+  // Read by the async send callbacks (the draft may have changed since).
+  const latestDraft = useRef({ text, image });
+  latestDraft.current = { text, image };
+  const [inputFocused, setInputFocused] = useState(false);
+  const imagesOn = !!cfg.modules.images && imagesSupported();
   // A draft belongs to its thread: reopening the same post keeps it, opening
   // another one starts empty.
-  useEffect(() => setText(""), [shownId]);
+  useEffect(() => {
+    setText("");
+    setImage(null);
+  }, [shownId]);
   // Rules gate on commenting, same shared flag as the feed composer (both
   // source apps gated the first comment behind the UGC rules sheet too).
   const rulesAccepted = useRulesAccepted(cfg);
@@ -228,38 +256,59 @@ export function ThreadSheet({
   // matching note in `ComposerCard.tsx`'s `gating` state.
   const [gating, setGating] = useState(false);
 
+  const canSend = (text.trim().length > 0 || image !== null) && !gating;
+  // Hidden while the gate runs: a photo picked meanwhile would be cleared by the send.
+  const showImageButton = imagesOn && (inputFocused || image !== null) && !gating;
+
+  const attachImage = async () => {
+    const picked = await pickImage();
+    // Cancelled/failed: any attached image stays. A new pick replaces it.
+    if (picked) setImage(picked);
+  };
+
   const send = () => {
     const trimmed = text.trim();
-    if (!trimmed || !shownId || gating) return;
+    const sentImage = image;
+    if ((!trimmed && !sentImage) || !shownId || gating) return;
     if (!rulesAccepted) {
       setRulesVisible(true);
       return;
     }
     const postId = shownId;
-    const draft = { postId, body: trimmed };
+    const draft = { postId, body: trimmed, image: sentImage ?? undefined };
+
+    // The draft (text + image) comes back when its thread is reopened, unless
+    // a new one was started meanwhile — never into another thread the user
+    // has moved to.
+    const restoreDraft = () => {
+      const now = latestDraft.current;
+      if (shownIdRef.current !== postId || now.text.trim() || now.image) return;
+      setText(trimmed);
+      setImage(sentImage);
+    };
 
     const doSend = () => {
       // Read after the gate: a host may set the display name in `beforeSubmitComment`.
       const authorName = displayName(cfg.host.getDisplayName(), cfg.authorFallback());
       haptic("medium");
       createComment.mutate(
-        { postId, text: trimmed, authorName },
+        { postId, text: trimmed, authorName, image: draft.image },
         {
           onSuccess: (res) => {
-            if (res.verdict.status === "rejected") showNotice("rejected", postId);
+            if (res.verdict.status !== "rejected") return;
+            // Images module (spec §2): a rejected draft comes back too. Off:
+            // 0.10 behavior, the rejected text is not restored.
+            if (cfg.modules.images) restoreDraft();
+            showNotice("rejected", postId);
           },
           onError: () => {
-            // Draft comes back when its thread is reopened (unless a new one
-            // was typed meanwhile), like the feed composer's — never into
-            // another thread the user has moved to.
-            if (shownIdRef.current === postId) {
-              setText((current) => (current.trim() ? current : trimmed));
-            }
+            restoreDraft();
             showNotice("network", postId);
           },
         },
       );
       setText("");
+      setImage(null);
     };
 
     if (!beforeSubmitComment) {
@@ -297,6 +346,8 @@ export function ThreadSheet({
 
   const handleDismissed = () => {
     viewer.close();
+    // The field may unmount focused, without an onBlur.
+    setInputFocused(false);
     if (pendingOpen.current) {
       const open = pendingOpen.current;
       pendingOpen.current = null;
@@ -407,50 +458,77 @@ export function ThreadSheet({
           snapTo="full"
           overlay={viewer.overlay}
           footer={
-            <View style={styles.inputRow}>
-              {myAvatarUrl ? (
-                <Image
-                  source={{ uri: myAvatarUrl }}
-                  style={styles.cAvatarImage}
-                  contentFit="cover"
-                />
-              ) : (
-                <View style={styles.cAvatar}>
-                  <Text style={styles.cAvatarLetter}>{myInitial}</Text>
+            <>
+              {image !== null && (
+                <View style={styles.thumbRow}>
+                  <Image source={{ uri: image.url }} style={styles.thumb} contentFit="cover" />
+                  <Pressable
+                    hitSlop={14}
+                    onPress={() => setImage(null)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("composer.removeImage")}
+                  >
+                    <icons.close size={16} color={theme.colors.textFaint} weight="bold" />
+                  </Pressable>
                 </View>
               )}
-              <SheetTextInput
-                ref={inputRef}
-                value={text}
-                onChangeText={setText}
-                placeholder={t("thread.commentPlaceholder")}
-                placeholderTextColor={theme.colors.textFaint}
-                style={styles.input}
-                multiline
-                maxLength={COMMENT_MAX_LENGTH}
-              />
-              <Pressable
-                hitSlop={4}
-                onPress={send}
-                disabled={gating}
-                style={styles.send}
-                accessibilityRole="button"
-                accessibilityLabel={t("a11y.send")}
-              >
-                <icons.send
-                  size={20}
-                  color={text.trim() && !gating ? theme.colors.accent : theme.colors.textFaint}
-                  weight="fill"
+              <View style={[styles.inputRow, image !== null && styles.inputRowUnderThumb]}>
+                {showImageButton ? (
+                  <Pressable
+                    onPress={attachImage}
+                    hitSlop={7}
+                    style={styles.imageButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("composer.addImage")}
+                  >
+                    <icons.image size={20} color={theme.colors.accent} weight="regular" />
+                  </Pressable>
+                ) : myAvatarUrl ? (
+                  <Image
+                    source={{ uri: myAvatarUrl }}
+                    style={styles.cAvatarImage}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={styles.cAvatar}>
+                    <Text style={styles.cAvatarLetter}>{myInitial}</Text>
+                  </View>
+                )}
+                <SheetTextInput
+                  ref={inputRef}
+                  value={text}
+                  onChangeText={setText}
+                  placeholder={t("thread.commentPlaceholder")}
+                  placeholderTextColor={theme.colors.textFaint}
+                  style={styles.input}
+                  multiline
+                  maxLength={COMMENT_MAX_LENGTH}
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={() => setInputFocused(false)}
                 />
-              </Pressable>
-              {/* Rules gate: swallow every touch on the comment box until the UGC
-                rules are accepted (mirrors `ComposerCard`'s overlay). */}
-              {!rulesAccepted && (
-                <Pressable style={StyleSheet.absoluteFill} onPress={() => setRulesVisible(true)}>
-                  <View />
+                <Pressable
+                  hitSlop={4}
+                  onPress={send}
+                  disabled={gating}
+                  style={styles.send}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("a11y.send")}
+                >
+                  <icons.send
+                    size={20}
+                    color={canSend ? theme.colors.accent : theme.colors.textFaint}
+                    weight="fill"
+                  />
                 </Pressable>
-              )}
-            </View>
+                {/* Rules gate: swallow every touch on the comment box until the UGC
+                rules are accepted (mirrors `ComposerCard`'s overlay). */}
+                {!rulesAccepted && (
+                  <Pressable style={StyleSheet.absoluteFill} onPress={() => setRulesVisible(true)}>
+                    <View />
+                  </Pressable>
+                )}
+              </View>
+            </>
           }
         >
           {/* The whole thread (post + every comment) scrolls; the composer is the
@@ -530,6 +608,7 @@ function CommentRow({
   const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
   const cfg = useCommunityConfig();
+  const openImage = useContext(ImageViewerContext);
 
   const [showOriginal, setShowOriginal] = useState(false);
   const toggleLine = translationLine(t, comment, showOriginal);
@@ -574,13 +653,21 @@ function CommentRow({
           )}
           <Text style={styles.cAgo}>· {formatTimeAgo(t, comment.createdAt, now)}</Text>
         </Pressable>
-        <ClampedBody
-          text={displayText(comment, showOriginal)}
-          alternate={comment.translation ? displayText(comment, !showOriginal) : null}
-          clampLines={COMMENT_CLAMP_LINES}
-          textStyle={styles.cText}
-          viewMoreStyle={styles.cViewMore}
-        />
+        {/* Image-only comments store an empty text. */}
+        {comment.text !== "" && (
+          <ClampedBody
+            text={displayText(comment, showOriginal)}
+            alternate={comment.translation ? displayText(comment, !showOriginal) : null}
+            clampLines={COMMENT_CLAMP_LINES}
+            textStyle={styles.cText}
+            viewMoreStyle={styles.cViewMore}
+          />
+        )}
+        {comment.image && (
+          <View style={styles.cImage}>
+            <PostImage image={comment.image} onOpen={openImage} />
+          </View>
+        )}
         {toggleLine && (
           <Pressable hitSlop={8} onPress={toggleOriginal} style={styles.link}>
             <Text style={styles.cTranslationLine}>{toggleLine}</Text>
@@ -715,5 +802,25 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textPrimary,
     },
     send: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+    // Same 30-pt slot as the avatar it replaces (44-pt target via hitSlop).
+    imageButton: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
+    // With a thumbnail, the bar's top border moves up above it.
+    thumbRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: theme.spacing(2),
+      paddingTop: theme.spacing(3),
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+    },
+    thumb: {
+      width: 56,
+      height: 56,
+      borderRadius: theme.radius.sm,
+      backgroundColor: theme.colors.surfaceMuted,
+    },
+    inputRowUnderThumb: { borderTopWidth: 0, paddingTop: theme.spacing(2) },
+    // 60% of the comment column, height from the image's (clamped) ratio.
+    cImage: { width: "60%", marginTop: theme.spacing(2) },
   });
 }

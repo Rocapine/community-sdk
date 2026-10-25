@@ -149,7 +149,11 @@ export function CommunityFeedScreen({
   }) => Promise<boolean>;
   /** Forwarded to this screen's own `ThreadSheet` as `beforeSubmitComment` —
    * see that prop's doc comment. Absent ⇒ byte-identical behavior. */
-  beforeSubmitComment?: (draft: { postId: string; body: string }) => Promise<boolean>;
+  beforeSubmitComment?: (draft: {
+    postId: string;
+    body: string;
+    image?: LocalImage;
+  }) => Promise<boolean>;
 }) {
   const theme = useCommunityTheme();
   const t = useT();

@@ -273,7 +273,11 @@ type BeforeSubmitPost = (draft: {
   image?: LocalImage; // images module: the attached, re-encoded photo
 }) => Promise<boolean>;
 
-type BeforeSubmitComment = (draft: { postId: string; body: string }) => Promise<boolean>;
+type BeforeSubmitComment = (draft: {
+  postId: string;
+  body: string;
+  image?: LocalImage; // images module
+}) => Promise<boolean>;
 ```
 
 Both props are optional and **default-inert** — omit them and behavior is
