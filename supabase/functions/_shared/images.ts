@@ -11,15 +11,51 @@ export function postImageUrl(path: string): string {
   return `${SUPABASE_URL}/storage/v1/object/public/${POST_IMAGES_BUCKET}/${path}`;
 }
 
+// PostgREST relays Postgres' undefined_column: the install has no images
+// module. Any other error is a transient failure, never "no image".
+const UNDEFINED_COLUMN = "42703";
+
 // Separate select (never part of a wider one) so an install without the images
-// module — where image_path doesn't exist — keeps its text-only behavior: any
-// error means "no image".
+// module keeps its text-only behavior: only a missing column means "no image".
+// Any other error is `ok: false` and the caller must fail closed, otherwise an
+// unchecked image could be published.
 export async function fetchImagePath(
   supabase: Admin,
   table: "posts" | "comments",
   id: string,
-): Promise<string | null> {
+): Promise<{ ok: true; path: string | null } | { ok: false }> {
   const { data, error } = await supabase.from(table).select("image_path").eq("id", id).single();
-  if (error) return null;
-  return (data as { image_path: string | null } | null)?.image_path ?? null;
+  if (error) return error.code === UNDEFINED_COLUMN ? { ok: true, path: null } : { ok: false };
+  return { ok: true, path: (data as { image_path: string | null } | null)?.image_path ?? null };
+}
+
+// Batch variant for the daily sweep, chunked so a backlog can't build an
+// over-long URL. `paths` holds the rows that have an image; `failedIds` the
+// rows whose chunk errored (caller must not process them this run). A missing
+// column ends the lookup: no images module, nobody has an image.
+export async function fetchImagePaths(
+  supabase: Admin,
+  table: "posts" | "comments",
+  ids: string[],
+  chunkSize = 100,
+): Promise<{ paths: Map<string, string>; failedIds: Set<string> }> {
+  const paths = new Map<string, string>();
+  const failedIds = new Set<string>();
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const { data, error } = await supabase
+      .from(table)
+      .select("id, image_path")
+      .in("id", chunk)
+      .not("image_path", "is", null);
+    if (error) {
+      if (error.code === UNDEFINED_COLUMN) return { paths: new Map(), failedIds: new Set() };
+      chunk.forEach((id) => failedIds.add(id));
+      continue;
+    }
+    for (const r of (data ?? []) as { id: string; image_path: string }[]) {
+      paths.set(r.id, r.image_path);
+    }
+  }
+  return { paths, failedIds };
 }

@@ -19,7 +19,7 @@ import {
   moderateItem,
   type ModerationResult,
 } from "../_shared/moderation.ts";
-import { POST_IMAGES_BUCKET, postImageUrl } from "../_shared/images.ts";
+import { fetchImagePaths, POST_IMAGES_BUCKET, postImageUrl } from "../_shared/images.ts";
 import { postToSlack } from "../_shared/slack.ts";
 
 assertModerationConfigured();
@@ -32,6 +32,8 @@ interface Item {
   author_id: string;
   status: string;
   imagePath: string | null;
+  // The image_path lookup errored: not moderated (nor stamped/promoted) this run.
+  imageLookupFailed: boolean;
   profiles: {
     username: string | null;
     amplitude_id: string | null;
@@ -65,24 +67,6 @@ async function moderateBatch(inputs: string[]): Promise<ModerationResult[] | nul
   } catch {
     return null;
   }
-}
-
-/** image_path per row id. The images module is optional: on an install
- * without the column the select errors and every item is text-only. */
-async function fetchImagePaths(
-  table: "posts" | "comments",
-  ids: string[],
-): Promise<Map<string, string>> {
-  const paths = new Map<string, string>();
-  if (ids.length === 0) return paths;
-  const { data, error } = await supabase
-    .from(table)
-    .select("id, image_path")
-    .in("id", ids)
-    .not("image_path", "is", null);
-  if (error) return paths;
-  for (const r of data ?? []) paths.set(r.id, r.image_path);
-  return paths;
 }
 
 interface ProfileItem {
@@ -202,17 +186,20 @@ Deno.serve(async () => {
     }
   }
   const postImages = await fetchImagePaths(
+    supabase,
     "posts",
     (posts ?? []).map((p) => p.id),
   );
   const commentImages = await fetchImagePaths(
+    supabase,
     "comments",
     (comments ?? []).map((c) => c.id),
   );
   const items: Item[] = [
     ...(posts ?? []).map((p) => ({
       ...p,
-      imagePath: postImages.get(p.id) ?? null,
+      imagePath: postImages.paths.get(p.id) ?? null,
+      imageLookupFailed: postImages.failedIds.has(p.id),
       profiles: toOne(p.profiles),
       content: [
         p.content,
@@ -222,7 +209,8 @@ Deno.serve(async () => {
     })),
     ...(comments ?? []).map((c) => ({
       ...c,
-      imagePath: commentImages.get(c.id) ?? null,
+      imagePath: commentImages.paths.get(c.id) ?? null,
+      imageLookupFailed: commentImages.failedIds.has(c.id),
       profiles: toOne(c.profiles),
       table: "comments" as const,
     })),
@@ -233,7 +221,8 @@ Deno.serve(async () => {
   const flagged: { item: Item; categories: string[] }[] = [];
   const processed: Item[] = [];
   let failedBatches = 0;
-  const textItems = items.filter((it) => !it.imagePath);
+  const textItems = items.filter((it) => !it.imagePath && !it.imageLookupFailed);
+  if (items.some((it) => it.imageLookupFailed)) failedBatches++;
   for (let i = 0; i < textItems.length; i += 100) {
     const batch = textItems.slice(i, i + 100);
     const results = await moderateBatch(batch.map((it) => it.content));

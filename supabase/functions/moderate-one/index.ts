@@ -61,8 +61,11 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Optional images module: null (also on any error) = text-only, as before.
-  const imagePath = await fetchImagePath(supabase, table, id);
+  // Optional images module: no column = text-only, as before. Any other
+  // lookup error fails closed (an unchecked image must never be published).
+  const image = await fetchImagePath(supabase, table, id);
+  if (!image.ok) return json({ status: "pending", error: "image lookup failed" });
+  const imagePath = image.path;
 
   const verdict = await moderateItem(input, imagePath ? postImageUrl(imagePath) : null);
   if (!verdict) {
