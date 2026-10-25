@@ -26,6 +26,11 @@
 // layout): while composing, the field grows downwards and a topic select sits
 // in its bottom-right corner, preset to the feed's current topic.
 //
+// Images module (`cfg.modules.images`): an icon-only Image button sits in the
+// bottom-left corner of the same row; the picked photo shows as a thumbnail
+// under the text. A post carries a poll or an image, never both: the button
+// hides while a poll is open, and an attached image disables the Poll toggle.
+//
 // `onModerationRejected` (added in Task 12's review round, cross-file touch
 // explicitly authorized there): this card's own `createPost.mutate(...)` call
 // originally had no success/error callback at all, so `CommunityFeedScreen`
@@ -43,7 +48,9 @@ import {
   POST_MAX_LENGTH,
   useCommunityConfig,
   useCreatePost,
+  type LocalImage,
 } from "@rocapine/community-core";
+import { Image } from "expo-image";
 import {
   forwardRef,
   useEffect,
@@ -57,6 +64,7 @@ import { CommunitySheet, SheetScrollView } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { runGuarded } from "../utils/gate";
+import { imageFrame, imagesSupported, pickImage } from "../utils/postImage";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { AnimatedHeight } from "./AnimatedHeight";
 import { haptic, PressableScale } from "./PressableScale";
@@ -81,8 +89,25 @@ type ComposerCardProps = {
     topic: string;
     body: string;
     pollOptions?: string[];
+    image?: LocalImage;
   }) => Promise<boolean>;
 };
+
+/** The POST pill's enabled state: text or an image, a valid poll (if any),
+ * and no publish or `beforeSubmit` gate in flight. */
+export function canPublish(s: {
+  text: string;
+  image: LocalImage | null;
+  pollInvalid: boolean;
+  pending: boolean;
+  gating: boolean;
+}): boolean {
+  return (
+    (s.text.trim().length > 0 || s.image !== null) && !s.pollInvalid && !s.pending && !s.gating
+  );
+}
+
+const THUMB_MAX_WIDTH = 120;
 
 export interface ComposerCardHandle {
   /** Focuses the text field, or opens the rules gate while still locked. */
@@ -113,9 +138,11 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
   const [inputFocused, setInputFocused] = useState(false);
   // null = no poll on this draft; an array = the poll editor is open.
   const [pollDraft, setPollDraft] = useState<string[] | null>(null);
+  const [image, setImage] = useState<LocalImage | null>(null);
   // Read by the async publish callbacks (the draft may have changed since).
-  const latestDraft = useRef({ text, pollDraft });
-  latestDraft.current = { text, pollDraft };
+  const latestDraft = useRef({ text, pollDraft, image });
+  latestDraft.current = { text, pollDraft, image };
+  const imagesOn = !!cfg.modules.images && imagesSupported();
 
   // Rules gate: the shared in-memory mirror of `cfg.host.rulesAcceptance`
   // (see utils/rulesAcceptance.ts) — locked until the adapter answers, and
@@ -132,7 +159,7 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
   }));
 
   // Like a plain post: adding a poll alone doesn't expand the field.
-  const composing = inputFocused || holdExpanded || text.trim().length > 0;
+  const composing = inputFocused || holdExpanded || text.trim().length > 0 || image !== null;
 
   const filledPollOptions = (pollDraft ?? []).map((o) => o.trim()).filter((o) => o.length > 0);
   const pollInvalid = pollDraft !== null && filledPollOptions.length < POLL_MIN_OPTIONS;
@@ -143,13 +170,23 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
   // gate resolves. Without this, a second tap during the await could invoke
   // `beforeSubmit` a second time concurrently.
   const [gating, setGating] = useState(false);
-  const canPost = text.trim().length > 0 && !pollInvalid && !pending && !gating;
+  const canPost = canPublish({ text, image, pollInvalid, pending, gating });
 
   const openTopicPicker = () => {
     // The keyboard would cover the sheet; the field is refocused on dismiss.
     setHoldExpanded(true);
     Keyboard.dismiss();
     setTopicPickerOpen(true);
+  };
+
+  const attachImage = async () => {
+    // Same hold as the topic picker: the library sheet blurs the field.
+    setHoldExpanded(true);
+    Keyboard.dismiss();
+    const picked = await pickImage();
+    // Cancelled/failed: the draft (and any attached image) stays as it was.
+    if (picked) setImage(picked);
+    setHoldExpanded(false);
   };
 
   const togglePoll = () => {
@@ -163,6 +200,7 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
       topic,
       body: text.trim(),
       pollOptions: pollDraft !== null ? filledPollOptions : undefined,
+      image: image ?? undefined,
     };
 
     const doSubmit = () => {
@@ -175,18 +213,20 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
           text: draft.body,
           authorName,
           pollOptions: draft.pollOptions,
+          image: draft.image,
         },
         {
           onSuccess: (result) => {
             if (result.verdict.status === "rejected") onModerationRejected?.("post");
           },
           onError: () => {
-            // Hand the draft (text + poll together) back unless a new one
-            // was started meanwhile.
+            // Hand the draft (text + poll + image together) back unless a
+            // new one was started meanwhile.
             const now = latestDraft.current;
-            if (!now.text.trim() && now.pollDraft === null) {
+            if (!now.text.trim() && now.pollDraft === null && now.image === null) {
               setText(draft.body);
               setPollDraft(draft.pollOptions ? [...draft.pollOptions] : null);
+              setImage(draft.image ?? null);
             }
             onPublishFailed?.();
           },
@@ -194,6 +234,7 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
       );
       setText("");
       setPollDraft(null);
+      setImage(null);
       Keyboard.dismiss();
     };
 
@@ -237,8 +278,40 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
             accessibilityLabel={placeholder}
             multiline
             maxLength={POST_MAX_LENGTH}
-            style={[styles.input, composing && styles.inputComposing]}
+            style={[
+              styles.input,
+              composing && styles.inputComposing,
+              image !== null && styles.inputWithImage,
+            ]}
           />
+          {image !== null && (
+            <View style={styles.thumbRow}>
+              <Image
+                source={{ uri: image.url }}
+                style={[imageFrame(image, THUMB_MAX_WIDTH), styles.thumb]}
+                contentFit="cover"
+              />
+              <Pressable
+                hitSlop={14}
+                onPress={() => setImage(null)}
+                accessibilityRole="button"
+                accessibilityLabel={t("composer.removeImage")}
+              >
+                <icons.close size={16} color={theme.colors.textFaint} weight="bold" />
+              </Pressable>
+            </View>
+          )}
+          {composing && imagesOn && pollDraft === null && (
+            <Pressable
+              onPress={attachImage}
+              hitSlop={6}
+              style={styles.imageButton}
+              accessibilityRole="button"
+              accessibilityLabel={t("composer.addImage")}
+            >
+              <icons.image size={20} color={theme.colors.accent} weight="regular" />
+            </Pressable>
+          )}
           {composing && topics.length > 1 && (
             <PressableScale
               onPress={openTopicPicker}
@@ -299,9 +372,20 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
 
       <View style={styles.footer}>
         {cfg.modules.polls && (
-          <Pressable onPress={togglePoll} hitSlop={6} style={styles.pollToggle}>
-            <icons.poll size={18} color={theme.colors.accent} weight="regular" />
-            <Text style={styles.pollToggleText}>
+          <Pressable
+            onPress={togglePoll}
+            disabled={image !== null}
+            hitSlop={6}
+            style={styles.pollToggle}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: image !== null }}
+          >
+            <icons.poll
+              size={18}
+              color={image !== null ? theme.colors.textFaint : theme.colors.accent}
+              weight="regular"
+            />
+            <Text style={[styles.pollToggleText, image !== null && styles.pollToggleTextOff]}>
               {pollDraft !== null ? t("composer.removePoll") : t("composer.poll")}
             </Text>
           </Pressable>
@@ -399,6 +483,24 @@ const makeStyles = (theme: CommunityTheme) =>
     placeholder: { position: "absolute", left: 0, right: 0, color: theme.colors.textFaint },
     // Taller while composing, with room for the topic select underneath.
     inputComposing: { minHeight: 132, paddingBottom: theme.spacing(12) },
+    // The thumbnail below holds the row's room, so the field keeps its resting size.
+    inputWithImage: { minHeight: 84, paddingBottom: theme.spacing(2) },
+    thumbRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: theme.spacing(2),
+      paddingHorizontal: theme.spacing(3.5),
+      paddingBottom: theme.spacing(12),
+    },
+    thumb: { borderRadius: theme.radius.sm, backgroundColor: theme.colors.surface },
+    imageButton: {
+      position: "absolute",
+      left: theme.spacing(2),
+      bottom: theme.spacing(2),
+      height: 32,
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing(2),
+    },
     topicSelect: {
       position: "absolute",
       right: theme.spacing(2),
@@ -486,6 +588,7 @@ const makeStyles = (theme: CommunityTheme) =>
       fontSize: 13.5,
       color: theme.colors.accent,
     },
+    pollToggleTextOff: { color: theme.colors.textFaint },
     // Concentric with the card corner it sits in (radius.lg − spacing(4)).
     postBtn: {
       marginLeft: "auto",

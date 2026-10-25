@@ -81,6 +81,7 @@ import {
   useProfile,
   useSearchPosts,
   type FeedPost,
+  type LocalImage,
   useUnreadNotificationCount,
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
@@ -144,6 +145,7 @@ export function CommunityFeedScreen({
     topic: string;
     body: string;
     pollOptions?: string[];
+    image?: LocalImage;
   }) => Promise<boolean>;
   /** Forwarded to this screen's own `ThreadSheet` as `beforeSubmitComment` —
    * see that prop's doc comment. Absent ⇒ byte-identical behavior. */

@@ -169,7 +169,7 @@ so the icon set is injectable — `expo-symbols` is an optional peer
 looked up by a semantic role name (`CommunityIconName`: `like`, `comment`,
 `reaction`, `menu`, `back`, `close`, `send`, `bell`, `search`,
 `officialSeal`, `pin`, `announcement`, `checkmark`, `poll`, `add`,
-`warning`, `compose`), never by a glyph name.
+`warning`, `compose`, `image`), never by a glyph name.
 
 ```tsx
 import { CommunityUIProvider, type CommunityIconSet } from "@rocapine/community-ui";
@@ -270,6 +270,7 @@ type BeforeSubmitPost = (draft: {
   topic: string;
   body: string;
   pollOptions?: string[];
+  image?: LocalImage; // images module: the attached, re-encoded photo
 }) => Promise<boolean>;
 
 type BeforeSubmitComment = (draft: { postId: string; body: string }) => Promise<boolean>;

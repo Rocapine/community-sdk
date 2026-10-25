@@ -110,6 +110,7 @@ export const defaultIcons: CommunityIconSet = {
     material: "gpp_maybe",
   }),
   compose: fromSymbols("compose", { ios: "pencil", material: "edit" }),
+  image: fromSymbols("image", { ios: "photo", material: "image" }),
 };
 
 /** Merges a host's `icons` override over `defaultIcons` — used by
