@@ -108,9 +108,11 @@ Anti-goals (would be a failure even if it works):
    a Modal over the thread Modal froze the app before (0.4.2 bug).
 8. **Images are moderated strictly, whatever the text policy.** `MODERATION_EXCLUDED_CATEGORIES`
    exists so an app can let people _talk_ about sex/addiction (plausible for Unchaind); it must not
-   loosen image moderation. Still one OpenAI call per item: the response's
-   `category_applied_input_types` tells whether a category fired on the image, and for those the
-   exclusions are ignored (full `SCORE_HIDE` list + OpenAI's flag). Same rule in `daily-moderation`.
+   loosen image moderation. An item with an image gets two OpenAI calls (free): the text with the
+   normal rules, the image alone with the full `SCORE_HIDE` list; one verdict = union. (A single
+   combined call can't tell which part drove a score.) Avatars become strict the same way.
+   OpenAI scores `sexual/minors` on text only, so the "delete at once" rule applies to an item whose
+   verdict includes `sexual/minors` and that carries an image. Same rules in `daily-moderation`.
 9. **Image-only items store `content = ''`** with the column kept NOT NULL (check relaxed to
    "text or image"), so an older SDK client reading the row never gets a null string.
 10. **Analytics**: existing post/comment events gain a `has_image` boolean; no new event names
