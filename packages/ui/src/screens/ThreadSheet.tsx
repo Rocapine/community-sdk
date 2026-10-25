@@ -659,15 +659,15 @@ function CommentRow({
             viewMoreStyle={styles.cViewMore}
           />
         )}
-        {comment.image && (
-          <View style={styles.cImage}>
-            <PostImage image={comment.image} onOpen={openImage} />
-          </View>
-        )}
         {toggleLine && (
           <Pressable hitSlop={8} onPress={toggleOriginal} style={styles.link}>
             <Text style={styles.cTranslationLine}>{toggleLine}</Text>
           </Pressable>
+        )}
+        {comment.image && (
+          <View style={styles.cImage}>
+            <PostImage image={comment.image} onOpen={openImage} />
+          </View>
         )}
       </View>
       <Pressable
