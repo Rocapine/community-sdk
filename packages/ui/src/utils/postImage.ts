@@ -20,6 +20,8 @@ type ImageRef = {
   width: number;
   height: number;
   saveAsync(options: { compress?: number; format?: string }): Promise<{ uri: string }>;
+  // SharedObject.release(): frees the native bitmap without waiting for GC.
+  release?(): void;
 };
 type Manipulation = {
   resize(size: { width?: number; height?: number }): Manipulation;
@@ -99,6 +101,8 @@ export async function prepareImage(uri: string): Promise<LocalImage | null> {
     if (long > IMAGE_MAX_EDGE) {
       // One dimension only keeps the aspect ratio.
       const size = ref.width >= ref.height ? { width: IMAGE_MAX_EDGE } : { height: IMAGE_MAX_EDGE };
+      // Free the full-resolution bitmap before decoding the source a second time.
+      ref.release?.();
       ref = await mod.ImageManipulator.manipulate(uri).resize(size).renderAsync();
     }
     const saved = await ref.saveAsync({ compress: 0.8, format: mod.SaveFormat?.JPEG ?? "jpeg" });

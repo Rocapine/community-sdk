@@ -26,7 +26,7 @@ describe("imageFrame", () => {
 
 // A fake manipulator: `rendered` is the post-orientation size of the source.
 function fakeManipulator(rendered: { width: number; height: number }, fail = false) {
-  const calls: { resize?: unknown; save?: unknown } = {};
+  const calls: { resize?: unknown; save?: unknown; log: string[] } = { log: [] };
   const mod = {
     ImageManipulator: {
       manipulate: () => ({
@@ -36,6 +36,7 @@ function fakeManipulator(rendered: { width: number; height: number }, fail = fal
         },
         renderAsync: async () => {
           if (fail) throw new Error("boom");
+          calls.log.push(calls.resize ? "render resized" : "render");
           const out = calls.resize
             ? (() => {
                 const s = calls.resize as { width?: number; height?: number };
@@ -48,6 +49,7 @@ function fakeManipulator(rendered: { width: number; height: number }, fail = fal
             : rendered;
           return {
             ...out,
+            release: () => calls.log.push(`release ${out.width}`),
             saveAsync: async (o: unknown) => {
               calls.save = o;
               return { uri: "file://out.jpg" };
@@ -80,6 +82,8 @@ describe("prepareImage", () => {
     });
     expect(calls.resize).toEqual({ width: 1600 });
     expect(calls.save).toEqual({ compress: 0.8, format: "jpeg" });
+    // The full-resolution ref is freed before the second decode.
+    expect(calls.log).toEqual(["render", "release 4000", "render resized"]);
   });
   it("uses the rendered (oriented) size: portrait resizes by height", async () => {
     const { mod, calls } = fakeManipulator({ width: 3000, height: 4000 });
