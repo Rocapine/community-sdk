@@ -11,9 +11,10 @@ export function postImageUrl(path: string): string {
   return `${SUPABASE_URL}/storage/v1/object/public/${POST_IMAGES_BUCKET}/${path}`;
 }
 
-// PostgREST relays Postgres' undefined_column: the install has no images
-// module. Any other error is a transient failure, never "no image".
-const UNDEFINED_COLUMN = "42703";
+// Postgres' undefined_column (42703) or PostgREST's own "column not found"
+// (PGRST204): the install has no images module. Any other error is a transient
+// failure, never "no image".
+const isMissingColumn = (code: string | undefined) => code === "42703" || code === "PGRST204";
 
 // Separate select (never part of a wider one) so an install without the images
 // module keeps its text-only behavior: only a missing column means "no image".
@@ -25,7 +26,7 @@ export async function fetchImagePath(
   id: string,
 ): Promise<{ ok: true; path: string | null } | { ok: false }> {
   const { data, error } = await supabase.from(table).select("image_path").eq("id", id).single();
-  if (error) return error.code === UNDEFINED_COLUMN ? { ok: true, path: null } : { ok: false };
+  if (error) return isMissingColumn(error.code) ? { ok: true, path: null } : { ok: false };
   return { ok: true, path: (data as { image_path: string | null } | null)?.image_path ?? null };
 }
 
@@ -49,7 +50,7 @@ export async function fetchImagePaths(
       .in("id", chunk)
       .not("image_path", "is", null);
     if (error) {
-      if (error.code === UNDEFINED_COLUMN) return { paths: new Map(), failedIds: new Set() };
+      if (isMissingColumn(error.code)) return { paths: new Map(), failedIds: new Set() };
       chunk.forEach((id) => failedIds.add(id));
       continue;
     }

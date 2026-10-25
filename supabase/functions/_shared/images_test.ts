@@ -29,6 +29,10 @@ function stub(result: (ids?: string[]) => unknown) {
 }
 
 const missingColumn = { error: { code: "42703", message: "column does not exist" }, data: null };
+const missingColumnPgrst = {
+  error: { code: "PGRST204", message: "Could not find the 'image_path' column" },
+  data: null,
+};
 const transient = { error: { code: "", message: "fetch failed" }, data: null };
 
 Deno.test("fetchImagePath: path, none, missing column => no image", async () => {
@@ -49,6 +53,10 @@ Deno.test("fetchImagePath: path, none, missing column => no image", async () => 
     { ok: true, path: null },
   );
   assertEquals(await fetchImagePath(stub(() => missingColumn).client, "posts", "1"), {
+    ok: true,
+    path: null,
+  });
+  assertEquals(await fetchImagePath(stub(() => missingColumnPgrst).client, "posts", "1"), {
     ok: true,
     path: null,
   });
@@ -81,5 +89,12 @@ Deno.test(
 
     const noModule = await fetchImagePaths(stub(() => missingColumn).client, "posts", ids, 2);
     assertEquals(noModule.paths.size + noModule.failedIds.size, 0);
+    const noModulePgrst = await fetchImagePaths(
+      stub(() => missingColumnPgrst).client,
+      "posts",
+      ids,
+      2,
+    );
+    assertEquals(noModulePgrst.paths.size + noModulePgrst.failedIds.size, 0);
   },
 );
