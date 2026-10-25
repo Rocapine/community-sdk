@@ -199,4 +199,9 @@ export const pl: Record<string, string> = {
   "a11y.search": "Szukaj",
   "a11y.closeSearch": "Zamknij wyszukiwanie",
   "a11y.clearSearch": "Wyczyść wyszukiwanie",
+  "composer.addImage": "Dodaj obraz",
+  "composer.removeImage": "Usuń obraz",
+  "image.photo": "📷 Zdjęcie",
+  "a11y.openImage": "Otwórz obraz",
+  "a11y.closeImage": "Zamknij",
 };

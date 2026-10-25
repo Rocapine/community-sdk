@@ -169,4 +169,9 @@ export const es419: Record<string, string> = {
   "a11y.search": "Buscar",
   "a11y.closeSearch": "Cerrar búsqueda",
   "a11y.clearSearch": "Borrar búsqueda",
+  "composer.addImage": "Agregar una imagen",
+  "composer.removeImage": "Quitar la imagen",
+  "image.photo": "📷 Foto",
+  "a11y.openImage": "Abrir imagen",
+  "a11y.closeImage": "Cerrar",
 };
