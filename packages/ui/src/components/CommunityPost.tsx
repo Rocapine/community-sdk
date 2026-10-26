@@ -312,11 +312,13 @@ function makeStyles(theme: CommunityTheme) {
     },
     header: {
       flexDirection: "row",
+      // Hug the avatar + name so only they open the profile, not the empty space to their right.
+      alignSelf: "flex-start",
       alignItems: "center",
       gap: theme.spacing(3),
       marginBottom: theme.spacing(3),
     },
-    headerText: { flex: 1 },
+    headerText: { flexShrink: 1 },
     avatar: {
       width: 40,
       height: 40,

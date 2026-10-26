@@ -13,7 +13,6 @@ import {
   normalizeTopic,
   pollPercent,
   type CommentRow,
-  type CommunityProfile,
   type FeedPost,
   type PostRow,
 } from "../models";
@@ -90,10 +89,11 @@ it("displayName falls back for missing usernames", () => {
   expect(displayName(undefined, ANON_NAME_FALLBACK)).toBe(ANON_NAME_FALLBACK);
 });
 
-it("displayName falls back to the configured anonymous name", () => {
-  expect(displayName({ username: null, handle: "x" } as CommunityProfile, "Wanderer")).toBe(
-    "Wanderer",
-  );
+it("displayName prefers username, then a chosen handle, then the configured fallback", () => {
+  expect(displayName({ username: "Stan", handle: "stanmd" }, "Wanderer")).toBe("Stan");
+  expect(displayName({ username: null, handle: "stanmd" }, "Wanderer")).toBe("stanmd");
+  expect(displayName({ username: " ", handle: " " }, "Wanderer")).toBe("Wanderer");
+  expect(displayName({ username: null, handle: null }, "Wanderer")).toBe("Wanderer");
 });
 
 it("normalizeTopic accepts known topics and keeps unknown ones visible under their raw id", () => {
