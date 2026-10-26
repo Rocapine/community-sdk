@@ -174,6 +174,7 @@ export const uk: Record<string, string> = {
   "a11y.search": "Пошук",
   "a11y.closeSearch": "Закрити пошук",
   "a11y.clearSearch": "Очистити пошук",
+  "a11y.myProfile": "Мій профіль",
   "composer.addImage": "Додати зображення",
   "composer.removeImage": "Видалити зображення",
   "image.photo": "📷 Фото",

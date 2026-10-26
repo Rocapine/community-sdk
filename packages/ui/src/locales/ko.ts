@@ -161,6 +161,7 @@ export const ko: Record<string, string> = {
   "a11y.search": "검색",
   "a11y.closeSearch": "검색 닫기",
   "a11y.clearSearch": "검색어 지우기",
+  "a11y.myProfile": "내 프로필",
   "composer.addImage": "이미지 추가",
   "composer.removeImage": "이미지 삭제",
   "image.photo": "📷 사진",

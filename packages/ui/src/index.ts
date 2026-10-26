@@ -51,7 +51,12 @@ export { RulesSheet } from "./components/RulesSheet";
 export type { ReportTarget } from "./components/ReportSheet";
 export { ReportSheet } from "./components/ReportSheet";
 
-export { CommunityFeedScreen } from "./screens/CommunityFeedScreen";
+export {
+  CommunityFeedScreen,
+  DEFAULT_FEED_HEADER_LAYOUT,
+  type FeedHeaderButton,
+  type FeedHeaderLayout,
+} from "./screens/CommunityFeedScreen";
 export { ThreadSheet } from "./screens/ThreadSheet";
 export { ProfileScreen } from "./screens/ProfileScreen";
 export { ProfileEditSheet } from "./screens/ProfileEditSheet";

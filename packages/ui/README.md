@@ -230,7 +230,7 @@ you can wrap, replace, or ignore it:
 
 | Screen                    | Key props                                                                                                                                                                                                                                                                                                              |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: ReactNode`, `slots?: PostSlots`, `beforeSubmitPost?`, `beforeSubmitComment?` (see Gating submissions)                                                       |
+| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: ReactNode`, `headerLayout?: FeedHeaderLayout` (see Feed header), `slots?: PostSlots`, `beforeSubmitPost?`, `beforeSubmitComment?` (see Gating submissions)  |
 | `ThreadSheet`             | `postId: string \| null`, `focusComment?: boolean` (open with the reply field focused), `onClose()`, `onOpenProfile(userId, source?)`, `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does |
 | `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId, focusComment?)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `slots?: PostSlots`                   |
 | `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                                                        |
@@ -247,6 +247,24 @@ the package's own `CommunitySheet` primitive (built on `@gorhom/bottom-sheet`, i
 See `examples/expo-app/App.tsx` for a complete, working wiring of
 `CommunityFeedScreen` + `ProfileScreen` + `NotificationInboxScreen` +
 `ThreadSheet` behind a simple `useState`-driven router.
+
+## Feed header
+
+`CommunityFeedScreen`'s header row is set by `headerLayout`: which buttons sit
+left and right, and whether the "Community" title (`title` key) shows on the
+left or in the center. Buttons: `profile` (the user's avatar, opens their own
+profile through `onOpenProfile(myUid)`), `search`, `inbox` (shown only with
+`modules.inbox` on and `onOpenInbox` given). The default,
+`DEFAULT_FEED_HEADER_LAYOUT`, is profile left, title centered, search and
+inbox right. A layout replaces the default as a whole: a side or title left
+out is empty.
+
+```tsx
+<CommunityFeedScreen
+  headerLayout={{ left: ["inbox"], right: ["search", "profile"], title: false }}
+  …
+/>
+```
 
 ## Images
 
