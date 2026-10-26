@@ -211,15 +211,16 @@ export interface ThreadComment {
 /**
  * Public display name, with a host-configured fallback for profiles not yet named.
  * Accepts either a raw username or any profile-shaped object carrying one (a row's
- * `.profiles`, a `ProfileRow`, or a previously-mapped `CommunityProfile`).
+ * `.profiles`, a `ProfileRow`, or a previously-mapped `CommunityProfile`). An unnamed
+ * profile that picked a handle shows the handle before the fallback (handles are only
+ * auto-assigned once a username exists, so this only kicks in for a chosen one).
  */
 export function displayName(
-  profile: string | null | undefined | { username?: string | null },
+  profile: string | null | undefined | { username?: string | null; handle?: string | null },
   fallback: string,
 ): string {
-  const raw = typeof profile === "string" || profile == null ? profile : profile.username;
-  const trimmed = raw?.trim();
-  return trimmed ? trimmed : fallback;
+  if (typeof profile === "string" || profile == null) return profile?.trim() || fallback;
+  return profile.username?.trim() || profile.handle?.trim() || fallback;
 }
 
 /**
