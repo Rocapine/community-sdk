@@ -5,7 +5,6 @@ import { COMMUNITY_EVENTS, emitEvent } from "../events";
 const base = {
   supabase: null,
   appName: "Test App",
-  anonymousAuthorFallback: "Someone",
   topics: [{ id: "general" }],
   modules: { polls: false, push: false, inbox: false, reaction: false as const },
 };

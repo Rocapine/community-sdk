@@ -124,16 +124,25 @@ export const frVous: Record<string, string> = {
   "profile.changePhoto": "Changer la photo",
   "profile.bioLabel": "Bio",
   "profile.bioPlaceholder": "Parlez un peu de vous à la communauté",
-  "profile.usernameLabel": "Nom d'utilisateur",
+  "profile.usernameLabel": "Identifiant",
   "profile.usernamePlaceholder": "votrepseudo",
   "profile.usernameHelper": "De 3 à 20 caractères : lettres, chiffres et tirets.",
   "profile.photoRejected":
     "Cette photo n'a pas été acceptée. Choisissez-en une autre, s'il vous plaît.",
   "profile.bioRejected": "Ce texte n'a pas été accepté par la modération.",
-  "profile.usernameRejected": "Ce nom d'utilisateur n'a pas été accepté par la modération.",
-  "profile.usernameTaken": "Ce nom d'utilisateur est déjà pris.",
+  "profile.usernameRejected": "Cet identifiant n'a pas été accepté par la modération.",
+  "profile.usernameTaken": "Cet identifiant est déjà pris.",
   "profile.usernameInvalid":
     "Seulement des minuscules, des chiffres et des tirets, de 3 à 20 caractères.",
+  "profile.usernameSuggestion":
+    "@{handle} est déjà pris. Utilisez @{suggestion} ou choisissez-en un autre.",
+  "profile.useSuggestion": "Utiliser @{suggestion}",
+  "profile.displayNameLabel": "Nom affiché",
+  "profile.displayNameHelper":
+    "De 2 à 24 caractères, affiché sur vos publications et commentaires.",
+  "profile.displayNameRejected": "Ce nom n'a pas été accepté par la modération.",
+  "profile.displayNameInvalid": "Entre 2 et 24 caractères.",
+  "profile.nameReserved": "Ce nom est réservé. Choisissez-en un autre, s'il vous plaît.",
   "profile.genericError": "Une erreur s'est produite. Réessayez, s'il vous plaît.",
   "profile.save": "Enregistrer",
 

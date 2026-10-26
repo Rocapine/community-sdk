@@ -3,7 +3,8 @@
 // 'pending' -> promote to 'visible' (catches items whose synchronous
 // moderate-one call failed), clean 'visible' -> just stamp. Also sweeps
 // not-yet-checked usernames (profiles.username is client-writable, see
-// core/007_username_moderation.sql): flagged -> blanked. Posts a Slack
+// core/007_username_moderation.sql): flagged or containing the app's name ->
+// blanked, i.e. back to the default name (core/009). Posts a Slack
 // summary when there was something to check (no-op if SLACK_WEBHOOK_URL is
 // unset — see _shared/slack.ts). Never deletes rows. App criticism is not a
 // category (stays visible).
@@ -20,6 +21,7 @@ import {
   type ModerationResult,
 } from "../_shared/moderation.ts";
 import { fetchImagePaths, POST_IMAGES_BUCKET, postImageUrl } from "../_shared/images.ts";
+import { containsAppName } from "../_shared/names.ts";
 import { postToSlack } from "../_shared/slack.ts";
 
 assertModerationConfigured();
@@ -109,6 +111,7 @@ async function sweepUsernames(): Promise<{
     }
     results.forEach((r, idx) => {
       const cats = flaggedCategories(r);
+      if (containsAppName(batch[idx].username)) cats.push("app_name");
       if (cats.length > 0) blanked.push({ profile: batch[idx], categories: cats });
     });
     processed.push(...batch);

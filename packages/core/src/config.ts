@@ -52,11 +52,23 @@ export type CommunityFeedConfig = {
   transformPost?: (post: FeedPost, row: Record<string, unknown>) => FeedPost;
 };
 
+/**
+ * Every profile starts as "<label> <digits>" / "@<handle>-<digits>", assigned
+ * once on the user's first launch and never re-translated afterwards (a name is
+ * an identity, not content). `label` may depend on the host locale ("Frère" /
+ * "Brother"); keep it a noun, at most 17 characters. `handle` is the ASCII
+ * handle prefix ([a-z0-9], at most 12 characters).
+ */
+export type CommunityDefaultName = {
+  label: string | ((locale: string) => string);
+  handle: string;
+};
+
 export type CommunityConfig = {
   supabase: SupabaseClient | null;
   appName: string;
-  /** Shown for authors without a display name. A function receives the host locale. */
-  anonymousAuthorFallback: string | ((locale: string) => string);
+  /** Defaults to `DEFAULT_NAME` ("User" / "user"). */
+  defaultName?: CommunityDefaultName;
   topics: CommunityTopicDef[];
   modules: CommunityModules;
   host?: CommunityHostAdapters;
@@ -76,11 +88,16 @@ export type ResolvedCommunityConfig = CommunityConfig & {
   host: RequiredCommunityHostAdapters;
   feed: CommunityFeedConfig;
   requireClient(): SupabaseClient;
-  /** `anonymousAuthorFallback` resolved against `host.getLocale()`. */
+  /** `defaultName` resolved against the host locale. */
+  defaultName: CommunityDefaultName;
+  /** `defaultName.label` resolved against `host.getLocale()`: the name shown for a
+   * profile that has none yet (one that has not relaunched since defaults existed). */
   authorFallback(): string;
   composeTopics(): CommunityTopicDef[];
   isOfficialTopic(id: string): boolean;
 };
+
+export const DEFAULT_NAME: CommunityDefaultName = { label: "User", handle: "user" };
 
 let warned = false;
 
@@ -106,6 +123,7 @@ export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig 
     ...config,
     host,
     feed: config.feed ?? {},
+    defaultName: config.defaultName ?? DEFAULT_NAME,
     requireClient(): SupabaseClient {
       if (!resolved.supabase) {
         if (!warned) {
@@ -119,8 +137,8 @@ export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig 
       return resolved.supabase;
     },
     authorFallback(): string {
-      const fallback = resolved.anonymousAuthorFallback;
-      return typeof fallback === "function" ? fallback(host.getLocale()) : fallback;
+      const label = resolved.defaultName.label;
+      return typeof label === "function" ? label(host.getLocale()) : label;
     },
     composeTopics(): CommunityTopicDef[] {
       return resolved.topics.filter((topic) => !topic.officialOnly);

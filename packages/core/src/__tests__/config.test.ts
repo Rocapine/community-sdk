@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { type CommunityConfig, CommunityDisabledError, resolveConfig } from "../config";
+import {
+  type CommunityConfig,
+  CommunityDisabledError,
+  DEFAULT_NAME,
+  resolveConfig,
+} from "../config";
 
 const base = {
   supabase: null,
   appName: "Test App",
-  anonymousAuthorFallback: "Someone",
   topics: [{ id: "general" }, { id: "news", officialOnly: true }],
   modules: { polls: false, push: false, inbox: false, reaction: false as const },
 };
@@ -58,20 +62,28 @@ describe("authorFallback", () => {
     appName: "App",
     topics: [],
     modules: {},
-  } as unknown as Omit<CommunityConfig, "anonymousAuthorFallback">;
+  } as unknown as CommunityConfig;
 
-  it("returns a plain string fallback as-is", () => {
-    const cfg = resolveConfig({ ...base, anonymousAuthorFallback: "A brother" });
-    expect(cfg.authorFallback()).toBe("A brother");
+  it("defaults to the SDK's neutral name", () => {
+    const cfg = resolveConfig(base);
+    expect(cfg.defaultName).toEqual(DEFAULT_NAME);
+    expect(cfg.authorFallback()).toBe("User");
   });
 
-  it("resolves a function fallback against the host locale", () => {
+  it("returns a plain string label as-is", () => {
+    const cfg = resolveConfig({ ...base, defaultName: { label: "Brother", handle: "brother" } });
+    expect(cfg.authorFallback()).toBe("Brother");
+  });
+
+  it("resolves a function label against the host locale", () => {
     const cfg = resolveConfig({
       ...base,
-      anonymousAuthorFallback: (locale: string) =>
-        locale.startsWith("fr") ? "Un frère" : "A brother",
+      defaultName: {
+        label: (locale: string) => (locale.startsWith("fr") ? "Frère" : "Brother"),
+        handle: "brother",
+      },
       host: { getLocale: () => "fr-vous" },
     });
-    expect(cfg.authorFallback()).toBe("Un frère");
+    expect(cfg.authorFallback()).toBe("Frère");
   });
 });
