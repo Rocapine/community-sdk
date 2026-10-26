@@ -16,6 +16,7 @@ import {
   useQueryClient,
   type InfiniteData,
   type QueryClient,
+  type UseMutationOptions,
 } from "@tanstack/react-query";
 
 import { COMMUNITY_EVENTS, emitEvent } from "./events";
@@ -36,8 +37,10 @@ import {
   FEED_PAGE_SIZE,
   type CommunityProfile,
   type FeedPost,
+  type LocalImage,
   type ThreadComment,
 } from "./models";
+import type { ResolvedCommunityConfig } from "./config";
 import { useCommunityConfig } from "./provider";
 import {
   blockUser,
@@ -60,6 +63,7 @@ import {
   setReaction,
   setNotificationPreference,
   updateProfile,
+  uploadPostImage,
   votePoll,
   type ModerationVerdict,
   type ReportInput,
@@ -371,14 +375,25 @@ type PostResult = { id: string; verdict: ModerationVerdict };
 export function useCreatePost() {
   const cfg = useCommunityConfig();
   const queryClient = useQueryClient();
-  const locale = readerLocale(cfg);
-  return useMutation<
-    PostResult,
-    Error,
-    { topic: string; text: string; authorName: string; pollOptions?: string[] },
-    { tempId: string }
-  >({
-    onMutate: async ({ topic, text, authorName, pollOptions }) => {
+  return useMutation(createPostMutationOptions(cfg, queryClient, readerLocale(cfg)));
+}
+
+export type CreatePostVariables = {
+  topic: string;
+  text: string;
+  authorName: string;
+  pollOptions?: string[];
+  image?: LocalImage;
+};
+
+/** The options behind `useCreatePost`, split out so they can be driven without React. */
+export function createPostMutationOptions(
+  cfg: ResolvedCommunityConfig,
+  queryClient: QueryClient,
+  locale: string | null,
+): UseMutationOptions<PostResult, Error, CreatePostVariables, { tempId: string }> {
+  return {
+    onMutate: async ({ topic, text, authorName, pollOptions, image }) => {
       await queryClient.cancelQueries({ queryKey: FEED_KEY });
       const tempId = `optimistic-${Date.now()}`;
       const optimistic: FeedPost = {
@@ -414,6 +429,9 @@ export function useCreatePost() {
         hasReacted: false,
         lastReactorName: null,
         translation: null,
+        // The local file uri until the post is published; the background
+        // refetch in onSuccess swaps in the server image.
+        image: image ?? null,
       };
       const prepend = (key: readonly unknown[]) =>
         queryClient.setQueryData<InfiniteData<FeedPost[]>>(key, (d) =>
@@ -423,12 +441,14 @@ export function useCreatePost() {
       prepend(feedKey(topic, locale));
       return { tempId };
     },
-    mutationFn: async ({ topic, text, pollOptions }) => {
-      const id = await createPost(cfg, { topic, body: text, pollOptions });
+    mutationFn: async ({ topic, text, pollOptions, image }) => {
+      // Upload first: a failed upload must not leave a post row behind.
+      const uploaded = image ? await uploadPostImage(cfg, image) : undefined;
+      const id = await createPost(cfg, { topic, body: text, pollOptions, image: uploaded });
       const verdict = await moderateOne(cfg, { kind: "post", id });
       return { id, verdict };
     },
-    onSuccess: ({ id, verdict }, { topic, text, pollOptions }, { tempId }) => {
+    onSuccess: ({ id, verdict }, { topic, text, pollOptions, image }, { tempId }) => {
       const rejected = verdict.status === "rejected";
       queryClient.setQueriesData<InfiniteData<FeedPost[]>>({ queryKey: FEED_KEY }, (d) =>
         d
@@ -450,11 +470,13 @@ export function useCreatePost() {
           topic,
           bodyLength: text.trim().length,
           hasPoll,
+          hasImage: !!image,
         });
         cfg.host.onContentPublished();
-        // The in-place swap above keeps the optimistic poll's temp option ids;
-        // voting needs the real uuids, so a poll post refetches in background.
-        if (hasPoll) queryClient.invalidateQueries({ queryKey: FEED_KEY });
+        // The in-place swap above keeps the optimistic poll's temp option ids
+        // (voting needs the real uuids) and the image's local uri, so a poll or
+        // image post refetches in background.
+        if (hasPoll || image) queryClient.invalidateQueries({ queryKey: FEED_KEY });
       }
     },
     onError: (_e, _v, context) => {
@@ -464,21 +486,31 @@ export function useCreatePost() {
           : d,
       );
     },
-  });
+  };
 }
 
 /** Optimistic comment creation, same reconcile-in-place model as posts. */
 export function useCreateComment() {
   const cfg = useCommunityConfig();
   const queryClient = useQueryClient();
-  const locale = readerLocale(cfg);
-  return useMutation<
-    PostResult,
-    Error,
-    { postId: string; text: string; authorName: string },
-    { tempId: string }
-  >({
-    onMutate: async ({ postId, text, authorName }) => {
+  return useMutation(createCommentMutationOptions(cfg, queryClient, readerLocale(cfg)));
+}
+
+export type CreateCommentVariables = {
+  postId: string;
+  text: string;
+  authorName: string;
+  image?: LocalImage;
+};
+
+/** The options behind `useCreateComment`, split out so they can be driven without React. */
+export function createCommentMutationOptions(
+  cfg: ResolvedCommunityConfig,
+  queryClient: QueryClient,
+  locale: string | null,
+): UseMutationOptions<PostResult, Error, CreateCommentVariables, { tempId: string }> {
+  return {
+    onMutate: async ({ postId, text, authorName, image }) => {
       await queryClient.cancelQueries({ queryKey: threadKey(postId, locale) });
       await queryClient.cancelQueries({ queryKey: FEED_KEY });
       const tempId = `optimistic-${Date.now()}`;
@@ -492,6 +524,7 @@ export function useCreateComment() {
         isOwn: true,
         createdAt: new Date().toISOString(),
         translation: null,
+        image: image ?? null,
       };
       queryClient.setQueryData<ThreadComment[]>(threadKey(postId, locale), (d) => [
         ...(d ?? []),
@@ -500,12 +533,13 @@ export function useCreateComment() {
       bumpFeedCommentCount(queryClient, postId, 1);
       return { tempId };
     },
-    mutationFn: async ({ postId, text }) => {
-      const id = await createComment(cfg, postId, text);
+    mutationFn: async ({ postId, text, image }) => {
+      const uploaded = image ? await uploadPostImage(cfg, image) : undefined;
+      const id = await createComment(cfg, postId, text, uploaded);
       const verdict = await moderateOne(cfg, { kind: "comment", id });
       return { id, verdict };
     },
-    onSuccess: ({ id, verdict }, { postId, text }, { tempId }) => {
+    onSuccess: ({ id, verdict }, { postId, text, image }, { tempId }) => {
       const rejected = verdict.status === "rejected";
       queryClient.setQueryData<ThreadComment[]>(threadKey(postId, locale), (d) =>
         (d ?? [])
@@ -518,8 +552,11 @@ export function useCreateComment() {
         emitEvent(cfg, COMMUNITY_EVENTS.commentPublished, {
           postId,
           bodyLength: text.trim().length,
+          hasImage: !!image,
         });
         cfg.host.onContentPublished();
+        // Swap the local image uri for the server one.
+        if (image) queryClient.invalidateQueries({ queryKey: threadKey(postId, locale) });
       }
     },
     onError: (_e, { postId }, context) => {
@@ -528,7 +565,7 @@ export function useCreateComment() {
       );
       bumpFeedCommentCount(queryClient, postId, -1);
     },
-  });
+  };
 }
 
 /** Optimistic like toggle across every post cache (feed pages of every topic

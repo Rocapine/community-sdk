@@ -189,15 +189,22 @@ describe("runInit", () => {
     expect(fnDirs).not.toContain("notify-reaction");
   });
 
-  it("installs the translation module last, with its two functions", async () => {
+  it("installs the translation module last, with its migrations and two functions", async () => {
     await runInit(baseOptions({ modules: ["core", "polls", "translation"] }));
     const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
     const modulesInFileOrder = files.map((f) => f.split("_community_")[1]!.split("_")[0]);
     expect(modulesInFileOrder.at(-1)).toBe("translation");
-    expect(modulesInFileOrder.filter((m) => m === "translation")).toHaveLength(2);
+    expect(modulesInFileOrder.filter((m) => m === "translation")).toHaveLength(3);
     const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions")).sort();
     expect(fnDirs).toContain("translate-one");
     expect(fnDirs).toContain("daily-translation");
+  });
+
+  it("installs the images migration when the images module is selected", async () => {
+    const result = await runInit(baseOptions({ modules: ["images"] }));
+    const files = fs.readdirSync(path.join(cwd, "supabase", "migrations"));
+    expect(files.some((f) => /_community_images_images\.sql$/.test(f))).toBe(true);
+    expect(result.manifest.modules).toEqual(["core", "images"]);
   });
 
   it("warns when translation is selected without polls, but proceeds", async () => {

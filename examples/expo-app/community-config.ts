@@ -22,7 +22,7 @@ export const config: CommunityConfig = {
   appName: "Community SDK Demo",
   anonymousAuthorFallback: "Someone",
   topics: [{ id: "general" }, { id: "question" }, { id: "news", officialOnly: true }],
-  modules: { polls: true, push: false, inbox: true, reaction: { key: "cheer" } },
+  modules: { polls: true, push: false, inbox: true, reaction: { key: "cheer" }, images: true },
   host: {
     onEvent: (name, props) => console.log("[event]", name, props),
   },

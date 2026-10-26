@@ -9,7 +9,7 @@
 
 import { adminClient } from "../_shared/client.ts";
 import { sendExpoPush, unreadBadge } from "../_shared/push.ts";
-import { pushCopy } from "../_shared/copy.ts";
+import { excerptOrPhoto, pushCopy } from "../_shared/copy.ts";
 import { ensureTranslations, resolveTargetLocale, languageOf } from "../_shared/translation.ts";
 
 const supabase = adminClient();
@@ -74,10 +74,12 @@ Deno.serve(async (req) => {
     );
     if (match) excerptSource = match.content;
   }
-  const excerpt = excerptSource.length > 140 ? `${excerptSource.slice(0, 137)}...` : excerptSource;
   // Title states the event; body is the commenter's name then the comment in
-  // quotes, e.g.  Marie: "So happy for you!".
-  const body = `${name}: "${excerpt}"`;
+  // quotes, e.g.  Marie: "So happy for you!". An image-only comment has no text:
+  // the localized "Photo" label stands in, unquoted.
+  const body = comment.content.trim()
+    ? `${name}: "${excerptOrPhoto(excerptSource, "")}"`
+    : `${name}: ${copy.text("photo")}`;
 
   await sendExpoPush({
     to: pref.expo_push_token,

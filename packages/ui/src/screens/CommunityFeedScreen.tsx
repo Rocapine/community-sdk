@@ -81,6 +81,7 @@ import {
   useProfile,
   useSearchPosts,
   type FeedPost,
+  type LocalImage,
   useUnreadNotificationCount,
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
@@ -112,6 +113,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
+import { ImageViewerHost } from "../components/ImageViewer";
 import { ComposerCard, type ComposerCardHandle } from "../components/ComposerCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
@@ -143,10 +145,15 @@ export function CommunityFeedScreen({
     topic: string;
     body: string;
     pollOptions?: string[];
+    image?: LocalImage;
   }) => Promise<boolean>;
   /** Forwarded to this screen's own `ThreadSheet` as `beforeSubmitComment` —
    * see that prop's doc comment. Absent ⇒ byte-identical behavior. */
-  beforeSubmitComment?: (draft: { postId: string; body: string }) => Promise<boolean>;
+  beforeSubmitComment?: (draft: {
+    postId: string;
+    body: string;
+    image?: LocalImage;
+  }) => Promise<boolean>;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -361,205 +368,207 @@ export function CommunityFeedScreen({
     topicFilter && !cfg.isOfficialTopic(topicFilter) ? topicFilter : undefined;
 
   return (
-    <View style={styles.root}>
-      {header}
+    <ImageViewerHost>
+      <View style={styles.root}>
+        {header}
 
-      <View style={styles.controls}>
-        <View style={styles.controlsRow}>
-          {cfg.modules.inbox && onOpenInbox && <InboxBell onPress={onOpenInbox} />}
-          <Pressable
-            onPress={toggleSearch}
-            style={styles.iconButton}
-            accessibilityRole="button"
-            accessibilityLabel={searchOpen ? t("a11y.closeSearch") : t("a11y.search")}
-          >
+        <View style={styles.controls}>
+          <View style={styles.controlsRow}>
+            {cfg.modules.inbox && onOpenInbox && <InboxBell onPress={onOpenInbox} />}
+            <Pressable
+              onPress={toggleSearch}
+              style={styles.iconButton}
+              accessibilityRole="button"
+              accessibilityLabel={searchOpen ? t("a11y.closeSearch") : t("a11y.search")}
+            >
+              {searchOpen ? (
+                <icons.close size={22} color={theme.colors.textPrimary} weight="bold" />
+              ) : (
+                <icons.search size={22} color={theme.colors.textPrimary} weight="regular" />
+              )}
+            </Pressable>
+          </View>
+
+          {/* Search bar and filter chips share one fixed-height slot, so
+            toggling between them never shifts the feed. */}
+          <View style={styles.switchRow}>
             {searchOpen ? (
-              <icons.close size={22} color={theme.colors.textPrimary} weight="bold" />
+              <View style={styles.searchBar}>
+                <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
+                <TextInput
+                  ref={searchInputRef}
+                  value={searchTerm}
+                  onChangeText={setSearchTerm}
+                  placeholder={t("feed.searchPlaceholder")}
+                  placeholderTextColor={theme.colors.textFaint}
+                  autoFocus
+                  returnKeyType="search"
+                  style={styles.searchInput}
+                />
+                {searchTerm.length > 0 && (
+                  <Pressable
+                    hitSlop={10}
+                    onPress={clearSearch}
+                    style={styles.clearButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("a11y.clearSearch")}
+                  >
+                    <icons.close size={12} color={theme.colors.surface} weight="bold" />
+                  </Pressable>
+                )}
+              </View>
             ) : (
-              <icons.search size={22} color={theme.colors.textPrimary} weight="regular" />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.filtersScroll}
+                contentContainerStyle={styles.filters}
+              >
+                <FilterChip
+                  label={t("feed.all")}
+                  active={filter === "all"}
+                  onPress={() => setFilter("all")}
+                />
+                {cfg.topics.map((topic) => (
+                  <FilterChip
+                    key={topic.id}
+                    label={t(`topics.${topic.id}`)}
+                    active={filter === topic.id}
+                    onPress={() => setFilter(topic.id)}
+                  />
+                ))}
+              </ScrollView>
             )}
-          </Pressable>
+          </View>
         </View>
 
-        {/* Search bar and filter chips share one fixed-height slot, so
-            toggling between them never shifts the feed. */}
-        <View style={styles.switchRow}>
-          {searchOpen ? (
-            <View style={styles.searchBar}>
-              <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
-              <TextInput
-                ref={searchInputRef}
-                value={searchTerm}
-                onChangeText={setSearchTerm}
-                placeholder={t("feed.searchPlaceholder")}
-                placeholderTextColor={theme.colors.textFaint}
-                autoFocus
-                returnKeyType="search"
-                style={styles.searchInput}
-              />
-              {searchTerm.length > 0 && (
-                <Pressable
-                  hitSlop={10}
-                  onPress={clearSearch}
-                  style={styles.clearButton}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("a11y.clearSearch")}
+        <View style={styles.listWrap}>
+          {newCount > 0 && (
+            <PressableScale onPress={showNewPosts} style={styles.newPill}>
+              <Text style={styles.newPillText}>{t("feed.newPosts", { count: newCount })}</Text>
+            </PressableScale>
+          )}
+
+          <FlatList
+            ref={listRef}
+            data={posts}
+            keyExtractor={(p) => p.id}
+            renderItem={renderItem}
+            ListHeaderComponent={
+              <>
+                {/* Same gap above the results as the composer's own top margin. */}
+                {searchOpen && <View style={styles.searchGap} />}
+                {/* A search shows results only. Hidden, not unmounted: a draft survives it. */}
+                <View
+                  style={searchOpen && styles.hidden}
+                  onLayout={(e) =>
+                    (composerBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height)
+                  }
                 >
-                  <icons.close size={12} color={theme.colors.surface} weight="bold" />
-                </Pressable>
-              )}
-            </View>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.filtersScroll}
-              contentContainerStyle={styles.filters}
-            >
-              <FilterChip
-                label={t("feed.all")}
-                active={filter === "all"}
-                onPress={() => setFilter("all")}
+                  <ComposerCard
+                    ref={composerRef}
+                    defaultTopic={composeDefaultTopic}
+                    onModerationRejected={() => setNotice("rejected")}
+                    onPublishFailed={() => setNotice("network")}
+                    beforeSubmit={beforeSubmitPost}
+                  />
+                </View>
+              </>
+            }
+            onScroll={(e) =>
+              setComposerHidden(e.nativeEvent.contentOffset.y > composerBottom.current)
+            }
+            scrollEventThrottle={32}
+            ListEmptyComponent={
+              isPending ? (
+                <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
+              ) : isError ? (
+                <Text style={styles.stateText}>{t("feed.unreachableRetry")}</Text>
+              ) : (
+                <Text style={styles.stateText}>
+                  {searchActive
+                    ? t("feed.noSearchResults")
+                    : filter === "news"
+                      ? t("feed.newsEmpty")
+                      : t("feed.empty")}
+                </Text>
+              )
+            }
+            ListFooterComponent={
+              hasNextPage ? (
+                <PressableScale onPress={loadMore} style={styles.loadMore}>
+                  {isFetchingNextPage ? (
+                    <ActivityIndicator size="small" color={theme.colors.accent} />
+                  ) : (
+                    <Text style={styles.loadMoreText}>{t("feed.loadMore")}</Text>
+                  )}
+                </PressableScale>
+              ) : null
+            }
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.4}
+            refreshControl={
+              <RefreshControl
+                refreshing={pulling}
+                onRefresh={pullToRefresh}
+                tintColor={theme.colors.accent}
               />
-              {cfg.topics.map((topic) => (
-                <FilterChip
-                  key={topic.id}
-                  label={t(`topics.${topic.id}`)}
-                  active={filter === topic.id}
-                  onPress={() => setFilter(topic.id)}
-                />
-              ))}
-            </ScrollView>
+            }
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.listContent,
+              // Room for the floating compose bar under the last post.
+              {
+                paddingBottom:
+                  insets.bottom + theme.spacing(3.5) + FLOATING_BAR_HEIGHT + theme.spacing(4),
+              },
+            ]}
+          />
+
+          {showFloatingCompose && (
+            <Animated.View
+              entering={FadeInDown.duration(180)}
+              exiting={FadeOutDown.duration(140)}
+              style={[styles.floatingCompose, { bottom: insets.bottom + theme.spacing(3.5) }]}
+            >
+              <PressableScale onPress={focusComposer} style={styles.composeBar}>
+                {myAvatarUrl ? (
+                  <Image
+                    source={{ uri: myAvatarUrl }}
+                    style={styles.composeAvatarImage}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={styles.composeAvatar}>
+                    <Text style={styles.composeAvatarLetter}>{myInitial}</Text>
+                  </View>
+                )}
+                <Text style={styles.composePrompt} numberOfLines={1}>
+                  {t("feed.composePrompt")}
+                </Text>
+                <icons.compose size={18} color={theme.colors.accent} weight="regular" />
+              </PressableScale>
+            </Animated.View>
           )}
         </View>
-      </View>
 
-      <View style={styles.listWrap}>
-        {newCount > 0 && (
-          <PressableScale onPress={showNewPosts} style={styles.newPill}>
-            <Text style={styles.newPillText}>{t("feed.newPosts", { count: newCount })}</Text>
-          </PressableScale>
-        )}
-
-        <FlatList
-          ref={listRef}
-          data={posts}
-          keyExtractor={(p) => p.id}
-          renderItem={renderItem}
-          ListHeaderComponent={
-            <>
-              {/* Same gap above the results as the composer's own top margin. */}
-              {searchOpen && <View style={styles.searchGap} />}
-              {/* A search shows results only. Hidden, not unmounted: a draft survives it. */}
-              <View
-                style={searchOpen && styles.hidden}
-                onLayout={(e) =>
-                  (composerBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height)
-                }
-              >
-                <ComposerCard
-                  ref={composerRef}
-                  defaultTopic={composeDefaultTopic}
-                  onModerationRejected={() => setNotice("rejected")}
-                  onPublishFailed={() => setNotice("network")}
-                  beforeSubmit={beforeSubmitPost}
-                />
-              </View>
-            </>
-          }
-          onScroll={(e) =>
-            setComposerHidden(e.nativeEvent.contentOffset.y > composerBottom.current)
-          }
-          scrollEventThrottle={32}
-          ListEmptyComponent={
-            isPending ? (
-              <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
-            ) : isError ? (
-              <Text style={styles.stateText}>{t("feed.unreachableRetry")}</Text>
-            ) : (
-              <Text style={styles.stateText}>
-                {searchActive
-                  ? t("feed.noSearchResults")
-                  : filter === "news"
-                    ? t("feed.newsEmpty")
-                    : t("feed.empty")}
-              </Text>
-            )
-          }
-          ListFooterComponent={
-            hasNextPage ? (
-              <PressableScale onPress={loadMore} style={styles.loadMore}>
-                {isFetchingNextPage ? (
-                  <ActivityIndicator size="small" color={theme.colors.accent} />
-                ) : (
-                  <Text style={styles.loadMoreText}>{t("feed.loadMore")}</Text>
-                )}
-              </PressableScale>
-            ) : null
-          }
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.4}
-          refreshControl={
-            <RefreshControl
-              refreshing={pulling}
-              onRefresh={pullToRefresh}
-              tintColor={theme.colors.accent}
-            />
-          }
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.listContent,
-            // Room for the floating compose bar under the last post.
-            {
-              paddingBottom:
-                insets.bottom + theme.spacing(3.5) + FLOATING_BAR_HEIGHT + theme.spacing(4),
-            },
-          ]}
+        <ThreadSheet
+          postId={activePostId}
+          focusComment={focusComment}
+          onClose={() => setActivePostId(null)}
+          onOpenProfile={onOpenProfile}
+          slots={slots}
+          beforeSubmitComment={beforeSubmitComment}
         />
-
-        {showFloatingCompose && (
-          <Animated.View
-            entering={FadeInDown.duration(180)}
-            exiting={FadeOutDown.duration(140)}
-            style={[styles.floatingCompose, { bottom: insets.bottom + theme.spacing(3.5) }]}
-          >
-            <PressableScale onPress={focusComposer} style={styles.composeBar}>
-              {myAvatarUrl ? (
-                <Image
-                  source={{ uri: myAvatarUrl }}
-                  style={styles.composeAvatarImage}
-                  contentFit="cover"
-                />
-              ) : (
-                <View style={styles.composeAvatar}>
-                  <Text style={styles.composeAvatarLetter}>{myInitial}</Text>
-                </View>
-              )}
-              <Text style={styles.composePrompt} numberOfLines={1}>
-                {t("feed.composePrompt")}
-              </Text>
-              <icons.compose size={18} color={theme.colors.accent} weight="regular" />
-            </PressableScale>
-          </Animated.View>
-        )}
+        <ReportSheet
+          visible={reportTarget !== null}
+          target={reportTarget}
+          onClose={() => setReportTarget(null)}
+        />
+        {notice && <NoticeCard kind={notice} onDismiss={() => setNotice(null)} />}
       </View>
-
-      <ThreadSheet
-        postId={activePostId}
-        focusComment={focusComment}
-        onClose={() => setActivePostId(null)}
-        onOpenProfile={onOpenProfile}
-        slots={slots}
-        beforeSubmitComment={beforeSubmitComment}
-      />
-      <ReportSheet
-        visible={reportTarget !== null}
-        target={reportTarget}
-        onClose={() => setReportTarget(null)}
-      />
-      {notice && <NoticeCard kind={notice} onDismiss={() => setNotice(null)} />}
-    </View>
+    </ImageViewerHost>
   );
 }
 

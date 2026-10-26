@@ -68,6 +68,11 @@ export type ParsedTranslation = {
   translations: Record<string, { content: string; options: string[] }>;
 };
 
+/** Image-only items store content = "": nothing to translate, never sent to OpenAI. */
+export function hasTranslatableContent(content: string): boolean {
+  return content.trim().length > 0;
+}
+
 export function languageOf(locale: string): string {
   return locale.split("-")[0].toLowerCase();
 }
@@ -395,6 +400,7 @@ export async function ensureTranslations(
     return null;
   }
   if (!row || row.status !== "visible") return [];
+  if (!hasTranslatableContent(row.content)) return [];
 
   const { data: existing, error: existingError } = await supabase
     .from(tTable)

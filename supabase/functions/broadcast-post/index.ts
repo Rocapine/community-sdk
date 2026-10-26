@@ -5,6 +5,7 @@
 // verify_jwt but must NOT be able to trigger a broadcast.
 
 import { adminClient, fetchAllRows, isServiceCaller } from "../_shared/client.ts";
+import { excerptOrPhoto, pushCopy } from "../_shared/copy.ts";
 import { sendExpoPushBatch } from "../_shared/push.ts";
 import { BROADCAST_FALLBACK_TITLE } from "../_shared/config.ts";
 import { ensureTranslations, resolveTargetLocale, TARGET_LOCALES } from "../_shared/translation.ts";
@@ -33,17 +34,17 @@ Deno.serve(async (req) => {
     .single();
   const title = author?.username?.trim() || BROADCAST_FALLBACK_TITLE;
 
-  const original = post.content.length > 140 ? `${post.content.slice(0, 137)}...` : post.content;
   // waitMs: when translate-one holds the claim (it fires on the same insert),
   // wait for its rows instead of pushing the source language.
   const translations =
     TARGET_LOCALES.length === 0
       ? []
       : ((await ensureTranslations(supabase, "post", post.id, { waitMs: 20_000 })) ?? []);
-  const excerptFor = (locale: string | null): string => {
-    if (!locale) return original;
-    const t = translations.find((r) => r.locale === locale);
-    return t ? (t.content.length > 140 ? `${t.content.slice(0, 137)}...` : t.content) : original;
+  // `profileLocale` picks the "Photo" label for an image-only post (empty
+  // content has no translations); `locale` is the resolved translation target.
+  const excerptFor = (locale: string | null, profileLocale: string | null): string => {
+    const t = locale ? translations.find((r) => r.locale === locale) : undefined;
+    return excerptOrPhoto(t?.content ?? post.content, pushCopy(profileLocale).text("photo"));
   };
 
   // Paged (PostgREST max_rows caps a single select, default 1000) with a total
@@ -66,6 +67,7 @@ Deno.serve(async (req) => {
       const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
       return {
         to: r.expo_push_token as string,
+        profileLocale: (profile?.locale ?? null) as string | null,
         locale: resolveTargetLocale(profile?.locale ?? null),
       };
     })
@@ -75,10 +77,10 @@ Deno.serve(async (req) => {
       seen.add(m.to);
       return true;
     })
-    .map(({ to, locale }) => ({
+    .map(({ to, locale, profileLocale }) => ({
       to,
       title,
-      body: excerptFor(locale),
+      body: excerptFor(locale, profileLocale),
       data: { route: "/community", kind: "community_official_post" },
       badge: 1,
     }));

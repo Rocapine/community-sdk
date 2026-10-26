@@ -42,6 +42,7 @@ export { CommunitySheet } from "./Sheet";
 
 export type { PostSlots, PostSlotContext, ProfileSource } from "./components/CommunityPost";
 export { CommunityPost } from "./components/CommunityPost";
+export { ImageViewerHost } from "./components/ImageViewer";
 export { PollBlock } from "./components/PollBlock";
 export { NoticeCard } from "./components/NoticeCard";
 export { PressableScale, haptic, type HapticKind } from "./components/PressableScale";

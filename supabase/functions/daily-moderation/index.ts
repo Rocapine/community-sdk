@@ -16,8 +16,10 @@ import { adminClient } from "../_shared/client.ts";
 import {
   assertModerationConfigured,
   flaggedCategories,
+  moderateItem,
   type ModerationResult,
 } from "../_shared/moderation.ts";
+import { fetchImagePaths, POST_IMAGES_BUCKET, postImageUrl } from "../_shared/images.ts";
 import { postToSlack } from "../_shared/slack.ts";
 
 assertModerationConfigured();
@@ -29,6 +31,9 @@ interface Item {
   content: string;
   author_id: string;
   status: string;
+  imagePath: string | null;
+  // The image_path lookup errored: not moderated (nor stamped/promoted) this run.
+  imageLookupFailed: boolean;
   profiles: {
     username: string | null;
     amplitude_id: string | null;
@@ -126,6 +131,24 @@ async function sweepUsernames(): Promise<{
   return { checked: processed.length, blanked, failedBatches, skipped: false };
 }
 
+/** Deletes storage objects no live post/comment references (abandoned uploads,
+ * deleted authors' files), capped per run. Skipped silently without the images
+ * module (the RPC doesn't exist). Returns how many files were removed, and the
+ * storage error when the removal failed (surfaced in the Slack summary). */
+async function sweepUnreferencedImages(): Promise<{ removed: number; error?: string }> {
+  const { data, error } = await supabase.rpc("post_images_unreferenced", { p_limit: 500 });
+  const names = (data ?? []) as string[];
+  if (error || names.length === 0) return { removed: 0 };
+  const { data: removed, error: removeError } = await supabase.storage
+    .from(POST_IMAGES_BUCKET)
+    .remove(names);
+  if (removeError) {
+    console.error("image sweep: remove failed", removeError.message);
+    return { removed: 0, error: removeError.message };
+  }
+  return { removed: removed?.length ?? 0 };
+}
+
 Deno.serve(async () => {
   const { data: posts, error: postsError } = await supabase
     .from("posts")
@@ -167,9 +190,21 @@ Deno.serve(async () => {
       }
     }
   }
+  const postImages = await fetchImagePaths(
+    supabase,
+    "posts",
+    (posts ?? []).map((p) => p.id),
+  );
+  const commentImages = await fetchImagePaths(
+    supabase,
+    "comments",
+    (comments ?? []).map((c) => c.id),
+  );
   const items: Item[] = [
     ...(posts ?? []).map((p) => ({
       ...p,
+      imagePath: postImages.paths.get(p.id) ?? null,
+      imageLookupFailed: postImages.failedIds.has(p.id),
       profiles: toOne(p.profiles),
       content: [
         p.content,
@@ -179,6 +214,8 @@ Deno.serve(async () => {
     })),
     ...(comments ?? []).map((c) => ({
       ...c,
+      imagePath: commentImages.paths.get(c.id) ?? null,
+      imageLookupFailed: commentImages.failedIds.has(c.id),
       profiles: toOne(c.profiles),
       table: "comments" as const,
     })),
@@ -189,8 +226,10 @@ Deno.serve(async () => {
   const flagged: { item: Item; categories: string[] }[] = [];
   const processed: Item[] = [];
   let failedBatches = 0;
-  for (let i = 0; i < items.length; i += 100) {
-    const batch = items.slice(i, i + 100);
+  const textItems = items.filter((it) => !it.imagePath && !it.imageLookupFailed);
+  if (items.some((it) => it.imageLookupFailed)) failedBatches++;
+  for (let i = 0; i < textItems.length; i += 100) {
+    const batch = textItems.slice(i, i + 100);
     const results = await moderateBatch(batch.map((it) => it.content));
     if (!results) {
       failedBatches++; // API/network error; skip stamping, retried next run
@@ -202,13 +241,35 @@ Deno.serve(async () => {
     });
     processed.push(...batch);
   }
+  // Items with an image go one by one (text + image calls); a failed one
+  // counts as a failed batch: not stamped, retried next run.
+  for (const item of items.filter((it) => it.imagePath)) {
+    const verdict = await moderateItem(item.content, postImageUrl(item.imagePath!));
+    if (!verdict) {
+      failedBatches++;
+      continue;
+    }
+    if (verdict.flagged) flagged.push({ item, categories: verdict.categories });
+    processed.push(item);
+  }
   const totalItems = items.length;
 
   const flaggedIds = new Set(flagged.map((f) => f.item.id));
   // Status guards: a row the author soft-deleted while the sweep ran must not
   // be resurrected as hidden/visible, so every write re-checks the status it
   // was selected with.
+  const imageErrors: string[] = [];
   for (const { item, categories } of flagged) {
+    // Child-safety hit: the file goes now. Any other hide keeps it.
+    if (item.imagePath && categories.includes("sexual/minors")) {
+      const { error } = await supabase.storage.from(POST_IMAGES_BUCKET).remove([item.imagePath]);
+      if (error) {
+        console.error("sexual/minors image not deleted", item.imagePath, error.message);
+        imageErrors.push(
+          `sexual/minors image \`${item.imagePath}\` NOT deleted (${error.message}), remove it by hand`,
+        );
+      }
+    }
     await supabase
       .from(item.table)
       .update({ status: "hidden", moderation_reason: categories.join(",") })
@@ -245,11 +306,20 @@ Deno.serve(async () => {
   }
 
   const usernames = await sweepUsernames();
+  const sweep = await sweepUnreferencedImages();
+  const imagesSwept = sweep.removed;
+  if (sweep.error) imageErrors.push(`image sweep failed: ${sweep.error}`);
   const allFailedBatches = failedBatches + usernames.failedBatches;
 
   // Quiet when there was nothing to check at all (a stray or duplicate call
   // finds every item already stamped): no Slack noise, no API cost.
-  if (totalItems === 0 && usernames.checked === 0 && allFailedBatches === 0) {
+  if (
+    totalItems === 0 &&
+    usernames.checked === 0 &&
+    allFailedBatches === 0 &&
+    imagesSwept === 0 &&
+    imageErrors.length === 0
+  ) {
     return new Response(
       JSON.stringify({
         checked: 0,
@@ -278,19 +348,23 @@ Deno.serve(async () => {
     usernames.checked > 0
       ? ` Usernames: ${usernames.blanked.length}/${usernames.checked} blanked.`
       : "";
+  const sweepSummary = imagesSwept > 0 ? ` Images swept: ${imagesSwept}.` : "";
   let summaryText: string;
   if (allFailedBatches > 0) {
     const uncheckedCount = totalItems - processed.length;
     summaryText =
       `Daily moderation: WARNING, ${allFailedBatches} batch(es) failed to reach the moderation API ` +
       `(${uncheckedCount} of ${totalItems} items were not checked and will be retried). ` +
-      `${flagged.length} items hidden.${usernameSummary}`;
+      `${flagged.length} items hidden.${usernameSummary}${sweepSummary}`;
   } else if (flagged.length === 0 && usernames.blanked.length === 0) {
-    summaryText = `Daily moderation: ${processed.length} items checked, nothing to report.${usernameSummary}`;
+    summaryText = `Daily moderation: ${processed.length} items checked, nothing to report.${usernameSummary}${sweepSummary}`;
   } else {
     summaryText =
-      `Daily moderation: ${flagged.length}/${processed.length} items hidden.${usernameSummary}\n\n` +
+      `Daily moderation: ${flagged.length}/${processed.length} items hidden.${usernameSummary}${sweepSummary}\n\n` +
       [...lines, ...usernameLines].join("\n");
+  }
+  if (imageErrors.length > 0) {
+    summaryText += `\n\n${imageErrors.map((e) => `* WARNING: ${e}`).join("\n")}`;
   }
   await postToSlack({ text: summaryText });
 

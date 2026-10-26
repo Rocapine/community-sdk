@@ -18,7 +18,8 @@ Peer dependencies (beyond `@rocapine/community-core`'s own):
 `expo-image-picker >=16.0.0`, `expo-symbols >=0.4.0`, `expo-image-manipulator >=13.0.0`.
 `expo-image-manipulator` is optional too: with it, avatars are resized to
 512px JPEG before upload (`resizeAvatar`, also exported for your own
-picker); without it they upload as picked.
+picker); without it they upload as picked. **With the images module
+(`modules.images`) it is required** (see Images below).
 `expo-symbols` is an **optional** peer (`peerDependenciesMeta`) —
 skip it if you pass a complete `icons` set to `CommunityUIProvider` (see
 Icons below); the default icon set only requires it once a default icon
@@ -169,7 +170,10 @@ so the icon set is injectable — `expo-symbols` is an optional peer
 looked up by a semantic role name (`CommunityIconName`: `like`, `comment`,
 `reaction`, `menu`, `back`, `close`, `send`, `bell`, `search`,
 `officialSeal`, `pin`, `announcement`, `checkmark`, `poll`, `add`,
-`warning`, `compose`), never by a glyph name.
+`warning`, `compose`, `image`), never by a glyph name. `image` (the composer's
+"add an image" button) is new with the images module: a host that types a
+**complete** `CommunityIconSet` must add it; at runtime a role you didn't pass
+falls back to the default, so nothing breaks for a partial set.
 
 ```tsx
 import { CommunityUIProvider, type CommunityIconSet } from "@rocapine/community-ui";
@@ -244,6 +248,41 @@ See `examples/expo-app/App.tsx` for a complete, working wiring of
 `CommunityFeedScreen` + `ProfileScreen` + `NotificationInboxScreen` +
 `ThreadSheet` behind a simple `useState`-driven router.
 
+## Images
+
+With `modules.images: true` (core) and the backend `images` module installed:
+
+- **Composer.** An Image button sits left in the row inside the text box, next
+  to the topic select; it is hidden while a poll is open (a post carries a poll
+  _or_ an image). The chosen photo shows as a thumbnail with a ✕; tapping Image
+  again replaces it. Publish is enabled with text **or** an image.
+  The Poll toggle now carries `accessibilityRole` / `accessibilityState`.
+- **Feed.** The image sits inside the card padding with `radius.md` corners,
+  aspect ratio kept, height capped at 4:5 (taller is center-cropped) and wide
+  images floored at 1.91:1; the frame has its final size before the pixels
+  load, so nothing jumps. Tapping opens the full-screen viewer (pinch / double
+  tap to zoom, swipe down to close).
+- **Thread.** A comment's image is at most 60% of the comment column, same caps.
+  In the reply bar, while the field is focused (or an image is attached), the
+  avatar on the left becomes the add-image button; the photo shows as a small
+  thumbnail above the bar. Inside the thread the viewer is an overlay within
+  the sheet's own Modal — never a second Modal on top (iOS freezes).
+- **Requirement.** `expo-image-manipulator` (native module ⇒ new build). It
+  re-encodes every photo to JPEG 0.8, long edge ≤ 1600 px, which also strips
+  EXIF/GPS; the original is never uploaded. Without it the image buttons are
+  hidden and a dev build warns once.
+- **Gating.** `beforeSubmitPost` / `beforeSubmitComment` drafts carry the
+  attached `image?: LocalImage` (see Gating submissions).
+- **Exports.** `ImageViewerHost` provides the full-screen viewer;
+  `CommunityFeedScreen` and `ProfileScreen` already wrap themselves in it. A
+  host that renders `CommunityPost` in its own screen wraps that screen in
+  `ImageViewerHost` to get the viewer. A host that renders `CommunityPost`
+  inside its own `CommunitySheet` must **not** wrap it: that would stack a
+  second Modal on the sheet's. Image-only rows in the inbox read
+  `image.photo` ("📷 Photo", in all 13 catalogs); the other new strings are
+  `composer.addImage`, `composer.removeImage`, `a11y.openImage` and
+  `a11y.closeImage`.
+
 ## Translations
 
 When the translation module is on and a post, comment or poll has a
@@ -270,9 +309,14 @@ type BeforeSubmitPost = (draft: {
   topic: string;
   body: string;
   pollOptions?: string[];
+  image?: LocalImage; // images module: the attached, re-encoded photo
 }) => Promise<boolean>;
 
-type BeforeSubmitComment = (draft: { postId: string; body: string }) => Promise<boolean>;
+type BeforeSubmitComment = (draft: {
+  postId: string;
+  body: string;
+  image?: LocalImage; // images module
+}) => Promise<boolean>;
 ```
 
 Both props are optional and **default-inert** — omit them and behavior is

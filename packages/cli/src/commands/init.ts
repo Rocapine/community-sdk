@@ -179,5 +179,8 @@ function printNextSteps(
       '     translation module: COMMUNITY_TRANSLATION_LOCALES="en,es-419,..." (required, same list as modules.translation.locales in the app); optional: COMMUNITY_TRANSLATION_MODEL, COMMUNITY_TRANSLATION_STYLE',
     );
   }
+  if (modules.includes("images")) {
+    log("     images module: requires expo-image-manipulator in the app; no secret");
+  }
   log("  4. Deploy the Edge Functions: supabase functions deploy");
 }

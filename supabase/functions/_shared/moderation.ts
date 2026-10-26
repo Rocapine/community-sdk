@@ -49,13 +49,17 @@ export interface ModerationResult {
   category_scores: Record<string, number>;
 }
 
-export function flaggedCategories(result: ModerationResult): string[] {
+// `strict` (image calls) ignores MODERATION_EXCLUDED_CATEGORIES: the exclusion
+// exists for text discussion, never for pictures. Set by the caller, not
+// inferred from the response, so a missing response field can't relax it.
+export function flaggedCategories(result: ModerationResult, strict = false): string[] {
+  const hide = strict ? CATEGORIES_TO_HIDE : SCORE_HIDE;
   const cats = new Set<string>();
   for (const [cat, v] of Object.entries(result.categories)) {
     if (v && CATEGORIES_TO_HIDE.includes(cat)) cats.add(cat);
   }
   for (const [cat, score] of Object.entries(result.category_scores)) {
-    if (SCORE_HIDE.includes(cat) && score >= SCORE_THRESHOLD) cats.add(cat);
+    if (hide.includes(cat) && score >= SCORE_THRESHOLD) cats.add(cat);
   }
   return [...cats];
 }
@@ -73,14 +77,24 @@ export function assertModerationConfigured(): void {
   }
 }
 
-export type ImageInput = { type: "image_url"; image_url: { url: string } }[];
+export type ContentPart =
+  { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 
-// POSTs to OpenAI moderation. `input` is a string for text or the image_url
-// content-part array for an avatar. Returns null on a non-OK response so the
-// caller can fail closed (nothing published / nothing written).
+// Kept as an alias for update-profile (avatars).
+export type ImageInput = ContentPart[];
+
+// POSTs to OpenAI moderation. `input` is a string for text or a content-part
+// array; pass `{ strict: true }` for image calls (see flaggedCategories).
+// Returns null on a non-OK response so the caller can fail closed (nothing
+// published / nothing written).
 export async function moderateInput(
-  input: string | ImageInput,
-): Promise<{ flagged: boolean; reason: string | null } | null> {
+  input: string | ContentPart[],
+  { strict = false }: { strict?: boolean } = {},
+): Promise<{
+  flagged: boolean;
+  reason: string | null;
+  categories: string[];
+} | null> {
   const res = await fetch("https://api.openai.com/v1/moderations", {
     method: "POST",
     headers: {
@@ -95,8 +109,32 @@ export async function moderateInput(
     return null;
   }
   const { results } = await res.json();
-  const cats = flaggedCategories(results[0]);
-  return cats.length > 0
-    ? { flagged: true, reason: cats.join(",") }
-    : { flagged: false, reason: null };
+  const categories = flaggedCategories(results[0], strict);
+  return {
+    flagged: categories.length > 0,
+    reason: categories.length > 0 ? categories.join(",") : null,
+    categories,
+  };
+}
+
+// One verdict for a post/comment. Text and image are moderated in separate
+// calls so only the image is judged by the strict rules: a combined call can't
+// tell which part drove a score, so allowed (excluded) text would be too.
+export async function moderateItem(
+  text: string,
+  imageUrl: string | null,
+): Promise<{ flagged: boolean; reason: string | null; categories: string[] } | null> {
+  const verdicts = await Promise.all([
+    text ? moderateInput(text) : { categories: [] as string[] },
+    imageUrl
+      ? moderateInput([{ type: "image_url", image_url: { url: imageUrl } }], { strict: true })
+      : { categories: [] as string[] },
+  ]);
+  if (verdicts.some((v) => v === null)) return null;
+  const categories = [...new Set(verdicts.flatMap((v) => v!.categories))];
+  return {
+    flagged: categories.length > 0,
+    reason: categories.length > 0 ? categories.join(",") : null,
+    categories,
+  };
 }

@@ -18,6 +18,29 @@ export const POLL_MIN_OPTIONS = 2;
 export const POLL_MAX_OPTIONS = 4;
 export const POLL_OPTION_MAX_LENGTH = 60;
 
+export interface PostImage {
+  /** Public URL, or a local `file://` uri on optimistic items. */
+  url: string;
+  width: number;
+  height: number;
+}
+
+/** A re-encoded local file, ready to upload. */
+export type LocalImage = PostImage;
+
+type ImageColumns = {
+  image_path?: string | null;
+  image_width?: number | null;
+  image_height?: number | null;
+};
+
+/** Null unless the row has a path and both dimensions and the images module
+ * gave a bucket base (`imageBase`, ending in `/`). */
+export function mapImage(row: ImageColumns, imageBase: string | undefined): PostImage | null {
+  if (!imageBase || !row.image_path || !row.image_width || !row.image_height) return null;
+  return { url: imageBase + row.image_path, width: row.image_width, height: row.image_height };
+}
+
 /** Raw shape returned by the feed select (see the services layer). */
 export interface PostRow {
   id: string;
@@ -41,6 +64,10 @@ export interface PostRow {
   /** At most one row: server-filtered to the reader's locale. Absent when the
    * translation module is off. */
   post_translations?: TranslationRowEmbed[];
+  /** Absent when the images module is off (columns not in the select). */
+  image_path?: string | null;
+  image_width?: number | null;
+  image_height?: number | null;
 }
 
 export interface PollOptionRow {
@@ -80,6 +107,10 @@ export interface CommentRow {
   /** At most one row: server-filtered to the reader's locale. Absent when the
    * translation module is off. */
   comment_translations?: TranslationRowEmbed[];
+  /** Absent when the images module is off (columns not in the select). */
+  image_path?: string | null;
+  image_width?: number | null;
+  image_height?: number | null;
 }
 
 export interface PollOption {
@@ -155,6 +186,8 @@ export interface FeedPost {
   /** Reader-locale translation; null when the item is already in the reader's language,
    * not translated yet, or the module is off. `text` stays the original. */
   translation: TranslationInfo | null;
+  /** Null when the post has no photo or the images module is off. */
+  image: PostImage | null;
 }
 
 export interface ThreadComment {
@@ -171,6 +204,8 @@ export interface ThreadComment {
   /** Reader-locale translation; null when the item is already in the reader's language,
    * not translated yet, or the module is off. `text` stays the original. */
   translation: TranslationInfo | null;
+  /** Null when the comment has no photo or the images module is off. */
+  image: PostImage | null;
 }
 
 /**
@@ -280,6 +315,7 @@ export function mapPostRow(
   /** Host extension point (`CommunityConfig.feed.transformPost`), run last with
    * the raw row (including any `extraPostColumns`) this post was built from. */
   transformPost?: (post: FeedPost, row: Record<string, unknown>) => FeedPost,
+  imageBase?: string,
 ): FeedPost {
   const post: FeedPost = {
     id: row.id,
@@ -302,6 +338,7 @@ export function mapPostRow(
     hasReacted: reactionData.mine.has(row.id),
     lastReactorName: reactionData.lastReactorName.get(row.id) ?? null,
     translation: embedToTranslation(row.post_translations),
+    image: mapImage(row, imageBase),
   };
   return transformPost ? transformPost(post, row as unknown as Record<string, unknown>) : post;
 }
@@ -343,7 +380,12 @@ export function applyReaction(post: FeedPost, on = true): FeedPost {
   };
 }
 
-export function mapCommentRow(row: CommentRow, myUid: string, fallback: string): ThreadComment {
+export function mapCommentRow(
+  row: CommentRow,
+  myUid: string,
+  fallback: string,
+  imageBase?: string,
+): ThreadComment {
   return {
     id: row.id,
     postId: row.post_id,
@@ -356,6 +398,7 @@ export function mapCommentRow(row: CommentRow, myUid: string, fallback: string):
     isOwn: row.author_id === myUid,
     createdAt: row.created_at,
     translation: embedToTranslation(row.comment_translations),
+    image: mapImage(row, imageBase),
   };
 }
 

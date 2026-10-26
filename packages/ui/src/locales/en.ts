@@ -181,4 +181,9 @@ export const en: Record<string, string> = {
   "a11y.search": "Search",
   "a11y.closeSearch": "Close search",
   "a11y.clearSearch": "Clear search",
+  "composer.addImage": "Add an image",
+  "composer.removeImage": "Remove image",
+  "image.photo": "📷 Photo",
+  "a11y.openImage": "Open image",
+  "a11y.closeImage": "Close",
 };

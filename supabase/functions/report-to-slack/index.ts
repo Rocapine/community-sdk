@@ -8,6 +8,7 @@
 // into the ops channel or probe another user's report count).
 
 import { adminClient } from "../_shared/client.ts";
+import { fetchImagePath, postImageUrl } from "../_shared/images.ts";
 import { postToSlack } from "../_shared/slack.ts";
 
 const supabase = adminClient();
@@ -18,7 +19,7 @@ Deno.serve(async (req) => {
 
   const { data: report } = await supabase
     .from("reports")
-    .select("id, reported_user_id, reason, details")
+    .select("id, reported_user_id, post_id, comment_id, reason, details")
     .eq("id", record.id)
     .single();
   if (!report) return new Response("skip: unknown report");
@@ -33,10 +34,21 @@ Deno.serve(async (req) => {
     .select("*", { count: "exact", head: true })
     .eq("reported_user_id", report.reported_user_id);
 
+  // The reported item's image, when it has one. A failed lookup only drops the
+  // line: an alert must never be blocked by it.
+  const target = report.comment_id
+    ? ({ table: "comments", id: report.comment_id } as const)
+    : report.post_id
+      ? ({ table: "posts", id: report.post_id } as const)
+      : null;
+  const image = target ? await fetchImagePath(supabase, target.table, target.id) : null;
+  const imageLine = image?.ok && image.path ? `Image: ${postImageUrl(image.path)}\n` : "";
+
   await postToSlack({
     text:
       `:rotating_light: Report (*${report.reason}*) against *${reported?.username ?? report.reported_user_id}*, ${count ?? "?"} report(s) total\n` +
       `${report.details ? `> ${report.details}\n` : ""}` +
+      imageLine +
       `amplitude: \`${reported?.amplitude_id ?? "?"}\` | revenuecat: \`${reported?.revenuecat_id ?? "?"}\``,
   });
   return new Response("ok");

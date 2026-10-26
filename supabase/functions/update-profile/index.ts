@@ -111,7 +111,9 @@ Deno.serve(async (req) => {
       return json({ status: "error", error: "forbidden_path" }, 403);
     }
     const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/avatars/${path}`;
-    const verdict = await moderateInput([{ type: "image_url", image_url: { url: publicUrl } }]);
+    const verdict = await moderateInput([{ type: "image_url", image_url: { url: publicUrl } }], {
+      strict: true,
+    });
     if (!verdict) return json({ status: "error", error: "moderation unavailable" }, 503);
     if (verdict.flagged) {
       await admin.storage.from("avatars").remove([path]);

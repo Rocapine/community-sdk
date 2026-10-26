@@ -383,7 +383,7 @@ describe("runUpgrade", () => {
 
     const after = fs.readdirSync(migrationsDir).sort();
     const translationFiles = after.filter((f) => f.includes("_community_translation_"));
-    expect(translationFiles).toHaveLength(2);
+    expect(translationFiles).toHaveLength(3);
     expect(Number(translationFiles[0]!.slice(0, 14))).toBeGreaterThan(maxBeforeTimestamp);
 
     expect(fs.existsSync(path.join(cwd, "supabase", "functions", "translate-one"))).toBe(true);
@@ -392,6 +392,24 @@ describe("runUpgrade", () => {
     const manifest = readManifest(cwd)!;
     expect(manifest.modules).toEqual(["core", "polls", "translation"]);
     expect(manifest.installedTemplates).toContain("translation/translations");
+  });
+
+  it("adds the images module to an existing install with addModules", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+
+    await runUpgrade(baseOptions({ addModules: ["images"] }));
+
+    const manifest = readManifest(cwd)!;
+    expect(manifest.modules).toEqual(["core", "images"]);
+    expect(manifest.installedTemplates).toContain("images/images");
   });
 
   it("warns when adding translation without polls", async () => {

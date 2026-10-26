@@ -21,7 +21,9 @@ exact signatures, see the per-package READMEs.
   - the topic list and which topics are official-only;
   - the anonymous-author fallback name;
   - which optional modules you ship: push, polls, inbox, the reaction and what
-    it means (cheer, prayer, support…), and translation into which locales.
+    it means (cheer, prayer, support…), translation into which locales, and
+    images (one photo per post and per comment — it adds a native module, so
+    the next build must include `expo-image-manipulator`).
 
 ## Phase 1 — Backend
 
@@ -32,7 +34,7 @@ exact signatures, see the per-package READMEs.
 2. **Copy the modules** from the app repo root:
 
    ```bash
-   npx @rocapine/community init --modules core,push,polls,reaction,inbox,translation
+   npx @rocapine/community init --modules core,push,polls,reaction,inbox,translation,images
    ```
 
    Drop any module you don't want (`core` is always implied; omitting the flag
@@ -79,11 +81,12 @@ npm install @rocapine/community-core @rocapine/community-ui
 npx expo install @supabase/supabase-js @tanstack/react-query react-native-reanimated \
   @gorhom/bottom-sheet react-native-gesture-handler react-native-safe-area-context \
   expo-image expo-haptics expo-image-picker expo-symbols
+npx expo install expo-image-manipulator   # only with the images module
 ```
 
 - **Install only the peers the app is missing.** `expo-symbols` is optional
   if you pass a full `icons` map. Any new native peer (reanimated,
-  gesture-handler, image-picker…) means a new native build.
+  gesture-handler, image-picker, image-manipulator…) means a new native build.
 - **Pin `@tanstack/react-query` in Metro. This is mandatory.** The SDK ships
   CommonJS and `require()`s React Query, while the app `import`s it. Metro's
   `exports` resolution then loads **two** copies (`index.cjs` and `index.js`),
@@ -126,8 +129,15 @@ e.g. `lib/community-config.ts`.
    by RLS on the ids you mark. If the fallback name is localized, rebuild the
    config when the app language changes (a `useMemo` keyed on the language).
 2. **Modules.** Mirror exactly what Phase 1 installed: the `push`, `polls` and
-   `inbox` booleans, `reaction: { key } | false`, and
-   `translation: { locales } | false`.
+   `inbox` booleans, `reaction: { key } | false`,
+   `translation: { locales } | false` and `images` (boolean). Turn `images` on only
+   once `expo-image-manipulator` is in the build (without it the image buttons
+   stay hidden and a dev build warns once) **and** the backend has the module:
+   `supabase db push` + `supabase functions deploy` first, then ship the client.
+   A client with `images` on selects the image columns in every posts query, so
+   against a backend without them the feed fails to load. If the app builds `FeedPost` or
+   `ThreadComment` objects by hand (tests, fixtures), add `image: null`; a host
+   that types a complete `CommunityIconSet` adds the new `image` role.
 3. **Host adapters.** Every field is optional and defaults to a no-op.
    - `getDisplayName` must be **synchronous**: read an already-hydrated store.
    - `getAnalyticsIds` must also be synchronous. The providers' own getters are
@@ -173,8 +183,9 @@ e.g. `lib/community-config.ts`.
   screen stays mounted across tab switches (native tabs), stamp the last-seen
   watermark on focus, not on mount.
 - **Profile.** `ProfileEditSheet` handles the moderated username, bio and avatar.
-  If you use the avatar picker, set `expo-image-picker`'s `photosPermission` to
-  mention the community profile photo; App Review reads this text.
+  If you use the avatar picker or the images module, set `expo-image-picker`'s
+  `photosPermission` to mention every use: the community profile photo and the
+  photos members add to posts and comments. App Review reads this text.
 - **Push module.** The SDK doesn't register the device. The app upserts its
   Expo push token into `push_tokens` (`user_id` = the community uid,
   `expo_push_token`, `notify_*` preferences) after permission is granted. It
@@ -208,13 +219,18 @@ On a dev client, against the real project or a scratch one:
 5. **Translation.** With the app in another listed language, a post by another
    user shows "Translated from…". The "see original" toggle animates the change
    in height.
-6. **Profile.** Setting username, bio and avatar goes through moderation.
-7. **Report and block.** A report sends a Slack alert if the webhook is set. A block
+6. **Images.** With the images module: a photo post, an image-only post and a
+   photo comment (from the reply bar's avatar button) appear once moderation
+   passes them; the full-screen viewer zooms and closes with a swipe down; an
+   image sent while offline comes back with the draft; the Image button is
+   absent while a poll is open.
+7. **Profile.** Setting username, bio and avatar goes through moderation.
+8. **Report and block.** A report sends a Slack alert if the webhook is set. A block
    hides that author's content.
-8. **Push and inbox.** Actions from a second account arrive as pushes, and
+9. **Push and inbox.** Actions from a second account arrive as pushes, and
    tapping one routes to the community screen. The inbox shows the events and
    clears the badge.
-9. **The app's own tests** still pass.
+10. **The app's own tests** still pass.
 
 ## Maintenance
 
@@ -223,7 +239,8 @@ On a dev client, against the real project or a scratch one:
   - `npx @rocapine/community upgrade` copies the new migrations and changed
     function templates since `community-sdk.json`. Review them, `supabase db push`,
     then redeploy the functions it touched.
-  - `upgrade --add-modules <m>` adds a module.
+  - `upgrade --add-modules <m>` adds a module (`images` for post and comment
+    images, then `supabase db push` and redeploy the functions).
   - [`compat.md`](compat.md) says which releases carry backend changes.
 - **Never renumber or edit a migration that has been applied.** New behaviour
   always ships as a new file.

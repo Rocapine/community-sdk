@@ -23,6 +23,7 @@ import {
   type CommentRow,
   type CommunityProfile,
   type FeedPost,
+  type LocalImage,
   type PollData,
   type PostRow,
   type ProfileRow,
@@ -32,6 +33,11 @@ import {
 
 /** Avatar images live in this Storage bucket on every install (mold value, unchanged). */
 const AVATAR_BUCKET = "avatars";
+export const POST_IMAGES_BUCKET = "post-images";
+
+/** Selected only when the images module is on: installs without the module
+ * don't have these columns and PostgREST would reject the whole select. */
+const IMAGE_COLUMNS = "image_path, image_width, image_height";
 
 async function requireUid(cfg: ResolvedCommunityConfig): Promise<string> {
   const uid = await ensureIdentity(cfg);
@@ -81,10 +87,12 @@ export function buildFeedSelect(
   extraPostColumns?: readonly string[],
   polls = false,
   translations = false,
+  images = false,
 ): string {
   const parts = [FEED_SELECT];
   if (polls) parts.push(translations ? POLL_OPTIONS_TRANSLATED_SELECT : POLL_OPTIONS_SELECT);
   if (translations) parts.push(POST_TRANSLATIONS_SELECT);
+  if (images) parts.push(IMAGE_COLUMNS);
   const base = parts.join(", ");
   if (!extraPostColumns || extraPostColumns.length === 0) return base;
   const valid = extraPostColumns.filter((column) => {
@@ -102,7 +110,20 @@ export function buildFeedSelect(
  * embed iff `modules.polls`, + translation embeds iff the reader has a
  * resolved translation locale. */
 function postsSelect(cfg: ResolvedCommunityConfig): string {
-  return buildFeedSelect(cfg.feed.extraPostColumns, cfg.modules.polls, readerLocale(cfg) !== null);
+  return buildFeedSelect(
+    cfg.feed.extraPostColumns,
+    cfg.modules.polls,
+    readerLocale(cfg) !== null,
+    !!cfg.modules.images,
+  );
+}
+
+/** Public URL prefix of the `post-images` bucket (ends with `/`); undefined
+ * when the images module is off. */
+function imageBase(cfg: ResolvedCommunityConfig): string | undefined {
+  if (!cfg.modules.images) return undefined;
+  const { publicUrl } = cfg.requireClient().storage.from(POST_IMAGES_BUCKET).getPublicUrl("").data;
+  return publicUrl.endsWith("/") ? publicUrl : `${publicUrl}/`;
 }
 
 /** Embedded-resource filters: keep only the reader locale's translation rows,
@@ -221,6 +242,7 @@ async function toFeedPosts(
     ),
     fetchReactionSummaries(cfg, postIds),
   ]);
+  const base = imageBase(cfg);
   return rows.map((r) =>
     mapPostRow(
       r,
@@ -231,6 +253,7 @@ async function toFeedPosts(
       pollData,
       reactionData,
       cfg.feed.transformPost,
+      base,
     ),
   );
 }
@@ -364,7 +387,10 @@ export async function searchPosts(
 /** The thread (comments) select: + the translation embed iff the reader has a
  * resolved translation locale. */
 export function threadSelect(cfg: ResolvedCommunityConfig): string {
-  return readerLocale(cfg) ? `${COMMENTS_SELECT}, ${COMMENT_TRANSLATIONS_SELECT}` : COMMENTS_SELECT;
+  const parts = [COMMENTS_SELECT];
+  if (readerLocale(cfg)) parts.push(COMMENT_TRANSLATIONS_SELECT);
+  if (cfg.modules.images) parts.push(IMAGE_COLUMNS);
+  return parts.join(", ");
 }
 
 /**
@@ -389,15 +415,27 @@ export async function fetchThread(
   if (locale) query = query.eq("comment_translations.locale", locale);
   const { data, error } = await query;
   if (error) throw error;
+  const base = imageBase(cfg);
   return ((data ?? []) as unknown as CommentRow[]).map((r) =>
-    mapCommentRow(r, uid, cfg.authorFallback()),
+    mapCommentRow(r, uid, cfg.authorFallback(), base),
   );
 }
 
 /** Verdict returned by the synchronous moderate-one Edge Function. */
 export type ModerationVerdict = { status: "published" | "rejected" | "pending"; reason?: string };
 
-export type CreatePostInput = { topic: string; body: string; pollOptions?: string[] };
+/** What `uploadPostImage` returns and `createPost`/`createComment` store. */
+export type UploadedImage = { path: string; width: number; height: number };
+
+export type CreatePostInput = {
+  topic: string;
+  body: string;
+  pollOptions?: string[];
+  image?: UploadedImage;
+};
+
+const imageColumns = (image?: UploadedImage) =>
+  image ? { image_path: image.path, image_width: image.width, image_height: image.height } : {};
 
 /**
  * Insert a post as 'pending' (invisible to others until moderated). Returns id.
@@ -409,9 +447,11 @@ export async function createPost(
   cfg: ResolvedCommunityConfig,
   input: CreatePostInput,
 ): Promise<string> {
-  const { topic, body, pollOptions } = input;
+  const { topic, body, pollOptions, image } = input;
   const hasPoll = !!pollOptions && pollOptions.length > 0;
   if (hasPoll && !cfg.modules.polls) throw new Error("polls module is not enabled");
+  if (image && !cfg.modules.images) throw new Error("images module is not enabled");
+  if (image && hasPoll) throw new Error("a post cannot have both a poll and an image");
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
   if (hasPoll) {
@@ -425,7 +465,7 @@ export async function createPost(
   }
   const { data, error } = await client
     .from("posts")
-    .insert({ author_id: uid, topic, content: body })
+    .insert({ author_id: uid, topic, content: body, ...imageColumns(image) })
     .select("id")
     .single();
   if (error) throw error;
@@ -461,12 +501,14 @@ export async function createComment(
   cfg: ResolvedCommunityConfig,
   postId: string,
   body: string,
+  image?: UploadedImage,
 ): Promise<string> {
+  if (image && !cfg.modules.images) throw new Error("images module is not enabled");
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
   const { data, error } = await client
     .from("comments")
-    .insert({ post_id: postId, author_id: uid, content: body })
+    .insert({ post_id: postId, author_id: uid, content: body, ...imageColumns(image) })
     .select("id")
     .single();
   if (error) throw error;
@@ -683,4 +725,27 @@ export async function uploadAvatar(cfg: ResolvedCommunityConfig, fileUri: string
     .upload(path, bytes, { contentType: "image/jpeg" });
   if (error) throw error;
   return path;
+}
+
+/**
+ * Upload a re-encoded JPEG (see `LocalImage`) to the public `post-images`
+ * bucket under the caller's own folder. Returns what `createPost` /
+ * `createComment` store; the public URL is rebuilt from `path` on read.
+ */
+export async function uploadPostImage(
+  cfg: ResolvedCommunityConfig,
+  image: LocalImage,
+): Promise<UploadedImage> {
+  const client = cfg.requireClient();
+  const uid = await requireUid(cfg);
+  const id =
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const path = `${uid}/${id}.jpg`;
+  const response = await fetch(image.url);
+  const bytes = await response.arrayBuffer();
+  const { error } = await client.storage
+    .from(POST_IMAGES_BUCKET)
+    .upload(path, bytes, { contentType: "image/jpeg" });
+  if (error) throw error;
+  return { path, width: image.width, height: image.height };
 }

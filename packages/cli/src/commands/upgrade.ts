@@ -353,4 +353,7 @@ function printSummary(
       '  3. translation module: COMMUNITY_TRANSLATION_LOCALES="en,es-419,..." (required, same list as modules.translation.locales in the app); optional: COMMUNITY_TRANSLATION_MODEL, COMMUNITY_TRANSLATION_STYLE',
     );
   }
+  if (summary.addedModules.includes("images")) {
+    log("  4. images module: requires expo-image-manipulator in the app; no secret");
+  }
 }

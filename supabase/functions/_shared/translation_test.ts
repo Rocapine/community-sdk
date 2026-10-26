@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { translationStyleLines } from "./translation.ts";
+import { hasTranslatableContent, translationStyleLines } from "./translation.ts";
 
 Deno.test("translationStyleLines: a plain sentence applies to every target", () => {
   assertEquals(translationStyleLines("warm and brotherly", ["fr", "de"]), [
@@ -25,3 +25,12 @@ Deno.test("translationStyleLines: empty or broken JSON degrades gracefully", () 
   assertEquals(translationStyleLines("  ", ["fr"]), []);
   assertEquals(translationStyleLines("{not json", ["fr"]), ["App voice: {not json"]);
 });
+
+Deno.test(
+  "hasTranslatableContent: an image-only item (empty content) has nothing to translate",
+  () => {
+    assertEquals(hasTranslatableContent(""), false);
+    assertEquals(hasTranslatableContent("  \n"), false);
+    assertEquals(hasTranslatableContent("bonjour"), true);
+  },
+);
