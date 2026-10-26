@@ -1,5 +1,13 @@
 # @rocapine/community-ui
 
+## 0.11.1
+
+### Patch Changes
+
+- 0c9c112: Only the avatar and name in a post's header open the author's profile. A tap on the empty space to their right now opens the thread like the rest of the card.
+- Updated dependencies [0c9c112]
+  - @rocapine/community-core@0.11.1
+
 ## 0.11.0
 
 ### Minor Changes
