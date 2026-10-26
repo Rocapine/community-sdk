@@ -1,8 +1,8 @@
 // Press feedback for the package's buttons with a visible surface (pills,
 // chips, cards): a barely-there scale-down while held, on the UI thread
-// (Reanimated) — no opacity change, no spring. Icon buttons and text links
-// use a plain `Pressable`: their state change (or the screen they open) is the
-// feedback.
+// (Reanimated) — no opacity change, no spring. The feed header's icon buttons
+// use it too; other icon buttons and text links use a plain `Pressable`: their
+// state change (or the screen they open) is the feedback.
 import * as Haptics from "expo-haptics";
 import {
   Pressable,

@@ -401,7 +401,7 @@ export function CommunityFeedScreen({
     switch (button) {
       case "profile":
         return (
-          <Pressable
+          <PressableScale
             key={button}
             onPress={() => myUid && onOpenProfile(myUid)}
             disabled={!myUid}
@@ -410,13 +410,13 @@ export function CommunityFeedScreen({
             accessibilityLabel={t("a11y.myProfile")}
           >
             <Avatar url={myAvatarUrl} initial={myInitial} />
-          </Pressable>
+          </PressableScale>
         );
       case "inbox":
         return <InboxBell key={button} onPress={onOpenInbox!} />;
       case "search":
         return (
-          <Pressable
+          <PressableScale
             key={button}
             onPress={toggleSearch}
             style={styles.iconButton}
@@ -428,7 +428,7 @@ export function CommunityFeedScreen({
             ) : (
               <icons.search size={22} color={theme.colors.textPrimary} weight="regular" />
             )}
-          </Pressable>
+          </PressableScale>
         );
     }
   };
@@ -677,7 +677,7 @@ function InboxBell({ onPress }: { onPress: () => void }) {
   const styles = useThemedStyles(makeStyles);
   const unread = useUnreadNotificationCount();
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       style={styles.iconButton}
       accessibilityRole="button"
@@ -685,7 +685,7 @@ function InboxBell({ onPress }: { onPress: () => void }) {
     >
       <icons.bell size={22} color={theme.colors.textPrimary} weight="regular" />
       {unread > 0 && <View style={styles.bellDot} />}
-    </Pressable>
+    </PressableScale>
   );
 }
 
