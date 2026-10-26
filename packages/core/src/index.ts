@@ -4,9 +4,10 @@ export type {
   CommunityHostAdapters,
   CommunityFeedConfig,
   CommunityConfig,
+  CommunityDefaultName,
   ResolvedCommunityConfig,
 } from "./config";
-export { CommunityDisabledError, resolveConfig } from "./config";
+export { CommunityDisabledError, DEFAULT_NAME, resolveConfig } from "./config";
 export { readerLocale, languageOf } from "./locale";
 export { CommunityProvider, useCommunityConfig } from "./provider";
 
@@ -56,7 +57,12 @@ export { timeAgo, timeAgoParts } from "./time";
 export { COMMUNITY_EVENTS, emitEvent } from "./events";
 export type { CommunityEventName } from "./events";
 
-export { ensureIdentity, resetIdentity, syncProfileFromHost } from "./identity";
+export {
+  ensureIdentity,
+  resetIdentity,
+  resetProfileIdentity,
+  syncProfileFromHost,
+} from "./identity";
 
 export {
   buildFeedSelect,

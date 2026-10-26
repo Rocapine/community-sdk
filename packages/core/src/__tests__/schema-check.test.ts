@@ -9,7 +9,6 @@ import {
 
 const baseConfig = {
   appName: "Test App",
-  anonymousAuthorFallback: "Someone",
   topics: [],
   modules: { polls: false, push: false, inbox: false, reaction: false as const },
 };

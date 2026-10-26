@@ -20,7 +20,6 @@ export const config: CommunityConfig = {
       ? createClient(url, key, { auth: { storage: AsyncStorage, persistSession: true } })
       : null,
   appName: "Community SDK Demo",
-  anonymousAuthorFallback: "Someone",
   topics: [{ id: "general" }, { id: "question" }, { id: "news", officialOnly: true }],
   modules: { polls: true, push: false, inbox: true, reaction: { key: "cheer" }, images: true },
   host: {

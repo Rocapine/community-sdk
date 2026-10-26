@@ -679,7 +679,13 @@ export type UpdateProfileResult =
       avatarUrl: string | null;
     }
   | { status: "rejected"; field: "username" | "handle" | "bio" | "avatar"; reason?: string }
-  | { status: "error"; code?: "handle_taken"; error?: string };
+  | {
+      status: "error";
+      /** `handle_taken` carries a free `suggestion` ("superuser-4821") when one was found. */
+      code?: "handle_taken";
+      suggestion?: string | null;
+      error?: string;
+    };
 
 /**
  * The only write path for handle/bio/avatar — moderated server-side by the

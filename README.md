@@ -92,7 +92,7 @@ const config: CommunityConfig = {
     process.env.EXPO_PUBLIC_SUPABASE_KEY!,
   ),
   appName: "My App",
-  anonymousAuthorFallback: "Someone",
+  defaultName: { label: "Member", handle: "member" }, // optional, "User 4821" / @user-4821 by default
   topics: [{ id: "general" }, { id: "question" }, { id: "news", officialOnly: true }],
   modules: {
     polls: true,

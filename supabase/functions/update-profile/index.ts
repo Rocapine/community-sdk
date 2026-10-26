@@ -11,6 +11,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { adminClient, json, SUPABASE_URL } from "../_shared/client.ts";
 import { assertModerationConfigured, moderateInput } from "../_shared/moderation.ts";
+import { containsAppName, isReservedHandle, suggestHandle } from "../_shared/names.ts";
 
 assertModerationConfigured();
 
@@ -54,12 +55,17 @@ Deno.serve(async (req) => {
     if (u.length < 2 || u.length > 24) {
       return json({ status: "error", error: "invalid_username" }, 400);
     }
+    if (containsAppName(u)) return json({ status: "error", error: "reserved_name" }, 400);
     const verdict = await moderateInput(u);
     if (!verdict) return json({ status: "error", error: "moderation unavailable" }, 503);
     if (verdict.flagged) {
       return json({ status: "rejected", field: "username", reason: verdict.reason });
     }
-    const { error } = await admin.from("profiles").update({ username: u }).eq("id", uid);
+    // The user's own name: the host app's sync no longer overwrites it (core/009).
+    const { error } = await admin
+      .from("profiles")
+      .update({ username: u, username_set_by_user: true })
+      .eq("id", uid);
     if (error) return json({ status: "error", error: error.message }, 500);
   }
 
@@ -69,15 +75,26 @@ Deno.serve(async (req) => {
     if (!/^[a-z0-9-]{3,20}$/.test(h)) {
       return json({ status: "error", error: "invalid_handle" }, 400);
     }
+    if (isReservedHandle(h)) return json({ status: "error", error: "reserved_handle" }, 400);
     const verdict = await moderateInput(h);
     if (!verdict) return json({ status: "error", error: "moderation unavailable" }, 503);
     if (verdict.flagged) {
       return json({ status: "rejected", field: "handle", reason: verdict.reason });
     }
-    const { error } = await admin.from("profiles").update({ handle: h }).eq("id", uid);
+    const { error } = await admin
+      .from("profiles")
+      .update({ handle: h, handle_set_by_user: true })
+      .eq("id", uid);
     if (error) {
       if (error.code === "23505") {
-        return json({ status: "error", code: "handle_taken" }, 409);
+        const suggestion = await suggestHandle(h, async (candidate) => {
+          const { count } = await admin
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .eq("handle", candidate);
+          return count === 0;
+        });
+        return json({ status: "error", code: "handle_taken", suggestion }, 409);
       }
       return json({ status: "error", error: error.message }, 500);
     }

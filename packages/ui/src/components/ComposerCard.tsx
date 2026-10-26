@@ -41,7 +41,6 @@
 // showed one; silently losing the typed text was a regression).
 
 import {
-  displayName,
   POLL_MAX_OPTIONS,
   POLL_MIN_OPTIONS,
   POLL_OPTION_MAX_LENGTH,
@@ -74,6 +73,7 @@ import type { CommunityTheme } from "../theme";
 import { runGuarded } from "../utils/gate";
 import { imageFrame, imagesSupported, pickImage } from "../utils/postImage";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
+import { useMyAuthorName } from "../utils/myName";
 import { AnimatedHeight } from "./AnimatedHeight";
 import { haptic, PressableScale } from "./PressableScale";
 import { RulesSheet } from "./RulesSheet";
@@ -136,6 +136,7 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
   const t = useT();
   const icons = useCommunityIcons();
   const cfg = useCommunityConfig();
+  const myAuthorName = useMyAuthorName();
   const styles = useThemedStyles(makeStyles);
   const createPost = useCreatePost();
 
@@ -227,7 +228,7 @@ export const ComposerCard = forwardRef<ComposerCardHandle, ComposerCardProps>(fu
 
     const doSubmit = () => {
       // Read after the gate: a host may set the display name in `beforeSubmit`.
-      const authorName = displayName(cfg.host.getDisplayName(), cfg.authorFallback());
+      const authorName = myAuthorName();
       haptic("medium");
       createPost.mutate(
         {

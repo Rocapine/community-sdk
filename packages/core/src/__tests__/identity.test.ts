@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveConfig, type CommunityConfig } from "../config";
-import { resetIdentity, syncProfileFromHost } from "../identity";
+import { ensureIdentity, resetIdentity, syncProfileFromHost } from "../identity";
 
 type Capture = { update?: Record<string, unknown> };
 
@@ -24,7 +24,6 @@ function makeClient(capture: Capture): SupabaseClient {
 const baseConfig = (supabase: SupabaseClient, push: boolean): CommunityConfig => ({
   supabase,
   appName: "Test App",
-  anonymousAuthorFallback: "Someone",
   topics: [{ id: "general" }],
   modules: { polls: false, push, inbox: false, reaction: false as const },
   host: {
@@ -74,5 +73,42 @@ describe("syncProfileFromHost — locale gated on the push module", () => {
     await syncProfileFromHost(cfg); // retries — locale must be sent again
 
     expect(capture.update).toMatchObject({ locale: "fr" });
+  });
+});
+
+describe("ensureIdentity — default name", () => {
+  beforeEach(() => {
+    resetIdentity();
+  });
+
+  it("asks the backend for a default name in the host's language, once per launch", async () => {
+    const calls: { fn: string; args: unknown }[] = [];
+    const client = {
+      auth: { getSession: async () => ({ data: { session: { user: { id: "uid1" } } } }) },
+      rpc: async (fn: string, args: unknown) => {
+        calls.push({ fn, args });
+        return { error: null };
+      },
+    } as unknown as SupabaseClient;
+    const cfg = resolveConfig({
+      ...baseConfig(client, false),
+      defaultName: { label: (l) => (l === "fr" ? "Frère" : "Brother"), handle: "brother" },
+    });
+
+    expect(await ensureIdentity(cfg)).toBe("uid1");
+    await ensureIdentity(cfg);
+    expect(calls).toEqual([
+      { fn: "assign_default_profile", args: { p_label: "Frère", p_handle: "brother" } },
+    ]);
+  });
+
+  it("still resolves the identity when the backend has no such RPC", async () => {
+    const client = {
+      auth: { getSession: async () => ({ data: { session: { user: { id: "uid1" } } } }) },
+      rpc: async () => {
+        throw new Error("not found");
+      },
+    } as unknown as SupabaseClient;
+    expect(await ensureIdentity(resolveConfig(baseConfig(client, false)))).toBe("uid1");
   });
 });

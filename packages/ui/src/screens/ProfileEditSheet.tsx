@@ -1,33 +1,27 @@
-// Own-profile editor: avatar picker + upload, bio, and username. Ported from
-// the mold's `ProfileEditSheet` (`sdk/client/components/community/ProfileEditSheet.tsx`),
-// rebuilt on this package's `CommunitySheet`/theme/i18n. Each of the three
-// sections saves independently and keeps the sheet open on success, so a
-// visitor can make several edits in one sitting. `updateProfile` is wrapped
-// in try/catch everywhere: the service can throw on unexpected transport
-// failures, surfaced as the same generic line as any other error.
+// Own-profile editor: avatar (tap it, pencil badge, to pick a photo), display
+// name, handle and bio, all saved by one footer "Save" that stays disabled
+// until something changed. A taken handle comes back with a free suggestion
+// the user can take in one tap (core/009 + update-profile). Tapping outside a
+// field closes the keyboard; a field the keyboard would cover scrolls into
+// view. Ported from the mold's `ProfileEditSheet`, rebuilt on this package's
+// `CommunitySheet`/theme/i18n. `updateProfile` is wrapped in try/catch: the
+// service can throw on unexpected transport failures, surfaced as the same
+// generic line as any other error.
 //
-// Differences from the mold, beyond the standard router-free transformations:
-//  - No `profile: CommunityProfile` prop (task brief's signature is just
-//    `{ visible, onClose }`): the sheet resolves its own identity
-//    (`useMyUid()`) and profile (`useProfile(myUid)`) instead of receiving it
-//    from a parent that already fetched one. Local form state (avatarUrl/
-//    bio/handle) is seeded from `profile.data` exactly once, the first time
-//    it loads (`initializedRef`) — re-syncing on every `profile.data` change
-//    would clobber in-progress edits every time `useUpdateProfile`'s
-//    `onSuccess` invalidates and refetches the profile query. While
-//    `profile.data` hasn't arrived yet (sheet opened before the query
-//    settles), the body renders a spinner instead of a form.
-//  - `useAvatarPicker` (a separate mold hook) is folded directly into this
-//    file per the task brief. The mold's resize/compress step comes back as
-//    `resizeAvatar` (`../utils/avatar`, optional `expo-image-manipulator`
-//    peer: 512px JPEG @0.8, or the photo unchanged without it) between the
-//    picker's square crop and `uploadAvatar(cfg, uri)`, which reads the
-//    local file's bytes via `fetch` (no base64/`atob` step).
-//  - No analytics calls in this file (controller ruling for this task):
-//    `useUpdateProfile` already emits `profileUpdated` itself on every
-//    successful mutation (`packages/core/src/hooks.ts`), so the mold's own
-//    `trackCommunityProfileUpdated(...)` calls after each save would double
-//    that event. Dropped entirely, not replaced.
+// Notes:
+//  - The sheet resolves its own identity (`useMyUid()`) and profile
+//    (`useProfile(myUid)`). The form is seeded from `profile.data` exactly
+//    once (`initializedRef`): re-syncing on every refetch would clobber
+//    in-progress edits, since each saved field invalidates the profile query.
+//    `base` holds the last saved values, which is what "changed" compares to.
+//  - Save sends the changed fields one at a time (name, handle, bio, photo)
+//    and stops at the first failure, shown under that field; the fields saved
+//    before it stay saved (they move into `base`). Full success closes the
+//    sheet.
+//  - The picked photo is resized right away (`resizeAvatar`, optional
+//    `expo-image-manipulator` peer) and previewed from the local file; it is
+//    uploaded on save (`uploadAvatar`), then moderated by update-profile.
+//  - No analytics calls here: `useUpdateProfile` emits `profileUpdated` itself.
 
 import {
   useCommunityConfig,
@@ -36,21 +30,35 @@ import {
   useUpdateProfile,
   uploadAvatar,
 } from "@rocapine/community-core";
+import type { BottomSheetScrollViewMethods } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
-import { haptic, PressableScale } from "../components/PressableScale";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Keyboard,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
+import { haptic, PressableScale } from "../components/PressableScale";
 import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
-import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { resizeAvatar } from "../utils/avatar";
 
 const BIO_MAX_LENGTH = 300;
 const HANDLE_MAX_LENGTH = 20;
+const NAME_MAX_LENGTH = 24;
+const AVATAR_SIZE = 96;
+
+type Field = "name" | "handle" | "bio";
+type Saved = { name: string; handle: string; bio: string };
 
 export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const theme = useCommunityTheme();
+  const icons = useCommunityIcons();
   const t = useT();
   const cfg = useCommunityConfig();
   const styles = useThemedStyles(makeStyles);
@@ -59,30 +67,103 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   const profile = useProfile(myUid);
   const updateProfile = useUpdateProfile();
 
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [bio, setBio] = useState("");
+  const [base, setBase] = useState<Saved>({ name: "", handle: "", bio: "" });
+  const [name, setName] = useState("");
   const [handle, setHandle] = useState("");
+  const [bio, setBio] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  // Picked + resized, not uploaded yet: the preview, and what save uploads.
+  const [pendingAvatar, setPendingAvatar] = useState<string | null>(null);
 
   // Seed the form from the fetched profile exactly once — see file header.
   const initializedRef = useRef(false);
   useEffect(() => {
     if (initializedRef.current || !profile.data) return;
     initializedRef.current = true;
+    const seeded = {
+      name: profile.data.username ?? "",
+      handle: profile.data.handle ?? "",
+      bio: profile.data.bio ?? "",
+    };
+    setBase(seeded);
+    setName(seeded.name);
+    setHandle(seeded.handle);
+    setBio(seeded.bio);
     setAvatarUrl(profile.data.avatarUrl);
-    setBio(profile.data.bio ?? "");
-    setHandle(profile.data.handle ?? "");
   }, [profile.data]);
 
   const [photoBusy, setPhotoBusy] = useState(false);
-  const [photoError, setPhotoError] = useState<string | null>(null);
-  const [bioBusy, setBioBusy] = useState(false);
-  const [bioError, setBioError] = useState<string | null>(null);
-  const [handleBusy, setHandleBusy] = useState(false);
-  const [handleError, setHandleError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<Field | "photo", string>>>({});
+  const [handleSuggestion, setHandleSuggestion] = useState<string | null>(null);
 
+  const changed = {
+    name: name.trim() !== base.name,
+    handle: handle.trim().toLowerCase() !== base.handle,
+    bio: bio.trim() !== base.bio,
+    photo: pendingAvatar !== null,
+  };
+  const dirty = changed.name || changed.handle || changed.bio || changed.photo;
+
+  // ---- keyboard: a focused field the keyboard would cover scrolls into view ----
+  const scrollRef = useRef<BottomSheetScrollViewMethods>(null);
+  const fieldY = useRef<Partial<Record<Field, number>>>({});
+  const fieldViews = useRef<Partial<Record<Field, View | null>>>({});
+  const focused = useRef<Field | null>(null);
+  const keyboardTop = useRef<number | null>(null);
+  const footerHeight = useRef(0);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  const revealFocused = () => {
+    const field = focused.current;
+    const view = field ? fieldViews.current[field] : null;
+    const y = field ? fieldY.current[field] : undefined;
+    if (!view || y === undefined || keyboardTop.current === null) return;
+    view.measureInWindow((_x, top, _w, height) => {
+      const limit = (keyboardTop.current ?? 0) - footerHeight.current - theme.spacing(6);
+      if (top + height > limit) {
+        scrollRef.current?.scrollTo({ y: Math.max(0, y - theme.spacing(4)), animated: true });
+      }
+    });
+  };
+
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", (e) => {
+      keyboardTop.current = e.endCoordinates.screenY;
+      setKeyboardHeight(e.endCoordinates.height);
+      revealFocused();
+    });
+    const hide = Keyboard.addListener("keyboardDidHide", () => {
+      keyboardTop.current = null;
+      setKeyboardHeight(0);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+    // revealFocused only reads refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fieldProps = (field: Field) => ({
+    ref: (v: View | null) => {
+      fieldViews.current[field] = v;
+    },
+    onLayout: (e: LayoutChangeEvent) => {
+      fieldY.current[field] = e.nativeEvent.layout.y;
+    },
+  });
+  const onFocus = (field: Field) => () => {
+    focused.current = field;
+    // Keyboard already up (moving between fields): no keyboardDidShow coming.
+    if (keyboardTop.current !== null) revealFocused();
+  };
+
+  // ---- photo ----
   const pickPhoto = async () => {
-    if (photoBusy) return;
-    setPhotoError(null);
+    if (photoBusy || saving) return;
+    haptic("selection");
+    setErrors((e) => ({ ...e, photo: undefined }));
     setPhotoBusy(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -91,76 +172,155 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
         aspect: [1, 1],
         quality: 0.9,
       });
-      if (result.canceled) return;
-      const uri = result.assets[0]?.uri;
-      if (!uri) return;
-      const path = await uploadAvatar(cfg, await resizeAvatar(uri));
-      const res = await updateProfile.mutateAsync({ avatarUrl: path });
-      if (res.status === "ok") {
-        setAvatarUrl(res.avatarUrl);
-      } else if (res.status === "rejected") {
-        setPhotoError(t("profile.photoRejected"));
-      } else {
-        setPhotoError(t("profile.genericError"));
-      }
+      const uri = result.canceled ? undefined : result.assets[0]?.uri;
+      if (uri) setPendingAvatar(await resizeAvatar(uri));
     } catch {
-      setPhotoError(t("profile.genericError"));
+      setErrors((e) => ({ ...e, photo: t("profile.genericError") }));
     } finally {
       setPhotoBusy(false);
     }
   };
 
-  const saveBio = async () => {
-    if (bioBusy) return;
+  // ---- save: changed fields one at a time, stop at the first failure ----
+  const saveName = async (): Promise<boolean> => {
+    const res = await updateProfile.mutateAsync({ username: name.trim() });
+    if (res.status === "ok") {
+      setName(res.username ?? "");
+      setBase((b) => ({ ...b, name: res.username ?? "" }));
+      return true;
+    }
+    const message =
+      res.status === "rejected"
+        ? t("profile.displayNameRejected")
+        : res.error === "invalid_username"
+          ? t("profile.displayNameInvalid")
+          : res.error === "reserved_name"
+            ? t("profile.nameReserved")
+            : t("profile.genericError");
+    setErrors((e) => ({ ...e, name: message }));
+    return false;
+  };
+
+  const saveHandle = async (value: string): Promise<boolean> => {
+    const res = await updateProfile.mutateAsync({ handle: value.trim() });
+    if (res.status === "ok") {
+      // Reconcile the server-normalized (lowercased) value into the field.
+      setHandle(res.handle ?? "");
+      setBase((b) => ({ ...b, handle: res.handle ?? "" }));
+      return true;
+    }
+    let message = t("profile.genericError");
+    if (res.status === "rejected") message = t("profile.usernameRejected");
+    else if (res.code === "handle_taken" && res.suggestion) {
+      setHandleSuggestion(res.suggestion);
+      message = t("profile.usernameSuggestion", {
+        handle: value.trim().toLowerCase(),
+        suggestion: res.suggestion,
+      });
+    } else if (res.code === "handle_taken") message = t("profile.usernameTaken");
+    else if (res.error === "invalid_handle") message = t("profile.usernameInvalid");
+    else if (res.error === "reserved_handle") message = t("profile.nameReserved");
+    setErrors((e) => ({ ...e, handle: message }));
+    return false;
+  };
+
+  const saveBio = async (): Promise<boolean> => {
+    const res = await updateProfile.mutateAsync({ bio });
+    if (res.status === "ok") {
+      setBase((b) => ({ ...b, bio: res.bio ?? "" }));
+      return true;
+    }
+    setErrors((e) => ({
+      ...e,
+      bio: res.status === "rejected" ? t("profile.bioRejected") : t("profile.genericError"),
+    }));
+    return false;
+  };
+
+  const savePhoto = async (uri: string): Promise<boolean> => {
+    const path = await uploadAvatar(cfg, uri);
+    const res = await updateProfile.mutateAsync({ avatarUrl: path });
+    if (res.status === "ok") {
+      setAvatarUrl(res.avatarUrl);
+      setPendingAvatar(null);
+      return true;
+    }
+    setErrors((e) => ({
+      ...e,
+      photo: res.status === "rejected" ? t("profile.photoRejected") : t("profile.genericError"),
+    }));
+    return false;
+  };
+
+  const save = async (handleOverride?: string) => {
+    if (saving) return;
+    Keyboard.dismiss();
     haptic("medium");
-    setBioError(null);
-    setBioBusy(true);
+    setErrors({});
+    setHandleSuggestion(null);
+    setSaving(true);
+    const nextHandle = handleOverride ?? handle;
     try {
-      const res = await updateProfile.mutateAsync({ bio });
-      if (res.status === "rejected") {
-        setBioError(t("profile.bioRejected"));
-      } else if (res.status === "error") {
-        setBioError(t("profile.genericError"));
+      const ok =
+        (!changed.name || (await saveName())) &&
+        (nextHandle.trim().toLowerCase() === base.handle || (await saveHandle(nextHandle))) &&
+        (!changed.bio || (await saveBio())) &&
+        (pendingAvatar === null || (await savePhoto(pendingAvatar)));
+      if (ok) {
+        haptic("success");
+        onClose();
       }
     } catch {
-      setBioError(t("profile.genericError"));
+      setErrors((e) => ({ ...e, photo: e.photo ?? t("profile.genericError") }));
     } finally {
-      setBioBusy(false);
+      setSaving(false);
     }
   };
 
-  const saveHandle = async () => {
-    if (handleBusy) return;
-    haptic("medium");
-    setHandleError(null);
-    setHandleBusy(true);
-    try {
-      const res = await updateProfile.mutateAsync({ handle: handle.trim() });
-      if (res.status === "ok") {
-        // Reconcile the server-normalized (lowercased) value into the field.
-        setHandle(res.handle ?? "");
-      } else if (res.status === "rejected") {
-        setHandleError(t("profile.usernameRejected"));
-      } else if (res.status === "error" && res.code === "handle_taken") {
-        setHandleError(t("profile.usernameTaken"));
-      } else if (res.status === "error" && res.error === "invalid_handle") {
-        setHandleError(t("profile.usernameInvalid"));
-      } else {
-        setHandleError(t("profile.genericError"));
-      }
-    } catch {
-      setHandleError(t("profile.genericError"));
-    } finally {
-      setHandleBusy(false);
-    }
+  const takeSuggestion = () => {
+    if (!handleSuggestion) return;
+    setHandle(handleSuggestion);
+    void save(handleSuggestion);
   };
+
+  const shownAvatar = pendingAvatar ?? avatarUrl;
+  const canSave = dirty && !saving && !photoBusy;
 
   return (
-    <CommunitySheet visible={visible} onClose={onClose} snapTo="full">
+    <CommunitySheet
+      visible={visible}
+      onClose={onClose}
+      snapTo="full"
+      footer={
+        profile.data ? (
+          <View
+            onLayout={(e) => {
+              footerHeight.current = e.nativeEvent.layout.height;
+            }}
+          >
+            <PressableScale
+              onPress={() => save()}
+              disabled={!canSave}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canSave }}
+              style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color={theme.colors.textInverse} />
+              ) : (
+                <Text style={styles.saveBtnLabel}>{t("profile.save")}</Text>
+              )}
+            </PressableScale>
+          </View>
+        ) : null
+      }
+    >
       <SheetScrollView
-        keyboardShouldPersistTaps="always"
+        scrollRef={scrollRef}
+        // "handled": a tap outside a field (not on a button) closes the keyboard.
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: keyboardHeight }]}
       >
         <Text style={styles.title}>{t("profile.editProfile")}</Text>
 
@@ -168,69 +328,64 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
           <ActivityIndicator color={theme.colors.accent} style={styles.loader} />
         ) : (
           <>
-            <View style={styles.photoRow}>
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} contentFit="cover" />
-              ) : (
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarLetter}>
-                    {profile.data.name.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
+            <View style={styles.avatarBlock}>
               <PressableScale
                 onPress={pickPhoto}
-                disabled={photoBusy}
-                style={[styles.pill, photoBusy && styles.pressed]}
+                disabled={photoBusy || saving}
+                accessibilityRole="button"
+                accessibilityLabel={t("profile.changePhoto")}
+                style={styles.avatarPress}
               >
-                {photoBusy ? (
-                  <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+                {shownAvatar ? (
+                  <Image
+                    source={{ uri: shownAvatar }}
+                    style={styles.avatarImage}
+                    contentFit="cover"
+                  />
                 ) : (
-                  <Text style={styles.pillLabel}>{t("profile.changePhoto")}</Text>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarLetter}>
+                      {profile.data.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
                 )}
-              </PressableScale>
-            </View>
-            {photoError && <Text style={styles.errorText}>{photoError}</Text>}
-
-            <View style={styles.section}>
-              <Text style={styles.label}>{t("profile.bioLabel")}</Text>
-              <SheetTextInput
-                value={bio}
-                onChangeText={setBio}
-                editable={!bioBusy}
-                placeholder={t("profile.bioPlaceholder")}
-                placeholderTextColor={theme.colors.textFaint}
-                multiline
-                maxLength={BIO_MAX_LENGTH}
-                style={styles.bioInput}
-              />
-              <View style={styles.rowBetween}>
-                <Text style={styles.counter}>
-                  {bio.length}/{BIO_MAX_LENGTH}
-                </Text>
-                <PressableScale
-                  onPress={saveBio}
-                  disabled={bioBusy}
-                  style={[styles.saveBtn, bioBusy && styles.pressed]}
-                >
-                  {bioBusy ? (
+                <View style={styles.pencilBadge}>
+                  {photoBusy ? (
                     <ActivityIndicator size="small" color={theme.colors.textInverse} />
                   ) : (
-                    <Text style={styles.saveBtnLabel}>{t("profile.save")}</Text>
+                    <icons.compose size={15} color={theme.colors.textInverse} weight="bold" />
                   )}
-                </PressableScale>
-              </View>
-              {bioError && <Text style={styles.errorText}>{bioError}</Text>}
+                </View>
+              </PressableScale>
+              {errors.photo && <Text style={styles.errorCentered}>{errors.photo}</Text>}
             </View>
 
-            <View style={styles.section}>
+            <View style={styles.section} {...fieldProps("name")}>
+              <Text style={styles.label}>{t("profile.displayNameLabel")}</Text>
+              <SheetTextInput
+                value={name}
+                onChangeText={setName}
+                onFocus={onFocus("name")}
+                editable={!saving}
+                autoCorrect={false}
+                placeholder={profile.data.name}
+                placeholderTextColor={theme.colors.textFaint}
+                maxLength={NAME_MAX_LENGTH}
+                style={styles.pillInput}
+              />
+              <Text style={styles.helper}>{t("profile.displayNameHelper")}</Text>
+              {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+            </View>
+
+            <View style={styles.section} {...fieldProps("handle")}>
               <Text style={styles.label}>{t("profile.usernameLabel")}</Text>
               <View style={styles.handleField}>
                 <Text style={styles.handlePrefix}>@</Text>
                 <SheetTextInput
                   value={handle}
                   onChangeText={setHandle}
-                  editable={!handleBusy}
+                  onFocus={onFocus("handle")}
+                  editable={!saving}
                   autoCapitalize="none"
                   autoCorrect={false}
                   placeholder={t("profile.usernamePlaceholder")}
@@ -240,18 +395,37 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
                 />
               </View>
               <Text style={styles.helper}>{t("profile.usernameHelper")}</Text>
-              <PressableScale
-                onPress={saveHandle}
-                disabled={handleBusy}
-                style={[styles.saveBtn, styles.saveBtnAlone, handleBusy && styles.pressed]}
-              >
-                {handleBusy ? (
-                  <ActivityIndicator size="small" color={theme.colors.textInverse} />
-                ) : (
-                  <Text style={styles.saveBtnLabel}>{t("profile.save")}</Text>
-                )}
-              </PressableScale>
-              {handleError && <Text style={styles.errorText}>{handleError}</Text>}
+              {errors.handle && <Text style={styles.errorText}>{errors.handle}</Text>}
+              {handleSuggestion && (
+                <PressableScale
+                  onPress={takeSuggestion}
+                  disabled={saving}
+                  style={[styles.pill, styles.suggestionPill]}
+                >
+                  <Text style={styles.pillLabel}>
+                    {t("profile.useSuggestion", { suggestion: handleSuggestion })}
+                  </Text>
+                </PressableScale>
+              )}
+            </View>
+
+            <View style={styles.section} {...fieldProps("bio")}>
+              <Text style={styles.label}>{t("profile.bioLabel")}</Text>
+              <SheetTextInput
+                value={bio}
+                onChangeText={setBio}
+                onFocus={onFocus("bio")}
+                editable={!saving}
+                placeholder={t("profile.bioPlaceholder")}
+                placeholderTextColor={theme.colors.textFaint}
+                multiline
+                maxLength={BIO_MAX_LENGTH}
+                style={styles.bioInput}
+              />
+              <Text style={styles.counter}>
+                {bio.length}/{BIO_MAX_LENGTH}
+              </Text>
+              {errors.bio && <Text style={styles.errorText}>{errors.bio}</Text>}
             </View>
           </>
         )}
@@ -262,32 +436,47 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
 
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
-    scrollContent: { paddingBottom: theme.spacing(6) },
+    scrollContent: { paddingTop: theme.spacing(1) },
     loader: { marginTop: theme.spacing(8) },
     title: {
       fontFamily: theme.fonts.serifBold,
       fontWeight: theme.fontWeights.bold,
       fontSize: 22,
       color: theme.colors.textPrimary,
+      textAlign: "center",
       marginBottom: theme.spacing(5),
     },
-    photoRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(4) },
+    avatarBlock: { alignItems: "center" },
+    avatarPress: { width: AVATAR_SIZE, height: AVATAR_SIZE },
     avatar: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
+      width: AVATAR_SIZE,
+      height: AVATAR_SIZE,
+      borderRadius: AVATAR_SIZE / 2,
       backgroundColor: theme.colors.surfaceMuted,
       borderWidth: 1,
       borderColor: theme.colors.borderStrong,
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarImage: { width: 64, height: 64, borderRadius: 32 },
+    avatarImage: { width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 },
     avatarLetter: {
       fontFamily: theme.fonts.serifBold,
       fontWeight: theme.fontWeights.bold,
-      fontSize: 26,
+      fontSize: 38,
       color: theme.colors.accent,
+    },
+    pencilBadge: {
+      position: "absolute",
+      right: 0,
+      bottom: 0,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: theme.colors.accent,
+      borderWidth: 3,
+      borderColor: theme.colors.background,
+      alignItems: "center",
+      justifyContent: "center",
     },
     pill: {
       backgroundColor: theme.colors.surfaceMuted,
@@ -296,23 +485,34 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(4.5),
       borderWidth: 1,
       borderColor: theme.colors.border,
-      minWidth: 128,
       alignItems: "center",
     },
-    pressed: { opacity: 0.7 },
     pillLabel: {
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
       fontSize: 13.5,
       color: theme.colors.textPrimary,
     },
-    section: { marginTop: theme.spacing(6.5) },
+    suggestionPill: { alignSelf: "flex-start", marginTop: theme.spacing(2.5) },
+    section: { marginTop: theme.spacing(6) },
     label: {
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
       fontSize: 13,
       color: theme.colors.textMuted,
       marginBottom: theme.spacing(2),
+    },
+    pillInput: {
+      backgroundColor: theme.colors.surfaceMuted,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingHorizontal: theme.spacing(4),
+      paddingVertical: theme.spacing(3),
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 15,
+      color: theme.colors.textPrimary,
     },
     bioInput: {
       backgroundColor: theme.colors.surfaceMuted,
@@ -328,32 +528,26 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textPrimary,
       textAlignVertical: "top",
     },
-    rowBetween: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginTop: theme.spacing(2.5),
-    },
     counter: {
       fontFamily: theme.fonts.regular,
       fontWeight: theme.fontWeights.regular,
       fontSize: 11.5,
       color: theme.colors.textFaint,
+      textAlign: "right",
+      marginTop: theme.spacing(2),
     },
     saveBtn: {
       backgroundColor: theme.colors.accent,
       borderRadius: theme.radius.pill,
-      paddingVertical: theme.spacing(2.5),
-      paddingHorizontal: theme.spacing(5.5),
+      paddingVertical: theme.spacing(3.5),
       alignItems: "center",
       justifyContent: "center",
-      minWidth: 76,
     },
-    saveBtnAlone: { alignSelf: "flex-start", marginTop: theme.spacing(3) },
+    saveBtnDisabled: { opacity: 0.4 },
     saveBtnLabel: {
       fontFamily: theme.fonts.bold,
       fontWeight: theme.fontWeights.bold,
-      fontSize: 13.5,
+      fontSize: 15,
       color: theme.colors.textInverse,
     },
     handleField: {
@@ -393,6 +587,14 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 12.5,
       color: theme.colors.danger,
       marginTop: theme.spacing(2),
+    },
+    errorCentered: {
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 12.5,
+      color: theme.colors.danger,
+      marginTop: theme.spacing(2),
+      textAlign: "center",
     },
   });
 }
