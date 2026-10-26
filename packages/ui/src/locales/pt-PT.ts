@@ -177,6 +177,7 @@ export const ptPT: Record<string, string> = {
   "a11y.search": "Pesquisar",
   "a11y.closeSearch": "Fechar pesquisa",
   "a11y.clearSearch": "Limpar pesquisa",
+  "a11y.myProfile": "O meu perfil",
   "composer.addImage": "Adicionar uma imagem",
   "composer.removeImage": "Remover imagem",
   "image.photo": "📷 Foto",

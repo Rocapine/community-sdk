@@ -199,6 +199,7 @@ export const de: Record<string, string> = {
   "a11y.search": "Suchen",
   "a11y.closeSearch": "Suche schließen",
   "a11y.clearSearch": "Suche löschen",
+  "a11y.myProfile": "Mein Profil",
   "composer.addImage": "Bild hinzufügen",
   "composer.removeImage": "Bild entfernen",
   "image.photo": "📷 Foto",

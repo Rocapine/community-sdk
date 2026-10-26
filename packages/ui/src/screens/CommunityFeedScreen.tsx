@@ -66,6 +66,8 @@
 //    button next to the search toggle, shown only when both the prop is
 //    given and `cfg.modules.inbox` is on — a host wires it to Task 13's
 //    `NotificationInboxScreen`.
+//  - The header row (title + profile / search / inbox buttons) is laid out
+//    by the `headerLayout` prop, so each app picks its own arrangement.
 
 import {
   COMMUNITY_EVENTS,
@@ -122,11 +124,32 @@ import { uniqueById } from "../utils/pages";
 import { useMyAuthorName } from "../utils/myName";
 import { ThreadSheet } from "./ThreadSheet";
 
+/** A button the feed's header row can show. `profile` (the user's avatar)
+ * opens their own profile through `onOpenProfile`; `inbox` shows only when
+ * the inbox module is on and `onOpenInbox` is given. */
+export type FeedHeaderButton = "profile" | "search" | "inbox";
+
+/** The feed's header row. Replaces the default as a whole: a side or title
+ * left out is empty. */
+export type FeedHeaderLayout = {
+  left?: FeedHeaderButton[];
+  right?: FeedHeaderButton[];
+  /** The "Community" title (`title` i18n key); `false` hides it. */
+  title?: "left" | "center" | false;
+};
+
+export const DEFAULT_FEED_HEADER_LAYOUT: FeedHeaderLayout = {
+  left: ["profile"],
+  title: "center",
+  right: ["search", "inbox"],
+};
+
 export function CommunityFeedScreen({
   onOpenProfile,
   onOpenInbox,
   isFocused = true,
   header,
+  headerLayout = DEFAULT_FEED_HEADER_LAYOUT,
   slots,
   beforeSubmitPost,
   beforeSubmitComment,
@@ -138,6 +161,9 @@ export function CommunityFeedScreen({
    * polling stops while the user is on another tab. Defaults to `true`. */
   isFocused?: boolean;
   header?: ReactNode;
+  /** Buttons and title of the header row. Defaults to
+   * `DEFAULT_FEED_HEADER_LAYOUT`. */
+  headerLayout?: FeedHeaderLayout;
   slots?: PostSlots;
   /** Forwarded to this screen's own `ComposerCard` as `beforeSubmit` — see
    * that prop's doc comment. Absent ⇒ byte-identical behavior. */
@@ -361,6 +387,51 @@ export function CommunityFeedScreen({
     [openThread, openThreadToComment, onOpenProfile, openPostMenu, slots],
   );
 
+  const showButton = (b: FeedHeaderButton) => b !== "inbox" || (cfg.modules.inbox && !!onOpenInbox);
+  const leftButtons = (headerLayout.left ?? []).filter(showButton);
+  const rightButtons = (headerLayout.right ?? []).filter(showButton);
+  const hasHeaderRow = leftButtons.length > 0 || rightButtons.length > 0 || !!headerLayout.title;
+  const title = (
+    <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">
+      {t("title")}
+    </Text>
+  );
+  const renderHeaderButton = (button: FeedHeaderButton) => {
+    switch (button) {
+      case "profile":
+        return (
+          <PressableScale
+            key={button}
+            onPress={() => myUid && onOpenProfile(myUid)}
+            disabled={!myUid}
+            style={styles.iconButton}
+            accessibilityRole="button"
+            accessibilityLabel={t("a11y.myProfile")}
+          >
+            <Avatar url={myAvatarUrl} initial={myInitial} />
+          </PressableScale>
+        );
+      case "inbox":
+        return <InboxBell key={button} onPress={onOpenInbox!} />;
+      case "search":
+        return (
+          <PressableScale
+            key={button}
+            onPress={toggleSearch}
+            style={styles.iconButton}
+            accessibilityRole="button"
+            accessibilityLabel={searchOpen ? t("a11y.closeSearch") : t("a11y.search")}
+          >
+            {searchOpen ? (
+              <icons.close size={22} color={theme.colors.textPrimary} weight="bold" />
+            ) : (
+              <icons.search size={22} color={theme.colors.textPrimary} weight="regular" />
+            )}
+          </PressableScale>
+        );
+    }
+  };
+
   // An `officialOnly` filter (e.g. "News") must never become the composer's
   // preselected topic — regular users cannot post there.
   const composeDefaultTopic =
@@ -372,21 +443,18 @@ export function CommunityFeedScreen({
         {header}
 
         <View style={styles.controls}>
-          <View style={styles.controlsRow}>
-            {cfg.modules.inbox && onOpenInbox && <InboxBell onPress={onOpenInbox} />}
-            <Pressable
-              onPress={toggleSearch}
-              style={styles.iconButton}
-              accessibilityRole="button"
-              accessibilityLabel={searchOpen ? t("a11y.closeSearch") : t("a11y.search")}
-            >
-              {searchOpen ? (
-                <icons.close size={22} color={theme.colors.textPrimary} weight="bold" />
-              ) : (
-                <icons.search size={22} color={theme.colors.textPrimary} weight="regular" />
-              )}
-            </Pressable>
-          </View>
+          {hasHeaderRow && (
+            <View style={styles.headerRow}>
+              <View style={styles.headerSide}>
+                {leftButtons.map(renderHeaderButton)}
+                {headerLayout.title === "left" && title}
+              </View>
+              {headerLayout.title === "center" && title}
+              <View style={[styles.headerSide, styles.headerSideRight]}>
+                {rightButtons.map(renderHeaderButton)}
+              </View>
+            </View>
+          )}
 
           {/* Search bar and filter chips share one fixed-height slot, so
             toggling between them never shifts the feed. */}
@@ -532,17 +600,7 @@ export function CommunityFeedScreen({
               style={[styles.floatingCompose, { bottom: insets.bottom + theme.spacing(3.5) }]}
             >
               <PressableScale onPress={focusComposer} style={styles.composeBar}>
-                {myAvatarUrl ? (
-                  <Image
-                    source={{ uri: myAvatarUrl }}
-                    style={styles.composeAvatarImage}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <View style={styles.composeAvatar}>
-                    <Text style={styles.composeAvatarLetter}>{myInitial}</Text>
-                  </View>
-                )}
+                <Avatar url={myAvatarUrl} initial={myInitial} />
                 <Text style={styles.composePrompt} numberOfLines={1}>
                   {t("feed.composePrompt")}
                 </Text>
@@ -594,6 +652,18 @@ function FilterChip({
   );
 }
 
+/** The user's own avatar, or their initial while they have none. */
+function Avatar({ url, initial }: { url: string | null; initial: string }) {
+  const styles = useThemedStyles(makeStyles);
+  return url ? (
+    <Image source={{ uri: url }} style={styles.composeAvatarImage} contentFit="cover" />
+  ) : (
+    <View style={styles.composeAvatar}>
+      <Text style={styles.composeAvatarLetter}>{initial}</Text>
+    </View>
+  );
+}
+
 /**
  * The inbox entry point, with an unread dot — the only badge the SDK renders
  * itself (`useUnreadNotificationCount`). Its own component so the inbox query
@@ -606,7 +676,7 @@ function InboxBell({ onPress }: { onPress: () => void }) {
   const styles = useThemedStyles(makeStyles);
   const unread = useUnreadNotificationCount();
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       style={styles.iconButton}
       accessibilityRole="button"
@@ -614,7 +684,7 @@ function InboxBell({ onPress }: { onPress: () => void }) {
     >
       <icons.bell size={22} color={theme.colors.textPrimary} weight="regular" />
       {unread > 0 && <View style={styles.bellDot} />}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -633,11 +703,22 @@ function makeStyles(theme: CommunityTheme) {
       paddingBottom: theme.spacing(3),
     },
     // Icons sit flush with the content edge; each keeps a 44pt target.
-    controlsRow: {
+    headerRow: {
       flexDirection: "row",
-      justifyContent: "flex-end",
-      gap: theme.spacing(1),
-      marginRight: -(ICON_TARGET - 22) / 2,
+      alignItems: "center",
+      minHeight: ICON_TARGET,
+      marginHorizontal: -(ICON_TARGET - 22) / 2,
+    },
+    // Both sides flex equally, so a centered title stays centered.
+    headerSide: { flex: 1, flexDirection: "row", alignItems: "center", gap: theme.spacing(1) },
+    headerSideRight: { justifyContent: "flex-end" },
+    headerTitle: {
+      flexShrink: 1,
+      paddingHorizontal: (ICON_TARGET - 22) / 2,
+      fontFamily: theme.fonts.serifBold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 20,
+      color: theme.colors.textPrimary,
     },
     iconButton: {
       width: ICON_TARGET,

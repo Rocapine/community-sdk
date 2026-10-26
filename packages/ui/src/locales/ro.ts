@@ -180,6 +180,7 @@ export const ro: Record<string, string> = {
   "a11y.search": "Caută",
   "a11y.closeSearch": "Închide căutarea",
   "a11y.clearSearch": "Șterge căutarea",
+  "a11y.myProfile": "Profilul meu",
   "composer.addImage": "Adaugă o imagine",
   "composer.removeImage": "Elimină imaginea",
   "image.photo": "📷 Fotografie",
