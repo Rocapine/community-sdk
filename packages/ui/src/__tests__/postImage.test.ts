@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeT } from "../i18n";
 import {
@@ -150,5 +151,17 @@ describe("inboxExcerpt", () => {
     expect(inboxExcerpt("hi", t)).toBe("hi");
     expect(inboxExcerpt(null, t)).toBeNull();
     expect(inboxExcerpt(undefined, t)).toBeNull();
+  });
+});
+
+describe("module loading", () => {
+  // Metro only bundles `require("literal")`; a variable id is never resolved.
+  it("uses only string-literal requires", () => {
+    const src = readFileSync(new URL("../utils/postImage.ts", import.meta.url), "utf8");
+    // The ambient `declare function require(id: string)` is a signature, not a call.
+    const calls = src.replace(/declare function require\(.*\n/, "");
+    expect(src).toContain('require("expo-image-manipulator")');
+    expect(src).toContain('require("expo-image-picker")');
+    expect(calls).not.toMatch(/require\(\s*[a-zA-Z_]/);
   });
 });

@@ -47,9 +47,25 @@ export function __setModuleLoader(loader: Loader | null): void {
   warned = false;
 }
 
-function load<T>(id: string): T | null {
+// Metro only bundles `require` calls with a string-literal argument, so each
+// module gets its own literal `require` (a variable id is never resolved).
+function loadManipulator(): ManipulatorModule | null {
   try {
-    return ((override ? override(id) : require(id)) as T | undefined) ?? null;
+    return (
+      ((override ? override("expo-image-manipulator") : require("expo-image-manipulator")) as
+        ManipulatorModule | undefined) ?? null
+    );
+  } catch {
+    return null;
+  }
+}
+
+function loadPicker(): PickerModule | null {
+  try {
+    return (
+      ((override ? override("expo-image-picker") : require("expo-image-picker")) as
+        PickerModule | undefined) ?? null
+    );
   } catch {
     return null;
   }
@@ -59,7 +75,7 @@ let warned = false;
 
 /** True when `expo-image-manipulator` is installed (the images module needs it). */
 export function imagesSupported(): boolean {
-  const ok = !!load<ManipulatorModule>("expo-image-manipulator")?.ImageManipulator;
+  const ok = !!loadManipulator()?.ImageManipulator;
   if (!ok && !warned && typeof __DEV__ !== "undefined" && __DEV__) {
     warned = true;
     console.warn(
@@ -93,7 +109,7 @@ export function inboxExcerpt(excerpt: unknown, t: TFn): string | null {
  * upscaled). Returns the rendered (post-orientation) size, or null — never the
  * original uri. */
 export async function prepareImage(uri: string): Promise<LocalImage | null> {
-  const mod = load<ManipulatorModule>("expo-image-manipulator");
+  const mod = loadManipulator();
   if (!mod?.ImageManipulator) return null;
   try {
     let ref = await mod.ImageManipulator.manipulate(uri).renderAsync();
@@ -115,7 +131,7 @@ export async function prepareImage(uri: string): Promise<LocalImage | null> {
 /** Opens the photo library and returns the prepared image, or null (cancelled,
  * no asset, picker missing, or `prepareImage` failed). */
 export async function pickImage(): Promise<LocalImage | null> {
-  const picker = load<PickerModule>("expo-image-picker");
+  const picker = loadPicker();
   if (!picker) return null;
   try {
     const res = await picker.launchImageLibraryAsync({
