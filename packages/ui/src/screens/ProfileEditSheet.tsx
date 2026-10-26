@@ -1,7 +1,9 @@
-// Own-profile editor: avatar picker + upload, bio, and username. Ported from
+// Own-profile editor: avatar picker + upload, display name, handle and bio.
+// A taken handle comes back with a free suggestion the user can take in one
+// tap (core/009 + update-profile). Ported from
 // the mold's `ProfileEditSheet` (`sdk/client/components/community/ProfileEditSheet.tsx`),
-// rebuilt on this package's `CommunitySheet`/theme/i18n. Each of the three
-// sections saves independently and keeps the sheet open on success, so a
+// rebuilt on this package's `CommunitySheet`/theme/i18n. Each section saves
+// independently and keeps the sheet open on success, so a
 // visitor can make several edits in one sitting. `updateProfile` is wrapped
 // in try/catch everywhere: the service can throw on unexpected transport
 // failures, surfaced as the same generic line as any other error.
@@ -48,6 +50,7 @@ import { resizeAvatar } from "../utils/avatar";
 
 const BIO_MAX_LENGTH = 300;
 const HANDLE_MAX_LENGTH = 20;
+const NAME_MAX_LENGTH = 24;
 
 export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const theme = useCommunityTheme();
@@ -62,6 +65,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [bio, setBio] = useState("");
   const [handle, setHandle] = useState("");
+  const [name, setName] = useState("");
 
   // Seed the form from the fetched profile exactly once — see file header.
   const initializedRef = useRef(false);
@@ -71,6 +75,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
     setAvatarUrl(profile.data.avatarUrl);
     setBio(profile.data.bio ?? "");
     setHandle(profile.data.handle ?? "");
+    setName(profile.data.username ?? "");
   }, [profile.data]);
 
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -79,6 +84,9 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   const [bioError, setBioError] = useState<string | null>(null);
   const [handleBusy, setHandleBusy] = useState(false);
   const [handleError, setHandleError] = useState<string | null>(null);
+  const [handleSuggestion, setHandleSuggestion] = useState<string | null>(null);
+  const [nameBusy, setNameBusy] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const pickPhoto = async () => {
     if (photoBusy) return;
@@ -129,22 +137,58 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
     }
   };
 
-  const saveHandle = async () => {
+  const saveName = async () => {
+    if (nameBusy) return;
+    haptic("medium");
+    setNameError(null);
+    setNameBusy(true);
+    try {
+      const res = await updateProfile.mutateAsync({ username: name.trim() });
+      if (res.status === "ok") {
+        setName(res.username ?? "");
+      } else if (res.status === "rejected") {
+        setNameError(t("profile.displayNameRejected"));
+      } else if (res.error === "invalid_username") {
+        setNameError(t("profile.displayNameInvalid"));
+      } else if (res.error === "reserved_name") {
+        setNameError(t("profile.nameReserved"));
+      } else {
+        setNameError(t("profile.genericError"));
+      }
+    } catch {
+      setNameError(t("profile.genericError"));
+    } finally {
+      setNameBusy(false);
+    }
+  };
+
+  const saveHandle = async (value: string = handle) => {
     if (handleBusy) return;
     haptic("medium");
     setHandleError(null);
+    setHandleSuggestion(null);
     setHandleBusy(true);
     try {
-      const res = await updateProfile.mutateAsync({ handle: handle.trim() });
+      const res = await updateProfile.mutateAsync({ handle: value.trim() });
       if (res.status === "ok") {
         // Reconcile the server-normalized (lowercased) value into the field.
         setHandle(res.handle ?? "");
       } else if (res.status === "rejected") {
         setHandleError(t("profile.usernameRejected"));
-      } else if (res.status === "error" && res.code === "handle_taken") {
+      } else if (res.code === "handle_taken" && res.suggestion) {
+        setHandleSuggestion(res.suggestion);
+        setHandleError(
+          t("profile.usernameSuggestion", {
+            handle: value.trim().toLowerCase(),
+            suggestion: res.suggestion,
+          }),
+        );
+      } else if (res.code === "handle_taken") {
         setHandleError(t("profile.usernameTaken"));
-      } else if (res.status === "error" && res.error === "invalid_handle") {
+      } else if (res.error === "invalid_handle") {
         setHandleError(t("profile.usernameInvalid"));
+      } else if (res.error === "reserved_handle") {
+        setHandleError(t("profile.nameReserved"));
       } else {
         setHandleError(t("profile.genericError"));
       }
@@ -193,6 +237,78 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
             {photoError && <Text style={styles.errorText}>{photoError}</Text>}
 
             <View style={styles.section}>
+              <Text style={styles.label}>{t("profile.displayNameLabel")}</Text>
+              <SheetTextInput
+                value={name}
+                onChangeText={setName}
+                editable={!nameBusy}
+                autoCorrect={false}
+                placeholder={profile.data.name}
+                placeholderTextColor={theme.colors.textFaint}
+                maxLength={NAME_MAX_LENGTH}
+                style={styles.nameInput}
+              />
+              <Text style={styles.helper}>{t("profile.displayNameHelper")}</Text>
+              <PressableScale
+                onPress={saveName}
+                disabled={nameBusy}
+                style={[styles.saveBtn, styles.saveBtnAlone, nameBusy && styles.pressed]}
+              >
+                {nameBusy ? (
+                  <ActivityIndicator size="small" color={theme.colors.textInverse} />
+                ) : (
+                  <Text style={styles.saveBtnLabel}>{t("profile.save")}</Text>
+                )}
+              </PressableScale>
+              {nameError && <Text style={styles.errorText}>{nameError}</Text>}
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.label}>{t("profile.usernameLabel")}</Text>
+              <View style={styles.handleField}>
+                <Text style={styles.handlePrefix}>@</Text>
+                <SheetTextInput
+                  value={handle}
+                  onChangeText={setHandle}
+                  editable={!handleBusy}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder={t("profile.usernamePlaceholder")}
+                  placeholderTextColor={theme.colors.textFaint}
+                  maxLength={HANDLE_MAX_LENGTH}
+                  style={styles.handleInput}
+                />
+              </View>
+              <Text style={styles.helper}>{t("profile.usernameHelper")}</Text>
+              <PressableScale
+                onPress={() => saveHandle()}
+                disabled={handleBusy}
+                style={[styles.saveBtn, styles.saveBtnAlone, handleBusy && styles.pressed]}
+              >
+                {handleBusy ? (
+                  <ActivityIndicator size="small" color={theme.colors.textInverse} />
+                ) : (
+                  <Text style={styles.saveBtnLabel}>{t("profile.save")}</Text>
+                )}
+              </PressableScale>
+              {handleError && <Text style={styles.errorText}>{handleError}</Text>}
+              {handleSuggestion && (
+                <PressableScale
+                  onPress={() => {
+                    setHandle(handleSuggestion);
+                    void saveHandle(handleSuggestion);
+                  }}
+                  disabled={handleBusy}
+                  style={[styles.pill, styles.suggestionPill]}
+                >
+                  <Text style={styles.pillLabel}>
+                    {t("profile.useSuggestion", { suggestion: handleSuggestion })}
+                  </Text>
+                </PressableScale>
+              )}
+            </View>
+
+            <View style={styles.section}>
               <Text style={styles.label}>{t("profile.bioLabel")}</Text>
               <SheetTextInput
                 value={bio}
@@ -221,37 +337,6 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
                 </PressableScale>
               </View>
               {bioError && <Text style={styles.errorText}>{bioError}</Text>}
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.label}>{t("profile.usernameLabel")}</Text>
-              <View style={styles.handleField}>
-                <Text style={styles.handlePrefix}>@</Text>
-                <SheetTextInput
-                  value={handle}
-                  onChangeText={setHandle}
-                  editable={!handleBusy}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  placeholder={t("profile.usernamePlaceholder")}
-                  placeholderTextColor={theme.colors.textFaint}
-                  maxLength={HANDLE_MAX_LENGTH}
-                  style={styles.handleInput}
-                />
-              </View>
-              <Text style={styles.helper}>{t("profile.usernameHelper")}</Text>
-              <PressableScale
-                onPress={saveHandle}
-                disabled={handleBusy}
-                style={[styles.saveBtn, styles.saveBtnAlone, handleBusy && styles.pressed]}
-              >
-                {handleBusy ? (
-                  <ActivityIndicator size="small" color={theme.colors.textInverse} />
-                ) : (
-                  <Text style={styles.saveBtnLabel}>{t("profile.save")}</Text>
-                )}
-              </PressableScale>
-              {handleError && <Text style={styles.errorText}>{handleError}</Text>}
             </View>
           </>
         )}
@@ -314,6 +399,19 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textMuted,
       marginBottom: theme.spacing(2),
     },
+    nameInput: {
+      backgroundColor: theme.colors.surfaceMuted,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingHorizontal: theme.spacing(4),
+      paddingVertical: theme.spacing(3),
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 15,
+      color: theme.colors.textPrimary,
+    },
+    suggestionPill: { alignSelf: "flex-start", marginTop: theme.spacing(2.5) },
     bioInput: {
       backgroundColor: theme.colors.surfaceMuted,
       borderRadius: theme.radius.md,

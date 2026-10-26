@@ -56,7 +56,6 @@
 import {
   COMMENT_MAX_LENGTH,
   COMMUNITY_EVENTS,
-  displayName,
   emitEvent,
   readerLocale,
   useBlockUser,
@@ -98,6 +97,7 @@ import { displayText, translationLine } from "../utils/translation";
 import { runGuarded } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
+import { useMyAuthorName } from "../utils/myName";
 import { RulesSheet } from "../components/RulesSheet";
 import { haptic } from "../components/PressableScale";
 
@@ -249,9 +249,8 @@ export function ThreadSheet({
 
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
-  const myInitial = displayName(cfg.host.getDisplayName(), cfg.authorFallback())
-    .charAt(0)
-    .toUpperCase();
+  const myAuthorName = useMyAuthorName();
+  const myInitial = myAuthorName().charAt(0).toUpperCase();
   // Double-submit latch for the `beforeSubmitComment` await — see the
   // matching note in `ComposerCard.tsx`'s `gating` state.
   const [gating, setGating] = useState(false);
@@ -299,7 +298,7 @@ export function ThreadSheet({
 
     const doSend = () => {
       // Read after the gate: a host may set the display name in `beforeSubmitComment`.
-      const authorName = displayName(cfg.host.getDisplayName(), cfg.authorFallback());
+      const authorName = myAuthorName();
       haptic("medium");
       createComment.mutate(
         { postId, text: trimmed, authorName, image: draft.image },

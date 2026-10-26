@@ -66,7 +66,7 @@ exact signatures, see the per-package READMEs.
    - `COMMUNITY_TRANSLATION_LOCALES` is needed only for the translation module.
    - `EXPO_ACCESS_TOKEN` is needed only for the push module.
    - Two secrets must equal what the app sets in Phase 3:
-     - `COMMUNITY_FALLBACK_NAME` (or the per-locale `fallbackName` in `COMMUNITY_PUSH_COPY`) must match `anonymousAuthorFallback`, which may itself be a `(locale) => string`;
+     - `COMMUNITY_APP_NAME` is the app's name as users would type it: display names and handles containing it are refused (no "<App> Team" impersonation);
      - `COMMUNITY_TRANSLATION_LOCALES` must equal `modules.translation.locales`.
 
      Otherwise pushes and the UI disagree.
@@ -124,10 +124,14 @@ One object holds all of the app's choices; see
 [`packages/core/README.md`](../packages/core/README.md). Build it in one module,
 e.g. `lib/community-config.ts`.
 
-1. **Vocabulary.** Set `topics`, `appName` and `anonymousAuthorFallback`.
+1. **Vocabulary.** Set `topics`, `appName` and, optionally, `defaultName`
+   (`{ label, handle }`: every new user starts as "<label> 4821" / `@<handle>-4821`,
+   "User" / `user` by default). **Names.** `host.getDisplayName()` returns the
+   app's own user name to seed the community profile, or `null` to keep users
+   on their default pseudonym; either way the user can change name and handle
+   from the community profile, and their edit wins over the app's name.
    `officialOnly` topics are writable only by `is_official` profiles, enforced
-   by RLS on the ids you mark. If the fallback name is localized, rebuild the
-   config when the app language changes (a `useMemo` keyed on the language).
+   by RLS on the ids you mark.
 2. **Modules.** Mirror exactly what Phase 1 installed: the `push`, `polls` and
    `inbox` booleans, `reaction: { key } | false`,
    `translation: { locales } | false` and `images` (boolean). Turn `images` on only

@@ -41,7 +41,10 @@ export function resetIdentity(): void {
 async function bootstrap(cfg: ResolvedCommunityConfig): Promise<string> {
   const client = cfg.requireClient();
   const { data } = await client.auth.getSession();
-  if (data.session) return data.session.user.id;
+  if (data.session) {
+    await assignDefaultProfile(cfg);
+    return data.session.user.id;
+  }
 
   const { data: signIn, error } = await client.auth.signInAnonymously();
   if (error || !signIn.user) throw error ?? new Error("anonymous sign-in returned no user");
@@ -54,7 +57,36 @@ async function bootstrap(cfg: ResolvedCommunityConfig): Promise<string> {
     .from("profiles")
     .update({ amplitude_id: amplitudeId ?? null, revenuecat_id: revenuecatId ?? null })
     .eq("id", uid);
+  await assignDefaultProfile(cfg);
   return uid;
+}
+
+/**
+ * Give the profile its default name and handle ("Frère 4821" / "@brother-4821")
+ * when it has none yet — once per launch, idempotent server-side (core/009).
+ * Best effort: an older backend without the RPC keeps the label-only fallback.
+ */
+async function assignDefaultProfile(cfg: ResolvedCommunityConfig): Promise<void> {
+  const { label, handle } = cfg.defaultName;
+  try {
+    await cfg.requireClient().rpc("assign_default_profile", {
+      p_label: typeof label === "function" ? label(cfg.host.getLocale()) : label,
+      p_handle: handle,
+    });
+  } catch {
+    // Offline or older backend: retried on the next launch.
+  }
+}
+
+/**
+ * Account deletion: put the default name and handle back and clear bio,
+ * avatar and the user's own edits, so kept posts no longer carry the
+ * pseudonym. Resolves false when the backend could not be reached.
+ */
+export async function resetProfileIdentity(cfg: ResolvedCommunityConfig): Promise<boolean> {
+  if (!cfg.supabase) return false;
+  const { error } = await cfg.supabase.rpc("reset_profile_identity");
+  return !error;
 }
 
 /**

@@ -69,7 +69,6 @@
 
 import {
   COMMUNITY_EVENTS,
-  displayName,
   emitEvent,
   newestCreatedAt,
   useBlockUser,
@@ -120,6 +119,7 @@ import { NoticeCard } from "../components/NoticeCard";
 import { PressableScale } from "../components/PressableScale";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
+import { useMyAuthorName } from "../utils/myName";
 import { ThreadSheet } from "./ThreadSheet";
 
 export function CommunityFeedScreen({
@@ -257,9 +257,8 @@ export function CommunityFeedScreen({
   const showFloatingCompose = composerHidden && !searchOpen;
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
-  const myInitial = displayName(cfg.host.getDisplayName(), cfg.authorFallback())
-    .charAt(0)
-    .toUpperCase();
+  const myAuthorName = useMyAuthorName();
+  const myInitial = myAuthorName().charAt(0).toUpperCase();
   const focusComposer = () => {
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
     // Let the scroll-to-top land before the keyboard (or rules sheet) opens.

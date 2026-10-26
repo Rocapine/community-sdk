@@ -24,9 +24,13 @@ const config: CommunityConfig = {
 
   // Product vocabulary
   appName: "My App", // pushes, inbox, broadcast fallback title
-  // Shown when an author has no username yet. A function receives the host
-  // locale (`host.getLocale()`), e.g. (locale) => t("anonymous", { lng: locale }).
-  anonymousAuthorFallback: "Someone",
+  // Optional. Every profile starts as "<label> <digits>" / @<handle>-<digits>,
+  // assigned on the first launch in the user's language and never re-translated.
+  // `label` may be a function of the host locale; defaults to "User" / "user".
+  defaultName: {
+    label: (locale) => (locale.startsWith("fr") ? "Membre" : "Member"),
+    handle: "member",
+  },
 
   // Topics — nothing hardcoded. `id` resolves to `topics.<id>` in the UI
   // package's i18n catalog (see packages/ui/README.md); the app supplies
@@ -99,7 +103,7 @@ top-up), without forking the query or mapping layer:
 import type { CommunityConfig } from "@rocapine/community-core";
 
 const config: CommunityConfig = {
-  // ...supabase, appName, anonymousAuthorFallback, topics, modules...
+  // ...supabase, appName, defaultName, topics, modules...
   feed: {
     // Appended to the posts `select` in every posts-table query
     // (fetchFeedPage, fetchUserPosts, searchPosts). Only `[a-z0-9_]+`

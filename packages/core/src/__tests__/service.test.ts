@@ -60,7 +60,6 @@ it("embeds translations (and nested poll label translations) only when asked", (
 const base = {
   supabase: null,
   appName: "t",
-  anonymousAuthorFallback: "Someone",
   topics: [],
   modules: { polls: false, push: false, inbox: false, reaction: false as const },
 };

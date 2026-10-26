@@ -20,7 +20,7 @@ import type { CommunityTopicDef } from "../config";
 
 // Test-local fallback string — the pure core no longer hardcodes a brand voice
 // (that lived in the mold's app-specific ANON_NAME_FALLBACK constant); a host
-// config now supplies it as `anonymousAuthorFallback`.
+// config supplies it as `defaultName.label`.
 const ANON_NAME_FALLBACK = "A member";
 
 const TOPICS: CommunityTopicDef[] = [

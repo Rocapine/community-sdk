@@ -63,7 +63,6 @@ describe("create mutations with an image", () => {
   const cfg = resolveConfig({
     supabase: null,
     appName: "Test",
-    anonymousAuthorFallback: "Someone",
     topics: [{ id: "general" }],
     modules: { polls: false, push: false, inbox: false, reaction: false as const, images: true },
     host: { onEvent },
