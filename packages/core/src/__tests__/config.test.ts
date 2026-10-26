@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { type CommunityConfig, CommunityDisabledError, resolveConfig } from "../config";
+import {
+  type CommunityConfig,
+  CommunityDisabledError,
+  DEFAULT_AUTHOR_FALLBACK,
+  resolveConfig,
+} from "../config";
 
 const base = {
   supabase: null,
@@ -59,6 +64,11 @@ describe("authorFallback", () => {
     topics: [],
     modules: {},
   } as unknown as Omit<CommunityConfig, "anonymousAuthorFallback">;
+
+  it("defaults to the SDK's neutral name when the host sets none", () => {
+    const cfg = resolveConfig(base);
+    expect(cfg.authorFallback()).toBe(DEFAULT_AUTHOR_FALLBACK);
+  });
 
   it("returns a plain string fallback as-is", () => {
     const cfg = resolveConfig({ ...base, anonymousAuthorFallback: "A brother" });

@@ -55,8 +55,9 @@ export type CommunityFeedConfig = {
 export type CommunityConfig = {
   supabase: SupabaseClient | null;
   appName: string;
-  /** Shown for authors without a display name. A function receives the host locale. */
-  anonymousAuthorFallback: string | ((locale: string) => string);
+  /** Shown for authors without a display name. A function receives the host locale.
+   * Defaults to `DEFAULT_AUTHOR_FALLBACK`. */
+  anonymousAuthorFallback?: string | ((locale: string) => string);
   topics: CommunityTopicDef[];
   modules: CommunityModules;
   host?: CommunityHostAdapters;
@@ -81,6 +82,9 @@ export type ResolvedCommunityConfig = CommunityConfig & {
   composeTopics(): CommunityTopicDef[];
   isOfficialTopic(id: string): boolean;
 };
+
+/** Name shown for authors without a display name when the host sets no `anonymousAuthorFallback`. */
+export const DEFAULT_AUTHOR_FALLBACK = "User";
 
 let warned = false;
 
@@ -119,7 +123,7 @@ export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig 
       return resolved.supabase;
     },
     authorFallback(): string {
-      const fallback = resolved.anonymousAuthorFallback;
+      const fallback = resolved.anonymousAuthorFallback ?? DEFAULT_AUTHOR_FALLBACK;
       return typeof fallback === "function" ? fallback(host.getLocale()) : fallback;
     },
     composeTopics(): CommunityTopicDef[] {

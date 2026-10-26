@@ -124,7 +124,8 @@ One object holds all of the app's choices; see
 [`packages/core/README.md`](../packages/core/README.md). Build it in one module,
 e.g. `lib/community-config.ts`.
 
-1. **Vocabulary.** Set `topics`, `appName` and `anonymousAuthorFallback`.
+1. **Vocabulary.** Set `topics`, `appName` and, optionally, `anonymousAuthorFallback`
+   (defaults to `"User"`).
    `officialOnly` topics are writable only by `is_official` profiles, enforced
    by RLS on the ids you mark. If the fallback name is localized, rebuild the
    config when the app language changes (a `useMemo` keyed on the language).
