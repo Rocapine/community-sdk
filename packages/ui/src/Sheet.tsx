@@ -36,6 +36,7 @@ import BottomSheet, {
   useBottomSheetTimingConfigs,
   type BottomSheetBackdropProps,
   type BottomSheetFooterProps,
+  type BottomSheetScrollViewMethods,
 } from "@gorhom/bottom-sheet";
 import {
   createContext,
@@ -45,6 +46,7 @@ import {
   useState,
   type ComponentProps,
   type ReactNode,
+  type Ref,
   type RefObject,
 } from "react";
 import {
@@ -279,9 +281,12 @@ function SheetFooter(props: BottomSheetFooterProps) {
  * inset / footer clearance on top of the caller's `contentContainerStyle`. */
 export function SheetScrollView({
   contentContainerStyle,
+  scrollRef,
   ...rest
 }: Omit<ComponentProps<typeof BottomSheetScrollView>, "contentContainerStyle"> & {
   contentContainerStyle?: StyleProp<ViewStyle>;
+  /** For `scrollTo` (e.g. bringing a focused field above the keyboard). */
+  scrollRef?: Ref<BottomSheetScrollViewMethods>;
 }) {
   const { footer, contentBottomPad } = useContext(SheetContext);
   const styles = useThemedStyles(makeStyles);
@@ -290,6 +295,7 @@ export function SheetScrollView({
   return (
     <BottomSheetScrollView
       {...rest}
+      ref={scrollRef}
       enableFooterMarginAdjustment={footer != null}
       // A single flat object: gorhom's footer adjustment only reads
       // `paddingBottom` off a flat style.
