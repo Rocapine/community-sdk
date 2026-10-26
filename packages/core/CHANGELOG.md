@@ -1,5 +1,11 @@
 # @rocapine/community-core
 
+## 0.11.1
+
+### Patch Changes
+
+- 0c9c112: `displayName()` falls back to the profile's handle when it has no username, so an author who skipped the name step but picked a username in Edit profile shows that handle instead of the anonymous fallback.
+
 ## 0.11.0
 
 ### Minor Changes
