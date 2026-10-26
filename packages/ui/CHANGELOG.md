@@ -1,5 +1,11 @@
 # @rocapine/community-ui
 
+## 0.12.1
+
+### Patch Changes
+
+- 48d7ca5: Edit profile polish: centered layout, a pencil badge on the avatar opens the photo library, and one "Save" button at the bottom saves every changed field (disabled until something changed; closes the sheet on success). Tapping outside a field closes the keyboard, and a field the keyboard would cover scrolls into view. `SheetScrollView` accepts a `scrollRef`.
+
 ## 0.12.0
 
 ### Minor Changes
