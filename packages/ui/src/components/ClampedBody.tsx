@@ -1,18 +1,24 @@
-// Post / comment body: clamped to `clampLines` with a "View more" toggle,
-// inside an `AnimatedHeight` so switching between the original and its
-// translation (or expanding) animates the card's height instead of jumping.
+// Post / comment body: clamped to `clampLines` with a "View more" link at the
+// end of the last visible line (`…text… View more`), inside an
+// `AnimatedHeight` so switching between the original and its translation (or
+// expanding) animates the row's height instead of jumping. Expanded stays
+// expanded (no "View less"), as on X.
 //
-// The visible text is clamped from its first frame; every version is measured
-// unclamped by an invisible copy at the same width (iOS `onTextLayout` only
-// reports visible lines once `numberOfLines` is set, so a clamped text can't
-// tell whether it overflows). Measuring the other version up front means the
-// "View more" link of the version switched to is known in the same commit as
-// the switch, so the whole change animates as one. Keyed list recycling
-// remounts the card, which resets `expanded` (accepted).
+// Every version is measured unclamped by an invisible copy at the same width
+// (iOS `onTextLayout` only reports visible lines once `numberOfLines` is set),
+// and so is the link, so `clampWithSuffix` can cut the last visible line
+// where the link fits. Measuring the other version up front means the cut of
+// the version switched to is known in the same commit as the switch, so the
+// whole change animates as one. Until the measures land, the text is clamped
+// by `numberOfLines`. Keyed list recycling remounts the row, which resets
+// `expanded` (accepted).
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
+import { StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
 import { useT } from "../ThemeProvider";
+import { clampWithSuffix } from "../utils/clamp";
 import { AnimatedHeight } from "./AnimatedHeight";
+
+type Line = { text: string; width: number };
 
 export function ClampedBody({
   text,
@@ -31,22 +37,45 @@ export function ClampedBody({
 }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
-  const [lineCounts, setLineCounts] = useState<Record<string, number>>({});
+  const [layouts, setLayouts] = useState<Record<string, Line[]>>({});
+  const [width, setWidth] = useState(0);
+  const [suffixWidth, setSuffixWidth] = useState(0);
 
   const versions = alternate != null && alternate !== text ? [text, alternate] : [text];
-  const overflows = (lineCounts[text] ?? 0) > clampLines;
+  const lines = layouts[text];
+  const measured = lines !== undefined && width > 0 && suffixWidth > 0;
+  const clamped =
+    !expanded && measured ? clampWithSuffix(lines, clampLines, width, suffixWidth) : null;
+  const viewMore = t("post.viewMore");
 
   return (
     <AnimatedHeight>
       {/* One accessibility element carrying the shown text: an accessible
-          parent (the post card) builds its label from its children and stops
+          parent (the post row) builds its label from its children and stops
           at a child that has its own label, so the invisible measuring copies
           below are never read out (accessibilityElementsHidden alone does not
-          stop that aggregation on iOS). */}
-      <View accessible accessibilityRole="text" accessibilityLabel={text}>
-        <Text style={textStyle} numberOfLines={expanded ? undefined : clampLines}>
-          {text}
-        </Text>
+          stop that aggregation on iOS). The inline link is offered as its
+          activate action. */}
+      <View
+        accessible
+        accessibilityRole="text"
+        accessibilityLabel={text}
+        accessibilityActions={clamped !== null ? [{ name: "activate", label: viewMore }] : []}
+        onAccessibilityAction={() => setExpanded(true)}
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      >
+        {clamped !== null ? (
+          <Text style={textStyle}>
+            {clamped}{" "}
+            <Text style={viewMoreStyle} onPress={() => setExpanded(true)} suppressHighlighting>
+              {viewMore}
+            </Text>
+          </Text>
+        ) : (
+          <Text style={textStyle} numberOfLines={expanded || measured ? undefined : clampLines}>
+            {text}
+          </Text>
+        )}
         <View
           style={styles.measure}
           pointerEvents="none"
@@ -59,26 +88,40 @@ export function ClampedBody({
               key={v}
               style={[textStyle, styles.measureText]}
               onTextLayout={(e) => {
-                const count = e.nativeEvent.lines.length;
-                setLineCounts((m) => (m[v] === count ? m : { ...m, [v]: count }));
+                const next = e.nativeEvent.lines.map((l) => ({ text: l.text, width: l.width }));
+                setLayouts((m) => (sameLines(m[v], next) ? m : { ...m, [v]: next }));
               }}
             >
               {v}
             </Text>
           ))}
+          <Text
+            style={[textStyle, styles.measureSuffix]}
+            onTextLayout={(e) => {
+              const w = e.nativeEvent.lines[0]?.width ?? 0;
+              setSuffixWidth((prev) => (prev === w ? prev : w));
+            }}
+          >
+            {" "}
+            <Text style={viewMoreStyle}>{viewMore}</Text>
+          </Text>
         </View>
       </View>
-      {overflows && (
-        <Pressable hitSlop={8} onPress={() => setExpanded((e) => !e)} style={styles.toggle}>
-          <Text style={viewMoreStyle}>{expanded ? t("post.viewLess") : t("post.viewMore")}</Text>
-        </Pressable>
-      )}
     </AnimatedHeight>
   );
 }
 
+function sameLines(a: Line[] | undefined, b: Line[]): boolean {
+  return (
+    a !== undefined &&
+    a.length === b.length &&
+    a.every((l, i) => l.text === b[i].text && l.width === b[i].width)
+  );
+}
+
 const styles = StyleSheet.create({
-  toggle: { alignSelf: "flex-start" },
   measure: { position: "absolute", top: 0, left: 0, right: 0, opacity: 0 },
   measureText: { position: "absolute", top: 0, left: 0, right: 0 },
+  // Its natural width: the link's text, unwrapped.
+  measureSuffix: { position: "absolute", top: 0, left: 0, alignSelf: "flex-start" },
 });

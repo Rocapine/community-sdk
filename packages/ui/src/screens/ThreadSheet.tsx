@@ -93,7 +93,7 @@ import { PostImage } from "../components/PostImage";
 import { imagesSupported, pickImage } from "../utils/postImage";
 import { isQueryLoading } from "../utils/query";
 import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
-import { formatTimeAgo, useNow } from "../utils/time";
+import { formatTimeAgo, secondsResolution, useNow } from "../utils/time";
 import { displayText, translationLine } from "../utils/translation";
 import { runGuarded } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
@@ -593,8 +593,8 @@ export function ThreadSheet({
 }
 
 /** One comment row: avatar, name/handle/official badge/timestamp, clamped
- * body with a view more/less toggle (reuses `CommunityPost`'s `post.viewMore`/
- * `post.viewLess` catalog keys — same semantics, no new keys needed), and a
+ * body with an inline "View more" (reuses `CommunityPost`'s `post.viewMore`
+ * catalog key), and a
  * menu button. Ported from the mold's inline comment row in `CommunityThread`. */
 function CommentRow({
   comment,
@@ -605,7 +605,7 @@ function CommentRow({
   onOpenProfile(userId: string, source?: ProfileSource): void;
   onMenu(comment: ThreadComment): void;
 }) {
-  const now = useNow();
+  const now = useNow(secondsResolution(comment.createdAt, Date.now()));
   const theme = useCommunityTheme();
   const t = useT();
   const icons = useCommunityIcons();
@@ -748,9 +748,7 @@ function makeStyles(theme: CommunityTheme) {
     cViewMore: {
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
-      fontSize: 12.5,
       color: theme.colors.accent,
-      marginTop: theme.spacing(1),
     },
     cTranslationLine: {
       fontFamily: theme.fonts.medium,
