@@ -45,6 +45,11 @@ export const es419: Record<string, string> = {
   "time.minutes": "{count} min",
   "time.hours": "{count} h",
   "time.days": "{count} d",
+  "time.seconds": "{count} s",
+  "time.months.one": "{count} mes",
+  "time.months.other": "{count} meses",
+  "time.years.one": "{count} año",
+  "time.years.other": "{count} años",
 
   "post.pinned": "Fijado",
   "post.viewMore": "Ver más",

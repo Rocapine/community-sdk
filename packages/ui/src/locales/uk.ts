@@ -46,6 +46,11 @@ export const uk: Record<string, string> = {
   "time.minutes": "{count} хв",
   "time.hours": "{count} год",
   "time.days": "{count} дн",
+  "time.seconds": "{count} с",
+  "time.months.one": "{count} міс.",
+  "time.months.other": "{count} міс.",
+  "time.years.one": "{count} р.",
+  "time.years.other": "{count} р.",
 
   "post.pinned": "Закріплено",
   "post.viewMore": "Показати більше",

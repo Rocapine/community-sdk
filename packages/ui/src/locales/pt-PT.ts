@@ -44,6 +44,11 @@ export const ptPT: Record<string, string> = {
   "time.minutes": "{count} min",
   "time.hours": "{count} h",
   "time.days": "{count} d",
+  "time.seconds": "{count} s",
+  "time.months.one": "{count} mês",
+  "time.months.other": "{count} meses",
+  "time.years.one": "{count} ano",
+  "time.years.other": "{count} anos",
 
   "post.pinned": "Fixado",
   "post.viewMore": "Ver mais",

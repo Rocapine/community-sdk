@@ -42,6 +42,11 @@ export const ro: Record<string, string> = {
   "time.minutes": "{count} min",
   "time.hours": "{count} h",
   "time.days": "{count} z",
+  "time.seconds": "{count} s",
+  "time.months.one": "{count} lună",
+  "time.months.other": "{count} luni",
+  "time.years.one": "{count} an",
+  "time.years.other": "{count} ani",
 
   "post.pinned": "Fixată",
   "post.viewMore": "Vezi mai mult",

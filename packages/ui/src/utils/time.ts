@@ -8,42 +8,66 @@ import { timeAgoParts } from "@rocapine/community-core";
 import { useSyncExternalStore } from "react";
 import type { TFn } from "../i18n";
 
-/** Localized compact relative label ("now" / "12m" / "5h" / "3d", or each
- * locale's own compact form — see `time.*` keys in `../locales/*`). */
+const UNIT_KEYS = {
+  second: "time.seconds",
+  minute: "time.minutes",
+  hour: "time.hours",
+  day: "time.days",
+  month: "time.months",
+  year: "time.years",
+} as const;
+
+/** Localized compact relative label ("now" / "30s" / "12m" / "5h" / "3d" /
+ * "2mo" / "1y", or each locale's own compact form — see `time.*` keys in
+ * `../locales/*`). */
 export function formatTimeAgo(t: TFn, iso: string, nowMs: number): string {
   const parts = timeAgoParts(iso, nowMs);
   if (parts.unit === "now") return t("time.now");
-  const key =
-    parts.unit === "minute" ? "time.minutes" : parts.unit === "hour" ? "time.hours" : "time.days";
-  return t(key, { count: parts.value });
+  return t(UNIT_KEYS[parts.unit], { count: parts.value });
 }
 
-// One shared 60s clock for every relative timestamp on screen ("2m" → "3m"):
-// a single interval, started with the first subscriber and stopped with the
-// last, so a long feed doesn't run one timer per row.
-let nowMs = Date.now();
-const listeners = new Set<() => void>();
-let timer: ReturnType<typeof setInterval> | null = null;
+export type ClockResolution = "minute" | "second";
 
-function subscribeNow(listener: () => void): () => void {
-  listeners.add(listener);
-  if (!timer) {
-    nowMs = Date.now();
-    timer = setInterval(() => {
+/** The clock a timestamp needs: per-second while its label still counts
+ * seconds (under a minute old), per-minute after that. */
+export function secondsResolution(iso: string, nowMs: number): ClockResolution {
+  return nowMs - Date.parse(iso) < 60_000 ? "second" : "minute";
+}
+
+// One shared clock per resolution for every relative timestamp on screen
+// ("2m" → "3m"): a single interval each, started with the first subscriber
+// and stopped with the last, so a long feed doesn't run one timer per row.
+function makeClock(intervalMs: number) {
+  let nowMs = Date.now();
+  const listeners = new Set<() => void>();
+  let timer: ReturnType<typeof setInterval> | null = null;
+
+  function subscribe(listener: () => void): () => void {
+    listeners.add(listener);
+    if (!timer) {
       nowMs = Date.now();
-      listeners.forEach((l) => l());
-    }, 60_000);
-  }
-  return () => {
-    listeners.delete(listener);
-    if (listeners.size === 0 && timer) {
-      clearInterval(timer);
-      timer = null;
+      timer = setInterval(() => {
+        nowMs = Date.now();
+        listeners.forEach((l) => l());
+      }, intervalMs);
     }
-  };
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0 && timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+  }
+
+  return { subscribe, get: () => nowMs };
 }
 
-/** Current time, re-rendering the caller once a minute. */
-export function useNow(): number {
-  return useSyncExternalStore(subscribeNow, () => nowMs);
+const clocks = { minute: makeClock(60_000), second: makeClock(1_000) };
+
+/** Current time, re-rendering the caller once a minute (or once a second with
+ * `"second"`, for a label that still counts seconds). */
+export function useNow(resolution: ClockResolution = "minute"): number {
+  const clock = clocks[resolution];
+  return useSyncExternalStore(clock.subscribe, clock.get);
 }

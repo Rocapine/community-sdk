@@ -71,6 +71,11 @@ export const pl: Record<string, string> = {
   "time.minutes": "{count} min",
   "time.hours": "{count} godz.",
   "time.days": "{count} dni",
+  "time.seconds": "{count} s",
+  "time.months.one": "{count} mies.",
+  "time.months.other": "{count} mies.",
+  "time.years.one": "{count} r.",
+  "time.years.other": "{count} r.",
 
   "post.pinned": "Przypięty",
   "post.viewMore": "Pokaż więcej",

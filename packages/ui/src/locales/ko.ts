@@ -38,6 +38,11 @@ export const ko: Record<string, string> = {
   "time.minutes": "{count}분",
   "time.hours": "{count}시간",
   "time.days": "{count}일",
+  "time.seconds": "{count}초",
+  "time.months.one": "{count}개월",
+  "time.months.other": "{count}개월",
+  "time.years.one": "{count}년",
+  "time.years.other": "{count}년",
 
   "post.pinned": "고정됨",
   "post.viewMore": "더 보기",

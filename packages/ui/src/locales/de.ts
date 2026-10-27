@@ -63,6 +63,11 @@ export const de: Record<string, string> = {
   "time.minutes": "{count} Min.",
   "time.hours": "{count} Std.",
   "time.days": "{count} T.",
+  "time.seconds": "{count} Sek.",
+  "time.months.one": "{count} Mon.",
+  "time.months.other": "{count} Mon.",
+  "time.years.one": "{count} J.",
+  "time.years.other": "{count} J.",
 
   "post.pinned": "Angeheftet",
   "post.viewMore": "Mehr anzeigen",
