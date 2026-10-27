@@ -81,6 +81,7 @@ export function ProfileScreen({
   source = "post",
   onOpenThread,
   onBack,
+  onPressTopic,
   slots,
   topInset = 0,
 }: {
@@ -92,6 +93,10 @@ export function ProfileScreen({
    * thread with the reply field focused (`ThreadSheet`'s `focusComment`). */
   onOpenThread(postId: string, focusComment?: boolean): void;
   onBack?: () => void;
+  /** A post's topic was tapped: the host takes the user back to its feed on
+   * that topic (see `CommunityFeedScreen`'s `topicRequest`). Absent: topics
+   * are not tappable here. */
+  onPressTopic?(topicId: string): void;
   slots?: PostSlots;
   // Top safe-area inset in px. This screen owns its back button and is meant
   // to be mounted as a full-screen route, so on a notched device the host
@@ -294,15 +299,17 @@ export function ProfileScreen({
                   </Text>
                 ) : (
                   posts.map((post) => (
-                    <CommunityPost
-                      key={post.id}
-                      post={post}
-                      onOpenThread={onOpenThread}
-                      onPressComment={(postId) => onOpenThread(postId, true)}
-                      onOpenProfile={noop}
-                      onMenu={openPostMenu}
-                      {...slots}
-                    />
+                    <View key={post.id} style={styles.row}>
+                      <CommunityPost
+                        post={post}
+                        onOpenThread={onOpenThread}
+                        onPressComment={(postId) => onOpenThread(postId, true)}
+                        onOpenProfile={noop}
+                        onMenu={openPostMenu}
+                        onPressTopic={onPressTopic}
+                        {...slots}
+                      />
+                    </View>
                   ))
                 )}
                 {hasNextPage && (
@@ -412,7 +419,10 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textFaint,
       marginBottom: theme.spacing(3),
     },
-    feed: { marginBottom: theme.spacing(2) },
+    // Flat rows edge to edge, as in the feed: out of the screen padding,
+    // a hairline above each one.
+    feed: { marginHorizontal: -theme.spacing(5), marginBottom: theme.spacing(2) },
+    row: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.hairline },
     loadMore: {
       alignSelf: "center",
       backgroundColor: theme.colors.surfaceMuted,
@@ -421,7 +431,7 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(5),
       borderWidth: 1,
       borderColor: theme.colors.border,
-      marginTop: theme.spacing(1),
+      marginTop: theme.spacing(3),
       minWidth: 96,
       alignItems: "center",
     },

@@ -143,6 +143,7 @@ export function CommunityFeedScreen({
   slots,
   beforeCompose,
   beforeSubmitComment,
+  topicRequest,
 }: {
   onOpenProfile(userId: string, source?: ProfileSource): void;
   onOpenInbox?: () => void;
@@ -160,6 +161,11 @@ export function CommunityFeedScreen({
    * sign in). Resolving `false` (or throwing) keeps the composer closed, with
    * no error UI. Absent ⇒ the composer opens once the rules are accepted. */
   beforeCompose?: () => Promise<boolean>;
+  /** Selects a topic's tab from outside, e.g. a topic tapped on a profile
+   * the host navigated back from. Applied each time `requestedAt` changes, so
+   * the same topic can be asked for twice; an id `cfg.topics` doesn't list is
+   * ignored. */
+  topicRequest?: { topicId: string; requestedAt: number };
   /** Forwarded to this screen's own `ThreadSheet` as `beforeSubmitComment` —
    * see that prop's doc comment. Absent ⇒ byte-identical behavior. */
   beforeSubmitComment?: (draft: {
@@ -300,6 +306,24 @@ export function CommunityFeedScreen({
     setSearchTerm("");
   };
 
+  // A topic tapped on a post (in the feed, the search results or the
+  // thread) or asked for by the host: leave the search, land on its tab.
+  const selectTopic = useCallback((topicId: string) => {
+    setSearchOpen(false);
+    setSearchTerm("");
+    setFilter(topicId);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, []);
+  const requestedTopic = topicRequest?.topicId;
+  const requestedAt = topicRequest?.requestedAt;
+  useEffect(() => {
+    if (requestedTopic && cfg.topics.some((tp) => tp.id === requestedTopic)) {
+      selectTopic(requestedTopic);
+    }
+    // Keyed on `requestedAt`: the same topic can be asked for twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedAt]);
+
   const toggleSearch = () => {
     setSearchOpen((open) => {
       if (open) setSearchTerm("");
@@ -377,10 +401,11 @@ export function CommunityFeedScreen({
         onPressComment={openThreadToComment}
         onOpenProfile={onOpenProfile}
         onMenu={openPostMenu}
+        onPressTopic={selectTopic}
         {...slots}
       />
     ),
-    [openThread, openThreadToComment, onOpenProfile, openPostMenu, slots],
+    [openThread, openThreadToComment, onOpenProfile, openPostMenu, selectTopic, slots],
   );
 
   const showButton = (b: FeedHeaderButton) => b !== "inbox" || (cfg.modules.inbox && !!onOpenInbox);
@@ -580,6 +605,7 @@ export function CommunityFeedScreen({
           focusComment={focusComment}
           onClose={() => setActivePostId(null)}
           onOpenProfile={onOpenProfile}
+          onPressTopic={selectTopic}
           slots={slots}
           beforeSubmitComment={beforeSubmitComment}
         />

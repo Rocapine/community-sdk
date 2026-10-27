@@ -228,20 +228,20 @@ you can wrap, replace, or ignore it:
 
 ## Screens
 
-| Screen                    | Key props                                                                                                                                                                                                                                                                                                              |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: ReactNode`, `headerLayout?: FeedHeaderLayout` (see Feed header), `slots?: PostSlots`, `beforeSubmitPost?`, `beforeSubmitComment?` (see Gating submissions)  |
-| `ThreadSheet`             | `postId: string \| null`, `focusComment?: boolean` (open with the reply field focused), `onClose()`, `onOpenProfile(userId, source?)`, `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does |
-| `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId, focusComment?)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `slots?: PostSlots`                   |
-| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                                                        |
-| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                  |
+| Screen                    | Key props                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: ReactNode`, `headerLayout?: FeedHeaderLayout` (see Feed header), `slots?: PostSlots`, `beforeCompose?`, `beforeSubmitComment?` (see Gating submissions), `topicRequest?` (see Topics)              |
+| `ThreadSheet`             | `postId: string \| null`, `focusComment?: boolean` (open with the reply field focused), `onClose()`, `onOpenProfile(userId, source?)`, `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does |
+| `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId, focusComment?)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`                   |
+| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                                                                                               |
+| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                                                         |
 
 Plus standalone components you can use directly: `PressableScale` (the
 package's press feedback for buttons with a visible surface — a 0.98 scale-down,
 no opacity change, optional `haptic`; icon buttons and links stay plain `Pressable`s), `CommunityPost`,
 `PollBlock` (takes `showOriginal?: boolean` to render each option's
 original `label` instead of its `translatedLabel`, mirroring the post/thread
-toggle below), `NoticeCard`, `ComposerCard`, `RulesSheet`, `ReportSheet`, and
+toggle below), `NoticeCard`, `ComposerSheet` (the full-screen composer the feed's `+` opens; mount it yourself to compose from elsewhere), `Avatar`, `RulesSheet`, `ReportSheet`, and
 the package's own `CommunitySheet` primitive (built on `@gorhom/bottom-sheet`, installed as a peer; no provider to mount).
 
 See `examples/expo-app/App.tsx` for a complete, working wiring of
@@ -252,7 +252,9 @@ See `examples/expo-app/App.tsx` for a complete, working wiring of
 
 `CommunityFeedScreen`'s header row is set by `headerLayout`: which buttons sit
 left and right, and whether the "Community" title (`title` key) shows on the
-left or in the center. Buttons: `profile` (the user's avatar, opens their own
+left or in the center, or an image in its place (`title: { image, position?,
+accessibilityLabel? }`, e.g. your logo; pass the source that matches your
+theme). Buttons: `profile` (the user's avatar, opens their own
 profile through `onOpenProfile(myUid)`), `search`, `inbox` (shown only with
 `modules.inbox` on and `onOpenInbox` given). The default,
 `DEFAULT_FEED_HEADER_LAYOUT`, is profile left, title centered, search and
@@ -266,16 +268,44 @@ out is empty.
 />
 ```
 
+## Feed, composer and topics
+
+The feed is flat: full-width post rows separated by hairlines, the avatar in a
+first column and `name › topic · time` on one line, the `…` menu at its end.
+Topics are scrollable tabs. A body longer than six lines is cut with "View
+more" at the end of its last line (tapping expands it for good). Times count
+seconds, then minutes, hours, days, months and years.
+
+A round `+` button (bottom right, `feed.compose` label) opens `ComposerSheet`,
+a full-screen page sheet: Cancel / Post on top, the topic pill under the
+user's name, a toolbar on the keyboard with the photo and poll buttons and a
+character ring. Before it opens, the `+` asks for the community rules (first
+time) and then awaits your `beforeCompose` (see Gating submissions). Posting
+closes the sheet and publishes optimistically; a failed publish puts the draft
+back for the next `+`, and Cancel on a draft asks to discard it.
+
+**Topics.** Tapping a post's topic in the feed, its search results or its
+thread selects that tab. Elsewhere it calls your `onPressTopic(topicId)`
+(`ProfileScreen`, `ThreadSheet`); route back to the feed and pass
+`topicRequest={{ topicId, requestedAt: Date.now() }}` — the feed applies it
+each time `requestedAt` changes. Without `onPressTopic`, topics there are not
+tappable.
+
+**Avatars.** Every avatar the SDK draws (rows, comments, header button,
+profiles, composer, edit preview) goes through `Avatar`. Pass
+`renderAvatar={({ userId, name, url, size }) => …}` to `CommunityUIProvider`
+to draw your own (e.g. a gradient per member); the default is the photo, else
+the initial on a flat colour.
+
 ## Images
 
 With `modules.images: true` (core) and the backend `images` module installed:
 
-- **Composer.** An Image button sits left in the row inside the text box, next
-  to the topic select; it is hidden while a poll is open (a post carries a poll
-  _or_ an image). The chosen photo shows as a thumbnail with a ✕; tapping Image
-  again replaces it. Publish is enabled with text **or** an image.
-  The Poll toggle now carries `accessibilityRole` / `accessibilityState`.
-- **Feed.** The image sits inside the card padding with `radius.md` corners,
+- **Composer.** A photo button sits in the keyboard toolbar, disabled while a
+  poll is open (a post carries a poll _or_ an image). The chosen photo shows
+  under the text with a ✕; tapping the button again replaces it. Publish is
+  enabled with text **or** an image.
+- **Feed.** The image sits in the post's text column with `radius.md` corners,
   aspect ratio kept, height capped at 4:5 (taller is center-cropped) and wide
   images floored at 1.91:1; the frame has its final size before the pixels
   load, so nothing jumps. Tapping opens the full-screen viewer (pinch / double
@@ -289,8 +319,8 @@ With `modules.images: true` (core) and the backend `images` module installed:
   re-encodes every photo to JPEG 0.8, long edge ≤ 1600 px, which also strips
   EXIF/GPS; the original is never uploaded. Without it the image buttons are
   hidden and a dev build warns once.
-- **Gating.** `beforeSubmitPost` / `beforeSubmitComment` drafts carry the
-  attached `image?: LocalImage` (see Gating submissions).
+- **Gating.** `beforeSubmitComment` drafts carry the attached
+  `image?: LocalImage` (see Gating submissions).
 - **Exports.** `ImageViewerHost` provides the full-screen viewer;
   `CommunityFeedScreen` and `ProfileScreen` already wrap themselves in it. A
   host that renders `CommunityPost` in its own screen wraps that screen in
@@ -317,18 +347,13 @@ shape `{ text, translation: { text, sourceLocale } | null }`.
 
 ## Gating submissions
 
-`ComposerCard`'s `beforeSubmit` and `ThreadSheet`'s `beforeSubmitComment`
-(both forwarded by `CommunityFeedScreen` as `beforeSubmitPost` /
-`beforeSubmitComment`) let a host intercept a post or comment right before it
-is actually created, with an async check:
+`CommunityFeedScreen`'s `beforeCompose` runs when the `+` is tapped, once the
+rules are accepted and before the composer opens (nothing has been typed
+yet). `ThreadSheet`'s `beforeSubmitComment` (also forwarded by the feed)
+intercepts a comment right before it is created. Both are async checks:
 
 ```ts
-type BeforeSubmitPost = (draft: {
-  topic: string;
-  body: string;
-  pollOptions?: string[];
-  image?: LocalImage; // images module: the attached, re-encoded photo
-}) => Promise<boolean>;
+type BeforeCompose = () => Promise<boolean>;
 
 type BeforeSubmitComment = (draft: {
   postId: string;
@@ -340,10 +365,12 @@ type BeforeSubmitComment = (draft: {
 Both props are optional and **default-inert** — omit them and behavior is
 byte-identical to before they existed. When present, the SDK `await`s the
 promise before its own mutation runs: resolving `true` lets the submit
-through; resolving `false` (or the promise rejecting) aborts it silently —
-no mutation, no error UI, and the composer/comment draft is kept exactly as
-typed so the user can retry. The submit button is disabled for the duration
-of the await, so a second tap can't fire the gate twice.
+through (or opens the composer); resolving `false` (or the promise rejecting)
+aborts it silently — no mutation, no error UI, the comment draft kept exactly
+as typed so the user can retry. A second tap during the await can't fire the
+gate twice. Because `beforeCompose` runs before the composer's Modal exists,
+it may present its own modal (a sign-in sheet, a paywall) — iOS can't stack
+one on the composer.
 
 A typical use is a Superwall paywall that only lets the post through once the
 viewer is entitled. **The promise must settle on every path** — entitled,
@@ -372,7 +399,7 @@ function useGate() {
 const gate = useGate();
 <CommunityFeedScreen
   onOpenProfile={openProfile}
-  beforeSubmitPost={() => gate("community_post")}
+  beforeCompose={() => gate("community_post")}
   beforeSubmitComment={() => gate("community_comment")}
 />;
 ```

@@ -132,7 +132,7 @@ export function NotificationInboxScreen({
         <Text style={styles.empty}>{t("inbox.empty")}</Text>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={styles.card}>
+          <View style={styles.list}>
             {items.map((item, i) => {
               const unread = Date.parse(item.createdAt) > seenMs;
               const defaultRow = KNOWN_KINDS.has(item.kind) ? (
@@ -266,12 +266,14 @@ function makeStyles(theme: CommunityTheme) {
       marginTop: theme.spacing(6),
       paddingHorizontal: theme.spacing(4),
     },
-    card: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: theme.radius.lg,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      overflow: "hidden",
+    // Flat rows edge to edge, as in the feed: out of the screen padding,
+    // hairlines between them.
+    list: {
+      marginHorizontal: -theme.spacing(5),
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.hairline,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.hairline,
     },
     row: {
       flexDirection: "row",
@@ -280,9 +282,9 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(4),
       paddingVertical: theme.spacing(3.5),
     },
-    // A tint, not a scale: rows sit edge to edge inside their card.
+    // A tint, not a scale: rows sit edge to edge.
     rowPressed: { backgroundColor: theme.colors.hairline },
-    rowDivider: { borderTopWidth: 1, borderTopColor: theme.colors.hairline },
+    rowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.hairline },
     iconWrap: {
       width: 36,
       height: 36,

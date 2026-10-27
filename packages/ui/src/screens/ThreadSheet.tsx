@@ -136,6 +136,7 @@ export function ThreadSheet({
   focusComment = false,
   onClose,
   onOpenProfile,
+  onPressTopic,
   slots,
   beforeSubmitComment,
 }: {
@@ -144,6 +145,10 @@ export function ThreadSheet({
   focusComment?: boolean;
   onClose(): void;
   onOpenProfile(userId: string, source?: ProfileSource): void;
+  /** The post's topic was tapped: the sheet closes, then this is called (the
+   * feed selects that tab; elsewhere a host routes back to its feed). Absent:
+   * the topic is not tappable. */
+  onPressTopic?(topicId: string): void;
   slots?: PostSlots;
   /** Awaited before the comment is actually created (`useCreateComment().mutate`).
    * Absent ⇒ byte-identical behavior. Resolving/returning `false` (or
@@ -348,6 +353,12 @@ export function ThreadSheet({
     onClose();
     onOpenProfile(userId, source);
   };
+  const pressTopic = onPressTopic
+    ? (topicId: string) => {
+        onClose();
+        onPressTopic(topicId);
+      }
+    : undefined;
 
   const handleDismissed = () => {
     viewer.close();
@@ -551,6 +562,7 @@ export function ThreadSheet({
                     onPressComment={focusReply}
                     onOpenProfile={openProfile}
                     onMenu={openPostMenu}
+                    onPressTopic={pressTopic}
                     {...slots}
                   />
                 </View>
