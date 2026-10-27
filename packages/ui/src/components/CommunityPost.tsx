@@ -341,7 +341,9 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textPrimary,
       flexShrink: 1,
     },
-    topic: { flexShrink: 2, minWidth: 0 },
+    // Capped rather than shrunk: the name gives way first, the topic only
+    // past 40% of the line.
+    topic: { flexShrink: 0, maxWidth: "40%" },
     meta: {
       fontFamily: theme.fonts.regular,
       fontWeight: theme.fontWeights.regular,

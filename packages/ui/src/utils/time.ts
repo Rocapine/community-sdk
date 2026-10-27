@@ -35,39 +35,51 @@ export function secondsResolution(iso: string, nowMs: number): ClockResolution {
 }
 
 // One shared clock per resolution for every relative timestamp on screen
-// ("2m" → "3m"): a single interval each, started with the first subscriber
-// and stopped with the last, so a long feed doesn't run one timer per row.
-function makeClock(intervalMs: number) {
+// ("2m" → "3m"): a single interval each, started with the first subscriber and
+// stopped with the last, so a long feed doesn't run one timer per row. Both
+// read one `nowMs`, so a row moving from the second clock to the minute one
+// ("59s" → "1m") never reads an older time than it just showed.
+export function makeClocks() {
   let nowMs = Date.now();
-  const listeners = new Set<() => void>();
-  let timer: ReturnType<typeof setInterval> | null = null;
-
-  function subscribe(listener: () => void): () => void {
-    listeners.add(listener);
-    if (!timer) {
-      nowMs = Date.now();
-      timer = setInterval(() => {
-        nowMs = Date.now();
-        listeners.forEach((l) => l());
-      }, intervalMs);
-    }
-    return () => {
-      listeners.delete(listener);
-      if (listeners.size === 0 && timer) {
-        clearInterval(timer);
-        timer = null;
-      }
+  const make = (intervalMs: number) => {
+    const listeners = new Set<() => void>();
+    let timer: ReturnType<typeof setInterval> | null = null;
+    return {
+      subscribe(listener: () => void): () => void {
+        listeners.add(listener);
+        if (!timer) {
+          nowMs = Date.now();
+          timer = setInterval(() => {
+            nowMs = Date.now();
+            listeners.forEach((l) => l());
+          }, intervalMs);
+        }
+        return () => {
+          listeners.delete(listener);
+          if (listeners.size === 0 && timer) {
+            clearInterval(timer);
+            timer = null;
+          }
+        };
+      },
     };
-  }
-
-  return { subscribe, get: () => nowMs };
+  };
+  const clocks = { minute: make(60_000), second: make(1_000) };
+  return {
+    subscribe: (resolution: ClockResolution, listener: () => void) =>
+      clocks[resolution].subscribe(listener),
+    get: (_resolution: ClockResolution) => nowMs,
+  };
 }
 
-const clocks = { minute: makeClock(60_000), second: makeClock(1_000) };
+const clocks = makeClocks();
+const subscribers = {
+  minute: (l: () => void) => clocks.subscribe("minute", l),
+  second: (l: () => void) => clocks.subscribe("second", l),
+};
 
 /** Current time, re-rendering the caller once a minute (or once a second with
  * `"second"`, for a label that still counts seconds). */
 export function useNow(resolution: ClockResolution = "minute"): number {
-  const clock = clocks[resolution];
-  return useSyncExternalStore(clock.subscribe, clock.get);
+  return useSyncExternalStore(subscribers[resolution], () => clocks.get(resolution));
 }

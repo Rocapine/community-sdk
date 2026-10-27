@@ -308,7 +308,12 @@ export function CommunityFeedScreen({
 
   // A topic tapped on a post (in the feed, the search results or the
   // thread) or asked for by the host: leave the search, land on its tab.
+  // Already on that tab (outside a search): nothing to do, keep the reader's place.
+  const currentTab = useRef({ filter, searchOpen });
+  currentTab.current = { filter, searchOpen };
   const selectTopic = useCallback((topicId: string) => {
+    const now = currentTab.current;
+    if (now.filter === topicId && !now.searchOpen) return;
     setSearchOpen(false);
     setSearchTerm("");
     setFilter(topicId);

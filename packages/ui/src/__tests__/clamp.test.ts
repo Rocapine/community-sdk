@@ -15,11 +15,12 @@ describe("clampWithSuffix", () => {
     expect(clampWithSuffix(lines, 2, 300, 90)).toBe("one two…");
   });
 
-  it("trims the last visible line so the suffix fits on it", () => {
-    // 300 − 90 = 210pt left, minus one character for "…" → 20 characters.
+  it("trims the last visible line so the suffix fits on it, with slack", () => {
+    // 300 − 90 = 210pt → 21 average characters, minus 3 of slack (the "…"
+    // and glyphs wider than the line's average) → 18.
     const long = "x".repeat(30); // a full line with no space (a URL, a long word)
     expect(clampWithSuffix([line(long), line(long), line("end")], 2, 300, 90)).toBe(
-      long + "x".repeat(20) + "…",
+      long + "x".repeat(18) + "…",
     );
   });
 });
