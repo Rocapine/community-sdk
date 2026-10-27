@@ -247,7 +247,12 @@ export function CommunityPost({
   const content = (
     <>
       <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.avatarColumn}>
-        <Avatar userId={post.authorId} name={post.authorName} url={post.authorAvatarUrl} size={40} />
+        <Avatar
+          userId={post.authorId}
+          name={post.authorName}
+          url={post.authorAvatarUrl}
+          size={40}
+        />
       </Pressable>
       <View style={styles.main}>
         {post.pinnedAt != null && (

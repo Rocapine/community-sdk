@@ -543,13 +543,17 @@ export function ThreadSheet({
           >
             {post && (
               <ModalHandoffContext.Provider value={presentAfterClose}>
-                <CommunityPost
-                  post={post}
-                  onPressComment={focusReply}
-                  onOpenProfile={openProfile}
-                  onMenu={openPostMenu}
-                  {...slots}
-                />
+                {/* The row pads itself for the flat feed: cancel it so the
+                    post lines up with the comments under the sheet's padding. */}
+                <View style={styles.postBleed}>
+                  <CommunityPost
+                    post={post}
+                    onPressComment={focusReply}
+                    onOpenProfile={openProfile}
+                    onMenu={openPostMenu}
+                    {...slots}
+                  />
+                </View>
               </ModalHandoffContext.Provider>
             )}
 
@@ -688,6 +692,7 @@ function CommentRow({
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     content: { paddingTop: theme.spacing(1), paddingBottom: theme.spacing(3) },
+    postBleed: { marginHorizontal: -theme.spacing(4) },
     commentsLabel: {
       fontFamily: theme.fonts.bold,
       fontWeight: theme.fontWeights.bold,
