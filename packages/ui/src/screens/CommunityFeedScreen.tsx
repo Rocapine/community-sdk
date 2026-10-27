@@ -102,12 +102,13 @@ import {
   Keyboard,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type ImageSourcePropType,
 } from "react-native";
+import { Image } from "expo-image";
 import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
@@ -118,6 +119,7 @@ import { ComposerCard, type ComposerCardHandle } from "../components/ComposerCar
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
 import { Avatar } from "../components/Avatar";
+import { TABS_ROW_HEIGHT, TopicTabs } from "../components/TopicTabs";
 import { PressableScale } from "../components/PressableScale";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
@@ -129,13 +131,21 @@ import { ThreadSheet } from "./ThreadSheet";
  * the inbox module is on and `onOpenInbox` is given. */
 export type FeedHeaderButton = "profile" | "search" | "inbox";
 
+/** What the header row shows between its buttons: the "Community" title
+ * (`title` i18n key) on the left or centred, an image in its place (e.g. the
+ * app's logo — the host passes the source matching its theme), or nothing. */
+export type FeedHeaderTitle =
+  | "left"
+  | "center"
+  | false
+  | { image: ImageSourcePropType; position?: "left" | "center"; accessibilityLabel?: string };
+
 /** The feed's header row. Replaces the default as a whole: a side or title
  * left out is empty. */
 export type FeedHeaderLayout = {
   left?: FeedHeaderButton[];
   right?: FeedHeaderButton[];
-  /** The "Community" title (`title` i18n key); `false` hides it. */
-  title?: "left" | "center" | false;
+  title?: FeedHeaderTitle;
 };
 
 export const DEFAULT_FEED_HEADER_LAYOUT: FeedHeaderLayout = {
@@ -390,11 +400,24 @@ export function CommunityFeedScreen({
   const leftButtons = (headerLayout.left ?? []).filter(showButton);
   const rightButtons = (headerLayout.right ?? []).filter(showButton);
   const hasHeaderRow = leftButtons.length > 0 || rightButtons.length > 0 || !!headerLayout.title;
-  const title = (
-    <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">
-      {t("title")}
-    </Text>
-  );
+  const titleSpec = headerLayout.title;
+  const titlePosition =
+    typeof titleSpec === "object" && titleSpec ? (titleSpec.position ?? "center") : titleSpec;
+  const title =
+    typeof titleSpec === "object" && titleSpec ? (
+      <Image
+        source={titleSpec.image}
+        style={styles.headerImage}
+        contentFit="contain"
+        accessible
+        accessibilityRole="header"
+        accessibilityLabel={titleSpec.accessibilityLabel}
+      />
+    ) : (
+      <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">
+        {t("title")}
+      </Text>
+    );
   const renderHeaderButton = (button: FeedHeaderButton) => {
     switch (button) {
       case "profile":
@@ -431,6 +454,14 @@ export function CommunityFeedScreen({
     }
   };
 
+  const topicTabs = useMemo(
+    () => [
+      { id: "all", label: t("feed.all") },
+      ...cfg.topics.map((topic) => ({ id: topic.id, label: t(`topics.${topic.id}`) })),
+    ],
+    [cfg.topics, t],
+  );
+
   // An `officialOnly` filter (e.g. "News") must never become the composer's
   // preselected topic — regular users cannot post there.
   const composeDefaultTopic =
@@ -446,19 +477,21 @@ export function CommunityFeedScreen({
             <View style={styles.headerRow}>
               <View style={styles.headerSide}>
                 {leftButtons.map(renderHeaderButton)}
-                {headerLayout.title === "left" && title}
+                {titlePosition === "left" && title}
               </View>
-              {headerLayout.title === "center" && title}
+              {titlePosition === "center" && title}
               <View style={[styles.headerSide, styles.headerSideRight]}>
                 {rightButtons.map(renderHeaderButton)}
               </View>
             </View>
           )}
+        </View>
 
-          {/* Search bar and filter chips share one fixed-height slot, so
-            toggling between them never shifts the feed. */}
-          <View style={styles.switchRow}>
-            {searchOpen ? (
+        {/* Search bar and topic tabs share one fixed-height slot, so toggling
+          between them never shifts the feed. */}
+        <View style={styles.switchRow}>
+          {searchOpen ? (
+            <View style={styles.searchSlot}>
               <View style={styles.searchBar}>
                 <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
                 <TextInput
@@ -483,29 +516,10 @@ export function CommunityFeedScreen({
                   </Pressable>
                 )}
               </View>
-            ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.filtersScroll}
-                contentContainerStyle={styles.filters}
-              >
-                <FilterChip
-                  label={t("feed.all")}
-                  active={filter === "all"}
-                  onPress={() => setFilter("all")}
-                />
-                {cfg.topics.map((topic) => (
-                  <FilterChip
-                    key={topic.id}
-                    label={t(`topics.${topic.id}`)}
-                    active={filter === topic.id}
-                    onPress={() => setFilter(topic.id)}
-                  />
-                ))}
-              </ScrollView>
-            )}
-          </View>
+            </View>
+          ) : (
+            <TopicTabs tabs={topicTabs} selected={filter} onSelect={setFilter} />
+          )}
         </View>
 
         <View style={styles.listWrap}>
@@ -520,6 +534,7 @@ export function CommunityFeedScreen({
             data={posts}
             keyExtractor={(p) => p.id}
             renderItem={renderItem}
+            ItemSeparatorComponent={RowSeparator}
             ListHeaderComponent={
               <>
                 {/* Same gap above the results as the composer's own top margin. */}
@@ -628,27 +643,10 @@ export function CommunityFeedScreen({
   );
 }
 
-function FilterChip({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
+/** The hairline between two posts of the flat feed. */
+function RowSeparator() {
   const styles = useThemedStyles(makeStyles);
-  return (
-    <PressableScale
-      haptic={active ? undefined : "selection"}
-      onPress={onPress}
-      style={[styles.filterChip, active && styles.filterChipOn]}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-    >
-      <Text style={[styles.filterChipText, active && styles.filterChipTextOn]}>{label}</Text>
-    </PressableScale>
-  );
+  return <View style={styles.rowSeparator} />;
 }
 
 /**
@@ -677,18 +675,14 @@ function InboxBell({ onPress }: { onPress: () => void }) {
 
 /** Minimum touch target (Apple HIG / Material: 44pt / 48dp). */
 const ICON_TARGET = 44;
-/** Shared by the filter chips and the search bar that replaces them. */
+/** The search bar that takes the topic tabs' slot. */
 const CONTROL_HEIGHT = 40;
 const FLOATING_BAR_HEIGHT = 54;
 
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
-    controls: {
-      paddingHorizontal: theme.spacing(5),
-      paddingTop: theme.spacing(1),
-      paddingBottom: theme.spacing(3),
-    },
+    controls: { paddingHorizontal: theme.spacing(5), paddingTop: theme.spacing(1) },
     // Icons sit flush with the content edge; each keeps a 44pt target.
     headerRow: {
       flexDirection: "row",
@@ -707,6 +701,8 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 20,
       color: theme.colors.textPrimary,
     },
+    // Fits a square mark or a wordmark alike (`contentFit="contain"`).
+    headerImage: { height: 32, width: 160 },
     iconButton: {
       width: ICON_TARGET,
       height: ICON_TARGET,
@@ -724,7 +720,12 @@ function makeStyles(theme: CommunityTheme) {
       borderWidth: 1.5,
       borderColor: theme.colors.background,
     },
-    switchRow: { height: CONTROL_HEIGHT, marginTop: theme.spacing(2) },
+    switchRow: {
+      height: TABS_ROW_HEIGHT,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.hairline,
+    },
+    searchSlot: { flex: 1, justifyContent: "center", paddingHorizontal: theme.spacing(5) },
     searchBar: {
       height: CONTROL_HEIGHT,
       flexDirection: "row",
@@ -752,35 +753,12 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
       justifyContent: "center",
     },
-    // Bleeds past the screen padding so chips scroll edge to edge.
-    filtersScroll: { marginHorizontal: -theme.spacing(5) },
-    filters: {
-      flexDirection: "row",
-      gap: theme.spacing(2),
-      paddingHorizontal: theme.spacing(5),
-    },
-    filterChip: {
-      height: CONTROL_HEIGHT,
-      justifyContent: "center",
-      backgroundColor: theme.colors.surfaceMuted,
-      borderRadius: theme.radius.pill,
-      paddingHorizontal: theme.spacing(4),
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    filterChipOn: { backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.accent },
-    filterChipText: {
-      fontFamily: theme.fonts.medium,
-      fontWeight: theme.fontWeights.medium,
-      fontSize: 12.5,
-      color: theme.colors.textMuted,
-    },
-    filterChipTextOn: { color: theme.colors.accent },
     listWrap: { flex: 1, position: "relative" },
     hidden: { display: "none" },
     // = ComposerCard's marginTop: results start where the composer would.
     searchGap: { height: theme.spacing(4) },
-    listContent: { paddingHorizontal: theme.spacing(5) },
+    listContent: {},
+    rowSeparator: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.hairline },
     spinner: { marginTop: theme.spacing(8) },
     stateText: {
       fontFamily: theme.fonts.regular,

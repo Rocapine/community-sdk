@@ -57,6 +57,7 @@ export {
   DEFAULT_FEED_HEADER_LAYOUT,
   type FeedHeaderButton,
   type FeedHeaderLayout,
+  type FeedHeaderTitle,
 } from "./screens/CommunityFeedScreen";
 export { ThreadSheet } from "./screens/ThreadSheet";
 export { ProfileScreen } from "./screens/ProfileScreen";
