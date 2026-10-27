@@ -95,6 +95,11 @@ export const de: Record<string, string> = {
   "composer.removePoll": "Umfrage entfernen",
   "composer.post": "VERÖFFENTLICHEN",
   "composer.chooseTopic": "Posten in",
+  "composer.cancel": "Abbrechen",
+  "composer.discardTitle": "Beitrag verwerfen?",
+  "composer.discard": "Verwerfen",
+  "composer.keepEditing": "Weiter bearbeiten",
+  "feed.compose": "Neuer Beitrag",
 
   "poll.votes.one": "{count} Stimme",
   "poll.votes.other": "{count} Stimmen",

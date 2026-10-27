@@ -79,6 +79,11 @@ export const uk: Record<string, string> = {
   "composer.removePoll": "Прибрати опитування",
   "composer.post": "ОПУБЛІКУВАТИ",
   "composer.chooseTopic": "Опублікувати в",
+  "composer.cancel": "Скасувати",
+  "composer.discardTitle": "Видалити цей допис?",
+  "composer.discard": "Видалити",
+  "composer.keepEditing": "Продовжити",
+  "feed.compose": "Новий допис",
 
   "poll.votes.one": "{count} голос",
   "poll.votes.few": "{count} голоси",

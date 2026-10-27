@@ -68,6 +68,11 @@ export const ko: Record<string, string> = {
   "composer.removePoll": "투표 삭제",
   "composer.post": "게시",
   "composer.chooseTopic": "게시할 주제",
+  "composer.cancel": "취소",
+  "composer.discardTitle": "이 글을 삭제할까요?",
+  "composer.discard": "삭제",
+  "composer.keepEditing": "계속 작성",
+  "feed.compose": "새 글",
 
   "poll.votes.one": "{count}표",
   "poll.votes.other": "{count}표",

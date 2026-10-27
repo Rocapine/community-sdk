@@ -1,10 +1,9 @@
-// The community feed: topic filter chips, search, a "N new posts" pill, the
-// inline composer, an infinite-scrolling `FlatList` of posts, and the thread/
-// report-sheet orchestration that opening a post or its menu needs. Ported
-// from the mold's `app/community.tsx` (route → component), merged with Eve's
-// Rhythm's newer `app/(app)/(tabs)/community.tsx` for the search bar and the
-// "N new posts" pill (Eve's own reaction/prayer wiring is not merged here —
-// see below).
+// The community feed: scrollable topic tabs, search, a "N new posts" pill, a
+// flat infinite-scrolling `FlatList` of posts, the `+` button that opens the
+// full-screen composer, and the thread/report-sheet orchestration that
+// opening a post or its menu needs. Ported from the mold's `app/community.tsx`
+// (route → component), merged with Eve's Rhythm's newer community screen for
+// the search bar, the "N new posts" pill, the tabs and the `+` composer.
 //
 // Router-free transformations (task brief):
 //  - `useFocusEffect(... trackCommunityOpened ...)` → a plain mount `useEffect`
@@ -18,49 +17,28 @@
 //    router), alongside the `AppState` foreground/background gate.
 //  - `router.push(...)`/`router.back()` → `onOpenProfile(userId)` /
 //    the `header` prop (the app renders its own top bar, including any back
-//    button — this screen never had one of its own to begin with in the
-//    tab-bar-hosted Eve source this was reconciled against).
-//  - `router.push(/user/...)` for the compose sheet, filter chips and the
-//    optimistic-post `authorId` guard all still apply verbatim through
-//    `onOpenProfile`.
+//    button).
 //
 // Differences from both sources, beyond the standard reconciliation:
-//  - No separate compose "bar + 90%-sheet" flow: `ComposerCard` (Task 11) is
-//    already the full inline composer (topic chips, poll editor, its own
-//    rules gate + embedded `RulesSheet`) — it renders directly as the
-//    `FlatList`'s `ListHeaderComponent`. Eve's floating compose bar is kept:
-//    once the inline composer scrolls out of view a pill appears at the
-//    bottom; tapping it scrolls back up and calls `ComposerCard`'s `focus()`
-//    (which opens the rules gate instead while still locked). Hidden while
-//    searching, like the source.
-//  - `ScrollView`-based `Screen` → a plain `FlatList` per the brief ("FlatList
-//    feed"), with `RefreshControl` for pull-to-refresh and `onEndReached` for
-//    infinite scroll instead of a manual "Load more" scroll position.
-//    A "Load more" footer button is still shown for parity with both
-//    sources' explicit affordance, alongside `onEndReached`.
-//  - Filter chips read the full `cfg.topics` (including any `officialOnly`
-//    ones, e.g. a "News" topic) — that's the *browsing* list, distinct from
-//    `cfg.composeTopics()` (which `ComposerCard` uses and which excludes
-//    them). `defaultTopic` passed to `ComposerCard` is only ever a non-official
-//    topic id (or `undefined`): passing an `officialOnly` filter straight
-//    through would preselect a topic regular users cannot post to.
-//  - The reaction ("pray for") affordance is not wired here at all: it lives
-//    entirely inside `CommunityPost` (Task 9) via `cfg.modules.reaction` +
-//    `useReactToPost`, gone the moment a host turns that module on — nothing
-//    left for this screen to wire. Eve's app-specific `PrayForSisterSheet`
-//    (third-person prayer flow) is explicitly out of scope per the brief
-//    ("SKIP Eve's prayer-sheet flow — that's an app-side slot concern"); a
-//    host wanting that can build it as a `renderReactionButton`/
-//    `renderPostFooter` slot via `PostSlots`.
-//  - Post creation's "rejected by moderation" notice: `ComposerCard.submit()`
-//    originally called `useCreatePost().mutate(...)` with no success/error
-//    callback (Task 11), leaving this screen with no signal to key a
-//    `NoticeCard` off — a regression from both sources, which show one.
-//    Fixed in Task 12's review round (cross-file touch to `ComposerCard.tsx`
-//    explicitly authorized there): `ComposerCard` now takes an optional
-//    `onModerationRejected?: (kind: "post") => void`, called from its own
-//    `mutate(...)`'s `onSuccess` when the verdict is `"rejected"`; this
-//    screen wires it to `setNotice("rejected")` and renders `NoticeCard`.
+//  - Composing: the `+` button runs the gates first (rules, then the host's
+//    `beforeCompose`), then opens `ComposerSheet`, mounted once here so a
+//    draft survives a close. Hidden while searching.
+//  - `ScrollView`-based `Screen` → a plain `FlatList`, with `RefreshControl`
+//    for pull-to-refresh and `onEndReached` for infinite scroll; a "Load more"
+//    footer button is still shown for parity with both sources.
+//  - The tabs read the full `cfg.topics` (including any `officialOnly` ones,
+//    e.g. a "News" topic) — that's the *browsing* list, distinct from
+//    `cfg.composeTopics()` (which the composer uses and which excludes them).
+//    The composer's `defaultTopic` is only ever a non-official topic id (or
+//    `undefined`): an `officialOnly` tab would preselect a topic regular
+//    users cannot post to.
+//  - The reaction ("pray for") affordance lives entirely inside
+//    `CommunityPost` via `cfg.modules.reaction` + `useReactToPost`; a host
+//    wanting Eve's third-person prayer flow builds it as a
+//    `renderReactionButton`/`renderPostFooter` slot via `PostSlots`.
+//  - Moderation and publish-failure notices: the composer reports them
+//    (`onModerationRejected`, `onPublishFailed`) and this screen shows a
+//    `NoticeCard`.
 //  - `onOpenInbox`: not in either source (Eve's bell lives on its Home tab,
 //    outside the community screen entirely). Rendered as an optional bell
 //    button next to the search toggle, shown only when both the prop is
@@ -109,13 +87,15 @@ import {
   type ImageSourcePropType,
 } from "react-native";
 import { Image } from "expo-image";
-import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
 import { ImageViewerHost } from "../components/ImageViewer";
-import { ComposerCard, type ComposerCardHandle } from "../components/ComposerCard";
+import { ComposerSheet } from "../components/ComposerSheet";
+import { RulesSheet } from "../components/RulesSheet";
+import { openComposerGuarded } from "../utils/gate";
+import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
 import { Avatar } from "../components/Avatar";
@@ -161,7 +141,7 @@ export function CommunityFeedScreen({
   header,
   headerLayout = DEFAULT_FEED_HEADER_LAYOUT,
   slots,
-  beforeSubmitPost,
+  beforeCompose,
   beforeSubmitComment,
 }: {
   onOpenProfile(userId: string, source?: ProfileSource): void;
@@ -175,14 +155,11 @@ export function CommunityFeedScreen({
    * `DEFAULT_FEED_HEADER_LAYOUT`. */
   headerLayout?: FeedHeaderLayout;
   slots?: PostSlots;
-  /** Forwarded to this screen's own `ComposerCard` as `beforeSubmit` — see
-   * that prop's doc comment. Absent ⇒ byte-identical behavior. */
-  beforeSubmitPost?: (draft: {
-    topic: string;
-    body: string;
-    pollOptions?: string[];
-    image?: LocalImage;
-  }) => Promise<boolean>;
+  /** Awaited when the `+` button is tapped, after the community rules are
+   * accepted and before the composer opens (e.g. ask a signed-out user to
+   * sign in). Resolving `false` (or throwing) keeps the composer closed, with
+   * no error UI. Absent ⇒ the composer opens once the rules are accepted. */
+  beforeCompose?: () => Promise<boolean>;
   /** Forwarded to this screen's own `ThreadSheet` as `beforeSubmitComment` —
    * see that prop's doc comment. Absent ⇒ byte-identical behavior. */
   beforeSubmitComment?: (draft: {
@@ -283,21 +260,31 @@ export function CommunityFeedScreen({
   const newCount = useNewPostsCount(sinceIso, topicFilter, polling);
 
   const listRef = useRef<FlatList<FeedPost>>(null);
-  const composerRef = useRef<ComposerCardHandle>(null);
   const insets = useSafeAreaInsets();
-
-  // Floating compose bar: shown once the inline composer (the list header,
-  // so it starts at offset 0) has fully scrolled out of view.
-  const composerBottom = useRef(140);
-  const [composerHidden, setComposerHidden] = useState(false);
-  const showFloatingCompose = composerHidden && !searchOpen;
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
   const myAuthorName = useMyAuthorName();
-  const focusComposer = () => {
-    listRef.current?.scrollToOffset({ offset: 0, animated: true });
-    // Let the scroll-to-top land before the keyboard (or rules sheet) opens.
-    setTimeout(() => composerRef.current?.focus(), 320);
+
+  // `+`: the rules, then the host gate, then the composer (see
+  // `openComposerGuarded`). The rules sheet resolves once it has fully
+  // dismissed, so a host gate that opens its own modal never overlaps it.
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [rulesVisible, setRulesVisible] = useState(false);
+  const rulesAccepted = useRulesAccepted(cfg);
+  const rulesAnswer = useRef<{ accepted: boolean; resolve: (ok: boolean) => void } | null>(null);
+  const opening = useRef(false);
+  const requestRules = () =>
+    new Promise<boolean>((resolve) => {
+      rulesAnswer.current = { accepted: false, resolve };
+      setRulesVisible(true);
+    });
+  const openComposer = () => {
+    if (opening.current) return;
+    opening.current = true;
+    Keyboard.dismiss();
+    openComposerGuarded({ rulesAccepted, requestRules, beforeCompose })
+      .then((ok) => ok && setComposerOpen(true))
+      .finally(() => (opening.current = false));
   };
 
   const showNewPosts = () => {
@@ -535,31 +522,6 @@ export function CommunityFeedScreen({
             keyExtractor={(p) => p.id}
             renderItem={renderItem}
             ItemSeparatorComponent={RowSeparator}
-            ListHeaderComponent={
-              <>
-                {/* Same gap above the results as the composer's own top margin. */}
-                {searchOpen && <View style={styles.searchGap} />}
-                {/* A search shows results only. Hidden, not unmounted: a draft survives it. */}
-                <View
-                  style={searchOpen && styles.hidden}
-                  onLayout={(e) =>
-                    (composerBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height)
-                  }
-                >
-                  <ComposerCard
-                    ref={composerRef}
-                    defaultTopic={composeDefaultTopic}
-                    onModerationRejected={() => setNotice("rejected")}
-                    onPublishFailed={() => setNotice("network")}
-                    beforeSubmit={beforeSubmitPost}
-                  />
-                </View>
-              </>
-            }
-            onScroll={(e) =>
-              setComposerHidden(e.nativeEvent.contentOffset.y > composerBottom.current)
-            }
-            scrollEventThrottle={32}
             ListEmptyComponent={
               isPending ? (
                 <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
@@ -597,30 +559,19 @@ export function CommunityFeedScreen({
             }
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[
-              styles.listContent,
-              // Room for the floating compose bar under the last post.
-              {
-                paddingBottom:
-                  insets.bottom + theme.spacing(3.5) + FLOATING_BAR_HEIGHT + theme.spacing(4),
-              },
-            ]}
+            // Room for the `+` button under the last post.
+            contentContainerStyle={{ paddingBottom: insets.bottom + FAB_SIZE + theme.spacing(8) }}
           />
 
-          {showFloatingCompose && (
-            <Animated.View
-              entering={FadeInDown.duration(180)}
-              exiting={FadeOutDown.duration(140)}
-              style={[styles.floatingCompose, { bottom: insets.bottom + theme.spacing(3.5) }]}
+          {!searchOpen && (
+            <PressableScale
+              onPress={openComposer}
+              style={[styles.fab, { bottom: insets.bottom + theme.spacing(4) }]}
+              accessibilityRole="button"
+              accessibilityLabel={t("feed.compose")}
             >
-              <PressableScale onPress={focusComposer} style={styles.composeBar}>
-                <Avatar userId={myUid} name={myAuthorName()} url={myAvatarUrl} size={32} />
-                <Text style={styles.composePrompt} numberOfLines={1}>
-                  {t("feed.composePrompt")}
-                </Text>
-                <icons.compose size={18} color={theme.colors.accent} weight="regular" />
-              </PressableScale>
-            </Animated.View>
+              <icons.add size={26} color={theme.colors.textInverse} weight="bold" />
+            </PressableScale>
           )}
         </View>
 
@@ -631,6 +582,26 @@ export function CommunityFeedScreen({
           onOpenProfile={onOpenProfile}
           slots={slots}
           beforeSubmitComment={beforeSubmitComment}
+        />
+        <ComposerSheet
+          visible={composerOpen}
+          defaultTopic={composeDefaultTopic}
+          onClose={() => setComposerOpen(false)}
+          onModerationRejected={() => setNotice("rejected")}
+          onPublishFailed={() => setNotice("network")}
+        />
+        <RulesSheet
+          visible={rulesVisible}
+          onAccepted={() => {
+            if (rulesAnswer.current) rulesAnswer.current.accepted = true;
+            setRulesVisible(false);
+          }}
+          onClose={() => setRulesVisible(false)}
+          onDismissed={() => {
+            const answer = rulesAnswer.current;
+            rulesAnswer.current = null;
+            answer?.resolve(answer.accepted);
+          }}
         />
         <ReportSheet
           visible={reportTarget !== null}
@@ -677,7 +648,7 @@ function InboxBell({ onPress }: { onPress: () => void }) {
 const ICON_TARGET = 44;
 /** The search bar that takes the topic tabs' slot. */
 const CONTROL_HEIGHT = 40;
-const FLOATING_BAR_HEIGHT = 54;
+const FAB_SIZE = 56;
 
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
@@ -754,10 +725,6 @@ function makeStyles(theme: CommunityTheme) {
       justifyContent: "center",
     },
     listWrap: { flex: 1, position: "relative" },
-    hidden: { display: "none" },
-    // = ComposerCard's marginTop: results start where the composer would.
-    searchGap: { height: theme.spacing(4) },
-    listContent: {},
     rowSeparator: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.hairline },
     spinner: { marginTop: theme.spacing(8) },
     stateText: {
@@ -799,29 +766,16 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(4.5),
       ...theme.shadow,
     },
-    floatingCompose: {
+    fab: {
       position: "absolute",
-      left: theme.spacing(5),
       right: theme.spacing(5),
-      ...theme.shadow,
-    },
-    composeBar: {
-      height: FLOATING_BAR_HEIGHT,
-      flexDirection: "row",
+      width: FAB_SIZE,
+      height: FAB_SIZE,
+      borderRadius: FAB_SIZE / 2,
+      backgroundColor: theme.colors.accent,
       alignItems: "center",
-      gap: theme.spacing(3),
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radius.pill,
-      paddingHorizontal: theme.spacing(3),
-    },
-    composePrompt: {
-      flex: 1,
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 14,
-      color: theme.colors.textMuted,
+      justifyContent: "center",
+      ...theme.shadow,
     },
     newPillText: {
       fontFamily: theme.fonts.bold,

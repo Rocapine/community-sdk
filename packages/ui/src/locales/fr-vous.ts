@@ -72,6 +72,11 @@ export const frVous: Record<string, string> = {
   "composer.removePoll": "Retirer le sondage",
   "composer.post": "PUBLIER",
   "composer.chooseTopic": "Publier dans",
+  "composer.cancel": "Annuler",
+  "composer.discardTitle": "Supprimer ce post ?",
+  "composer.discard": "Supprimer",
+  "composer.keepEditing": "Continuer à écrire",
+  "feed.compose": "Nouveau post",
 
   "poll.votes.one": "{count} vote",
   "poll.votes.other": "{count} votes",

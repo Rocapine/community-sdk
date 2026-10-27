@@ -76,6 +76,11 @@ export const esES: Record<string, string> = {
   "composer.removePoll": "Quitar encuesta",
   "composer.post": "PUBLICAR",
   "composer.chooseTopic": "Publicar en",
+  "composer.cancel": "Cancelar",
+  "composer.discardTitle": "¿Descartar esta publicación?",
+  "composer.discard": "Descartar",
+  "composer.keepEditing": "Seguir editando",
+  "feed.compose": "Nueva publicación",
 
   "poll.votes.one": "{count} voto",
   "poll.votes.other": "{count} votos",

@@ -76,6 +76,11 @@ export const ro: Record<string, string> = {
   "composer.removePoll": "Elimină sondajul",
   "composer.post": "PUBLICĂ",
   "composer.chooseTopic": "Publică în",
+  "composer.cancel": "Anulează",
+  "composer.discardTitle": "Renunți la această postare?",
+  "composer.discard": "Renunță",
+  "composer.keepEditing": "Continuă editarea",
+  "feed.compose": "Postare nouă",
 
   "poll.votes.one": "{count} vot",
   "poll.votes.few": "{count} voturi",

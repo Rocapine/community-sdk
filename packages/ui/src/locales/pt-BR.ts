@@ -73,6 +73,11 @@ export const ptBR: Record<string, string> = {
   "composer.removePoll": "Remover enquete",
   "composer.post": "PUBLICAR",
   "composer.chooseTopic": "Publicar em",
+  "composer.cancel": "Cancelar",
+  "composer.discardTitle": "Descartar esta publicação?",
+  "composer.discard": "Descartar",
+  "composer.keepEditing": "Continuar editando",
+  "feed.compose": "Nova publicação",
 
   "poll.votes.one": "{count} voto",
   "poll.votes.other": "{count} votos",

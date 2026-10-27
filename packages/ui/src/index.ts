@@ -47,7 +47,7 @@ export { ImageViewerHost } from "./components/ImageViewer";
 export { PollBlock } from "./components/PollBlock";
 export { NoticeCard } from "./components/NoticeCard";
 export { PressableScale, haptic, type HapticKind } from "./components/PressableScale";
-export { ComposerCard, type ComposerCardHandle } from "./components/ComposerCard";
+export { ComposerSheet, canPublish } from "./components/ComposerSheet";
 export { RulesSheet } from "./components/RulesSheet";
 export type { ReportTarget } from "./components/ReportSheet";
 export { ReportSheet } from "./components/ReportSheet";

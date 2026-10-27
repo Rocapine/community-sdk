@@ -251,8 +251,8 @@ export function ThreadSheet({
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
   const myAuthorName = useMyAuthorName();
-  // Double-submit latch for the `beforeSubmitComment` await — see the
-  // matching note in `ComposerCard.tsx`'s `gating` state.
+  // Double-submit latch for the `beforeSubmitComment` await: a second tap
+  // during the await would otherwise run the host gate twice.
   const [gating, setGating] = useState(false);
 
   // True while a photo is picked and re-encoded (1–2 s for a large one): Send
@@ -524,7 +524,7 @@ export function ThreadSheet({
                   />
                 </Pressable>
                 {/* Rules gate: swallow every touch on the comment box until the UGC
-                rules are accepted (mirrors `ComposerCard`'s overlay). */}
+                rules are accepted. */}
                 {!rulesAccepted && (
                   <Pressable style={StyleSheet.absoluteFill} onPress={() => setRulesVisible(true)}>
                     <View />

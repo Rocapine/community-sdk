@@ -83,6 +83,11 @@ export const en: Record<string, string> = {
   "composer.removePoll": "Remove poll",
   "composer.post": "POST",
   "composer.chooseTopic": "Post in",
+  "composer.cancel": "Cancel",
+  "composer.discardTitle": "Discard this post?",
+  "composer.discard": "Discard",
+  "composer.keepEditing": "Keep editing",
+  "feed.compose": "New post",
 
   "poll.votes.one": "{count} vote",
   "poll.votes.other": "{count} votes",
