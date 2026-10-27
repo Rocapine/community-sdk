@@ -85,7 +85,6 @@ import {
   type LocalImage,
   useUnreadNotificationCount,
 } from "@rocapine/community-core";
-import { Image } from "expo-image";
 import {
   useCallback,
   useDeferredValue,
@@ -118,6 +117,7 @@ import { ImageViewerHost } from "../components/ImageViewer";
 import { ComposerCard, type ComposerCardHandle } from "../components/ComposerCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
+import { Avatar } from "../components/Avatar";
 import { PressableScale } from "../components/PressableScale";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
@@ -284,7 +284,6 @@ export function CommunityFeedScreen({
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
   const myAuthorName = useMyAuthorName();
-  const myInitial = myAuthorName().charAt(0).toUpperCase();
   const focusComposer = () => {
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
     // Let the scroll-to-top land before the keyboard (or rules sheet) opens.
@@ -408,7 +407,7 @@ export function CommunityFeedScreen({
             accessibilityRole="button"
             accessibilityLabel={t("a11y.myProfile")}
           >
-            <Avatar url={myAvatarUrl} initial={myInitial} />
+            <Avatar userId={myUid} name={myAuthorName()} url={myAvatarUrl} size={32} />
           </PressableScale>
         );
       case "inbox":
@@ -600,7 +599,7 @@ export function CommunityFeedScreen({
               style={[styles.floatingCompose, { bottom: insets.bottom + theme.spacing(3.5) }]}
             >
               <PressableScale onPress={focusComposer} style={styles.composeBar}>
-                <Avatar url={myAvatarUrl} initial={myInitial} />
+                <Avatar userId={myUid} name={myAuthorName()} url={myAvatarUrl} size={32} />
                 <Text style={styles.composePrompt} numberOfLines={1}>
                   {t("feed.composePrompt")}
                 </Text>
@@ -649,18 +648,6 @@ function FilterChip({
     >
       <Text style={[styles.filterChipText, active && styles.filterChipTextOn]}>{label}</Text>
     </PressableScale>
-  );
-}
-
-/** The user's own avatar, or their initial while they have none. */
-function Avatar({ url, initial }: { url: string | null; initial: string }) {
-  const styles = useThemedStyles(makeStyles);
-  return url ? (
-    <Image source={{ uri: url }} style={styles.composeAvatarImage} contentFit="cover" />
-  ) : (
-    <View style={styles.composeAvatar}>
-      <Text style={styles.composeAvatarLetter}>{initial}</Text>
-    </View>
   );
 }
 
@@ -850,23 +837,6 @@ function makeStyles(theme: CommunityTheme) {
       borderColor: theme.colors.border,
       borderRadius: theme.radius.pill,
       paddingHorizontal: theme.spacing(3),
-    },
-    composeAvatar: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: theme.colors.surfaceMuted,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    composeAvatarImage: { width: 32, height: 32, borderRadius: 16 },
-    composeAvatarLetter: {
-      fontFamily: theme.fonts.serifBold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 14,
-      color: theme.colors.accent,
     },
     composePrompt: {
       flex: 1,

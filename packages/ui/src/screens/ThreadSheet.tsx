@@ -84,6 +84,7 @@ import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
+import { Avatar } from "../components/Avatar";
 import { ClampedBody } from "../components/ClampedBody";
 import { NoticeCard } from "../components/NoticeCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
@@ -250,7 +251,6 @@ export function ThreadSheet({
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
   const myAuthorName = useMyAuthorName();
-  const myInitial = myAuthorName().charAt(0).toUpperCase();
   // Double-submit latch for the `beforeSubmitComment` await — see the
   // matching note in `ComposerCard.tsx`'s `gating` state.
   const [gating, setGating] = useState(false);
@@ -494,16 +494,8 @@ export function ThreadSheet({
                       <icons.image size={20} color={theme.colors.accent} weight="regular" />
                     )}
                   </Pressable>
-                ) : myAvatarUrl ? (
-                  <Image
-                    source={{ uri: myAvatarUrl }}
-                    style={styles.cAvatarImage}
-                    contentFit="cover"
-                  />
                 ) : (
-                  <View style={styles.cAvatar}>
-                    <Text style={styles.cAvatarLetter}>{myInitial}</Text>
-                  </View>
+                  <Avatar userId={myUid} name={myAuthorName()} url={myAvatarUrl} size={30} />
                 )}
                 <SheetTextInput
                   ref={inputRef}
@@ -639,17 +631,12 @@ function CommentRow({
   return (
     <View style={styles.comment}>
       <Pressable onPress={handleAuthor} hitSlop={4}>
-        {comment.authorAvatarUrl ? (
-          <Image
-            source={{ uri: comment.authorAvatarUrl }}
-            style={styles.cAvatarImage}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={styles.cAvatar}>
-            <Text style={styles.cAvatarLetter}>{comment.authorName.charAt(0).toUpperCase()}</Text>
-          </View>
-        )}
+        <Avatar
+          userId={comment.authorId}
+          name={comment.authorName}
+          url={comment.authorAvatarUrl}
+          size={30}
+        />
       </Pressable>
       <View style={styles.commentBody}>
         <Pressable onPress={handleAuthor} hitSlop={4} style={styles.nameRow}>
@@ -723,23 +710,6 @@ function makeStyles(theme: CommunityTheme) {
       paddingVertical: theme.spacing(2),
     },
     comment: { flexDirection: "row", gap: theme.spacing(2.5), marginBottom: theme.spacing(4.5) },
-    cAvatar: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      backgroundColor: theme.colors.surfaceMuted,
-      borderWidth: 1,
-      borderColor: theme.colors.borderStrong,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cAvatarImage: { width: 30, height: 30, borderRadius: 15 },
-    cAvatarLetter: {
-      fontFamily: theme.fonts.serifBold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 13,
-      color: theme.colors.accent,
-    },
     commentBody: { flex: 1 },
     nameRow: {
       flexDirection: "row",

@@ -28,7 +28,6 @@ import {
   useToggleLike,
   type FeedPost,
 } from "@rocapine/community-core";
-import { Image } from "expo-image";
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Pressable,
@@ -46,6 +45,7 @@ import { displayText, translationLine } from "../utils/translation";
 import { formatTimeAgo, useNow } from "../utils/time";
 import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { ClampedBody } from "./ClampedBody";
+import { Avatar } from "./Avatar";
 import { ImageViewerContext } from "./ImageViewer";
 import { PostImage } from "./PostImage";
 import { PollBlock } from "./PollBlock";
@@ -150,17 +150,12 @@ export function CommunityPost({
 
   const authorHeader = (
     <>
-      {post.authorAvatarUrl ? (
-        <Image
-          source={{ uri: post.authorAvatarUrl }}
-          style={styles.avatarImage}
-          contentFit="cover"
-        />
-      ) : (
-        <View style={styles.avatar}>
-          <Text style={styles.avatarLetter}>{post.authorName.charAt(0).toUpperCase()}</Text>
-        </View>
-      )}
+      <Avatar
+        userId={post.authorId}
+        name={post.authorName}
+        url={post.authorAvatarUrl}
+        size={40}
+      />
       <View style={styles.headerText}>
         <View style={styles.nameRow}>
           <Text style={styles.name}>{post.authorName}</Text>
@@ -319,23 +314,6 @@ function makeStyles(theme: CommunityTheme) {
       marginBottom: theme.spacing(3),
     },
     headerText: { flexShrink: 1 },
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.colors.surfaceMuted,
-      borderWidth: 1,
-      borderColor: theme.colors.borderStrong,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    avatarImage: { width: 40, height: 40, borderRadius: 20 },
-    avatarLetter: {
-      fontFamily: theme.fonts.serifBold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 18,
-      color: theme.colors.accent,
-    },
     nameRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1) },
     name: {
       fontFamily: theme.fonts.bold,
