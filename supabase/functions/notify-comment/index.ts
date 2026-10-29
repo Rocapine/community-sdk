@@ -60,6 +60,7 @@ Deno.serve(async (req) => {
     .eq("id", comment.author_id)
     .single();
 
+  const postId = comment.post_id;
   for (const target of targets) await pushTo(target, actor?.username ?? null);
   return new Response("ok");
 
@@ -114,7 +115,7 @@ Deno.serve(async (req) => {
       to: pref.expo_push_token,
       title: copy.text(target.title),
       body,
-      data: { route: "/community", kind: target.kind, postId: comment.post_id },
+      data: { route: "/community", kind: target.kind, postId },
       badge: await unreadBadge(supabase, target.uid),
     });
   }
