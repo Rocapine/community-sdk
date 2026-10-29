@@ -176,7 +176,7 @@ export function CommunityPost({
           </Pressable>
         </>
       )}
-      <Text style={styles.meta} numberOfLines={1}>
+      <Text style={[styles.meta, styles.ago]} numberOfLines={1}>
         · {formatTimeAgo(t, post.createdAt, now)}
       </Text>
       <Pressable
@@ -350,6 +350,8 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 13,
       color: theme.colors.textFaint,
     },
+    // Never shrinks (web Text shrinks by default): the name gives way instead.
+    ago: { flexShrink: 0 },
     menuButton: { marginLeft: "auto", paddingLeft: theme.spacing(2) },
     body: {
       fontFamily: theme.fonts.regular,

@@ -72,6 +72,7 @@ export {
 export {
   buildFeedSelect,
   fetchFeedPage,
+  fetchPost,
   countNewPosts,
   fetchProfile,
   fetchUserPosts,
@@ -115,6 +116,7 @@ export {
   useNewPostsCount,
   useCommunityUnseenCount,
   useThread,
+  usePost,
   useProfile,
   useUserPosts,
   useMyUid,

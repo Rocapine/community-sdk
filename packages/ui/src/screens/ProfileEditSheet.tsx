@@ -47,6 +47,7 @@ import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { resizeAvatar } from "../utils/avatar";
+import { noFocusRing } from "../utils/noFocusRing";
 
 const BIO_MAX_LENGTH = 300;
 const HANDLE_MAX_LENGTH = 20;
@@ -489,6 +490,7 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.regular,
       fontSize: 15,
       color: theme.colors.textPrimary,
+      ...noFocusRing,
     },
     bioInput: {
       backgroundColor: theme.colors.surfaceMuted,
@@ -503,6 +505,7 @@ function makeStyles(theme: CommunityTheme) {
       lineHeight: 22,
       color: theme.colors.textPrimary,
       textAlignVertical: "top",
+      ...noFocusRing,
     },
     counter: {
       fontFamily: theme.fonts.regular,
@@ -549,6 +552,7 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 15,
       color: theme.colors.textPrimary,
       paddingVertical: theme.spacing(3),
+      ...noFocusRing,
     },
     helper: {
       fontFamily: theme.fonts.regular,

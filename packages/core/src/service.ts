@@ -287,6 +287,27 @@ export async function fetchFeedPage(
   return toFeedPosts(cfg, client, (data ?? []) as unknown as PostRow[], uid);
 }
 
+/** One post by id, as the feed shows it; null when it is gone or hidden. */
+export async function fetchPost(
+  cfg: ResolvedCommunityConfig,
+  postId: string,
+): Promise<FeedPost | null> {
+  const client = cfg.requireClient();
+  const uid = await requireUid(cfg);
+  let query = client
+    .from("posts")
+    .select(postsSelect(cfg))
+    .eq("comments.status", "visible")
+    .in("status", ["visible", "pending"])
+    .eq("id", postId)
+    .limit(1);
+  query = withTranslationFilters(query, cfg);
+  const { data, error } = await query;
+  if (error) throw error;
+  const [post] = await toFeedPosts(cfg, client, (data ?? []) as unknown as PostRow[], uid);
+  return post ?? null;
+}
+
 /**
  * Count of visible posts newer than `sinceIso`, excluding my own, for the
  * given topic. RLS already excludes blocked authors and hidden/deleted rows.

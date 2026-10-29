@@ -89,11 +89,14 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import Animated, {
+  useAnimatedReaction,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
+  type SharedValue,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
@@ -111,6 +114,7 @@ import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
 import { useMyAuthorName } from "../utils/myName";
 import { ThreadSheet } from "./ThreadSheet";
+import { noFocusRing } from "../utils/noFocusRing";
 
 /** A button the feed's header row can show. `profile` (the user's avatar)
  * opens their own profile through `onOpenProfile`; `inbox` shows only when
@@ -150,6 +154,7 @@ export function CommunityFeedScreen({
   beforeCompose,
   beforeSubmitComment,
   topicRequest,
+  bottomChrome,
 }: {
   onOpenProfile(userId: string, source?: ProfileSource): void;
   onOpenInbox?: () => void;
@@ -172,6 +177,13 @@ export function CommunityFeedScreen({
    * the same topic can be asked for twice; an id `cfg.topics` doesn't list is
    * ignored. */
   topicRequest?: { topicId: string; requestedAt: number };
+  /** A host bar floating over the feed's bottom (a tab bar) that hides with
+   * the feed's top bar. `hidden` is written with how far the top bar is hidden
+   * as the reader scrolls (0 shown → 1 hidden), for the host to slide its bar
+   * by; `height` is what the bar covers when shown, bottom safe area included.
+   * The list clears it and the `+` button rides on it, down to the safe area
+   * once it is gone. Absent ⇒ the host's container clears its own bottom. */
+  bottomChrome?: { height: number; hidden: SharedValue<number> };
   /** Forwarded to this screen's own `ThreadSheet` as `beforeSubmitComment` —
    * see that prop's doc comment. Absent ⇒ byte-identical behavior. */
   beforeSubmitComment?: (draft: {
@@ -302,6 +314,24 @@ export function CommunityFeedScreen({
     },
   });
   const topStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -hidden.value }] }));
+  const chromeHidden = bottomChrome?.hidden;
+  const chromeH = bottomChrome?.height ?? 0;
+  useAnimatedReaction(
+    () => (topH.value > 0 ? hidden.value / topH.value : 0),
+    (progress) => {
+      if (chromeHidden) chromeHidden.value = progress;
+    },
+  );
+  // Leaving the feed (another tab, a pushed profile) brings both bars back.
+  useEffect(() => {
+    if (!isFocused) hidden.value = 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFocused]);
+  const bottomInset = useSafeAreaInsets().bottom;
+  const fabDrop = bottomChrome ? Math.max(0, chromeH - bottomInset) : 0;
+  const fabStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: (chromeHidden?.value ?? 0) * fabDrop }],
+  }));
   const pillStyle = useAnimatedStyle(() => ({ top: topH.value - hidden.value + 8 }));
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
@@ -606,7 +636,9 @@ export function CommunityFeedScreen({
             onScroll={onListScroll}
             scrollEventThrottle={16}
             contentInset={insetsTop ? { top: topHeight } : undefined}
-            scrollIndicatorInsets={insetsTop ? { top: topHeight } : undefined}
+            scrollIndicatorInsets={
+              insetsTop ? { top: topHeight, bottom: chromeH } : { bottom: chromeH }
+            }
             automaticallyAdjustContentInsets={false}
             data={posts}
             keyExtractor={(p) => p.id}
@@ -654,19 +686,21 @@ export function CommunityFeedScreen({
             // container clears the bottom safe area (and its tab bar).
             contentContainerStyle={{
               paddingTop: insetsTop ? 0 : topHeight,
-              paddingBottom: FAB_SIZE + theme.spacing(8),
+              paddingBottom: chromeH + FAB_SIZE + theme.spacing(8),
             }}
           />
 
           {!searchOpen && (
-            <PressableScale
-              onPress={openComposer}
-              style={styles.fab}
-              accessibilityRole="button"
-              accessibilityLabel={t("feed.compose")}
-            >
-              <icons.add size={26} color={theme.colors.textInverse} weight="bold" />
-            </PressableScale>
+            <Animated.View style={[styles.fab, { bottom: chromeH + theme.spacing(4) }, fabStyle]}>
+              <PressableScale
+                onPress={openComposer}
+                style={styles.fabButton}
+                accessibilityRole="button"
+                accessibilityLabel={t("feed.compose")}
+              >
+                <icons.add size={26} color={theme.colors.textInverse} weight="bold" />
+              </PressableScale>
+            </Animated.View>
           )}
         </View>
 
@@ -819,6 +853,7 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 15,
       color: theme.colors.textPrimary,
       padding: 0,
+      ...noFocusRing,
     },
     clearButton: {
       width: 18,
@@ -868,12 +903,10 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(4.5),
       ...theme.shadow,
     },
-    // Aligned with the rows' content edge; the host's container clears the
-    // bottom safe area.
-    fab: {
-      position: "absolute",
-      right: theme.spacing(4),
-      bottom: theme.spacing(4),
+    // Aligned with the rows' content edge, above the host's bottom bar
+    // (`bottomChrome`) or the host's container edge.
+    fab: { position: "absolute", right: theme.spacing(4) },
+    fabButton: {
       width: FAB_SIZE,
       height: FAB_SIZE,
       borderRadius: FAB_SIZE / 2,

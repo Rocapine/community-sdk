@@ -30,6 +30,10 @@ export function useNotificationInbox(): UseQueryResult<InboxState> {
     queryFn: () => fetchInbox(cfg),
     enabled: cfg.supabase !== null && cfg.modules.inbox,
     staleTime: 60_000,
+    // Like the new-posts count: the badge stays honest while the app is open,
+    // even for a reader without push.
+    refetchInterval: 120_000,
+    refetchIntervalInBackground: false,
     retry: 1,
   });
 }

@@ -12,9 +12,13 @@
 // whole change animates as one. Until the measures land, the text is clamped
 // by `numberOfLines`. Keyed list recycling remounts the row, which resets
 // `expanded` (accepted).
+//
+// react-native-web has no `onTextLayout`, so on the web the cut is the
+// browser's line clamp, and the link covers the end of the last line on the
+// body's background whenever the unclamped copy is taller than the clamped text.
 import { useState, type ReactNode } from "react";
-import { StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
-import { useT } from "../ThemeProvider";
+import { Platform, StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
+import { useCommunityTheme, useT } from "../ThemeProvider";
 import { clampWithSuffix } from "../utils/clamp";
 import { AnimatedHeight } from "./AnimatedHeight";
 
@@ -40,7 +44,11 @@ export function ClampedBody({
   renderText?: (text: string) => ReactNode;
 }) {
   const t = useT();
+  const theme = useCommunityTheme();
   const [expanded, setExpanded] = useState(false);
+  // Web: heights of the unclamped copy (per version) and of the clamped text.
+  const [fullHeights, setFullHeights] = useState<Record<string, number>>({});
+  const [clampedHeight, setClampedHeight] = useState(0);
   const [layouts, setLayouts] = useState<Record<string, Line[]>>({});
   const [width, setWidth] = useState(0);
   const [suffixWidth, setSuffixWidth] = useState(0);
@@ -51,6 +59,9 @@ export function ClampedBody({
   const clamped =
     !expanded && measured ? clampWithSuffix(lines, clampLines, width, suffixWidth) : null;
   const viewMore = t("post.viewMore");
+  const webCut =
+    WEB && !expanded && clampedHeight > 0 && (fullHeights[text] ?? 0) > clampedHeight + 1;
+  const cut = clamped !== null || webCut;
 
   return (
     <AnimatedHeight>
@@ -64,7 +75,7 @@ export function ClampedBody({
         accessible
         accessibilityRole="text"
         accessibilityLabel={text}
-        accessibilityActions={clamped !== null ? [{ name: "activate", label: viewMore }] : []}
+        accessibilityActions={cut ? [{ name: "activate", label: viewMore }] : []}
         onAccessibilityAction={() => setExpanded(true)}
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
       >
@@ -76,8 +87,21 @@ export function ClampedBody({
             </Text>
           </Text>
         ) : (
-          <Text style={textStyle} numberOfLines={expanded || measured ? undefined : clampLines}>
+          <Text
+            style={textStyle}
+            numberOfLines={expanded || measured ? undefined : clampLines}
+            onLayout={WEB ? (e) => setClampedHeight(e.nativeEvent.layout.height) : undefined}
+          >
             {renderText ? renderText(text) : text}
+          </Text>
+        )}
+        {webCut && (
+          <Text
+            style={[textStyle, styles.webLink, { backgroundColor: theme.colors.background }]}
+            onPress={() => setExpanded(true)}
+          >
+            {"… "}
+            <Text style={viewMoreStyle}>{viewMore}</Text>
           </Text>
         )}
         <View
@@ -95,6 +119,14 @@ export function ClampedBody({
                 const next = e.nativeEvent.lines.map((l) => ({ text: l.text, width: l.width }));
                 setLayouts((m) => (sameLines(m[v], next) ? m : { ...m, [v]: next }));
               }}
+              onLayout={
+                WEB
+                  ? (e) => {
+                      const h = e.nativeEvent.layout.height;
+                      setFullHeights((m) => (m[v] === h ? m : { ...m, [v]: h }));
+                    }
+                  : undefined
+              }
             >
               {v}
             </Text>
@@ -115,6 +147,8 @@ export function ClampedBody({
   );
 }
 
+const WEB = Platform.OS === "web";
+
 function sameLines(a: Line[] | undefined, b: Line[]): boolean {
   return (
     a !== undefined &&
@@ -128,4 +162,5 @@ const styles = StyleSheet.create({
   measureText: { position: "absolute", top: 0, left: 0, right: 0 },
   // Its natural width: the link's text, unwrapped.
   measureSuffix: { position: "absolute", top: 0, left: 0, alignSelf: "flex-start" },
+  webLink: { position: "absolute", right: 0, bottom: 0, paddingLeft: 4 },
 });

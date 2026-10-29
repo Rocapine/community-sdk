@@ -65,6 +65,7 @@ import {
   useMyUid,
   useProfile,
   useThread,
+  usePost,
   useToggleCommentLike,
   type FeedPost,
   type LocalImage,
@@ -82,7 +83,7 @@ import {
   type ComponentRef,
 } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
-import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
+import { CommunitySheet, SHEET_GUTTER, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
@@ -104,6 +105,7 @@ import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { useMyAuthorName } from "../utils/myName";
 import { RulesSheet } from "../components/RulesSheet";
 import { haptic } from "../components/PressableScale";
+import { noFocusRing } from "../utils/noFocusRing";
 
 const COMMENT_CLAMP_LINES = 5;
 
@@ -184,6 +186,9 @@ export function ThreadSheet({
   }, [postId]);
 
   const post = useCachedPost(shownId, readerLocale(cfg));
+  // Not in any loaded list (opened from a notification): fetched on its own,
+  // into a cache `useCachedPost` reads.
+  usePost(shownId, post === null);
   const thread = useThread(shownId);
   const comments = thread.data ?? [];
   const rows = useMemo(() => threadRows(comments), [comments]);
@@ -510,6 +515,7 @@ export function ThreadSheet({
           overlay={viewer.overlay}
           footer={
             <>
+              <View style={styles.rule} />
               {replyTo && (
                 <View style={styles.replyingRow}>
                   <Text style={styles.replyingText} numberOfLines={1}>
@@ -619,6 +625,7 @@ export function ThreadSheet({
               </ModalHandoffContext.Provider>
             )}
 
+            <View style={[styles.rule, styles.commentsRule]} />
             <Text style={styles.commentsLabel}>
               {t("thread.comments", { count: comments.length })}
             </Text>
@@ -739,7 +746,9 @@ function CommentRow({
       </Pressable>
       <View style={styles.commentBody}>
         <Pressable onPress={handleAuthor} hitSlop={4} style={styles.nameRow}>
-          <Text style={styles.cName}>{comment.authorName}</Text>
+          <Text style={styles.cName} numberOfLines={1}>
+            {comment.authorName}
+          </Text>
           {comment.authorOfficial && (
             <icons.officialSeal size={13} color={theme.colors.official} weight="fill" />
           )}
@@ -833,12 +842,16 @@ function makeStyles(theme: CommunityTheme) {
       letterSpacing: 1.5,
       textTransform: "uppercase",
       color: theme.colors.textFaint,
-      marginTop: theme.spacing(6),
+      marginTop: theme.spacing(4.5),
       marginBottom: theme.spacing(4),
-      paddingTop: theme.spacing(4.5),
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
     },
+    // Edge to edge, out of the sheet's gutter.
+    rule: {
+      height: 1,
+      backgroundColor: theme.colors.border,
+      marginHorizontal: -theme.spacing(SHEET_GUTTER),
+    },
+    commentsRule: { marginTop: theme.spacing(6) },
     stateText: {
       fontFamily: theme.fonts.regular,
       fontWeight: theme.fontWeights.regular,
@@ -870,8 +883,7 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
       justifyContent: "space-between",
       gap: theme.spacing(2),
-      paddingHorizontal: theme.spacing(4),
-      paddingTop: theme.spacing(2),
+      paddingTop: theme.spacing(2.5),
     },
     replyingText: {
       flexShrink: 1,
@@ -886,6 +898,7 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
       gap: theme.spacing(1),
       alignSelf: "flex-start",
+      maxWidth: "100%",
     },
     link: { alignSelf: "flex-start" },
     cName: {
@@ -893,6 +906,7 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.bold,
       fontSize: 13,
       color: theme.colors.textPrimary,
+      flexShrink: 1,
     },
     handle: {
       fontFamily: theme.fonts.regular,
@@ -906,6 +920,7 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.regular,
       fontSize: 12,
       color: theme.colors.textFaint,
+      flexShrink: 0,
     },
     cText: {
       fontFamily: theme.fonts.regular,
@@ -935,8 +950,6 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
       gap: theme.spacing(2.5),
       paddingTop: theme.spacing(3),
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
     },
     input: {
       flex: 1,
@@ -951,18 +964,16 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.regular,
       fontSize: 14.5,
       color: theme.colors.textPrimary,
+      ...noFocusRing,
     },
     send: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
     // Same 30-pt slot as the avatar it replaces (44-pt target via hitSlop).
     imageButton: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
-    // With a thumbnail, the bar's top border moves up above it.
     thumbRow: {
       flexDirection: "row",
       alignItems: "flex-start",
       gap: theme.spacing(2),
       paddingTop: theme.spacing(3),
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
     },
     thumb: {
       width: 56,
@@ -970,7 +981,7 @@ function makeStyles(theme: CommunityTheme) {
       borderRadius: theme.radius.sm,
       backgroundColor: theme.colors.surfaceMuted,
     },
-    inputRowUnderThumb: { borderTopWidth: 0, paddingTop: theme.spacing(2) },
+    inputRowUnderThumb: { paddingTop: theme.spacing(2) },
     // 60% of the comment column, height from the image's (clamped) ratio.
     cImage: { width: "60%", marginTop: theme.spacing(2) },
   });

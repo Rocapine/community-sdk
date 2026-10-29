@@ -1,7 +1,7 @@
 // Real-time comment notification: a pg_net trigger fires here when a comment
-// becomes visible (published). We push to the post author, and for a reply to
-// the author of the comment it answers (unless self, opted out, no token, or
-// the recipient has blocked the commenter).
+// becomes visible (published). We push to the post author, or for a reply to
+// the author of the comment it answers only (unless self, opted out, no token,
+// or the recipient has blocked the commenter).
 //
 // Security: this function is reachable with the public anon key (the trigger
 // calls it that way), so the body is UNTRUSTED. Only `record.id` is used; the
@@ -33,9 +33,9 @@ Deno.serve(async (req) => {
     .single();
   if (!post) return new Response("skip: no post");
 
-  // A reply pushes the author of the comment it answers; the post author still
-  // gets the comment push, unless they are that same person (mirrors the
-  // inbox trigger, inbox/002_replies_and_reads.sql).
+  // A reply pushes only the author of the comment it answers; the post author
+  // is pushed for top-level comments (mirrors the inbox trigger,
+  // inbox/002_replies_and_reads.sql).
   let parentAuthor: string | null = null;
   if (comment.parent_id) {
     const { data: parent } = await supabase
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
   if (parentAuthor && parentAuthor !== comment.author_id) {
     targets.push({ uid: parentAuthor, title: "reply.title", kind: "community_reply" });
   }
-  if (post.author_id !== comment.author_id && post.author_id !== parentAuthor) {
+  if (!parentAuthor && post.author_id !== comment.author_id) {
     targets.push({ uid: post.author_id, title: "comment.title", kind: "community_comment" });
   }
   if (targets.length === 0) return new Response("skip: self/none");

@@ -6,6 +6,11 @@
 export const FEED_KEY = ["community", "feed"] as const;
 export const feedKey = (topic?: string, locale?: string | null) =>
   [...FEED_KEY, topic ?? "all", locale ?? "src"] as const;
+// One post fetched on its own (a thread opened from a notification, its post in
+// no loaded list). Under FEED_KEY, as a one-page list, so every feed-wide sweep
+// (likes, reactions, votes, comment counts, deletes) keeps it current too.
+export const singlePostKey = (postId: string, locale?: string | null) =>
+  [...FEED_KEY, "post", postId, locale ?? "src"] as const;
 export const threadKey = (postId: string, locale?: string | null) =>
   ["community", "thread", postId, locale ?? "src"] as const;
 export const USER_POSTS_KEY = ["community", "userPosts"] as const;

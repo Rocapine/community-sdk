@@ -7,10 +7,10 @@
 
 -- ============ REPLIES ============
 -- Replaces inbox_on_comment (001_inbox.sql), same triggers (pending -> visible,
--- and direct visible inserts). A reply notifies the author of the comment it
--- answers ('reply'); the post author still gets 'comment', unless they are
--- that same person (one row, the more specific one). Self-events and blocked
--- actors never notify. Needs core/010_comment_threads.sql (comments.parent_id).
+-- and direct visible inserts). A reply notifies only the author of the comment
+-- it answers ('reply'); the post author gets 'comment' for top-level comments
+-- (and for a reply whose parent is gone). Self-events and blocked actors never
+-- notify. Needs core/010_comment_threads.sql (comments.parent_id).
 create or replace function public.inbox_on_comment()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
@@ -34,7 +34,7 @@ begin
   end if;
 
   if post_author is not null and post_author <> new.author_id
-     and post_author is distinct from parent_author
+     and parent_author is null
      and not exists (
        select 1 from blocks where blocker_id = post_author and blocked_id = new.author_id
      ) then

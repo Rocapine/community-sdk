@@ -26,6 +26,7 @@ import {
   feedKey,
   SEARCH_KEY,
   searchKey,
+  singlePostKey,
   threadKey,
   USER_POSTS_KEY,
   userPostsKey,
@@ -51,6 +52,7 @@ import {
   deleteOwnPost,
   fetchFeedPage,
   fetchNotificationPreferences,
+  fetchPost,
   fetchProfile,
   type NotificationPreferenceKey,
   type NotificationPreferences,
@@ -182,6 +184,26 @@ export function useCommunityFeed(topic?: string, enabled = true) {
     getNextPageParam: (lastPage: FeedPost[], pages: FeedPost[][]) =>
       lastPage.length === FEED_PAGE_SIZE ? pages.length : undefined,
     enabled: cfg.supabase !== null && enabled,
+    staleTime: 1000 * 30,
+    retry: 1,
+  });
+}
+
+/**
+ * One post on its own, for a thread whose post no loaded list holds (opened
+ * from a notification). Cached as a one-page list under the feed keys, so the
+ * thread's post lookup finds it and every feed-wide update reaches it.
+ */
+export function usePost(postId: string | null, enabled = true) {
+  const cfg = useCommunityConfig();
+  const locale = readerLocale(cfg);
+  return useQuery<InfiniteData<FeedPost[]>>({
+    queryKey: singlePostKey(postId ?? "none", locale),
+    queryFn: async () => {
+      const post = await fetchPost(cfg, postId!);
+      return { pages: [post ? [post] : []], pageParams: [0] };
+    },
+    enabled: cfg.supabase !== null && !!postId && enabled,
     staleTime: 1000 * 30,
     retry: 1,
   });

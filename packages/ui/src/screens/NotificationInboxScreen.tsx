@@ -166,14 +166,20 @@ export function NotificationInboxScreen({
           {t("inbox.title")}
         </Text>
         <View style={[styles.headerSide, styles.headerSideRight]}>
-          {tapToRead && anyUnread && (
+          {tapToRead && (
             <Pressable
               onPress={() => markSeen.mutate()}
-              style={styles.headerButton}
+              disabled={!anyUnread}
+              style={[styles.headerButton, !anyUnread && styles.disabled]}
               accessibilityRole="button"
               accessibilityLabel={t("inbox.markAllRead")}
+              accessibilityState={{ disabled: !anyUnread }}
             >
-              <icons.markAllRead size={22} color={theme.colors.accent} weight="regular" />
+              <icons.markAllRead
+                size={22}
+                color={anyUnread ? theme.colors.accent : theme.colors.textMuted}
+                weight="regular"
+              />
             </Pressable>
           )}
         </View>
@@ -311,6 +317,7 @@ function makeStyles(theme: CommunityTheme) {
     headerSide: { flex: 1, flexDirection: "row", alignItems: "center" },
     headerSideRight: { justifyContent: "flex-end" },
     headerButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+    disabled: { opacity: 0.5 },
     title: {
       flexShrink: 1,
       fontFamily: theme.fonts.serifBold,
