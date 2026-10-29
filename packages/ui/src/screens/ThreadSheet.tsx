@@ -767,11 +767,13 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.medium,
       color: theme.colors.accent,
     },
+    // Quieter than the body whatever the host maps `textFaint` to.
     cTranslationLine: {
-      fontFamily: theme.fonts.medium,
-      fontWeight: theme.fontWeights.medium,
-      fontSize: 12.5,
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 12,
       color: theme.colors.textFaint,
+      opacity: 0.75,
       marginTop: theme.spacing(1.5),
     },
     cMenu: { paddingLeft: theme.spacing(1.5), paddingTop: 2 },

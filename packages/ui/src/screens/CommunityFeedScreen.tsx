@@ -78,6 +78,7 @@ import {
   AppState,
   FlatList,
   Keyboard,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -87,7 +88,12 @@ import {
   type ImageSourcePropType,
 } from "react-native";
 import { Image } from "expo-image";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, {
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
@@ -266,7 +272,34 @@ export function CommunityFeedScreen({
   const newCount = useNewPostsCount(sinceIso, topicFilter, polling);
 
   const listRef = useRef<FlatList<FeedPost>>(null);
-  const insets = useSafeAreaInsets();
+
+  // Collapsing top (header row + tabs): it overlays the list and slides up
+  // as the reader scrolls down, back as soon as they scroll up (quick return).
+  // iOS offsets the content with `contentInset`, so the pull-to-refresh
+  // spinner sits under the top bar; Android pads the content instead.
+  const [topHeight, setTopHeight] = useState(0);
+  const topH = useSharedValue(0);
+  const hidden = useSharedValue(0);
+  const lastY = useSharedValue(0);
+  const insetsTop = Platform.OS === "ios";
+  const toListTop = (animated: boolean) =>
+    listRef.current?.scrollToOffset({ offset: insetsTop ? -topH.value : 0, animated });
+  const onListScroll = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      const y = e.contentOffset.y + (insetsTop ? topH.value : 0);
+      const dy = y - lastY.value;
+      lastY.value = y;
+      hidden.value = y <= 0 ? 0 : Math.min(Math.max(hidden.value + dy, 0), topH.value);
+    },
+    onMomentumEnd: () => {
+      // Never left half-shown.
+      hidden.value = withTiming(hidden.value > topH.value / 2 ? topH.value : 0, {
+        duration: 180,
+      });
+    },
+  });
+  const topStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -hidden.value }] }));
+  const pillStyle = useAnimatedStyle(() => ({ top: topH.value - hidden.value + 8 }));
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
   const myAuthorName = useMyAuthorName();
@@ -295,7 +328,7 @@ export function CommunityFeedScreen({
 
   const showNewPosts = () => {
     refetch();
-    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    toListTop(true);
   };
 
   const searchInputRef = useRef<TextInput>(null);
@@ -317,7 +350,9 @@ export function CommunityFeedScreen({
     setSearchOpen(false);
     setSearchTerm("");
     setFilter(topicId);
-    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    hidden.value = 0;
+    toListTop(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const requestedTopic = topicRequest?.topicId;
   const requestedAt = topicRequest?.requestedAt;
@@ -330,6 +365,7 @@ export function CommunityFeedScreen({
   }, [requestedAt]);
 
   const toggleSearch = () => {
+    hidden.value = 0;
     setSearchOpen((open) => {
       if (open) setSearchTerm("");
       return !open;
@@ -487,67 +523,88 @@ export function CommunityFeedScreen({
   return (
     <ImageViewerHost>
       <View style={styles.root}>
-        {header}
+        <Animated.View
+          style={[styles.top, topStyle]}
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            if (h === topH.value) return;
+            const first = topH.value === 0;
+            topH.value = h;
+            setTopHeight(h);
+            // iOS: the inset only starts applying now; land on the first post.
+            if (first && insetsTop)
+              listRef.current?.scrollToOffset({ offset: -h, animated: false });
+          }}
+        >
+          {header}
 
-        <View style={styles.controls}>
-          {hasHeaderRow && (
-            <View style={styles.headerRow}>
-              <View style={styles.headerSide}>
-                {leftButtons.map(renderHeaderButton)}
-                {titlePosition === "left" && title}
+          <View style={styles.controls}>
+            {hasHeaderRow && (
+              <View style={styles.headerRow}>
+                <View style={styles.headerSide}>
+                  {leftButtons.map(renderHeaderButton)}
+                  {titlePosition === "left" && title}
+                </View>
+                {titlePosition === "center" && title}
+                <View style={[styles.headerSide, styles.headerSideRight]}>
+                  {rightButtons.map(renderHeaderButton)}
+                </View>
               </View>
-              {titlePosition === "center" && title}
-              <View style={[styles.headerSide, styles.headerSideRight]}>
-                {rightButtons.map(renderHeaderButton)}
-              </View>
-            </View>
-          )}
-        </View>
+            )}
+          </View>
 
-        {/* Search bar and topic tabs share one fixed-height slot, so toggling
+          {/* Search bar and topic tabs share one fixed-height slot, so toggling
           between them never shifts the feed. */}
-        <View style={styles.switchRow}>
-          {searchOpen ? (
-            <View style={styles.searchSlot}>
-              <View style={styles.searchBar}>
-                <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
-                <TextInput
-                  ref={searchInputRef}
-                  value={searchTerm}
-                  onChangeText={setSearchTerm}
-                  placeholder={t("feed.searchPlaceholder")}
-                  placeholderTextColor={theme.colors.textFaint}
-                  autoFocus
-                  returnKeyType="search"
-                  style={styles.searchInput}
-                />
-                {searchTerm.length > 0 && (
-                  <Pressable
-                    hitSlop={10}
-                    onPress={clearSearch}
-                    style={styles.clearButton}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("a11y.clearSearch")}
-                  >
-                    <icons.close size={12} color={theme.colors.surface} weight="bold" />
-                  </Pressable>
-                )}
+          <View style={styles.switchRow}>
+            {searchOpen ? (
+              <View style={styles.searchSlot}>
+                <View style={styles.searchBar}>
+                  <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
+                  <TextInput
+                    ref={searchInputRef}
+                    value={searchTerm}
+                    onChangeText={setSearchTerm}
+                    placeholder={t("feed.searchPlaceholder")}
+                    placeholderTextColor={theme.colors.textFaint}
+                    autoFocus
+                    returnKeyType="search"
+                    style={styles.searchInput}
+                  />
+                  {searchTerm.length > 0 && (
+                    <Pressable
+                      hitSlop={10}
+                      onPress={clearSearch}
+                      style={styles.clearButton}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("a11y.clearSearch")}
+                    >
+                      <icons.close size={12} color={theme.colors.surface} weight="bold" />
+                    </Pressable>
+                  )}
+                </View>
               </View>
-            </View>
-          ) : (
-            <TopicTabs tabs={topicTabs} selected={filter} onSelect={setFilter} />
-          )}
-        </View>
+            ) : (
+              <TopicTabs tabs={topicTabs} selected={filter} onSelect={setFilter} />
+            )}
+          </View>
+        </Animated.View>
 
         <View style={styles.listWrap}>
           {newCount > 0 && (
-            <PressableScale onPress={showNewPosts} style={styles.newPill}>
-              <Text style={styles.newPillText}>{t("feed.newPosts", { count: newCount })}</Text>
-            </PressableScale>
+            <Animated.View style={[styles.newPill, pillStyle]}>
+              <PressableScale onPress={showNewPosts} style={styles.newPillButton}>
+                <Text style={styles.newPillText}>{t("feed.newPosts", { count: newCount })}</Text>
+              </PressableScale>
+            </Animated.View>
           )}
 
-          <FlatList
+          <Animated.FlatList
             ref={listRef}
+            onScroll={onListScroll}
+            scrollEventThrottle={16}
+            contentInset={insetsTop ? { top: topHeight } : undefined}
+            scrollIndicatorInsets={insetsTop ? { top: topHeight } : undefined}
+            automaticallyAdjustContentInsets={false}
             data={posts}
             keyExtractor={(p) => p.id}
             renderItem={renderItem}
@@ -585,18 +642,23 @@ export function CommunityFeedScreen({
                 refreshing={pulling}
                 onRefresh={pullToRefresh}
                 tintColor={theme.colors.accent}
+                progressViewOffset={topHeight}
               />
             }
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            // Room for the `+` button under the last post.
-            contentContainerStyle={{ paddingBottom: insets.bottom + FAB_SIZE + theme.spacing(8) }}
+            // Room for the `+` button under the last post. The host's
+            // container clears the bottom safe area (and its tab bar).
+            contentContainerStyle={{
+              paddingTop: insetsTop ? 0 : topHeight,
+              paddingBottom: FAB_SIZE + theme.spacing(8),
+            }}
           />
 
           {!searchOpen && (
             <PressableScale
               onPress={openComposer}
-              style={[styles.fab, { bottom: insets.bottom + theme.spacing(4) }]}
+              style={styles.fab}
               accessibilityRole="button"
               accessibilityLabel={t("feed.compose")}
             >
@@ -683,7 +745,15 @@ const FAB_SIZE = 56;
 
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
-    root: { flex: 1, backgroundColor: theme.colors.background },
+    root: { flex: 1, backgroundColor: theme.colors.background, overflow: "hidden" },
+    top: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 1,
+      backgroundColor: theme.colors.background,
+    },
     controls: { paddingHorizontal: theme.spacing(5), paddingTop: theme.spacing(1) },
     // Icons sit flush with the content edge; each keeps a 44pt target.
     headerRow: {
@@ -786,20 +856,21 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 13,
       color: theme.colors.textMuted,
     },
-    newPill: {
-      position: "absolute",
-      top: theme.spacing(2),
-      alignSelf: "center",
-      zIndex: 1,
+    // Positioned under the top bar as it slides (`pillStyle`).
+    newPill: { position: "absolute", alignSelf: "center", zIndex: 1 },
+    newPillButton: {
       backgroundColor: theme.colors.accent,
       borderRadius: theme.radius.pill,
       paddingVertical: theme.spacing(2),
       paddingHorizontal: theme.spacing(4.5),
       ...theme.shadow,
     },
+    // Aligned with the rows' content edge; the host's container clears the
+    // bottom safe area.
     fab: {
       position: "absolute",
-      right: theme.spacing(5),
+      right: theme.spacing(4),
+      bottom: theme.spacing(4),
       width: FAB_SIZE,
       height: FAB_SIZE,
       borderRadius: FAB_SIZE / 2,

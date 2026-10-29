@@ -17,7 +17,6 @@ import {
   POLL_MAX_OPTIONS,
   POLL_MIN_OPTIONS,
   POLL_OPTION_MAX_LENGTH,
-  POST_MAX_LENGTH,
   useCommunityConfig,
   useCreatePost,
   useMyUid,
@@ -106,6 +105,18 @@ export function ComposerSheet({
   const fallbackTopic = defaultTopic ?? topics[0]?.id ?? "general";
   const [topic, setTopic] = useState<string>(fallbackTopic);
   const [topicMenuOpen, setTopicMenuOpen] = useState(false);
+  // The topic menu floats over the sheet, anchored under the pill.
+  const rootRef = useRef<View>(null);
+  const pillRef = useRef<View>(null);
+  const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+  const openTopicMenu = () => {
+    const root = rootRef.current;
+    if (!root || !pillRef.current) return;
+    pillRef.current.measureLayout(root, (x, y, _w, h) => {
+      setMenuAnchor({ x, y: y + h + 6 });
+      setTopicMenuOpen(true);
+    });
+  };
   const [text, setText] = useState("");
   // null = no poll on this draft; an array = the poll editor is open.
   const [pollDraft, setPollDraft] = useState<string[] | null>(null);
@@ -182,6 +193,7 @@ export function ComposerSheet({
   const submit = () => {
     if (!canPost) return;
     const draft = {
+      topic,
       body: text.trim(),
       pollOptions: pollDraft !== null ? filledPollOptions : undefined,
       image: image ?? undefined,
@@ -203,10 +215,11 @@ export function ComposerSheet({
           if (result.verdict.status === "rejected") onModerationRejected?.("post");
         },
         onError: () => {
-          // Hand the draft (text + poll + image together) back unless a new
+          // Hand the draft (topic, text, poll and image together) back unless a new
           // one was started meanwhile.
           const now = latestDraft.current;
           if (!now.text.trim() && now.pollDraft === null && now.image === null) {
+            setTopic(draft.topic);
             setText(draft.body);
             setPollDraft(draft.pollOptions ? [...draft.pollOptions] : null);
             setImage(draft.image ?? null);
@@ -228,7 +241,10 @@ export function ComposerSheet({
       presentationStyle="pageSheet"
       onRequestClose={cancel}
     >
-      <View style={[styles.root, { paddingTop: Platform.OS === "android" ? insets.top : 0 }]}>
+      <View
+        ref={rootRef}
+        style={[styles.root, { paddingTop: Platform.OS === "android" ? insets.top : 0 }]}
+      >
         <View style={styles.topBar}>
           <Pressable hitSlop={10} onPress={cancel} accessibilityRole="button">
             <Text style={styles.cancel}>{t("composer.cancel")}</Text>
@@ -257,62 +273,32 @@ export function ComposerSheet({
                   {myAuthorName()}
                 </Text>
                 {topics.length > 1 && (
-                  <PressableScale
-                    onPress={() => setTopicMenuOpen((open) => !open)}
-                    style={styles.topicPill}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${t("composer.chooseTopic")} ${topicLabel}`}
-                    accessibilityState={{ expanded: topicMenuOpen }}
-                  >
-                    <Text style={styles.topicPillText} numberOfLines={1}>
-                      {topicLabel}
-                    </Text>
-                    <View style={topicMenuOpen ? styles.chevronUp : styles.chevronDown}>
-                      <icons.back size={11} color={theme.colors.accent} weight="bold" />
-                    </View>
-                  </PressableScale>
-                )}
-                {topicMenuOpen && (
-                  <View style={styles.topicMenu}>
-                    {topics.map((option) => {
-                      const on = topic === option.id;
-                      return (
-                        <Pressable
-                          key={option.id}
-                          onPress={() => {
-                            if (!on) haptic("selection");
-                            setTopic(option.id);
-                            setTopicMenuOpen(false);
-                          }}
-                          style={({ pressed }) => [
-                            styles.topicRow,
-                            (on || pressed) && styles.topicRowOn,
-                          ]}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: on }}
-                        >
-                          <Text style={[styles.topicRowLabel, on && styles.topicRowLabelOn]}>
-                            {t(`topics.${option.id}`)}
-                          </Text>
-                          {on && (
-                            <icons.checkmark size={16} color={theme.colors.accent} weight="fill" />
-                          )}
-                        </Pressable>
-                      );
-                    })}
+                  <View ref={pillRef} style={styles.topicPillWrap} collapsable={false}>
+                    <PressableScale
+                      onPress={openTopicMenu}
+                      style={styles.topicPill}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t("composer.chooseTopic")} ${topicLabel}`}
+                      accessibilityState={{ expanded: topicMenuOpen }}
+                    >
+                      <Text style={styles.topicPillText} numberOfLines={1}>
+                        {topicLabel}
+                      </Text>
+                      <View style={topicMenuOpen ? styles.chevronUp : styles.chevronDown}>
+                        <icons.back size={11} color={theme.colors.accent} weight="bold" />
+                      </View>
+                    </PressableScale>
                   </View>
                 )}
-
                 <TextInput
                   value={text}
                   onChangeText={setText}
-                  onFocus={() => setTopicMenuOpen(false)}
                   placeholder={placeholder}
                   placeholderTextColor={theme.colors.textFaint}
                   accessibilityLabel={placeholder}
                   autoFocus
                   multiline
-                  maxLength={POST_MAX_LENGTH}
+                  maxLength={cfg.postMaxLength}
                   scrollEnabled={false}
                   style={styles.input}
                 />
@@ -350,6 +336,10 @@ export function ComposerSheet({
                           placeholder={t("composer.option", { number: i + 1 })}
                           placeholderTextColor={theme.colors.textFaint}
                           maxLength={POLL_OPTION_MAX_LENGTH}
+                          // Long options wrap; Return ends the option, no newline.
+                          multiline
+                          scrollEnabled={false}
+                          submitBehavior="blurAndSubmit"
                           style={styles.pollOptionInput}
                         />
                         {pollDraft.length > POLL_MIN_OPTIONS && (
@@ -429,10 +419,50 @@ export function ComposerSheet({
             )}
             {renderComposerExtra}
             <View style={styles.toolbarEnd}>
-              <CharRing used={text.length} max={POST_MAX_LENGTH} />
+              <CharRing used={text.length} max={cfg.postMaxLength} />
             </View>
           </View>
         </View>
+        {topicMenuOpen && menuAnchor && (
+          <>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setTopicMenuOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel={t("composer.cancel")}
+            />
+            <View style={[styles.topicMenu, { top: menuAnchor.y, left: menuAnchor.x }]}>
+              <ScrollView bounces={false} keyboardShouldPersistTaps="handled">
+                {topics.map((option) => {
+                  const on = topic === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      onPress={() => {
+                        if (!on) haptic("selection");
+                        setTopic(option.id);
+                        setTopicMenuOpen(false);
+                      }}
+                      style={({ pressed }) => [
+                        styles.topicRow,
+                        (on || pressed) && styles.topicRowOn,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                    >
+                      <Text style={[styles.topicRowLabel, on && styles.topicRowLabelOn]}>
+                        {t(`topics.${option.id}`)}
+                      </Text>
+                      {on && (
+                        <icons.checkmark size={16} color={theme.colors.accent} weight="fill" />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </>
+        )}
       </View>
     </Modal>
   );
@@ -564,13 +594,19 @@ const makeStyles = (theme: CommunityTheme) =>
     },
     chevronDown: { transform: [{ rotate: "-90deg" }] },
     chevronUp: { transform: [{ rotate: "90deg" }] },
+    topicPillWrap: { alignSelf: "flex-start", maxWidth: "100%" },
+    // Floats over the sheet (a select), under the pill.
     topicMenu: {
-      marginTop: theme.spacing(2),
+      position: "absolute",
+      minWidth: 220,
+      maxWidth: 300,
+      maxHeight: 320,
       borderRadius: theme.radius.md,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
       overflow: "hidden",
+      ...theme.shadow,
     },
     topicRow: {
       flexDirection: "row",

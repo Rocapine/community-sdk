@@ -62,7 +62,7 @@ export function PollBlock({
             )}
             <View style={styles.optionRow}>
               <AnimatedHeight style={styles.labelBox}>
-                <Text style={[styles.label, mine && styles.labelMine]} numberOfLines={2}>
+                <Text style={[styles.label, mine && styles.labelMine]}>
                   {showOriginal ? option.label : (option.translatedLabel ?? option.label)}
                 </Text>
               </AnimatedHeight>

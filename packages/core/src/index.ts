@@ -7,7 +7,12 @@ export type {
   CommunityDefaultName,
   ResolvedCommunityConfig,
 } from "./config";
-export { CommunityDisabledError, DEFAULT_NAME, resolveConfig } from "./config";
+export {
+  CommunityDisabledError,
+  DEFAULT_NAME,
+  DEFAULT_POST_MAX_LENGTH,
+  resolveConfig,
+} from "./config";
 export { readerLocale, languageOf } from "./locale";
 export { CommunityProvider, useCommunityConfig } from "./provider";
 
