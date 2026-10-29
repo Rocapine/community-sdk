@@ -291,11 +291,14 @@ export function CommunityFeedScreen({
       lastY.value = y;
       hidden.value = y <= 0 ? 0 : Math.min(Math.max(hidden.value + dy, 0), topH.value);
     },
+    // Never left half-shown: settle once the finger lifts without a fling,
+    // or once the fling stops.
+    onEndDrag: (e) => {
+      if (Math.abs(e.velocity?.y ?? 0) > 0.1) return;
+      hidden.value = withTiming(hidden.value > topH.value / 2 ? topH.value : 0, { duration: 180 });
+    },
     onMomentumEnd: () => {
-      // Never left half-shown.
-      hidden.value = withTiming(hidden.value > topH.value / 2 ? topH.value : 0, {
-        duration: 180,
-      });
+      hidden.value = withTiming(hidden.value > topH.value / 2 ? topH.value : 0, { duration: 180 });
     },
   });
   const topStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -hidden.value }] }));
