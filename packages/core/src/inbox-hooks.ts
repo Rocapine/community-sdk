@@ -5,11 +5,13 @@
 // No React Native / analytics-SDK / store imports here.
 
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useCallback } from "react";
 
 import { useCommunityConfig } from "./provider";
 import {
   fetchInbox,
   markInboxItemRead,
+  isUnread,
   markInboxSeen,
   unreadCount,
   type InboxState,
@@ -83,4 +85,44 @@ export function useMarkInboxItemRead() {
       );
     },
   });
+}
+
+/**
+ * Marks read the unread items about one post, e.g. the post a tapped push is
+ * about. `kind` narrows them to one kind and takes the push's own kind
+ * (`community_like`) as well as the inbox's (`like`). Refetches first: the
+ * push is newer than the cached inbox. Fail-soft, like the badge.
+ */
+export function useMarkPostNotificationsRead(): (postId: string, kind?: string) => Promise<void> {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  return useCallback(
+    async (postId, kind) => {
+      if (cfg.supabase === null || !cfg.modules.inbox) return;
+      const itemKind = kind?.replace(/^community_/, "");
+      try {
+        const state = await queryClient.fetchQuery({
+          queryKey: INBOX_KEY,
+          queryFn: () => fetchInbox(cfg),
+          staleTime: 0,
+        });
+        const ids = state.items
+          .filter(
+            (item) =>
+              item.postId === postId &&
+              (!itemKind || item.kind === itemKind) &&
+              isUnread(item, state.seenAt, state.readIds),
+          )
+          .map((item) => item.id);
+        if (ids.length === 0) return;
+        queryClient.setQueryData<InboxState>(INBOX_KEY, (s) =>
+          s ? { ...s, readIds: [...s.readIds, ...ids.filter((id) => !s.readIds.includes(id))] } : s,
+        );
+        await Promise.all(ids.map((id) => markInboxItemRead(cfg, id)));
+      } catch {
+        // The next inbox fetch shows whatever stayed unread.
+      }
+    },
+    [cfg, queryClient],
+  );
 }

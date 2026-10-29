@@ -47,7 +47,7 @@ import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { resizeAvatar } from "../utils/avatar";
-import { noFocusRing } from "../utils/noFocusRing";
+import { noFocusRing, noFocusRingMultiline } from "../utils/noFocusRing";
 
 const BIO_MAX_LENGTH = 300;
 const HANDLE_MAX_LENGTH = 20;
@@ -505,7 +505,7 @@ function makeStyles(theme: CommunityTheme) {
       lineHeight: 22,
       color: theme.colors.textPrimary,
       textAlignVertical: "top",
-      ...noFocusRing,
+      ...noFocusRingMultiline,
     },
     counter: {
       fontFamily: theme.fonts.regular,

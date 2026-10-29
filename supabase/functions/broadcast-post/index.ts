@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
       to,
       title,
       body: excerptFor(locale, profileLocale),
-      data: { route: "/community", kind: "community_official_post" },
+      data: { route: "/community", kind: "community_official_post", postId: post.id },
       badge: 1,
     }));
   await sendExpoPushBatch(messages);

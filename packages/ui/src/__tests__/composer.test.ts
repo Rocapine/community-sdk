@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@rocapine/community-core", () => ({}));
-vi.mock("react-native", () => ({}));
+vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
 vi.mock("expo-image", () => ({}));
 vi.mock("../Sheet", () => ({}));
 vi.mock("../components/AnimatedHeight", () => ({}));

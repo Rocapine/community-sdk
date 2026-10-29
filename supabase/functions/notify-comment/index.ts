@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
       to: pref.expo_push_token,
       title: copy.text(target.title),
       body,
-      data: { route: "/community", kind: target.kind },
+      data: { route: "/community", kind: target.kind, postId: comment.post_id },
       badge: await unreadBadge(supabase, target.uid),
     });
   }

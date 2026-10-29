@@ -13,16 +13,16 @@
 // by `numberOfLines`. Keyed list recycling remounts the row, which resets
 // `expanded` (accepted).
 //
-// react-native-web has no `onTextLayout`, so on the web the cut is the
-// browser's line clamp, and the link covers the end of the last line on the
-// body's background whenever the unclamped copy is taller than the clamped text.
-import { useState, type ReactNode } from "react";
+// react-native-web has no `onTextLayout`: on the web the lines are read off
+// the measuring copies' DOM (`webLines`) each time they lay out, and the cut
+// is the same as on native.
+import { useRef, useState, type ReactNode } from "react";
 import { Platform, StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
-import { useCommunityTheme, useT } from "../ThemeProvider";
+import { useT } from "../ThemeProvider";
 import { clampWithSuffix } from "../utils/clamp";
 import { AnimatedHeight } from "./AnimatedHeight";
 
-type Line = { text: string; width: number };
+type Line = { text: string; width: number; charEnds?: number[] };
 
 export function ClampedBody({
   text,
@@ -44,12 +44,12 @@ export function ClampedBody({
   renderText?: (text: string) => ReactNode;
 }) {
   const t = useT();
-  const theme = useCommunityTheme();
   const [expanded, setExpanded] = useState(false);
-  // Web: heights of the unclamped copy (per version) and of the clamped text.
-  const [fullHeights, setFullHeights] = useState<Record<string, number>>({});
-  const [clampedHeight, setClampedHeight] = useState(0);
   const [layouts, setLayouts] = useState<Record<string, Line[]>>({});
+  const setLines = (v: string, next: Line[]) =>
+    setLayouts((m) => (sameLines(m[v], next) ? m : { ...m, [v]: next }));
+  // Web: each version's measuring copy, as a DOM node.
+  const measureNodes = useRef<Record<string, HTMLElement | null>>({});
   const [width, setWidth] = useState(0);
   const [suffixWidth, setSuffixWidth] = useState(0);
 
@@ -59,9 +59,7 @@ export function ClampedBody({
   const clamped =
     !expanded && measured ? clampWithSuffix(lines, clampLines, width, suffixWidth) : null;
   const viewMore = t("post.viewMore");
-  const webCut =
-    WEB && !expanded && clampedHeight > 0 && (fullHeights[text] ?? 0) > clampedHeight + 1;
-  const cut = clamped !== null || webCut;
+  const cut = clamped !== null;
 
   return (
     <AnimatedHeight>
@@ -87,21 +85,8 @@ export function ClampedBody({
             </Text>
           </Text>
         ) : (
-          <Text
-            style={textStyle}
-            numberOfLines={expanded || measured ? undefined : clampLines}
-            onLayout={WEB ? (e) => setClampedHeight(e.nativeEvent.layout.height) : undefined}
-          >
+          <Text style={textStyle} numberOfLines={expanded || measured ? undefined : clampLines}>
             {renderText ? renderText(text) : text}
-          </Text>
-        )}
-        {webCut && (
-          <Text
-            style={[textStyle, styles.webLink, { backgroundColor: theme.colors.background }]}
-            onPress={() => setExpanded(true)}
-          >
-            {"… "}
-            <Text style={viewMoreStyle}>{viewMore}</Text>
           </Text>
         )}
         <View
@@ -115,15 +100,24 @@ export function ClampedBody({
             <Text
               key={v}
               style={[textStyle, styles.measureText]}
-              onTextLayout={(e) => {
-                const next = e.nativeEvent.lines.map((l) => ({ text: l.text, width: l.width }));
-                setLayouts((m) => (sameLines(m[v], next) ? m : { ...m, [v]: next }));
-              }}
+              ref={
+                WEB
+                  ? (node) => {
+                      measureNodes.current[v] = node as unknown as HTMLElement | null;
+                    }
+                  : undefined
+              }
+              onTextLayout={(e) =>
+                setLines(
+                  v,
+                  e.nativeEvent.lines.map((l) => ({ text: l.text, width: l.width })),
+                )
+              }
               onLayout={
                 WEB
-                  ? (e) => {
-                      const h = e.nativeEvent.layout.height;
-                      setFullHeights((m) => (m[v] === h ? m : { ...m, [v]: h }));
+                  ? () => {
+                      const node = measureNodes.current[v];
+                      if (node) setLines(v, webLines(node, clampLines));
                     }
                   : undefined
               }
@@ -137,8 +131,10 @@ export function ClampedBody({
               const w = e.nativeEvent.lines[0]?.width ?? 0;
               setSuffixWidth((prev) => (prev === w ? prev : w));
             }}
+            onLayout={WEB ? (e) => setSuffixWidth(e.nativeEvent.layout.width) : undefined}
           >
-            {" "}
+            {/* The web cut is exact, so it measures the "…" too. */}
+            {WEB ? "… " : " "}
             <Text style={viewMoreStyle}>{viewMore}</Text>
           </Text>
         </View>
@@ -148,6 +144,47 @@ export function ClampedBody({
 }
 
 const WEB = Platform.OS === "web";
+
+/** The lines a laid-out DOM text node wraps into, like native `onTextLayout`:
+ * each character joins the line its box sits on (a newline, which has no box
+ * of its own, stays on the line it ends). Lines past `maxLines` are folded
+ * into one, all `clampWithSuffix` needs to know there is more. */
+function webLines(el: HTMLElement, maxLines: number): Line[] {
+  const box = el.getBoundingClientRect();
+  const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+  const range = document.createRange();
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const lines: Line[] = [];
+  let firstTop: number | null = null;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const str = node.textContent ?? "";
+    for (let i = 0; i < str.length;) {
+      const len = (str.codePointAt(i) ?? 0) > 0xffff ? 2 : 1;
+      const ch = str.slice(i, i + len);
+      let index = Math.max(lines.length - 1, 0);
+      let right = box.left;
+      if (ch !== "\n") {
+        range.setStart(node, i);
+        range.setEnd(node, i + len);
+        const rect = range.getBoundingClientRect();
+        if (rect.height > 0) {
+          firstTop ??= rect.top;
+          const step = Number.isNaN(lineHeight) ? rect.height : lineHeight;
+          index = Math.round((rect.top - firstTop) / step);
+          right = rect.right;
+        }
+      }
+      index = Math.min(index, maxLines);
+      while (lines.length <= index) lines.push({ text: "", width: 0, charEnds: [] });
+      const line = lines[index];
+      line.text += ch;
+      line.width = Math.max(line.width, right - box.left);
+      line.charEnds!.push(line.width);
+      i += len;
+    }
+  }
+  return lines;
+}
 
 function sameLines(a: Line[] | undefined, b: Line[]): boolean {
   return (
@@ -162,5 +199,4 @@ const styles = StyleSheet.create({
   measureText: { position: "absolute", top: 0, left: 0, right: 0 },
   // Its natural width: the link's text, unwrapped.
   measureSuffix: { position: "absolute", top: 0, left: 0, alignSelf: "flex-start" },
-  webLink: { position: "absolute", right: 0, bottom: 0, paddingLeft: 4 },
 });

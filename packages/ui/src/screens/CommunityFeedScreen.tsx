@@ -154,6 +154,7 @@ export function CommunityFeedScreen({
   beforeCompose,
   beforeSubmitComment,
   topicRequest,
+  postRequest,
   bottomChrome,
 }: {
   onOpenProfile(userId: string, source?: ProfileSource): void;
@@ -177,6 +178,9 @@ export function CommunityFeedScreen({
    * the same topic can be asked for twice; an id `cfg.topics` doesn't list is
    * ignored. */
   topicRequest?: { topicId: string; requestedAt: number };
+  /** Opens a post's thread from outside, e.g. the post a tapped push is
+   * about. Applied each time `requestedAt` changes. */
+  postRequest?: { postId: string; requestedAt: number };
   /** A host bar floating over the feed's bottom (a tab bar) that hides with
    * the feed's top bar. `hidden` is written with how far the top bar is hidden
    * as the reader scrolls (0 shown → 1 hidden), for the host to slide its bar
@@ -420,6 +424,13 @@ export function CommunityFeedScreen({
     setFocusComment(true);
     setActivePostId(postId);
   }, []);
+  const requestedPost = postRequest?.postId;
+  const postRequestedAt = postRequest?.requestedAt;
+  useEffect(() => {
+    if (requestedPost) openThread(requestedPost);
+    // Keyed on `requestedAt`: the same post can be asked for twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postRequestedAt]);
 
   const openPostMenu = useCallback(
     (post: FeedPost) => {

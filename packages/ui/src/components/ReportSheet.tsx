@@ -29,6 +29,7 @@ import { PressableScale } from "./PressableScale";
 import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
+import { noFocusRingMultiline } from "../utils/noFocusRing";
 
 const REASONS: ReportReason[] = ["spam", "harassment", "hate", "inappropriate", "other"];
 
@@ -177,6 +178,7 @@ function makeStyles(theme: CommunityTheme) {
       lineHeight: 22,
       color: theme.colors.textPrimary,
       textAlignVertical: "top",
+      ...noFocusRingMultiline,
     },
     cta: {
       backgroundColor: theme.colors.textPrimary,

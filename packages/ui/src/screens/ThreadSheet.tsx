@@ -105,7 +105,7 @@ import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { useMyAuthorName } from "../utils/myName";
 import { RulesSheet } from "../components/RulesSheet";
 import { haptic } from "../components/PressableScale";
-import { noFocusRing } from "../utils/noFocusRing";
+import { noFocusRingMultiline } from "../utils/noFocusRing";
 
 const COMMENT_CLAMP_LINES = 5;
 
@@ -964,7 +964,7 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.regular,
       fontSize: 14.5,
       color: theme.colors.textPrimary,
-      ...noFocusRing,
+      ...noFocusRingMultiline,
     },
     send: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
     // Same 30-pt slot as the avatar it replaces (44-pt target via hitSlop).

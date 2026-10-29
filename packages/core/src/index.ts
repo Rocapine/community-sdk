@@ -149,6 +149,7 @@ export {
   useUnreadNotificationCount,
   useMarkInboxSeen,
   useMarkInboxItemRead,
+  useMarkPostNotificationsRead,
 } from "./inbox-hooks";
 
 export { REQUIRED_SCHEMA_VERSION } from "./schema-check";

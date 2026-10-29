@@ -45,7 +45,7 @@ import { imageFrame, imagesSupported, pickImage } from "../utils/postImage";
 import { useMyAuthorName } from "../utils/myName";
 import { Avatar } from "./Avatar";
 import { haptic, PressableScale } from "./PressableScale";
-import { noFocusRing } from "../utils/noFocusRing";
+import { noFocusRingMultiline } from "../utils/noFocusRing";
 
 /** The Post pill's enabled state: text or an image, a valid poll (if any),
  * and no publish or photo pick/re-encode in flight (so the text can't go out
@@ -639,7 +639,7 @@ const makeStyles = (theme: CommunityTheme) =>
       lineHeight: 23,
       color: theme.colors.textPrimary,
       textAlignVertical: "top",
-      ...noFocusRing,
+      ...noFocusRingMultiline,
     },
     thumbWrap: { alignSelf: "flex-start", marginTop: theme.spacing(3) },
     thumb: { borderRadius: theme.radius.md, backgroundColor: theme.colors.surfaceMuted },
@@ -668,7 +668,7 @@ const makeStyles = (theme: CommunityTheme) =>
       fontWeight: theme.fontWeights.regular,
       fontSize: 14,
       color: theme.colors.textPrimary,
-      ...noFocusRing,
+      ...noFocusRingMultiline,
     },
     pollAdd: {
       flexDirection: "row",

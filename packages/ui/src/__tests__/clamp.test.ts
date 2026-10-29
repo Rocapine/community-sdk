@@ -23,4 +23,20 @@ describe("clampWithSuffix", () => {
       long + "x".repeat(18) + "…",
     );
   });
+
+  it("cuts on the measured character edges when they are known (web)", () => {
+    // Ten 10pt characters then twenty 5pt ones: 200pt over 30 characters.
+    const charEnds = [
+      ...Array.from({ length: 10 }, (_, i) => (i + 1) * 10),
+      ...Array.from({ length: 20 }, (_, i) => 100 + (i + 1) * 5),
+    ];
+    const last = { text: "w".repeat(10) + "i".repeat(20), width: 200, charEnds };
+    // Room before the "… View more" suffix: 300 − 100 = 200, then 200 − 100 = 100.
+    expect(clampWithSuffix([line("a "), last, line("end")], 2, 300, 100)).toBe(
+      "a " + last.text + "…",
+    );
+    expect(clampWithSuffix([line("a "), last, line("end")], 2, 200, 100)).toBe(
+      "a " + "w".repeat(10) + "…",
+    );
+  });
 });
