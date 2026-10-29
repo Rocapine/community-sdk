@@ -65,6 +65,7 @@ import {
   useMyUid,
   useProfile,
   useThread,
+  useToggleCommentLike,
   type FeedPost,
   type LocalImage,
   type ThreadComment,
@@ -74,6 +75,7 @@ import { Image } from "expo-image";
 import {
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -91,6 +93,7 @@ import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { ImageViewerContext, useImageViewerOverlay } from "../components/ImageViewer";
 import { PostImage } from "../components/PostImage";
 import { imagesSupported, pickImage } from "../utils/postImage";
+import { splitMentions, threadRows } from "../utils/threadRows";
 import { isQueryLoading } from "../utils/query";
 import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
 import { formatTimeAgo, secondsResolution, useNow } from "../utils/time";
@@ -183,6 +186,13 @@ export function ThreadSheet({
   const post = useCachedPost(shownId, readerLocale(cfg));
   const thread = useThread(shownId);
   const comments = thread.data ?? [];
+  const rows = useMemo(() => threadRows(comments), [comments]);
+  // @handle → member, for tappable mentions (only people in this thread).
+  const handles = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of comments) if (c.authorHandle) map.set(c.authorHandle.toLowerCase(), c.authorId);
+    return map;
+  }, [comments]);
 
   useEffect(() => {
     if (!postId) return;
@@ -205,6 +215,12 @@ export function ThreadSheet({
 
   const [text, setText] = useState("");
   const [image, setImage] = useState<LocalImage | null>(null);
+  // Answering a comment: who, and the "@handle " the field was pre-filled with.
+  const [replyTo, setReplyTo] = useState<{
+    id: string;
+    name: string;
+    prefix: string;
+  } | null>(null);
   // Read by the async send callbacks (the draft may have changed since).
   const latestDraft = useRef({ text, image });
   latestDraft.current = { text, image };
@@ -215,6 +231,7 @@ export function ThreadSheet({
   useEffect(() => {
     setText("");
     setImage(null);
+    setReplyTo(null);
   }, [shownId]);
   // Rules gate on commenting, same shared flag as the feed composer (both
   // source apps gated the first comment behind the UGC rules sheet too).
@@ -280,9 +297,25 @@ export function ThreadSheet({
     }
   };
 
+  const startReply = (c: ThreadComment) => {
+    const prefix = c.authorHandle ? `@${c.authorHandle} ` : "";
+    // Swap the previous reply's untouched prefix, keep anything typed.
+    setText((current) => {
+      const typed = replyTo && current === replyTo.prefix ? "" : current;
+      return typed.trim() ? typed : prefix;
+    });
+    setReplyTo({ id: c.id, name: c.authorName, prefix });
+    focusReply();
+  };
+  const cancelReply = () => {
+    if (replyTo && text === replyTo.prefix) setText("");
+    setReplyTo(null);
+  };
+
   const send = () => {
     const trimmed = text.trim();
     const sentImage = image;
+    const sentReply = replyTo;
     if ((!trimmed && !sentImage) || !shownId || gating || preparing) return;
     if (!rulesAccepted) {
       setRulesVisible(true);
@@ -299,6 +332,7 @@ export function ThreadSheet({
       if (shownIdRef.current !== postId || now.text.trim() || now.image) return;
       setText(trimmed);
       setImage(sentImage);
+      setReplyTo(sentReply);
     };
 
     const doSend = () => {
@@ -306,7 +340,7 @@ export function ThreadSheet({
       const authorName = myAuthorName();
       haptic("medium");
       createComment.mutate(
-        { postId, text: trimmed, authorName, image: draft.image },
+        { postId, text: trimmed, authorName, image: draft.image, parentId: sentReply?.id },
         {
           onSuccess: (res) => {
             if (res.verdict.status === "rejected") showNotice("rejected", postId);
@@ -319,6 +353,7 @@ export function ThreadSheet({
       );
       setText("");
       setImage(null);
+      setReplyTo(null);
     };
 
     if (!beforeSubmitComment) {
@@ -475,6 +510,21 @@ export function ThreadSheet({
           overlay={viewer.overlay}
           footer={
             <>
+              {replyTo && (
+                <View style={styles.replyingRow}>
+                  <Text style={styles.replyingText} numberOfLines={1}>
+                    {t("thread.replyingTo", { name: replyTo.name })}
+                  </Text>
+                  <Pressable
+                    hitSlop={12}
+                    onPress={cancelReply}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("a11y.cancelReply")}
+                  >
+                    <icons.close size={14} color={theme.colors.textFaint} weight="bold" />
+                  </Pressable>
+                </View>
+              )}
               {image !== null && (
                 <View style={styles.thumbRow}>
                   <Image source={{ uri: image.url }} style={styles.thumb} contentFit="cover" />
@@ -578,12 +628,16 @@ export function ThreadSheet({
             ) : comments.length === 0 ? (
               <Text style={styles.stateText}>{t("thread.emptyComments")}</Text>
             ) : (
-              comments.map((c) => (
+              rows.map(({ comment: c, depth }) => (
                 <CommentRow
                   key={c.id}
                   comment={c}
+                  depth={depth}
+                  postId={shownId!}
+                  handles={handles}
                   onOpenProfile={openProfile}
                   onMenu={openCommentMenu}
+                  onReply={startReply}
                 />
               ))
             )}
@@ -614,12 +668,22 @@ export function ThreadSheet({
  * menu button. Ported from the mold's inline comment row in `CommunityThread`. */
 function CommentRow({
   comment,
+  depth,
+  postId,
+  handles,
   onOpenProfile,
   onMenu,
+  onReply,
 }: {
   comment: ThreadComment;
+  /** 1 for a reply, shown indented under its root comment. */
+  depth: 0 | 1;
+  postId: string;
+  /** @handle → member id, for tappable mentions. */
+  handles: Map<string, string>;
   onOpenProfile(userId: string, source?: ProfileSource): void;
   onMenu(comment: ThreadComment): void;
+  onReply(comment: ThreadComment): void;
 }) {
   const now = useNow(secondsResolution(comment.createdAt, Date.now()));
   const theme = useCommunityTheme();
@@ -643,15 +707,34 @@ function CommentRow({
   const handleAuthor = () => {
     if (comment.authorId) onOpenProfile(comment.authorId, "comment");
   };
+  const toggleLike = useToggleCommentLike();
+  // Not on the server yet: nothing to like or answer.
+  const pending = comment.id.startsWith("optimistic-");
+
+  const renderMentions = (shown: string) =>
+    splitMentions(shown).map((part, i) => {
+      if (!part.handle) return part.text;
+      const userId = handles.get(part.handle);
+      return (
+        <Text
+          key={i}
+          style={styles.mention}
+          onPress={userId ? () => onOpenProfile(userId, "comment") : undefined}
+          suppressHighlighting
+        >
+          {part.text}
+        </Text>
+      );
+    });
 
   return (
-    <View style={styles.comment}>
+    <View style={[styles.comment, depth === 1 && styles.reply]}>
       <Pressable onPress={handleAuthor} hitSlop={4}>
         <Avatar
           userId={comment.authorId}
           name={comment.authorName}
           url={comment.authorAvatarUrl}
-          size={30}
+          size={depth === 1 ? 24 : 30}
         />
       </Pressable>
       <View style={styles.commentBody}>
@@ -675,6 +758,7 @@ function CommentRow({
             clampLines={COMMENT_CLAMP_LINES}
             textStyle={styles.cText}
             viewMoreStyle={styles.cViewMore}
+            renderText={renderMentions}
           />
         )}
         {toggleLine && (
@@ -685,6 +769,43 @@ function CommentRow({
         {comment.image && (
           <View style={styles.cImage}>
             <PostImage image={comment.image} onOpen={openImage} />
+          </View>
+        )}
+        {!pending && (
+          <View style={styles.cActions}>
+            <Pressable
+              hitSlop={8}
+              onPress={() => {
+                haptic(comment.likedByMe ? "light" : "medium");
+                toggleLike.mutate({ postId, commentId: comment.id, liked: !comment.likedByMe });
+              }}
+              style={styles.cAction}
+              accessibilityRole="button"
+              accessibilityLabel={t("a11y.like")}
+              accessibilityState={{ selected: comment.likedByMe }}
+            >
+              <icons.like
+                size={15}
+                color={comment.likedByMe ? theme.colors.like : theme.colors.textFaint}
+                weight={comment.likedByMe ? "fill" : "regular"}
+              />
+              {comment.likeCount > 0 && (
+                <Text
+                  style={[styles.cActionCount, comment.likedByMe && { color: theme.colors.like }]}
+                >
+                  {comment.likeCount}
+                </Text>
+              )}
+            </Pressable>
+            <Pressable
+              hitSlop={8}
+              onPress={() => onReply(comment)}
+              style={styles.cAction}
+              accessibilityRole="button"
+              accessibilityLabel={t("a11y.reply")}
+            >
+              <icons.reply size={15} color={theme.colors.textFaint} weight="regular" />
+            </Pressable>
           </View>
         )}
       </View>
@@ -727,6 +848,38 @@ function makeStyles(theme: CommunityTheme) {
       paddingVertical: theme.spacing(2),
     },
     comment: { flexDirection: "row", gap: theme.spacing(2.5), marginBottom: theme.spacing(4.5) },
+    // Under the root comment's text column (avatar 30 + gap).
+    reply: { marginLeft: 30 + theme.spacing(2.5) },
+    cActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(5),
+      marginTop: theme.spacing(1.5),
+    },
+    cAction: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1), minHeight: 20 },
+    cActionCount: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 12,
+      fontVariant: ["tabular-nums"],
+      color: theme.colors.textFaint,
+    },
+    mention: { color: theme.colors.accent, fontFamily: theme.fonts.medium },
+    replyingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing(2),
+      paddingHorizontal: theme.spacing(4),
+      paddingTop: theme.spacing(2),
+    },
+    replyingText: {
+      flexShrink: 1,
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 12.5,
+      color: theme.colors.textMuted,
+    },
     commentBody: { flex: 1 },
     nameRow: {
       flexDirection: "row",

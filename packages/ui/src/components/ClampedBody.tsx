@@ -12,7 +12,7 @@
 // whole change animates as one. Until the measures land, the text is clamped
 // by `numberOfLines`. Keyed list recycling remounts the row, which resets
 // `expanded` (accepted).
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
 import { useT } from "../ThemeProvider";
 import { clampWithSuffix } from "../utils/clamp";
@@ -26,6 +26,7 @@ export function ClampedBody({
   clampLines,
   textStyle,
   viewMoreStyle,
+  renderText,
 }: {
   /** The version shown. */
   text: string;
@@ -34,6 +35,9 @@ export function ClampedBody({
   clampLines: number;
   textStyle: StyleProp<TextStyle>;
   viewMoreStyle: StyleProp<TextStyle>;
+  /** Renders the shown text's content (e.g. highlighted mentions) inside the
+   * body's own `Text`; plain text without it. */
+  renderText?: (text: string) => ReactNode;
 }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
@@ -66,14 +70,14 @@ export function ClampedBody({
       >
         {clamped !== null ? (
           <Text style={textStyle}>
-            {clamped}{" "}
+            {renderText ? renderText(clamped) : clamped}{" "}
             <Text style={viewMoreStyle} onPress={() => setExpanded(true)} suppressHighlighting>
               {viewMore}
             </Text>
           </Text>
         ) : (
           <Text style={textStyle} numberOfLines={expanded || measured ? undefined : clampLines}>
-            {text}
+            {renderText ? renderText(text) : text}
           </Text>
         )}
         <View

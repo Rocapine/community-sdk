@@ -80,6 +80,11 @@ export const defaultIcons: CommunityIconSet = {
     iosFill: "bubble.right.fill",
     material: "chat_bubble",
   }),
+  reply: fromSymbols("reply", {
+    ios: "arrowshape.turn.up.left",
+    iosFill: "arrowshape.turn.up.left.fill",
+    material: "reply",
+  }),
   menu: fromSymbols("menu", { ios: "ellipsis", material: "more_horiz" }),
   back: fromSymbols("back", { ios: "chevron.left", material: "arrow_back" }),
   close: fromSymbols("close", { ios: "xmark", material: "close" }),

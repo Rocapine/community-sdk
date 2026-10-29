@@ -47,6 +47,8 @@ import {
   emitEvent,
   unreadCount,
   useCommunityConfig,
+  isUnread,
+  useMarkInboxItemRead,
   useMarkInboxSeen,
   useNotificationInbox,
   type InboxItem,
@@ -60,14 +62,23 @@ import { inboxExcerpt } from "../utils/postImage";
 import { isQueryLoading } from "../utils/query";
 import { formatTimeAgo } from "../utils/time";
 
-const KNOWN_KINDS = new Set<InboxItem["kind"]>(["like", "comment", "reaction", "official_post"]);
+const KNOWN_KINDS = new Set<InboxItem["kind"]>([
+  "like",
+  "comment",
+  "reply",
+  "reaction",
+  "official_post",
+]);
 
 export function NotificationInboxScreen({
   onOpenPost,
   onOpenCommunity,
+  onBack,
   renderInboxRow,
 }: {
   onOpenPost(postId: string): void;
+  /** Shows a back button left of the centred title. */
+  onBack?: () => void;
   /** Tapped row with no post attached (e.g. a deleted announcement). */
   onOpenCommunity?: () => void;
   /** Custom row renderer. `defaults` is the built-in row (or `null` for a
@@ -85,8 +96,13 @@ export function NotificationInboxScreen({
   const cfg = useCommunityConfig();
   const styles = useThemedStyles(makeStyles);
 
+  const icons = useCommunityIcons();
   const inbox = useNotificationInbox();
   const markSeen = useMarkInboxSeen();
+  const markItemRead = useMarkInboxItemRead();
+  // "open": opening the center reads everything (unread dots frozen for the
+  // visit). "tap": an item is read once tapped; "mark all as read" in the header.
+  const tapToRead = cfg.inboxReadMode === "tap";
 
   // Freeze the pre-open seen marker (undefined = "not frozen yet", distinct
   // from a frozen `null` meaning "never opened before") so unread dots stay
@@ -100,6 +116,7 @@ export function NotificationInboxScreen({
     if (!inbox.data) return;
     const newest = inbox.data.items[0]?.createdAt ?? null;
     if (opened.current) {
+      if (tapToRead) return;
       if (newest && (!latestSeen.current || newest > latestSeen.current)) {
         latestSeen.current = newest;
         markSeen.mutate();
@@ -108,10 +125,11 @@ export function NotificationInboxScreen({
     }
     opened.current = true;
     latestSeen.current = newest;
-    setFrozenSeenAt(inbox.data.seenAt);
     emitEvent(cfg, COMMUNITY_EVENTS.inboxOpened, {
-      unread_count: unreadCount(inbox.data.items, inbox.data.seenAt),
+      unread_count: unreadCount(inbox.data.items, inbox.data.seenAt, inbox.data.readIds),
     });
+    if (tapToRead) return;
+    setFrozenSeenAt(inbox.data.seenAt);
     markSeen.mutate();
     // Fires once, off the first successful fetch; intentionally not re-run as
     // `cfg`/`markSeen`'s identity changes underneath an already-open screen.
@@ -120,11 +138,48 @@ export function NotificationInboxScreen({
 
   const items = inbox.data?.items ?? [];
   const seenAt = frozenSeenAt !== undefined ? frozenSeenAt : (inbox.data?.seenAt ?? null);
-  const seenMs = seenAt ? Date.parse(seenAt) : 0;
+  // Live in "tap" mode (dots go out as items are read); frozen per visit in "open".
+  const readIds = tapToRead ? (inbox.data?.readIds ?? []) : [];
+  const anyUnread = items.some((item) => isUnread(item, seenAt, readIds));
+  const openItem = (item: InboxItem) => {
+    if (tapToRead && isUnread(item, seenAt, readIds)) markItemRead.mutate(item.id);
+    if (item.postId) onOpenPost(item.postId);
+    else onOpenCommunity?.();
+  };
 
   return (
     <View style={styles.root}>
-      <Text style={styles.title}>{t("inbox.title")}</Text>
+      <View style={styles.header}>
+        <View style={styles.headerSide}>
+          {onBack && (
+            <Pressable
+              onPress={onBack}
+              style={styles.headerButton}
+              accessibilityRole="button"
+              accessibilityLabel={t("a11y.back")}
+            >
+              <icons.back size={22} color={theme.colors.textPrimary} weight="bold" />
+            </Pressable>
+          )}
+        </View>
+        <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
+          {t("inbox.title")}
+        </Text>
+        <View style={[styles.headerSide, styles.headerSideRight]}>
+          {tapToRead && anyUnread && (
+            <Pressable
+              onPress={() => markSeen.mutate()}
+              hitSlop={8}
+              style={styles.markAll}
+              accessibilityRole="button"
+            >
+              <Text style={styles.markAllText} numberOfLines={1}>
+                {t("inbox.markAllRead")}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
 
       {isQueryLoading(inbox) ? (
         <ActivityIndicator color={theme.colors.accent} style={styles.loader} />
@@ -134,14 +189,13 @@ export function NotificationInboxScreen({
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.list}>
             {items.map((item, i) => {
-              const unread = Date.parse(item.createdAt) > seenMs;
+              const unread = isUnread(item, seenAt, readIds);
               const defaultRow = KNOWN_KINDS.has(item.kind) ? (
                 <NotificationRow
                   item={item}
                   unread={unread}
                   showDivider={i > 0}
-                  onOpenPost={onOpenPost}
-                  onOpenCommunity={onOpenCommunity}
+                  onPress={() => openItem(item)}
                 />
               ) : null;
               return (
@@ -166,6 +220,8 @@ function KindIcon({ kind }: { kind: InboxItem["kind"] }) {
       return <icons.like size={19} color={color} weight="fill" />;
     case "comment":
       return <icons.comment size={19} color={color} weight="fill" />;
+    case "reply":
+      return <icons.reply size={19} color={color} weight="fill" />;
     case "reaction":
       return <icons.reaction size={19} color={color} weight="fill" />;
     case "official_post":
@@ -186,6 +242,8 @@ function rowTitle(t: TFn, item: InboxItem): string {
       return t("inbox.liked", { name });
     case "comment":
       return t("inbox.commented", { name });
+    case "reply":
+      return t("inbox.replied", { name });
     case "reaction":
       return t("inbox.reacted", { name });
     case "official_post":
@@ -199,14 +257,12 @@ function NotificationRow({
   item,
   unread,
   showDivider,
-  onOpenPost,
-  onOpenCommunity,
+  onPress,
 }: {
   item: InboxItem;
   unread: boolean;
   showDivider: boolean;
-  onOpenPost(postId: string): void;
-  onOpenCommunity?: () => void;
+  onPress(): void;
 }) {
   const t = useT();
   const styles = useThemedStyles(makeStyles);
@@ -214,10 +270,7 @@ function NotificationRow({
 
   return (
     <Pressable
-      onPress={() => {
-        if (item.postId) onOpenPost(item.postId);
-        else onOpenCommunity?.();
-      }}
+      onPress={onPress}
       style={({ pressed }) => [
         styles.row,
         showDivider && styles.rowDivider,
@@ -247,13 +300,32 @@ function NotificationRow({
 
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
-    root: { flex: 1, backgroundColor: theme.colors.background, padding: theme.spacing(5) },
+    root: { flex: 1, backgroundColor: theme.colors.background },
+    // Back button · centred title · "mark all as read"; both sides flex
+    // equally so the title stays centred.
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      minHeight: 44,
+      paddingHorizontal: theme.spacing(2),
+      marginBottom: theme.spacing(2),
+    },
+    headerSide: { flex: 1, flexDirection: "row", alignItems: "center" },
+    headerSideRight: { justifyContent: "flex-end" },
+    headerButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
     title: {
+      flexShrink: 1,
       fontFamily: theme.fonts.serifBold,
       fontWeight: theme.fontWeights.bold,
-      fontSize: 26,
+      fontSize: 19,
       color: theme.colors.textPrimary,
-      marginBottom: theme.spacing(5),
+    },
+    markAll: { paddingHorizontal: theme.spacing(2), paddingVertical: theme.spacing(2) },
+    markAllText: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 13,
+      color: theme.colors.accent,
     },
     loader: { marginTop: theme.spacing(8) },
     empty: {
@@ -269,7 +341,6 @@ function makeStyles(theme: CommunityTheme) {
     // Flat rows edge to edge, as in the feed: out of the screen padding,
     // hairlines between them.
     list: {
-      marginHorizontal: -theme.spacing(5),
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: theme.colors.hairline,
       borderBottomWidth: StyleSheet.hairlineWidth,
