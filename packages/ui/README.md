@@ -228,13 +228,13 @@ you can wrap, replace, or ignore it:
 
 ## Screens
 
-| Screen                    | Key props                                                                                                                                                                                                                                                                                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: ReactNode`, `headerLayout?: FeedHeaderLayout` (see Feed header), `slots?: PostSlots`, `beforeCompose?`, `beforeSubmitComment?` (see Gating submissions), `topicRequest?` (see Topics)              |
-| `ThreadSheet`             | `postId: string \| null`, `focusComment?: boolean` (open with the reply field focused), `onClose()`, `onOpenProfile(userId, source?)`, `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does |
-| `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId, focusComment?)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`                   |
-| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                                                                                               |
-| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                                                         |
+| Screen                    | Key props                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: ReactNode`, `headerLayout?: FeedHeaderLayout` (see Feed header), `slots?: PostSlots`, `beforeCompose?`, `beforeSubmitComment?` (see Gating submissions), `topicRequest?` (see Topics), `postRequest?` (see Pushes), `bottomChrome?` (see Feed, composer and topics) |
+| `ThreadSheet`             | `postId: string \| null`, `focusComment?: boolean` (open with the reply field focused), `onClose()`, `onOpenProfile(userId, source?)`, `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does                                                                  |
+| `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId, focusComment?)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`                                                                                    |
+| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                                                                                                                                                                |
+| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                                                                                                                          |
 
 Plus standalone components you can use directly: `PressableScale` (the
 package's press feedback for buttons with a visible surface — a 0.98 scale-down,
@@ -290,6 +290,24 @@ thread selects that tab. Elsewhere it calls your `onPressTopic(topicId)`
 `topicRequest={{ topicId, requestedAt: Date.now() }}` — the feed applies it
 each time `requestedAt` changes. Without `onPressTopic`, topics there are not
 tappable.
+
+**Comments.** A comment can be liked and replied to. Replies show one level
+deep under their root comment; replying to a reply answers its author
+("Replying to @handle" above the field). A reply notifies only the author of
+the comment it answers.
+
+**Host tab bar.** The feed's top bar hides as the reader scrolls down and
+comes back on the way up. A host whose tab bar floats over the feed can hide it
+in step: pass `bottomChrome={{ height, hidden }}`, where `height` is what the
+bar covers (bottom safe area included) and `hidden` a Reanimated shared value
+the feed writes from 0 (shown) to 1 (hidden); slide your bar by it. The list
+clears the bar and the `+` button rides on it.
+
+**Pushes.** Every community push carries `{ route: "/community", kind, postId }`.
+To open the post from a tapped push, route to the feed and pass
+`postRequest={{ postId, requestedAt: Date.now() }}` (applied each time
+`requestedAt` changes), then call `useMarkPostNotificationsRead()(postId, kind)`
+from core so the matching inbox items count as read.
 
 **Avatars.** Every avatar the SDK draws (rows, comments, header button,
 profiles, composer, edit preview) goes through `Avatar`. Pass

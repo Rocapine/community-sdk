@@ -54,6 +54,14 @@ const config: CommunityConfig = {
     images: true,
   },
 
+  // Optional. Characters a post may hold (composer cap and ring): defaults to
+  // 500, never above the database's limit (`POST_MAX_LENGTH`).
+  postMaxLength: 1000,
+  // Optional. When an inbox item counts as read: "open" (default) reads
+  // everything when the notification center opens; "tap" reads an item once
+  // tapped, and the center offers "mark all as read".
+  inboxReadMode: "tap",
+
   // Host adapters — every field optional, no-op defaults.
   host: {
     getDisplayName: () => myUserStore.firstName,
@@ -194,15 +202,20 @@ runs in production and is silent in degraded mode.
   and do both steps), `buildFeedSelect`
   (pure helper behind `feed.extraPostColumns`, see below).
 - **React Query hooks** (`hooks.ts`): `useCommunityFeed`, `useSearchPosts`,
-  `useNewPostsCount`, `useCommunityUnseenCount`, `useThread`, `useProfile`,
+  `useNewPostsCount`, `useCommunityUnseenCount`, `useThread`, `usePost` (one
+  post by id, for a thread opened on a post no list has loaded), `useProfile`,
   `useUserPosts`, `useMyUid`, `useNotificationPreferences` (push module: the
   caller's `notify_*` flags), `useUpdateProfile`, `useCreatePost`,
-  `useCreateComment`, `useToggleLike`, `useVotePoll`, `useReactToPost`,
+  `useCreateComment` (takes `parentId` to reply to a comment),
+  `useToggleLike`, `useToggleCommentLike`, `useVotePoll`, `useReactToPost`,
   `useReport`, `useBlockUser`, `useDeleteContent`.
 - **Inbox** (opt-in via `modules.inbox`): `fetchInbox`, `markInboxSeen`,
-  `unreadCount`, `localizeExcerpts` (swaps a notification's excerpt for its
-  reader-locale translation when one is available), and hooks
-  `useNotificationInbox`, `useUnreadNotificationCount`, `useMarkInboxSeen`.
+  `markInboxItemRead`, `isUnread`, `unreadCount`, `localizeExcerpts` (swaps a
+  notification's excerpt for its reader-locale translation when one is
+  available), and hooks `useNotificationInbox`, `useUnreadNotificationCount`,
+  `useMarkInboxSeen`, `useMarkInboxItemRead`, `useMarkPostNotificationsRead`
+  (reads a post's unread items, e.g. when a push about it is tapped: pass the
+  push's `postId` and `kind`).
 - **`timeAgo(iso, nowMs)`** — hardcoded-English relative-time formatting, kept for
   back-compat. **`timeAgoParts(iso, nowMs)`** — the language-free unit+value
   decomposition the UI package actually localizes through its own catalog
