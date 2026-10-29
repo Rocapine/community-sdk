@@ -269,7 +269,26 @@ it("mapCommentRow maps author name and ownership", () => {
     createdAt: "2026-07-08T11:00:00Z",
     translation: null,
     image: null,
+    parentId: null,
+    likeCount: 0,
+    likedByMe: false,
   });
+});
+
+it("mapCommentRow maps the reply link, the like count and the reader's like", () => {
+  const row: CommentRow = {
+    id: "c2",
+    post_id: "p1",
+    author_id: "u9",
+    parent_id: "c1",
+    content: "@marie same here",
+    status: "visible",
+    created_at: "2026-07-08T11:05:00Z",
+    profiles: { username: "Luc", is_official: false, handle: "luc", avatar_url: null },
+    comment_likes: [{ count: 3 }],
+  };
+  const comment = mapCommentRow(row, "u1", ANON_NAME_FALLBACK, undefined, true);
+  expect(comment).toMatchObject({ parentId: "c1", likeCount: 3, likedByMe: true });
 });
 
 it("mapPostRow without poll options has no poll", () => {

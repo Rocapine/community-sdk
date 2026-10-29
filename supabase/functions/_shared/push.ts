@@ -13,7 +13,8 @@ export interface ExpoPushMessage {
   badge?: number;
 }
 
-/** Unread inbox rows for `uid` (newer than the seen marker), at least 1 since a push
+/** Unread inbox rows for `uid` (newer than the seen marker and not read one by one),
+ * capped at 200, at least 1 since a push
  * is being sent. Falls back to 1 when the inbox module is not installed. */
 export async function unreadBadge(
   supabase: { from: (table: string) => any },
@@ -25,14 +26,20 @@ export async function unreadBadge(
       .select("seen_at")
       .eq("user_id", uid)
       .maybeSingle();
-    let query = supabase
-      .from("notifications")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", uid);
+    let query = supabase.from("notifications").select("id").eq("user_id", uid).limit(200);
     if (seen?.seen_at) query = query.gt("created_at", seen.seen_at);
-    const { count, error } = await query;
+    const { data: rows, error } = await query;
     if (error) return 1;
-    return Math.max(1, count ?? 0);
+    const ids = (rows ?? []).map((r: { id: string }) => r.id);
+    if (ids.length === 0) return 1;
+    // Items marked read one by one (inbox/002_replies_and_reads.sql); a project
+    // without that table just counts every row past the watermark.
+    const { data: reads } = await supabase
+      .from("notification_reads")
+      .select("item_id")
+      .eq("user_id", uid)
+      .in("item_id", ids);
+    return Math.max(1, ids.length - (reads?.length ?? 0));
   } catch {
     return 1;
   }

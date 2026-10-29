@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { type ExpoPushMessage, sendExpoPushBatch } from "./push.ts";
+import { type ExpoPushMessage, sendExpoPushBatch, unreadBadge } from "./push.ts";
 
 const messages = (n: number): ExpoPushMessage[] =>
   Array.from({ length: n }, (_, i) => ({ to: `ExponentPushToken[${i}]`, title: "t", data: {} }));
@@ -65,4 +65,37 @@ Deno.test("sendExpoPushBatch: a rejected send is logged, not swallowed", async (
   assertEquals(seen.length, 2);
   assertEquals(seen[0].includes("401"), true);
   assertEquals(seen[1].includes("DeviceNotRegistered"), true);
+});
+
+// A tiny chainable stand-in for the supabase-js query builder: each table
+// resolves to fixed rows whatever the filters.
+function fakeSupabase(tables: Record<string, unknown>) {
+  return {
+    from(table: string) {
+      const result = { data: tables[table] ?? null, error: null };
+      const chain: Record<string, unknown> = {};
+      for (const m of ["select", "eq", "gt", "in", "limit"]) chain[m] = () => chain;
+      chain.maybeSingle = () => Promise.resolve(result);
+      chain.then = (ok: (r: unknown) => unknown) => Promise.resolve(result).then(ok);
+      return chain;
+    },
+  };
+}
+
+Deno.test("unreadBadge: rows past the watermark minus the ones read one by one", async () => {
+  const supabase = fakeSupabase({
+    notification_seen: { seen_at: "2026-10-01T00:00:00Z" },
+    notifications: [{ id: "a" }, { id: "b" }, { id: "c" }],
+    notification_reads: [{ item_id: "b" }],
+  });
+  assertEquals(await unreadBadge(supabase, "u1"), 2);
+});
+
+Deno.test("unreadBadge: never below 1 while a push is being sent", async () => {
+  const supabase = fakeSupabase({
+    notification_seen: null,
+    notifications: [{ id: "a" }],
+    notification_reads: [{ item_id: "a" }],
+  });
+  assertEquals(await unreadBadge(supabase, "u1"), 1);
 });

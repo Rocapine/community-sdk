@@ -81,6 +81,7 @@ export {
   votePoll,
   createComment,
   moderateOne,
+  setCommentLike,
   setLike,
   setReaction,
   fetchReactionSummaries,
@@ -121,6 +122,7 @@ export {
   useUpdateProfile,
   useCreatePost,
   useCreateComment,
+  useToggleCommentLike,
   useToggleLike,
   useVotePoll,
   useReactToPost,
@@ -130,9 +132,21 @@ export {
   isOptimistic,
 } from "./hooks";
 
-export { fetchInbox, localizeExcerpts, markInboxSeen, unreadCount } from "./inbox-service";
+export {
+  fetchInbox,
+  isUnread,
+  localizeExcerpts,
+  markInboxItemRead,
+  markInboxSeen,
+  unreadCount,
+} from "./inbox-service";
 export type { InboxItem, InboxState } from "./inbox-service";
 
-export { useNotificationInbox, useUnreadNotificationCount, useMarkInboxSeen } from "./inbox-hooks";
+export {
+  useNotificationInbox,
+  useUnreadNotificationCount,
+  useMarkInboxSeen,
+  useMarkInboxItemRead,
+} from "./inbox-hooks";
 
 export { REQUIRED_SCHEMA_VERSION } from "./schema-check";

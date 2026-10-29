@@ -76,6 +76,10 @@ export type CommunityConfig = {
   /** Characters a post may hold (the composer's cap and ring). Defaults to
    * `DEFAULT_POST_MAX_LENGTH`; never above `POST_MAX_LENGTH`, the database's limit. */
   postMaxLength?: number;
+  /** When an inbox item counts as read. `"open"` (default): opening the
+   * notification center reads everything. `"tap"`: an item is read once
+   * tapped, and the center offers "mark all as read". */
+  inboxReadMode?: "open" | "tap";
 };
 
 export class CommunityDisabledError extends Error {
@@ -91,6 +95,7 @@ export type ResolvedCommunityConfig = CommunityConfig & {
   host: RequiredCommunityHostAdapters;
   feed: CommunityFeedConfig;
   postMaxLength: number;
+  inboxReadMode: "open" | "tap";
   requireClient(): SupabaseClient;
   /** `defaultName` resolved against the host locale. */
   defaultName: CommunityDefaultName;
@@ -129,6 +134,7 @@ export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig 
     ...config,
     host,
     feed: config.feed ?? {},
+    inboxReadMode: config.inboxReadMode ?? "open",
     postMaxLength: Math.min(config.postMaxLength ?? DEFAULT_POST_MAX_LENGTH, POST_MAX_LENGTH),
     defaultName: config.defaultName ?? DEFAULT_NAME,
     requireClient(): SupabaseClient {

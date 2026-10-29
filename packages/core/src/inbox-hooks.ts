@@ -7,7 +7,13 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 
 import { useCommunityConfig } from "./provider";
-import { fetchInbox, markInboxSeen, unreadCount, type InboxState } from "./inbox-service";
+import {
+  fetchInbox,
+  markInboxItemRead,
+  markInboxSeen,
+  unreadCount,
+  type InboxState,
+} from "./inbox-service";
 
 const INBOX_KEY = ["community", "inbox"] as const;
 
@@ -36,7 +42,7 @@ export function useNotificationInbox(): UseQueryResult<InboxState> {
  */
 export function useUnreadNotificationCount(): number {
   const { data } = useNotificationInbox();
-  return data ? unreadCount(data.items, data.seenAt) : 0;
+  return data ? unreadCount(data.items, data.seenAt, data.readIds) : 0;
 }
 
 /**
@@ -54,6 +60,22 @@ export function useMarkInboxSeen() {
       const optimisticSeenAt = new Date().toISOString();
       queryClient.setQueryData<InboxState>(INBOX_KEY, (state) =>
         state ? { ...state, seenAt: optimisticSeenAt } : state,
+      );
+    },
+  });
+}
+
+/** Marks one item read (`readMode: "tap"`), optimistically. */
+export function useMarkInboxItemRead() {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (itemId: string) => markInboxItemRead(cfg, itemId),
+    onMutate: (itemId) => {
+      queryClient.setQueryData<InboxState>(INBOX_KEY, (state) =>
+        state && !state.readIds.includes(itemId)
+          ? { ...state, readIds: [...state.readIds, itemId] }
+          : state,
       );
     },
   });
