@@ -85,6 +85,11 @@ export const defaultIcons: CommunityIconSet = {
     iosFill: "arrowshape.turn.up.left.fill",
     material: "reply",
   }),
+  markAllRead: fromSymbols("markAllRead", {
+    ios: "checkmark.circle",
+    iosFill: "checkmark.circle.fill",
+    material: "done_all",
+  }),
   menu: fromSymbols("menu", { ios: "ellipsis", material: "more_horiz" }),
   back: fromSymbols("back", { ios: "chevron.left", material: "arrow_back" }),
   close: fromSymbols("close", { ios: "xmark", material: "close" }),

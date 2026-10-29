@@ -169,13 +169,11 @@ export function NotificationInboxScreen({
           {tapToRead && anyUnread && (
             <Pressable
               onPress={() => markSeen.mutate()}
-              hitSlop={8}
-              style={styles.markAll}
+              style={styles.headerButton}
               accessibilityRole="button"
+              accessibilityLabel={t("inbox.markAllRead")}
             >
-              <Text style={styles.markAllText} numberOfLines={1}>
-                {t("inbox.markAllRead")}
-              </Text>
+              <icons.markAllRead size={22} color={theme.colors.accent} weight="regular" />
             </Pressable>
           )}
         </View>
@@ -319,13 +317,6 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.bold,
       fontSize: 19,
       color: theme.colors.textPrimary,
-    },
-    markAll: { paddingHorizontal: theme.spacing(2), paddingVertical: theme.spacing(2) },
-    markAllText: {
-      fontFamily: theme.fonts.medium,
-      fontWeight: theme.fontWeights.medium,
-      fontSize: 13,
-      color: theme.colors.accent,
     },
     loader: { marginTop: theme.spacing(8) },
     empty: {
