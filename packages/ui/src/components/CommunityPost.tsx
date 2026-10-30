@@ -56,6 +56,7 @@ import { StreakPill } from "./StreakPill";
 import { haptic, PressableScale } from "./PressableScale";
 
 const BODY_CLAMP_LINES = 6;
+const PREVIEW_CLAMP_LINES = 3;
 
 /** Where a profile was opened from — forwarded to the host's
  * `onOpenProfile` so it can hand it back to `ProfileScreen`'s `source` prop
@@ -96,8 +97,12 @@ export function CommunityPost({
   renderPostFooter,
   renderReactionButton,
   onPressReaction,
+  preview = false,
 }: {
   post: FeedPost;
+  /** Read-only quote of the post (e.g. atop a host's reaction sheet): three
+   * lines, no menu, no footer, no image or poll, on a transparent row. */
+  preview?: boolean;
   /** Absent (e.g. inside the thread itself): the card is not tappable. */
   onOpenThread?(postId: string): void;
   /** The comment button. Defaults to `onOpenThread`; the feed opens the
@@ -191,15 +196,17 @@ export function CommunityPost({
       <Text style={[styles.meta, styles.ago]} numberOfLines={1}>
         · {formatTimeAgo(t, post.createdAt, now)}
       </Text>
-      <Pressable
-        hitSlop={8}
-        onPress={handleMenu}
-        style={styles.menuButton}
-        accessibilityRole="button"
-        accessibilityLabel={t("a11y.more")}
-      >
-        <icons.menu size={18} color={theme.colors.textFaint} weight="bold" />
-      </Pressable>
+      {!preview && (
+        <Pressable
+          hitSlop={8}
+          onPress={handleMenu}
+          style={styles.menuButton}
+          accessibilityRole="button"
+          accessibilityLabel={t("a11y.more")}
+        >
+          <icons.menu size={18} color={theme.colors.textFaint} weight="bold" />
+        </Pressable>
+      )}
     </View>
   );
 
@@ -263,7 +270,7 @@ export function CommunityPost({
           userId={post.authorId}
           name={post.authorName}
           url={post.authorAvatarUrl}
-          size={40}
+          size={preview ? 32 : 40}
         />
       </Pressable>
       <View style={styles.main}>
@@ -276,7 +283,8 @@ export function CommunityPost({
         {metaLine}
         {post.authorStreakStartedAt && (
           <View style={styles.streakRow}>
-            <StreakPill days={streakDays(post.authorStreakStartedAt, now)} />
+            {/* Today's clock, not `now`: that one ticks hourly on an old post. */}
+            <StreakPill days={streakDays(post.authorStreakStartedAt)} />
           </View>
         )}
 
@@ -285,7 +293,7 @@ export function CommunityPost({
             <ClampedBody
               text={displayText(post, showOriginal)}
               alternate={post.translation ? displayText(post, !showOriginal) : null}
-              clampLines={BODY_CLAMP_LINES}
+              clampLines={preview ? PREVIEW_CLAMP_LINES : BODY_CLAMP_LINES}
               textStyle={styles.body}
               viewMoreStyle={styles.viewMore}
             />
@@ -297,15 +305,15 @@ export function CommunityPost({
           </>
         )}
 
-        {post.image && (
+        {post.image && !preview && (
           <View style={styles.imageGap}>
             <PostImage image={post.image} onOpen={openImage} />
           </View>
         )}
 
-        {post.poll && <PollBlock post={post} showOriginal={showOriginal} />}
+        {post.poll && !preview && <PollBlock post={post} showOriginal={showOriginal} />}
 
-        {footer}
+        {!preview && footer}
       </View>
     </>
   );
@@ -315,7 +323,7 @@ export function CommunityPost({
       {content}
     </PressableScale>
   ) : (
-    <View style={styles.row}>{content}</View>
+    <View style={[styles.row, preview && styles.previewRow]}>{content}</View>
   );
 }
 
@@ -328,6 +336,7 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(4),
       backgroundColor: theme.colors.background,
     },
+    previewRow: { padding: 0, backgroundColor: "transparent" },
     avatarColumn: { alignSelf: "flex-start" },
     main: { flex: 1, minWidth: 0 },
     pinnedRow: {

@@ -473,7 +473,9 @@ function StreakToggle({
           setOn(next);
           onChange(next).catch(() => setOn(!next));
         }}
-        trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceMuted }}
+        // Off on a muted track, the white thumb vanished on a light sheet.
+        trackColor={{ true: theme.colors.accent, false: theme.colors.textFaint }}
+        ios_backgroundColor={theme.colors.textFaint}
         accessibilityLabel={label}
       />
     </View>

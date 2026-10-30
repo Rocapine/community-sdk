@@ -8,4 +8,6 @@ Streaks module (`modules.streaks`, `streaks/001_streaks.sql`): the host's streak
 
 `PostSlots.onPressReaction`: a tap on the reaction calls the host instead of toggling (e.g. open a flow that reacts at its end with `useReactToPost`).
 
+`CommunityPost` `preview`: a read-only quote of the post (three lines with View more, no menu, footer, image or poll, transparent row), for a host's own reaction sheet.
+
 Fix: the feed's topic tabs no longer scroll vertically (the slot's hairline border ate into the row's height).
