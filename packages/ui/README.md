@@ -212,6 +212,11 @@ you can wrap, replace, or ignore it:
   (`PostSlots`). `renderReactionButton` is how you swap the generic reaction
   button for something app-specific (e.g. a themed prayer/support sheet)
   while keeping everything else about the post card unchanged.
+  `onPressReaction?: (post, ctx) => void` replaces the reaction's toggle: a
+  tap calls it and records nothing, so your own flow can react at its end
+  with `useReactToPost` (e.g. a prayer flow that reacts on "Amen"). For that
+  flow's sheet, `<CommunityPost post={post} preview … />` renders a read-only
+  quote of the post (author line, three lines of text, no footer or menu).
   If your slot opens its own native `Modal`, open it through
   `ctx.presentModal(() => setOpen(true))`: inside `ThreadSheet` (itself a
   Modal) it closes the thread first and opens yours once it's gone — iOS
