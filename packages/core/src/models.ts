@@ -95,6 +95,10 @@ export interface CommentRow {
   id: string;
   post_id: string;
   author_id: string;
+  /** The comment this one replies to (core/010_comment_threads.sql). */
+  parent_id?: string | null;
+  /** `comment_likes(count)` embed. */
+  comment_likes?: { count: number }[];
   content: string;
   status: "visible" | "hidden" | "deleted";
   created_at: string;
@@ -206,6 +210,10 @@ export interface ThreadComment {
   translation: TranslationInfo | null;
   /** Null when the comment has no photo or the images module is off. */
   image: PostImage | null;
+  /** The comment this one replies to; null for a top-level comment. */
+  parentId: string | null;
+  likeCount: number;
+  likedByMe: boolean;
 }
 
 /**
@@ -386,6 +394,7 @@ export function mapCommentRow(
   myUid: string,
   fallback: string,
   imageBase?: string,
+  likedByMe = false,
 ): ThreadComment {
   return {
     id: row.id,
@@ -400,6 +409,9 @@ export function mapCommentRow(
     createdAt: row.created_at,
     translation: embedToTranslation(row.comment_translations),
     image: mapImage(row, imageBase),
+    parentId: row.parent_id ?? null,
+    likeCount: row.comment_likes?.[0]?.count ?? 0,
+    likedByMe,
   };
 }
 

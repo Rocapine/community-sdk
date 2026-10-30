@@ -1,0 +1,23 @@
+---
+"@rocapine/community-core": minor
+"@rocapine/community-ui": minor
+"@rocapine/community": minor
+---
+
+Flat, X-style community screens (EVR's design). Relative timestamps now count seconds, months and years (`timeAgoParts` gains the `second`, `month` and `year` units; `time.seconds`, `time.months.*` and `time.years.*` in every locale), and a label under a minute old ticks every second.
+
+**community-ui (breaking).** The feed, the in-community profile and the notification inbox drop their cards for flat, full-width rows: the avatar in a first column, `name › topic · time` on one line with the `…` menu at its end (the `@handle` stays on the profile), and "View more" at the end of a body's last visible line. Topics are scrollable tabs, and `headerLayout.title` takes an image (`{ image, position?, accessibilityLabel? }`) for an app logo.
+
+- **Composer.** `ComposerCard` and the floating compose bar are removed (export gone). A `+` button opens the new full-screen `ComposerSheet` (exported). `beforeSubmitPost` is replaced by **`beforeCompose: () => Promise<boolean>`**, awaited on the `+` tap after the rules and before the composer opens. Migration: pass your post gate as `beforeCompose` (it no longer receives a draft).
+- **Topics.** Tapping a post's topic selects its tab in the feed (and from its search and thread). `ProfileScreen` and `ThreadSheet` take `onPressTopic(topicId)`; the feed takes `topicRequest: { topicId, requestedAt }` so a host can land on a topic from elsewhere.
+- **Avatars.** `CommunityUIProvider` takes `renderAvatar({ userId, name, url, size })`, used by every avatar the SDK draws; `Avatar` is exported. The default is unchanged.
+- **Feed chrome.** The top bar (header and topic tabs) hides as the reader scrolls down and comes back on the way up. `bottomChrome: { height, hidden }` lets a host's floating tab bar hide in step (the feed writes `hidden`, a Reanimated shared value, from 0 to 1); the `+` button rides on it.
+- **Comments.** Comments can be liked and replied to, one level deep under their root comment ("Replying to @handle" above the field). New icon roles `reply` and `markAllRead` — a host that types a complete `CommunityIconSet` must add them (at runtime a missing role falls back to the default).
+- **Posts from outside.** The feed takes `postRequest: { postId, requestedAt }` to open a post's thread, e.g. from a tapped push. `ThreadSheet` loads a post no list has loaded yet.
+- **Inbox.** With `inboxReadMode: "tap"` a row is read once tapped (unread rows are marked), and the header offers "Mark all as read" (disabled when nothing is unread). Rows for replies read "{name} replied to your comment".
+- **Web.** "View more" is cut from the browser's real lines and sits inline like on native; multiline fields size to their text; no focus ring on fields; the composer's topic menu and date column work on react-native-web.
+- New strings in all 13 catalogs: `composer.cancel`, `composer.discardTitle`, `composer.discard`, `composer.keepEditing`, `feed.compose`, `time.seconds`, `time.months.*`, `time.years.*`, `thread.replyingTo`, `a11y.like`, `a11y.reply`, `a11y.cancelReply`, `inbox.replied`, `inbox.markAllRead`.
+
+**community-core.** `CommunityConfig` gains `postMaxLength` (default `DEFAULT_POST_MAX_LENGTH`, 500; capped at the database's `POST_MAX_LENGTH`) and `inboxReadMode: "open" | "tap"` (default `"open"`, unchanged behavior). New: `useCreateComment` takes `parentId`, `setCommentLike` / `useToggleCommentLike`, `fetchPost` / `usePost`, `markInboxItemRead` / `useMarkInboxItemRead`, `isUnread`, and `useMarkPostNotificationsRead()(postId, kind?)`, which marks a post's unread inbox items read (call it when a push about the post is tapped). The inbox refetches every 2 minutes while the app is open.
+
+**Backend.** Run `npx @rocapine/community upgrade`, then push the new migrations (`core/010_comment_threads`: `comments.parent_id` and `comment_likes`; `inbox/002_replies_and_reads`: `reply` notifications and `notification_reads`) and redeploy `notify-comment`, `notify-like`, `notify-reaction` and `broadcast-post`. Both migrations are additive, safe for installed app versions. A reply now notifies only the author of the comment it answers (push `community_reply`, new copy key `reply.title`), no longer the post's author. Every community push carries the post's id: `data: { route: "/community", kind, postId }`. The push badge no longer counts items read one by one.

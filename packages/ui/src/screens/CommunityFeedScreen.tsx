@@ -1,10 +1,9 @@
-// The community feed: topic filter chips, search, a "N new posts" pill, the
-// inline composer, an infinite-scrolling `FlatList` of posts, and the thread/
-// report-sheet orchestration that opening a post or its menu needs. Ported
-// from the mold's `app/community.tsx` (route → component), merged with Eve's
-// Rhythm's newer `app/(app)/(tabs)/community.tsx` for the search bar and the
-// "N new posts" pill (Eve's own reaction/prayer wiring is not merged here —
-// see below).
+// The community feed: scrollable topic tabs, search, a "N new posts" pill, a
+// flat infinite-scrolling `FlatList` of posts, the `+` button that opens the
+// full-screen composer, and the thread/report-sheet orchestration that
+// opening a post or its menu needs. Ported from the mold's `app/community.tsx`
+// (route → component), merged with Eve's Rhythm's newer community screen for
+// the search bar, the "N new posts" pill, the tabs and the `+` composer.
 //
 // Router-free transformations (task brief):
 //  - `useFocusEffect(... trackCommunityOpened ...)` → a plain mount `useEffect`
@@ -18,49 +17,28 @@
 //    router), alongside the `AppState` foreground/background gate.
 //  - `router.push(...)`/`router.back()` → `onOpenProfile(userId)` /
 //    the `header` prop (the app renders its own top bar, including any back
-//    button — this screen never had one of its own to begin with in the
-//    tab-bar-hosted Eve source this was reconciled against).
-//  - `router.push(/user/...)` for the compose sheet, filter chips and the
-//    optimistic-post `authorId` guard all still apply verbatim through
-//    `onOpenProfile`.
+//    button).
 //
 // Differences from both sources, beyond the standard reconciliation:
-//  - No separate compose "bar + 90%-sheet" flow: `ComposerCard` (Task 11) is
-//    already the full inline composer (topic chips, poll editor, its own
-//    rules gate + embedded `RulesSheet`) — it renders directly as the
-//    `FlatList`'s `ListHeaderComponent`. Eve's floating compose bar is kept:
-//    once the inline composer scrolls out of view a pill appears at the
-//    bottom; tapping it scrolls back up and calls `ComposerCard`'s `focus()`
-//    (which opens the rules gate instead while still locked). Hidden while
-//    searching, like the source.
-//  - `ScrollView`-based `Screen` → a plain `FlatList` per the brief ("FlatList
-//    feed"), with `RefreshControl` for pull-to-refresh and `onEndReached` for
-//    infinite scroll instead of a manual "Load more" scroll position.
-//    A "Load more" footer button is still shown for parity with both
-//    sources' explicit affordance, alongside `onEndReached`.
-//  - Filter chips read the full `cfg.topics` (including any `officialOnly`
-//    ones, e.g. a "News" topic) — that's the *browsing* list, distinct from
-//    `cfg.composeTopics()` (which `ComposerCard` uses and which excludes
-//    them). `defaultTopic` passed to `ComposerCard` is only ever a non-official
-//    topic id (or `undefined`): passing an `officialOnly` filter straight
-//    through would preselect a topic regular users cannot post to.
-//  - The reaction ("pray for") affordance is not wired here at all: it lives
-//    entirely inside `CommunityPost` (Task 9) via `cfg.modules.reaction` +
-//    `useReactToPost`, gone the moment a host turns that module on — nothing
-//    left for this screen to wire. Eve's app-specific `PrayForSisterSheet`
-//    (third-person prayer flow) is explicitly out of scope per the brief
-//    ("SKIP Eve's prayer-sheet flow — that's an app-side slot concern"); a
-//    host wanting that can build it as a `renderReactionButton`/
-//    `renderPostFooter` slot via `PostSlots`.
-//  - Post creation's "rejected by moderation" notice: `ComposerCard.submit()`
-//    originally called `useCreatePost().mutate(...)` with no success/error
-//    callback (Task 11), leaving this screen with no signal to key a
-//    `NoticeCard` off — a regression from both sources, which show one.
-//    Fixed in Task 12's review round (cross-file touch to `ComposerCard.tsx`
-//    explicitly authorized there): `ComposerCard` now takes an optional
-//    `onModerationRejected?: (kind: "post") => void`, called from its own
-//    `mutate(...)`'s `onSuccess` when the verdict is `"rejected"`; this
-//    screen wires it to `setNotice("rejected")` and renders `NoticeCard`.
+//  - Composing: the `+` button runs the gates first (rules, then the host's
+//    `beforeCompose`), then opens `ComposerSheet`, mounted once here so a
+//    draft survives a close. Hidden while searching.
+//  - `ScrollView`-based `Screen` → a plain `FlatList`, with `RefreshControl`
+//    for pull-to-refresh and `onEndReached` for infinite scroll; a "Load more"
+//    footer button is still shown for parity with both sources.
+//  - The tabs read the full `cfg.topics` (including any `officialOnly` ones,
+//    e.g. a "News" topic) — that's the *browsing* list, distinct from
+//    `cfg.composeTopics()` (which the composer uses and which excludes them).
+//    The composer's `defaultTopic` is only ever a non-official topic id (or
+//    `undefined`): an `officialOnly` tab would preselect a topic regular
+//    users cannot post to.
+//  - The reaction ("pray for") affordance lives entirely inside
+//    `CommunityPost` via `cfg.modules.reaction` + `useReactToPost`; a host
+//    wanting Eve's third-person prayer flow builds it as a
+//    `renderReactionButton`/`renderPostFooter` slot via `PostSlots`.
+//  - Moderation and publish-failure notices: the composer reports them
+//    (`onModerationRejected`, `onPublishFailed`) and this screen shows a
+//    `NoticeCard`.
 //  - `onOpenInbox`: not in either source (Eve's bell lives on its Home tab,
 //    outside the community screen entirely). Rendered as an optional bell
 //    button next to the search toggle, shown only when both the prop is
@@ -85,7 +63,6 @@ import {
   type LocalImage,
   useUnreadNotificationCount,
 } from "@rocapine/community-core";
-import { Image } from "expo-image";
 import {
   useCallback,
   useDeferredValue,
@@ -101,41 +78,64 @@ import {
   AppState,
   FlatList,
   Keyboard,
+  Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type ImageSourcePropType,
 } from "react-native";
-import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
+import { Image } from "expo-image";
+import Animated, {
+  useAnimatedReaction,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  type SharedValue,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
 import { ImageViewerHost } from "../components/ImageViewer";
-import { ComposerCard, type ComposerCardHandle } from "../components/ComposerCard";
+import { ComposerSheet } from "../components/ComposerSheet";
+import { RulesSheet } from "../components/RulesSheet";
+import { openComposerGuarded } from "../utils/gate";
+import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
+import { Avatar } from "../components/Avatar";
+import { TABS_ROW_HEIGHT, TopicTabs } from "../components/TopicTabs";
 import { PressableScale } from "../components/PressableScale";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
 import { useMyAuthorName } from "../utils/myName";
 import { ThreadSheet } from "./ThreadSheet";
+import { noFocusRing } from "../utils/noFocusRing";
 
 /** A button the feed's header row can show. `profile` (the user's avatar)
  * opens their own profile through `onOpenProfile`; `inbox` shows only when
  * the inbox module is on and `onOpenInbox` is given. */
 export type FeedHeaderButton = "profile" | "search" | "inbox";
 
+/** What the header row shows between its buttons: the "Community" title
+ * (`title` i18n key) on the left or centred, an image in its place (e.g. the
+ * app's logo — the host passes the source matching its theme), or nothing. */
+export type FeedHeaderTitle =
+  | "left"
+  | "center"
+  | false
+  | { image: ImageSourcePropType; position?: "left" | "center"; accessibilityLabel?: string };
+
 /** The feed's header row. Replaces the default as a whole: a side or title
  * left out is empty. */
 export type FeedHeaderLayout = {
   left?: FeedHeaderButton[];
   right?: FeedHeaderButton[];
-  /** The "Community" title (`title` i18n key); `false` hides it. */
-  title?: "left" | "center" | false;
+  title?: FeedHeaderTitle;
 };
 
 export const DEFAULT_FEED_HEADER_LAYOUT: FeedHeaderLayout = {
@@ -151,8 +151,11 @@ export function CommunityFeedScreen({
   header,
   headerLayout = DEFAULT_FEED_HEADER_LAYOUT,
   slots,
-  beforeSubmitPost,
+  beforeCompose,
   beforeSubmitComment,
+  topicRequest,
+  postRequest,
+  bottomChrome,
 }: {
   onOpenProfile(userId: string, source?: ProfileSource): void;
   onOpenInbox?: () => void;
@@ -165,14 +168,26 @@ export function CommunityFeedScreen({
    * `DEFAULT_FEED_HEADER_LAYOUT`. */
   headerLayout?: FeedHeaderLayout;
   slots?: PostSlots;
-  /** Forwarded to this screen's own `ComposerCard` as `beforeSubmit` — see
-   * that prop's doc comment. Absent ⇒ byte-identical behavior. */
-  beforeSubmitPost?: (draft: {
-    topic: string;
-    body: string;
-    pollOptions?: string[];
-    image?: LocalImage;
-  }) => Promise<boolean>;
+  /** Awaited when the `+` button is tapped, after the community rules are
+   * accepted and before the composer opens (e.g. ask a signed-out user to
+   * sign in). Resolving `false` (or throwing) keeps the composer closed, with
+   * no error UI. Absent ⇒ the composer opens once the rules are accepted. */
+  beforeCompose?: () => Promise<boolean>;
+  /** Selects a topic's tab from outside, e.g. a topic tapped on a profile
+   * the host navigated back from. Applied each time `requestedAt` changes, so
+   * the same topic can be asked for twice; an id `cfg.topics` doesn't list is
+   * ignored. */
+  topicRequest?: { topicId: string; requestedAt: number };
+  /** Opens a post's thread from outside, e.g. the post a tapped push is
+   * about. Applied each time `requestedAt` changes. */
+  postRequest?: { postId: string; requestedAt: number };
+  /** A host bar floating over the feed's bottom (a tab bar) that hides with
+   * the feed's top bar. `hidden` is written with how far the top bar is hidden
+   * as the reader scrolls (0 shown → 1 hidden), for the host to slide its bar
+   * by; `height` is what the bar covers when shown, bottom safe area included.
+   * The list clears it and the `+` button rides on it, down to the safe area
+   * once it is gone. Absent ⇒ the host's container clears its own bottom. */
+  bottomChrome?: { height: number; hidden: SharedValue<number> };
   /** Forwarded to this screen's own `ThreadSheet` as `beforeSubmitComment` —
    * see that prop's doc comment. Absent ⇒ byte-identical behavior. */
   beforeSubmitComment?: (draft: {
@@ -273,27 +288,84 @@ export function CommunityFeedScreen({
   const newCount = useNewPostsCount(sinceIso, topicFilter, polling);
 
   const listRef = useRef<FlatList<FeedPost>>(null);
-  const composerRef = useRef<ComposerCardHandle>(null);
-  const insets = useSafeAreaInsets();
 
-  // Floating compose bar: shown once the inline composer (the list header,
-  // so it starts at offset 0) has fully scrolled out of view.
-  const composerBottom = useRef(140);
-  const [composerHidden, setComposerHidden] = useState(false);
-  const showFloatingCompose = composerHidden && !searchOpen;
+  // Collapsing top (header row + tabs): it overlays the list and slides up
+  // as the reader scrolls down, back as soon as they scroll up (quick return).
+  // iOS offsets the content with `contentInset`, so the pull-to-refresh
+  // spinner sits under the top bar; Android pads the content instead.
+  const [topHeight, setTopHeight] = useState(0);
+  const topH = useSharedValue(0);
+  const hidden = useSharedValue(0);
+  const lastY = useSharedValue(0);
+  const insetsTop = Platform.OS === "ios";
+  const toListTop = (animated: boolean) =>
+    listRef.current?.scrollToOffset({ offset: insetsTop ? -topH.value : 0, animated });
+  const onListScroll = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      const y = e.contentOffset.y + (insetsTop ? topH.value : 0);
+      const dy = y - lastY.value;
+      lastY.value = y;
+      hidden.value = y <= 0 ? 0 : Math.min(Math.max(hidden.value + dy, 0), topH.value);
+    },
+    // Never left half-shown: settle once the finger lifts without a fling,
+    // or once the fling stops.
+    onEndDrag: (e) => {
+      if (Math.abs(e.velocity?.y ?? 0) > 0.1) return;
+      hidden.value = withTiming(hidden.value > topH.value / 2 ? topH.value : 0, { duration: 180 });
+    },
+    onMomentumEnd: () => {
+      hidden.value = withTiming(hidden.value > topH.value / 2 ? topH.value : 0, { duration: 180 });
+    },
+  });
+  const topStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -hidden.value }] }));
+  const chromeHidden = bottomChrome?.hidden;
+  const chromeH = bottomChrome?.height ?? 0;
+  useAnimatedReaction(
+    () => (topH.value > 0 ? hidden.value / topH.value : 0),
+    (progress) => {
+      if (chromeHidden) chromeHidden.value = progress;
+    },
+  );
+  // Leaving the feed (another tab, a pushed profile) brings both bars back.
+  useEffect(() => {
+    if (!isFocused) hidden.value = 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFocused]);
+  const bottomInset = useSafeAreaInsets().bottom;
+  const fabDrop = bottomChrome ? Math.max(0, chromeH - bottomInset) : 0;
+  const fabStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: (chromeHidden?.value ?? 0) * fabDrop }],
+  }));
+  const pillStyle = useAnimatedStyle(() => ({ top: topH.value - hidden.value + 8 }));
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
   const myAuthorName = useMyAuthorName();
-  const myInitial = myAuthorName().charAt(0).toUpperCase();
-  const focusComposer = () => {
-    listRef.current?.scrollToOffset({ offset: 0, animated: true });
-    // Let the scroll-to-top land before the keyboard (or rules sheet) opens.
-    setTimeout(() => composerRef.current?.focus(), 320);
+
+  // `+`: the rules, then the host gate, then the composer (see
+  // `openComposerGuarded`). The rules sheet resolves once it has fully
+  // dismissed, so a host gate that opens its own modal never overlaps it.
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [rulesVisible, setRulesVisible] = useState(false);
+  const rulesAccepted = useRulesAccepted(cfg);
+  const rulesAnswer = useRef<{ accepted: boolean; resolve: (ok: boolean) => void } | null>(null);
+  const opening = useRef(false);
+  const requestRules = () =>
+    new Promise<boolean>((resolve) => {
+      rulesAnswer.current = { accepted: false, resolve };
+      setRulesVisible(true);
+    });
+  const openComposer = () => {
+    if (opening.current) return;
+    opening.current = true;
+    Keyboard.dismiss();
+    openComposerGuarded({ rulesAccepted, requestRules, beforeCompose })
+      .then((ok) => ok && setComposerOpen(true))
+      .finally(() => (opening.current = false));
   };
 
   const showNewPosts = () => {
     refetch();
-    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    toListTop(true);
   };
 
   const searchInputRef = useRef<TextInput>(null);
@@ -304,7 +376,33 @@ export function CommunityFeedScreen({
     setSearchTerm("");
   };
 
+  // A topic tapped on a post (in the feed, the search results or the
+  // thread) or asked for by the host: leave the search, land on its tab.
+  // Already on that tab (outside a search): nothing to do, keep the reader's place.
+  const currentTab = useRef({ filter, searchOpen });
+  currentTab.current = { filter, searchOpen };
+  const selectTopic = useCallback((topicId: string) => {
+    const now = currentTab.current;
+    if (now.filter === topicId && !now.searchOpen) return;
+    setSearchOpen(false);
+    setSearchTerm("");
+    setFilter(topicId);
+    hidden.value = 0;
+    toListTop(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const requestedTopic = topicRequest?.topicId;
+  const requestedAt = topicRequest?.requestedAt;
+  useEffect(() => {
+    if (requestedTopic && cfg.topics.some((tp) => tp.id === requestedTopic)) {
+      selectTopic(requestedTopic);
+    }
+    // Keyed on `requestedAt`: the same topic can be asked for twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedAt]);
+
   const toggleSearch = () => {
+    hidden.value = 0;
     setSearchOpen((open) => {
       if (open) setSearchTerm("");
       return !open;
@@ -326,6 +424,13 @@ export function CommunityFeedScreen({
     setFocusComment(true);
     setActivePostId(postId);
   }, []);
+  const requestedPost = postRequest?.postId;
+  const postRequestedAt = postRequest?.requestedAt;
+  useEffect(() => {
+    if (requestedPost) openThread(requestedPost);
+    // Keyed on `requestedAt`: the same post can be asked for twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postRequestedAt]);
 
   const openPostMenu = useCallback(
     (post: FeedPost) => {
@@ -381,21 +486,35 @@ export function CommunityFeedScreen({
         onPressComment={openThreadToComment}
         onOpenProfile={onOpenProfile}
         onMenu={openPostMenu}
+        onPressTopic={selectTopic}
         {...slots}
       />
     ),
-    [openThread, openThreadToComment, onOpenProfile, openPostMenu, slots],
+    [openThread, openThreadToComment, onOpenProfile, openPostMenu, selectTopic, slots],
   );
 
   const showButton = (b: FeedHeaderButton) => b !== "inbox" || (cfg.modules.inbox && !!onOpenInbox);
   const leftButtons = (headerLayout.left ?? []).filter(showButton);
   const rightButtons = (headerLayout.right ?? []).filter(showButton);
   const hasHeaderRow = leftButtons.length > 0 || rightButtons.length > 0 || !!headerLayout.title;
-  const title = (
-    <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">
-      {t("title")}
-    </Text>
-  );
+  const titleSpec = headerLayout.title;
+  const titlePosition =
+    typeof titleSpec === "object" && titleSpec ? (titleSpec.position ?? "center") : titleSpec;
+  const title =
+    typeof titleSpec === "object" && titleSpec ? (
+      <Image
+        source={titleSpec.image}
+        style={styles.headerImage}
+        contentFit="contain"
+        accessible
+        accessibilityRole="header"
+        accessibilityLabel={titleSpec.accessibilityLabel}
+      />
+    ) : (
+      <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">
+        {t("title")}
+      </Text>
+    );
   const renderHeaderButton = (button: FeedHeaderButton) => {
     switch (button) {
       case "profile":
@@ -408,7 +527,7 @@ export function CommunityFeedScreen({
             accessibilityRole="button"
             accessibilityLabel={t("a11y.myProfile")}
           >
-            <Avatar url={myAvatarUrl} initial={myInitial} />
+            <Avatar userId={myUid} name={myAuthorName()} url={myAvatarUrl} size={32} />
           </PressableScale>
         );
       case "inbox":
@@ -432,6 +551,14 @@ export function CommunityFeedScreen({
     }
   };
 
+  const topicTabs = useMemo(
+    () => [
+      { id: "all", label: t("feed.all") },
+      ...cfg.topics.map((topic) => ({ id: topic.id, label: t(`topics.${topic.id}`) })),
+    ],
+    [cfg.topics, t],
+  );
+
   // An `officialOnly` filter (e.g. "News") must never become the composer's
   // preselected topic — regular users cannot post there.
   const composeDefaultTopic =
@@ -440,112 +567,94 @@ export function CommunityFeedScreen({
   return (
     <ImageViewerHost>
       <View style={styles.root}>
-        {header}
+        <Animated.View
+          style={[styles.top, topStyle]}
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            if (h === topH.value) return;
+            const first = topH.value === 0;
+            topH.value = h;
+            setTopHeight(h);
+            // iOS: the inset only starts applying now; land on the first post.
+            if (first && insetsTop)
+              listRef.current?.scrollToOffset({ offset: -h, animated: false });
+          }}
+        >
+          {header}
 
-        <View style={styles.controls}>
-          {hasHeaderRow && (
-            <View style={styles.headerRow}>
-              <View style={styles.headerSide}>
-                {leftButtons.map(renderHeaderButton)}
-                {headerLayout.title === "left" && title}
+          <View style={styles.controls}>
+            {hasHeaderRow && (
+              <View style={styles.headerRow}>
+                <View style={styles.headerSide}>
+                  {leftButtons.map(renderHeaderButton)}
+                  {titlePosition === "left" && title}
+                </View>
+                {titlePosition === "center" && title}
+                <View style={[styles.headerSide, styles.headerSideRight]}>
+                  {rightButtons.map(renderHeaderButton)}
+                </View>
               </View>
-              {headerLayout.title === "center" && title}
-              <View style={[styles.headerSide, styles.headerSideRight]}>
-                {rightButtons.map(renderHeaderButton)}
-              </View>
-            </View>
-          )}
-
-          {/* Search bar and filter chips share one fixed-height slot, so
-            toggling between them never shifts the feed. */}
-          <View style={styles.switchRow}>
-            {searchOpen ? (
-              <View style={styles.searchBar}>
-                <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
-                <TextInput
-                  ref={searchInputRef}
-                  value={searchTerm}
-                  onChangeText={setSearchTerm}
-                  placeholder={t("feed.searchPlaceholder")}
-                  placeholderTextColor={theme.colors.textFaint}
-                  autoFocus
-                  returnKeyType="search"
-                  style={styles.searchInput}
-                />
-                {searchTerm.length > 0 && (
-                  <Pressable
-                    hitSlop={10}
-                    onPress={clearSearch}
-                    style={styles.clearButton}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("a11y.clearSearch")}
-                  >
-                    <icons.close size={12} color={theme.colors.surface} weight="bold" />
-                  </Pressable>
-                )}
-              </View>
-            ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.filtersScroll}
-                contentContainerStyle={styles.filters}
-              >
-                <FilterChip
-                  label={t("feed.all")}
-                  active={filter === "all"}
-                  onPress={() => setFilter("all")}
-                />
-                {cfg.topics.map((topic) => (
-                  <FilterChip
-                    key={topic.id}
-                    label={t(`topics.${topic.id}`)}
-                    active={filter === topic.id}
-                    onPress={() => setFilter(topic.id)}
-                  />
-                ))}
-              </ScrollView>
             )}
           </View>
-        </View>
+
+          {/* Search bar and topic tabs share one fixed-height slot, so toggling
+          between them never shifts the feed. */}
+          <View style={styles.switchRow}>
+            {searchOpen ? (
+              <View style={styles.searchSlot}>
+                <View style={styles.searchBar}>
+                  <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
+                  <TextInput
+                    ref={searchInputRef}
+                    value={searchTerm}
+                    onChangeText={setSearchTerm}
+                    placeholder={t("feed.searchPlaceholder")}
+                    placeholderTextColor={theme.colors.textFaint}
+                    autoFocus
+                    returnKeyType="search"
+                    style={styles.searchInput}
+                  />
+                  {searchTerm.length > 0 && (
+                    <Pressable
+                      hitSlop={10}
+                      onPress={clearSearch}
+                      style={styles.clearButton}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("a11y.clearSearch")}
+                    >
+                      <icons.close size={12} color={theme.colors.surface} weight="bold" />
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+            ) : (
+              <TopicTabs tabs={topicTabs} selected={filter} onSelect={setFilter} />
+            )}
+          </View>
+        </Animated.View>
 
         <View style={styles.listWrap}>
           {newCount > 0 && (
-            <PressableScale onPress={showNewPosts} style={styles.newPill}>
-              <Text style={styles.newPillText}>{t("feed.newPosts", { count: newCount })}</Text>
-            </PressableScale>
+            <Animated.View style={[styles.newPill, pillStyle]}>
+              <PressableScale onPress={showNewPosts} style={styles.newPillButton}>
+                <Text style={styles.newPillText}>{t("feed.newPosts", { count: newCount })}</Text>
+              </PressableScale>
+            </Animated.View>
           )}
 
-          <FlatList
+          <Animated.FlatList
             ref={listRef}
+            onScroll={onListScroll}
+            scrollEventThrottle={16}
+            contentInset={insetsTop ? { top: topHeight } : undefined}
+            scrollIndicatorInsets={
+              insetsTop ? { top: topHeight, bottom: chromeH } : { bottom: chromeH }
+            }
+            automaticallyAdjustContentInsets={false}
             data={posts}
             keyExtractor={(p) => p.id}
             renderItem={renderItem}
-            ListHeaderComponent={
-              <>
-                {/* Same gap above the results as the composer's own top margin. */}
-                {searchOpen && <View style={styles.searchGap} />}
-                {/* A search shows results only. Hidden, not unmounted: a draft survives it. */}
-                <View
-                  style={searchOpen && styles.hidden}
-                  onLayout={(e) =>
-                    (composerBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height)
-                  }
-                >
-                  <ComposerCard
-                    ref={composerRef}
-                    defaultTopic={composeDefaultTopic}
-                    onModerationRejected={() => setNotice("rejected")}
-                    onPublishFailed={() => setNotice("network")}
-                    beforeSubmit={beforeSubmitPost}
-                  />
-                </View>
-              </>
-            }
-            onScroll={(e) =>
-              setComposerHidden(e.nativeEvent.contentOffset.y > composerBottom.current)
-            }
-            scrollEventThrottle={32}
+            ItemSeparatorComponent={RowSeparator}
             ListEmptyComponent={
               isPending ? (
                 <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
@@ -579,32 +688,28 @@ export function CommunityFeedScreen({
                 refreshing={pulling}
                 onRefresh={pullToRefresh}
                 tintColor={theme.colors.accent}
+                progressViewOffset={topHeight}
               />
             }
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[
-              styles.listContent,
-              // Room for the floating compose bar under the last post.
-              {
-                paddingBottom:
-                  insets.bottom + theme.spacing(3.5) + FLOATING_BAR_HEIGHT + theme.spacing(4),
-              },
-            ]}
+            // Room for the `+` button under the last post. The host's
+            // container clears the bottom safe area (and its tab bar).
+            contentContainerStyle={{
+              paddingTop: insetsTop ? 0 : topHeight,
+              paddingBottom: chromeH + FAB_SIZE + theme.spacing(8),
+            }}
           />
 
-          {showFloatingCompose && (
-            <Animated.View
-              entering={FadeInDown.duration(180)}
-              exiting={FadeOutDown.duration(140)}
-              style={[styles.floatingCompose, { bottom: insets.bottom + theme.spacing(3.5) }]}
-            >
-              <PressableScale onPress={focusComposer} style={styles.composeBar}>
-                <Avatar url={myAvatarUrl} initial={myInitial} />
-                <Text style={styles.composePrompt} numberOfLines={1}>
-                  {t("feed.composePrompt")}
-                </Text>
-                <icons.compose size={18} color={theme.colors.accent} weight="regular" />
+          {!searchOpen && (
+            <Animated.View style={[styles.fab, { bottom: chromeH + theme.spacing(4) }, fabStyle]}>
+              <PressableScale
+                onPress={openComposer}
+                style={styles.fabButton}
+                accessibilityRole="button"
+                accessibilityLabel={t("feed.compose")}
+              >
+                <icons.add size={26} color={theme.colors.textInverse} weight="bold" />
               </PressableScale>
             </Animated.View>
           )}
@@ -615,8 +720,29 @@ export function CommunityFeedScreen({
           focusComment={focusComment}
           onClose={() => setActivePostId(null)}
           onOpenProfile={onOpenProfile}
+          onPressTopic={selectTopic}
           slots={slots}
           beforeSubmitComment={beforeSubmitComment}
+        />
+        <ComposerSheet
+          visible={composerOpen}
+          defaultTopic={composeDefaultTopic}
+          onClose={() => setComposerOpen(false)}
+          onModerationRejected={() => setNotice("rejected")}
+          onPublishFailed={() => setNotice("network")}
+        />
+        <RulesSheet
+          visible={rulesVisible}
+          onAccepted={() => {
+            if (rulesAnswer.current) rulesAnswer.current.accepted = true;
+            setRulesVisible(false);
+          }}
+          onClose={() => setRulesVisible(false)}
+          onDismissed={() => {
+            const answer = rulesAnswer.current;
+            rulesAnswer.current = null;
+            answer?.resolve(answer.accepted);
+          }}
         />
         <ReportSheet
           visible={reportTarget !== null}
@@ -629,39 +755,10 @@ export function CommunityFeedScreen({
   );
 }
 
-function FilterChip({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
+/** The hairline between two posts of the flat feed. */
+function RowSeparator() {
   const styles = useThemedStyles(makeStyles);
-  return (
-    <PressableScale
-      haptic={active ? undefined : "selection"}
-      onPress={onPress}
-      style={[styles.filterChip, active && styles.filterChipOn]}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-    >
-      <Text style={[styles.filterChipText, active && styles.filterChipTextOn]}>{label}</Text>
-    </PressableScale>
-  );
-}
-
-/** The user's own avatar, or their initial while they have none. */
-function Avatar({ url, initial }: { url: string | null; initial: string }) {
-  const styles = useThemedStyles(makeStyles);
-  return url ? (
-    <Image source={{ uri: url }} style={styles.composeAvatarImage} contentFit="cover" />
-  ) : (
-    <View style={styles.composeAvatar}>
-      <Text style={styles.composeAvatarLetter}>{initial}</Text>
-    </View>
-  );
+  return <View style={styles.rowSeparator} />;
 }
 
 /**
@@ -690,18 +787,22 @@ function InboxBell({ onPress }: { onPress: () => void }) {
 
 /** Minimum touch target (Apple HIG / Material: 44pt / 48dp). */
 const ICON_TARGET = 44;
-/** Shared by the filter chips and the search bar that replaces them. */
+/** The search bar that takes the topic tabs' slot. */
 const CONTROL_HEIGHT = 40;
-const FLOATING_BAR_HEIGHT = 54;
+const FAB_SIZE = 56;
 
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
-    root: { flex: 1, backgroundColor: theme.colors.background },
-    controls: {
-      paddingHorizontal: theme.spacing(5),
-      paddingTop: theme.spacing(1),
-      paddingBottom: theme.spacing(3),
+    root: { flex: 1, backgroundColor: theme.colors.background, overflow: "hidden" },
+    top: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 1,
+      backgroundColor: theme.colors.background,
     },
+    controls: { paddingHorizontal: theme.spacing(5), paddingTop: theme.spacing(1) },
     // Icons sit flush with the content edge; each keeps a 44pt target.
     headerRow: {
       flexDirection: "row",
@@ -720,6 +821,8 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 20,
       color: theme.colors.textPrimary,
     },
+    // Fits a square mark or a wordmark alike (`contentFit="contain"`).
+    headerImage: { height: 32, width: 160 },
     iconButton: {
       width: ICON_TARGET,
       height: ICON_TARGET,
@@ -737,7 +840,12 @@ function makeStyles(theme: CommunityTheme) {
       borderWidth: 1.5,
       borderColor: theme.colors.background,
     },
-    switchRow: { height: CONTROL_HEIGHT, marginTop: theme.spacing(2) },
+    switchRow: {
+      height: TABS_ROW_HEIGHT,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.hairline,
+    },
+    searchSlot: { flex: 1, justifyContent: "center", paddingHorizontal: theme.spacing(5) },
     searchBar: {
       height: CONTROL_HEIGHT,
       flexDirection: "row",
@@ -756,6 +864,7 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 15,
       color: theme.colors.textPrimary,
       padding: 0,
+      ...noFocusRing,
     },
     clearButton: {
       width: 18,
@@ -765,35 +874,8 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
       justifyContent: "center",
     },
-    // Bleeds past the screen padding so chips scroll edge to edge.
-    filtersScroll: { marginHorizontal: -theme.spacing(5) },
-    filters: {
-      flexDirection: "row",
-      gap: theme.spacing(2),
-      paddingHorizontal: theme.spacing(5),
-    },
-    filterChip: {
-      height: CONTROL_HEIGHT,
-      justifyContent: "center",
-      backgroundColor: theme.colors.surfaceMuted,
-      borderRadius: theme.radius.pill,
-      paddingHorizontal: theme.spacing(4),
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    filterChipOn: { backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.accent },
-    filterChipText: {
-      fontFamily: theme.fonts.medium,
-      fontWeight: theme.fontWeights.medium,
-      fontSize: 12.5,
-      color: theme.colors.textMuted,
-    },
-    filterChipTextOn: { color: theme.colors.accent },
     listWrap: { flex: 1, position: "relative" },
-    hidden: { display: "none" },
-    // = ComposerCard's marginTop: results start where the composer would.
-    searchGap: { height: theme.spacing(4) },
-    listContent: { paddingHorizontal: theme.spacing(5) },
+    rowSeparator: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.hairline },
     spinner: { marginTop: theme.spacing(8) },
     stateText: {
       fontFamily: theme.fonts.regular,
@@ -823,57 +905,26 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 13,
       color: theme.colors.textMuted,
     },
-    newPill: {
-      position: "absolute",
-      top: theme.spacing(2),
-      alignSelf: "center",
-      zIndex: 1,
+    // Positioned under the top bar as it slides (`pillStyle`).
+    newPill: { position: "absolute", alignSelf: "center", zIndex: 1 },
+    newPillButton: {
       backgroundColor: theme.colors.accent,
       borderRadius: theme.radius.pill,
       paddingVertical: theme.spacing(2),
       paddingHorizontal: theme.spacing(4.5),
       ...theme.shadow,
     },
-    floatingCompose: {
-      position: "absolute",
-      left: theme.spacing(5),
-      right: theme.spacing(5),
-      ...theme.shadow,
-    },
-    composeBar: {
-      height: FLOATING_BAR_HEIGHT,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing(3),
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radius.pill,
-      paddingHorizontal: theme.spacing(3),
-    },
-    composeAvatar: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: theme.colors.surfaceMuted,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
+    // Aligned with the rows' content edge, above the host's bottom bar
+    // (`bottomChrome`) or the host's container edge.
+    fab: { position: "absolute", right: theme.spacing(4) },
+    fabButton: {
+      width: FAB_SIZE,
+      height: FAB_SIZE,
+      borderRadius: FAB_SIZE / 2,
+      backgroundColor: theme.colors.accent,
       alignItems: "center",
       justifyContent: "center",
-    },
-    composeAvatarImage: { width: 32, height: 32, borderRadius: 16 },
-    composeAvatarLetter: {
-      fontFamily: theme.fonts.serifBold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 14,
-      color: theme.colors.accent,
-    },
-    composePrompt: {
-      flex: 1,
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 14,
-      color: theme.colors.textMuted,
+      ...theme.shadow,
     },
     newPillText: {
       fontFamily: theme.fonts.bold,

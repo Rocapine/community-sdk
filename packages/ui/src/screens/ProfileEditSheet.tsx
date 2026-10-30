@@ -31,7 +31,6 @@ import {
   uploadAvatar,
 } from "@rocapine/community-core";
 import type { BottomSheetScrollViewMethods } from "@gorhom/bottom-sheet";
-import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -43,10 +42,12 @@ import {
   type LayoutChangeEvent,
 } from "react-native";
 import { haptic, PressableScale } from "../components/PressableScale";
+import { Avatar } from "../components/Avatar";
 import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { resizeAvatar } from "../utils/avatar";
+import { noFocusRing, noFocusRingMultiline } from "../utils/noFocusRing";
 
 const BIO_MAX_LENGTH = 300;
 const HANDLE_MAX_LENGTH = 20;
@@ -336,19 +337,12 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
                 accessibilityLabel={t("profile.changePhoto")}
                 style={styles.avatarPress}
               >
-                {shownAvatar ? (
-                  <Image
-                    source={{ uri: shownAvatar }}
-                    style={styles.avatarImage}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarLetter}>
-                      {profile.data.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
+                <Avatar
+                  userId={myUid}
+                  name={profile.data.name}
+                  url={shownAvatar}
+                  size={AVATAR_SIZE}
+                />
                 <View style={styles.pencilBadge}>
                   {photoBusy ? (
                     <ActivityIndicator size="small" color={theme.colors.textInverse} />
@@ -448,23 +442,6 @@ function makeStyles(theme: CommunityTheme) {
     },
     avatarBlock: { alignItems: "center" },
     avatarPress: { width: AVATAR_SIZE, height: AVATAR_SIZE },
-    avatar: {
-      width: AVATAR_SIZE,
-      height: AVATAR_SIZE,
-      borderRadius: AVATAR_SIZE / 2,
-      backgroundColor: theme.colors.surfaceMuted,
-      borderWidth: 1,
-      borderColor: theme.colors.borderStrong,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    avatarImage: { width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 },
-    avatarLetter: {
-      fontFamily: theme.fonts.serifBold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 38,
-      color: theme.colors.accent,
-    },
     pencilBadge: {
       position: "absolute",
       right: 0,
@@ -513,6 +490,7 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.regular,
       fontSize: 15,
       color: theme.colors.textPrimary,
+      ...noFocusRing,
     },
     bioInput: {
       backgroundColor: theme.colors.surfaceMuted,
@@ -527,6 +505,7 @@ function makeStyles(theme: CommunityTheme) {
       lineHeight: 22,
       color: theme.colors.textPrimary,
       textAlignVertical: "top",
+      ...noFocusRingMultiline,
     },
     counter: {
       fontFamily: theme.fonts.regular,
@@ -573,6 +552,7 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 15,
       color: theme.colors.textPrimary,
       paddingVertical: theme.spacing(3),
+      ...noFocusRing,
     },
     helper: {
       fontFamily: theme.fonts.regular,

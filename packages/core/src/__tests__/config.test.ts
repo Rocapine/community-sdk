@@ -87,3 +87,9 @@ describe("authorFallback", () => {
     expect(cfg.authorFallback()).toBe("Frère");
   });
 });
+
+it("postMaxLength defaults to 500 and never exceeds the database's 2000", () => {
+  expect(resolveConfig({ ...base }).postMaxLength).toBe(500);
+  expect(resolveConfig({ ...base, postMaxLength: 800 }).postMaxLength).toBe(800);
+  expect(resolveConfig({ ...base, postMaxLength: 5000 }).postMaxLength).toBe(2000);
+});

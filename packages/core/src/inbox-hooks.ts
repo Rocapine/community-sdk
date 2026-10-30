@@ -5,9 +5,17 @@
 // No React Native / analytics-SDK / store imports here.
 
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useCallback } from "react";
 
 import { useCommunityConfig } from "./provider";
-import { fetchInbox, markInboxSeen, unreadCount, type InboxState } from "./inbox-service";
+import {
+  fetchInbox,
+  markInboxItemRead,
+  isUnread,
+  markInboxSeen,
+  unreadCount,
+  type InboxState,
+} from "./inbox-service";
 
 const INBOX_KEY = ["community", "inbox"] as const;
 
@@ -24,6 +32,10 @@ export function useNotificationInbox(): UseQueryResult<InboxState> {
     queryFn: () => fetchInbox(cfg),
     enabled: cfg.supabase !== null && cfg.modules.inbox,
     staleTime: 60_000,
+    // Like the new-posts count: the badge stays honest while the app is open,
+    // even for a reader without push.
+    refetchInterval: 120_000,
+    refetchIntervalInBackground: false,
     retry: 1,
   });
 }
@@ -36,7 +48,7 @@ export function useNotificationInbox(): UseQueryResult<InboxState> {
  */
 export function useUnreadNotificationCount(): number {
   const { data } = useNotificationInbox();
-  return data ? unreadCount(data.items, data.seenAt) : 0;
+  return data ? unreadCount(data.items, data.seenAt, data.readIds) : 0;
 }
 
 /**
@@ -57,4 +69,60 @@ export function useMarkInboxSeen() {
       );
     },
   });
+}
+
+/** Marks one item read (`readMode: "tap"`), optimistically. */
+export function useMarkInboxItemRead() {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (itemId: string) => markInboxItemRead(cfg, itemId),
+    onMutate: (itemId) => {
+      queryClient.setQueryData<InboxState>(INBOX_KEY, (state) =>
+        state && !state.readIds.includes(itemId)
+          ? { ...state, readIds: [...state.readIds, itemId] }
+          : state,
+      );
+    },
+  });
+}
+
+/**
+ * Marks read the unread items about one post, e.g. the post a tapped push is
+ * about. `kind` narrows them to one kind and takes the push's own kind
+ * (`community_like`) as well as the inbox's (`like`). Refetches first: the
+ * push is newer than the cached inbox. Fail-soft, like the badge.
+ */
+export function useMarkPostNotificationsRead(): (postId: string, kind?: string) => Promise<void> {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  return useCallback(
+    async (postId, kind) => {
+      if (cfg.supabase === null || !cfg.modules.inbox) return;
+      const itemKind = kind?.replace(/^community_/, "");
+      try {
+        const state = await queryClient.fetchQuery({
+          queryKey: INBOX_KEY,
+          queryFn: () => fetchInbox(cfg),
+          staleTime: 0,
+        });
+        const ids = state.items
+          .filter(
+            (item) =>
+              item.postId === postId &&
+              (!itemKind || item.kind === itemKind) &&
+              isUnread(item, state.seenAt, state.readIds),
+          )
+          .map((item) => item.id);
+        if (ids.length === 0) return;
+        queryClient.setQueryData<InboxState>(INBOX_KEY, (s) =>
+          s ? { ...s, readIds: [...s.readIds, ...ids.filter((id) => !s.readIds.includes(id))] } : s,
+        );
+        await Promise.all(ids.map((id) => markInboxItemRead(cfg, id)));
+      } catch {
+        // The next inbox fetch shows whatever stayed unread.
+      }
+    },
+    [cfg, queryClient],
+  );
 }

@@ -1,4 +1,6 @@
-// Feed/thread post card. Ported from the mold's `CommunityPost`
+// Feed/thread post row, flat and X-style (after Eve's `PostRow`): the avatar
+// in a first column, everything else in a second one, nothing under the
+// avatar; `name › topic · time` on one line with the menu at its end. Ported from the mold's `CommunityPost`
 // (`sdk/client/components/community/CommunityPost.tsx`), reconciled with
 // Eve's Rhythm's newer copy (`components/app/community/CommunityPost.tsx`)
 // for the reaction footer — that host's "prayer" affordance (HandsPraying,
@@ -28,7 +30,6 @@ import {
   useToggleLike,
   type FeedPost,
 } from "@rocapine/community-core";
-import { Image } from "expo-image";
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Pressable,
@@ -43,9 +44,10 @@ import Animated, { FadeInDown, FadeInUp, LayoutAnimationConfig } from "react-nat
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { displayText, translationLine } from "../utils/translation";
-import { formatTimeAgo, useNow } from "../utils/time";
+import { formatTimeAgo, secondsResolution, useNow } from "../utils/time";
 import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { ClampedBody } from "./ClampedBody";
+import { Avatar } from "./Avatar";
 import { ImageViewerContext } from "./ImageViewer";
 import { PostImage } from "./PostImage";
 import { PollBlock } from "./PollBlock";
@@ -65,7 +67,7 @@ export type ProfileSource = "post" | "comment";
 export type PostSlotContext = { presentModal: PresentModal };
 
 export type PostSlots = {
-  /** Wraps the whole footer row (like, reaction, comment, menu). Called with
+  /** Wraps the whole footer row (like, reaction, comment). Called with
    * the built-in row as `defaults` — return it as-is, restyle around it, or
    * replace it entirely. */
   renderPostFooter?: (post: FeedPost, defaults: ReactNode, ctx: PostSlotContext) => ReactNode;
@@ -84,6 +86,7 @@ export function CommunityPost({
   onPressComment,
   onOpenProfile,
   onMenu,
+  onPressTopic,
   renderPostFooter,
   renderReactionButton,
 }: {
@@ -95,6 +98,8 @@ export function CommunityPost({
   onPressComment?(postId: string): void;
   onOpenProfile(userId: string, source?: ProfileSource): void;
   onMenu(post: FeedPost): void;
+  /** The topic in the metadata line. Absent: the topic is not tappable. */
+  onPressTopic?(topicId: string): void;
 } & PostSlots) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -102,7 +107,7 @@ export function CommunityPost({
   const cfg = useCommunityConfig();
   const styles = useThemedStyles(makeStyles);
 
-  const now = useNow();
+  const now = useNow(secondsResolution(post.createdAt, Date.now()));
   const slotCtx: PostSlotContext = { presentModal: useContext(ModalHandoffContext) };
   const openImage = useContext(ImageViewerContext);
   // Image-only posts store `content = ''`: no text block (nor toggle line).
@@ -141,53 +146,49 @@ export function CommunityPost({
     reactToPost.mutate({ postId: post.id, on: !post.hasReacted });
   };
 
-  // `topics.*` only covers the host-config-driven topic list; an unknown
-  // topic id (see core's normalizeTopic) falls back to showing itself raw,
-  // by comparing the lookup result to the key it was asked for (makeT
-  // returns the bare key on a miss).
-  const topicKey = post.topic ? `topics.${post.topic}` : null;
-  const topicLabel = topicKey ? (t(topicKey) === topicKey ? post.topic : t(topicKey)) : null;
+  // Only a topic the host config lists is shown (and tappable): an unknown id
+  // (see core's normalizeTopic) leaves `name · time`.
+  const topicId = post.topic && cfg.topics.some((tp) => tp.id === post.topic) ? post.topic : null;
 
-  const authorHeader = (
-    <>
-      {post.authorAvatarUrl ? (
-        <Image
-          source={{ uri: post.authorAvatarUrl }}
-          style={styles.avatarImage}
-          contentFit="cover"
-        />
-      ) : (
-        <View style={styles.avatar}>
-          <Text style={styles.avatarLetter}>{post.authorName.charAt(0).toUpperCase()}</Text>
-        </View>
-      )}
-      <View style={styles.headerText}>
-        <View style={styles.nameRow}>
-          <Text style={styles.name}>{post.authorName}</Text>
-          {post.authorOfficial && (
-            <icons.officialSeal size={15} color={theme.colors.official} weight="fill" />
-          )}
-          {post.authorHandle != null && (
-            <Text style={styles.handle} numberOfLines={1}>
-              @{post.authorHandle}
+  const metaLine = (
+    <View style={styles.metaRow}>
+      <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.nameBlock}>
+        <Text style={styles.name} numberOfLines={1}>
+          {post.authorName}
+        </Text>
+        {post.authorOfficial && (
+          <icons.officialSeal size={15} color={theme.colors.official} weight="fill" />
+        )}
+      </Pressable>
+      {topicId && (
+        <>
+          <Text style={styles.meta}>›</Text>
+          <Pressable
+            onPress={onPressTopic ? () => onPressTopic(topicId) : undefined}
+            disabled={!onPressTopic}
+            hitSlop={6}
+            style={styles.topic}
+            accessibilityRole={onPressTopic ? "button" : undefined}
+          >
+            <Text style={styles.meta} numberOfLines={1}>
+              {t(`topics.${topicId}`)}
             </Text>
-          )}
-        </View>
-        <View style={styles.metaRow}>
-          {post.pinnedAt != null && (
-            <>
-              <icons.pin size={11} color={theme.colors.pinned} weight="fill" />
-              <Text style={styles.pinnedText}>{t("post.pinned")}</Text>
-              <Text style={styles.meta}>·</Text>
-            </>
-          )}
-          <Text style={styles.meta}>
-            {topicLabel ? `${topicLabel} · ` : ""}
-            {formatTimeAgo(t, post.createdAt, now)}
-          </Text>
-        </View>
-      </View>
-    </>
+          </Pressable>
+        </>
+      )}
+      <Text style={[styles.meta, styles.ago]} numberOfLines={1}>
+        · {formatTimeAgo(t, post.createdAt, now)}
+      </Text>
+      <Pressable
+        hitSlop={8}
+        onPress={handleMenu}
+        style={styles.menuButton}
+        accessibilityRole="button"
+        accessibilityLabel={t("a11y.more")}
+      >
+        <icons.menu size={18} color={theme.colors.textFaint} weight="bold" />
+      </Pressable>
+    </View>
   );
 
   const likeButton = (
@@ -234,127 +235,89 @@ export function CommunityPost({
     </PressableScale>
   );
 
-  const menuButton = (
-    <Pressable
-      hitSlop={4}
-      onPress={handleMenu}
-      style={[styles.stat, styles.menuButton]}
-      accessibilityRole="button"
-      accessibilityLabel={t("a11y.more")}
-    >
-      <icons.menu size={20} color={theme.colors.textFaint} weight="bold" />
-    </Pressable>
-  );
-
   const defaultFooter = (
     <View style={styles.footer}>
       {likeButton}
       {reactionButton}
       {commentButton}
-      {menuButton}
     </View>
   );
   const footer = renderPostFooter?.(post, defaultFooter, slotCtx) ?? defaultFooter;
 
   const content = (
     <>
-      <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.header}>
-        {authorHeader}
+      <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.avatarColumn}>
+        <Avatar
+          userId={post.authorId}
+          name={post.authorName}
+          url={post.authorAvatarUrl}
+          size={40}
+        />
       </Pressable>
+      <View style={styles.main}>
+        {post.pinnedAt != null && (
+          <View style={styles.pinnedRow}>
+            <icons.pin size={11} color={theme.colors.pinned} weight="fill" />
+            <Text style={styles.pinnedText}>{t("post.pinned")}</Text>
+          </View>
+        )}
+        {metaLine}
 
-      {hasText && (
-        <>
-          <ClampedBody
-            text={displayText(post, showOriginal)}
-            alternate={post.translation ? displayText(post, !showOriginal) : null}
-            clampLines={BODY_CLAMP_LINES}
-            textStyle={styles.body}
-            viewMoreStyle={styles.viewMore}
-          />
-          {toggleLine && (
-            <Pressable hitSlop={8} onPress={toggleOriginal} style={styles.link}>
-              <Text style={styles.translationLine}>{toggleLine}</Text>
-            </Pressable>
-          )}
-        </>
-      )}
+        {hasText && (
+          <>
+            <ClampedBody
+              text={displayText(post, showOriginal)}
+              alternate={post.translation ? displayText(post, !showOriginal) : null}
+              clampLines={BODY_CLAMP_LINES}
+              textStyle={styles.body}
+              viewMoreStyle={styles.viewMore}
+            />
+            {toggleLine && (
+              <Pressable hitSlop={8} onPress={toggleOriginal} style={styles.link}>
+                <Text style={styles.translationLine}>{toggleLine}</Text>
+              </Pressable>
+            )}
+          </>
+        )}
 
-      {post.image && (
-        <View style={hasText && styles.imageGap}>
-          <PostImage image={post.image} onOpen={openImage} />
-        </View>
-      )}
+        {post.image && (
+          <View style={styles.imageGap}>
+            <PostImage image={post.image} onOpen={openImage} />
+          </View>
+        )}
 
-      {post.poll && <PollBlock post={post} showOriginal={showOriginal} />}
+        {post.poll && <PollBlock post={post} showOriginal={showOriginal} />}
 
-      {footer}
+        {footer}
+      </View>
     </>
   );
 
   return onOpenThread ? (
-    <PressableScale scale="surface" onPress={() => onOpenThread(post.id)} style={styles.card}>
+    <PressableScale scale="surface" onPress={() => onOpenThread(post.id)} style={styles.row}>
       {content}
     </PressableScale>
   ) : (
-    <View style={styles.card}>{content}</View>
+    <View style={styles.row}>{content}</View>
   );
 }
 
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
-    card: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: theme.radius.lg,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      padding: theme.spacing(4),
-      marginBottom: theme.spacing(3),
-    },
-    header: {
+    row: {
       flexDirection: "row",
-      // Hug the avatar + name so only they open the profile, not the empty space to their right.
-      alignSelf: "flex-start",
-      alignItems: "center",
       gap: theme.spacing(3),
-      marginBottom: theme.spacing(3),
+      paddingVertical: theme.spacing(3.5),
+      paddingHorizontal: theme.spacing(4),
+      backgroundColor: theme.colors.background,
     },
-    headerText: { flexShrink: 1 },
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.colors.surfaceMuted,
-      borderWidth: 1,
-      borderColor: theme.colors.borderStrong,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    avatarImage: { width: 40, height: 40, borderRadius: 20 },
-    avatarLetter: {
-      fontFamily: theme.fonts.serifBold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 18,
-      color: theme.colors.accent,
-    },
-    nameRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1) },
-    name: {
-      fontFamily: theme.fonts.bold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 14.5,
-      color: theme.colors.textPrimary,
-    },
-    handle: {
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 12,
-      color: theme.colors.textFaint,
-      flexShrink: 1,
-    },
-    metaRow: {
+    avatarColumn: { alignSelf: "flex-start" },
+    main: { flex: 1, minWidth: 0 },
+    pinnedRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing(1),
-      marginTop: 2,
+      marginBottom: 2,
     },
     pinnedText: {
       fontFamily: theme.fonts.bold,
@@ -362,34 +325,57 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 11.5,
       color: theme.colors.pinned,
     },
+    // One line, always: the name gives way first, the time never does.
+    metaRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1), minHeight: 22 },
+    nameBlock: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(1),
+      flexShrink: 1,
+      minWidth: 0,
+    },
+    name: {
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      fontSize: 14.5,
+      color: theme.colors.textPrimary,
+      flexShrink: 1,
+    },
+    // Capped rather than shrunk: the name gives way first, the topic only
+    // past 40% of the line.
+    topic: { flexShrink: 0, maxWidth: "40%" },
     meta: {
       fontFamily: theme.fonts.regular,
       fontWeight: theme.fontWeights.regular,
-      fontSize: 12,
+      fontSize: 13,
       color: theme.colors.textFaint,
     },
+    // Never shrinks (web Text shrinks by default): the name gives way instead.
+    ago: { flexShrink: 0 },
+    menuButton: { marginLeft: "auto", paddingLeft: theme.spacing(2) },
     body: {
       fontFamily: theme.fonts.regular,
       fontWeight: theme.fontWeights.regular,
       fontSize: 14.5,
-      lineHeight: 22,
+      lineHeight: 21,
       color: theme.colors.textSecondary,
+      marginTop: 2,
     },
     viewMore: {
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
-      fontSize: 13,
       color: theme.colors.accent,
-      marginTop: theme.spacing(1.5),
     },
+    // Quieter than the body whatever the host maps `textFaint` to.
     translationLine: {
-      fontFamily: theme.fonts.medium,
-      fontWeight: theme.fontWeights.medium,
-      fontSize: 12.5,
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 12,
       color: theme.colors.textFaint,
+      opacity: 0.75,
       marginTop: theme.spacing(1.5),
     },
-    footer: { flexDirection: "row", alignItems: "center", marginTop: theme.spacing(2) },
+    footer: { flexDirection: "row", alignItems: "center", marginTop: theme.spacing(1) },
     // Fixed width + tabular digits: the row never shifts as counts change
     // (fits four digits).
     stat: {
@@ -399,14 +385,8 @@ function makeStyles(theme: CommunityTheme) {
       width: 64,
       height: 40,
     },
-    menuButton: {
-      width: 40,
-      marginLeft: "auto",
-      marginRight: -theme.spacing(2.5),
-      justifyContent: "center",
-    },
     link: { alignSelf: "flex-start" },
-    imageGap: { marginTop: theme.spacing(3) },
+    imageGap: { marginTop: theme.spacing(2.5) },
     statCount: { flex: 1, overflow: "hidden" },
     statText: {
       fontFamily: theme.fonts.medium,

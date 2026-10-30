@@ -64,7 +64,7 @@ const POLL_OPTIONS_TRANSLATED_SELECT =
 const POST_TRANSLATIONS_SELECT = "post_translations(locale, source_locale, content)";
 
 const COMMENTS_SELECT =
-  "id, post_id, author_id, content, status, created_at, profiles(username, is_official, handle, avatar_url)";
+  "id, post_id, author_id, parent_id, content, status, created_at, profiles(username, is_official, handle, avatar_url), comment_likes(count)";
 
 /** Embedded only when the reader has a resolved translation locale. */
 const COMMENT_TRANSLATIONS_SELECT = "comment_translations(locale, source_locale, content)";
@@ -287,6 +287,27 @@ export async function fetchFeedPage(
   return toFeedPosts(cfg, client, (data ?? []) as unknown as PostRow[], uid);
 }
 
+/** One post by id, as the feed shows it; null when it is gone or hidden. */
+export async function fetchPost(
+  cfg: ResolvedCommunityConfig,
+  postId: string,
+): Promise<FeedPost | null> {
+  const client = cfg.requireClient();
+  const uid = await requireUid(cfg);
+  let query = client
+    .from("posts")
+    .select(postsSelect(cfg))
+    .eq("comments.status", "visible")
+    .in("status", ["visible", "pending"])
+    .eq("id", postId)
+    .limit(1);
+  query = withTranslationFilters(query, cfg);
+  const { data, error } = await query;
+  if (error) throw error;
+  const [post] = await toFeedPosts(cfg, client, (data ?? []) as unknown as PostRow[], uid);
+  return post ?? null;
+}
+
 /**
  * Count of visible posts newer than `sinceIso`, excluding my own, for the
  * given topic. RLS already excludes blocked authors and hidden/deleted rows.
@@ -415,10 +436,24 @@ export async function fetchThread(
   if (locale) query = query.eq("comment_translations.locale", locale);
   const { data, error } = await query;
   if (error) throw error;
+  const rows = (data ?? []) as unknown as CommentRow[];
+  // Which of these the reader liked: a second, id-scoped query (an embed
+  // filtered on user_id would hide the other likes from the count).
+  const liked = new Set<string>();
+  if (rows.length > 0) {
+    const { data: mine, error: likesError } = await client
+      .from("comment_likes")
+      .select("comment_id")
+      .eq("user_id", uid)
+      .in(
+        "comment_id",
+        rows.map((r) => r.id),
+      );
+    if (likesError) throw likesError;
+    for (const l of mine ?? []) liked.add((l as { comment_id: string }).comment_id);
+  }
   const base = imageBase(cfg);
-  return ((data ?? []) as unknown as CommentRow[]).map((r) =>
-    mapCommentRow(r, uid, cfg.authorFallback(), base),
-  );
+  return rows.map((r) => mapCommentRow(r, uid, cfg.authorFallback(), base, liked.has(r.id)));
 }
 
 /** Verdict returned by the synchronous moderate-one Edge Function. */
@@ -502,13 +537,22 @@ export async function createComment(
   postId: string,
   body: string,
   image?: UploadedImage,
+  parentId?: string,
 ): Promise<string> {
   if (image && !cfg.modules.images) throw new Error("images module is not enabled");
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
   const { data, error } = await client
     .from("comments")
-    .insert({ post_id: postId, author_id: uid, content: body, ...imageColumns(image) })
+    .insert({
+      post_id: postId,
+      author_id: uid,
+      content: body,
+      ...imageColumns(image),
+      // Only a reply sends it: a top-level comment stays insertable on a
+      // backend without core/010_comment_threads.sql.
+      ...(parentId ? { parent_id: parentId } : {}),
+    })
     .select("id")
     .single();
   if (error) throw error;
@@ -524,6 +568,30 @@ export async function moderateOne(
   const { data, error } = await client.functions.invoke("moderate-one", { body: input });
   if (error) return { status: "pending", reason: "moderation unavailable" };
   return data as ModerationVerdict;
+}
+
+/** Like or unlike a comment as the reader. */
+export async function setCommentLike(
+  cfg: ResolvedCommunityConfig,
+  commentId: string,
+  on: boolean,
+): Promise<void> {
+  const client = cfg.requireClient();
+  const uid = await requireUid(cfg);
+  if (on) {
+    const { error } = await client
+      .from("comment_likes")
+      .insert({ comment_id: commentId, user_id: uid });
+    // 23505 = already liked (double tap / retry): the desired state holds.
+    if (error && error.code !== "23505") throw error;
+  } else {
+    const { error } = await client
+      .from("comment_likes")
+      .delete()
+      .eq("comment_id", commentId)
+      .eq("user_id", uid);
+    if (error) throw error;
+  }
 }
 
 export async function setLike(

@@ -1,16 +1,17 @@
-// `canPublish` is a pure export of ComposerCard.tsx; the component's native
+// `canPublish` is a pure export of ComposerSheet.tsx; the component's native
 // imports are stubbed so the module loads under vitest (no react-native here).
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@rocapine/community-core", () => ({}));
-vi.mock("react-native", () => ({}));
+vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
 vi.mock("expo-image", () => ({}));
 vi.mock("../Sheet", () => ({}));
 vi.mock("../components/AnimatedHeight", () => ({}));
 vi.mock("../components/PressableScale", () => ({}));
-vi.mock("../components/RulesSheet", () => ({}));
+vi.mock("react-native-safe-area-context", () => ({}));
+vi.mock("../components/Avatar", () => ({}));
 
-const { canPublish } = await import("../components/ComposerCard");
+const { canPublish } = await import("../components/ComposerSheet");
 
 const base = {
   text: "",

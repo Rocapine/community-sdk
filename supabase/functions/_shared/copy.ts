@@ -32,6 +32,7 @@ type LocaleCopy = Record<string, CopyValue>;
 export type PushCopyKey =
   | "fallbackName"
   | "comment.title"
+  | "reply.title"
   | "like.one"
   | "like.many"
   | "reaction.one"
@@ -43,6 +44,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
     fallbackName: "Someone",
     photo: "📷 Photo",
     "comment.title": "You received a comment",
+    "reply.title": "You received a reply",
     "like.one": "{name} liked your post",
     "like.many": {
       one: "{name} and {count} other liked your post",
@@ -58,6 +60,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
     fallbackName: "Alguém",
     photo: "📷 Foto",
     "comment.title": "Recebeste um comentário",
+    "reply.title": "Recebeste uma resposta",
     "like.one": "{name} gostou da tua publicação",
     "like.many": {
       one: "{name} e mais {count} pessoa gostou da tua publicação",
@@ -73,6 +76,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
     fallbackName: "Alguém",
     photo: "📷 Foto",
     "comment.title": "Você recebeu um comentário",
+    "reply.title": "Você recebeu uma resposta",
     "like.one": "{name} curtiu seu post",
     "like.many": {
       one: "{name} e mais {count} pessoa curtiu seu post",
@@ -88,6 +92,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
     fallbackName: "Alguien",
     photo: "📷 Foto",
     "comment.title": "Has recibido un comentario",
+    "reply.title": "Has recibido una respuesta",
     "like.one": "A {name} le ha gustado tu publicación",
     "like.many": {
       one: "A {name} y a {count} persona más les ha gustado tu publicación",
@@ -103,6 +108,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
     fallbackName: "Alguien",
     photo: "📷 Foto",
     "comment.title": "Recibiste un comentario",
+    "reply.title": "Recibiste una respuesta",
     "like.one": "A {name} le gustó tu publicación",
     "like.many": {
       one: "A {name} y a {count} persona más les gustó tu publicación",
@@ -118,6 +124,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
     fallbackName: "Qualcuno",
     photo: "📷 Foto",
     "comment.title": "Hai ricevuto un commento",
+    "reply.title": "Hai ricevuto una risposta",
     "like.one": "A {name} piace il tuo post",
     "like.many": {
       one: "A {name} e ad altra {count} persona piace il tuo post",
@@ -133,6 +140,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
     fallbackName: "Ktoś",
     photo: "📷 Zdjęcie",
     "comment.title": "Masz nowy komentarz",
+    "reply.title": "Masz nową odpowiedź",
     "like.one": "{name} polubił(a) twój post",
     "like.many": {
       one: "{name} i {count} inna osoba polubiły twój post",
@@ -150,6 +158,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
     fallbackName: "Quelqu'un",
     photo: "📷 Photo",
     "comment.title": "Tu as reçu un commentaire",
+    "reply.title": "Tu as reçu une réponse",
     "like.one": "{name} a aimé ta publication",
     "like.many": {
       one: "{name} et {count} autre personne ont aimé ta publication",
@@ -165,6 +174,7 @@ const BUILTIN: Record<string, LocaleCopy> = {
     fallbackName: "Jemand",
     photo: "📷 Foto",
     "comment.title": "Du hast einen Kommentar erhalten",
+    "reply.title": "Du hast eine Antwort erhalten",
     "like.one": "{name} gefällt dein Beitrag",
     "like.many": {
       one: "{name} und {count} weiterer Person gefällt dein Beitrag",

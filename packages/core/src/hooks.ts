@@ -26,6 +26,7 @@ import {
   feedKey,
   SEARCH_KEY,
   searchKey,
+  singlePostKey,
   threadKey,
   USER_POSTS_KEY,
   userPostsKey,
@@ -51,6 +52,7 @@ import {
   deleteOwnPost,
   fetchFeedPage,
   fetchNotificationPreferences,
+  fetchPost,
   fetchProfile,
   type NotificationPreferenceKey,
   type NotificationPreferences,
@@ -59,6 +61,7 @@ import {
   moderateOne,
   reportContent,
   searchPosts,
+  setCommentLike,
   setLike,
   setReaction,
   setNotificationPreference,
@@ -181,6 +184,26 @@ export function useCommunityFeed(topic?: string, enabled = true) {
     getNextPageParam: (lastPage: FeedPost[], pages: FeedPost[][]) =>
       lastPage.length === FEED_PAGE_SIZE ? pages.length : undefined,
     enabled: cfg.supabase !== null && enabled,
+    staleTime: 1000 * 30,
+    retry: 1,
+  });
+}
+
+/**
+ * One post on its own, for a thread whose post no loaded list holds (opened
+ * from a notification). Cached as a one-page list under the feed keys, so the
+ * thread's post lookup finds it and every feed-wide update reaches it.
+ */
+export function usePost(postId: string | null, enabled = true) {
+  const cfg = useCommunityConfig();
+  const locale = readerLocale(cfg);
+  return useQuery<InfiniteData<FeedPost[]>>({
+    queryKey: singlePostKey(postId ?? "none", locale),
+    queryFn: async () => {
+      const post = await fetchPost(cfg, postId!);
+      return { pages: [post ? [post] : []], pageParams: [0] };
+    },
+    enabled: cfg.supabase !== null && !!postId && enabled,
     staleTime: 1000 * 30,
     retry: 1,
   });
@@ -501,6 +524,8 @@ export type CreateCommentVariables = {
   text: string;
   authorName: string;
   image?: LocalImage;
+  /** Answering this comment (a reply). */
+  parentId?: string;
 };
 
 /** The options behind `useCreateComment`, split out so they can be driven without React. */
@@ -510,7 +535,7 @@ export function createCommentMutationOptions(
   locale: string | null,
 ): UseMutationOptions<PostResult, Error, CreateCommentVariables, { tempId: string }> {
   return {
-    onMutate: async ({ postId, text, authorName, image }) => {
+    onMutate: async ({ postId, text, authorName, image, parentId }) => {
       await queryClient.cancelQueries({ queryKey: threadKey(postId, locale) });
       await queryClient.cancelQueries({ queryKey: FEED_KEY });
       const tempId = `optimistic-${Date.now()}`;
@@ -525,6 +550,9 @@ export function createCommentMutationOptions(
         createdAt: new Date().toISOString(),
         translation: null,
         image: image ?? null,
+        parentId: parentId ?? null,
+        likeCount: 0,
+        likedByMe: false,
       };
       queryClient.setQueryData<ThreadComment[]>(threadKey(postId, locale), (d) => [
         ...(d ?? []),
@@ -533,9 +561,9 @@ export function createCommentMutationOptions(
       bumpFeedCommentCount(queryClient, postId, 1);
       return { tempId };
     },
-    mutationFn: async ({ postId, text, image }) => {
+    mutationFn: async ({ postId, text, image, parentId }) => {
       const uploaded = image ? await uploadPostImage(cfg, image) : undefined;
-      const id = await createComment(cfg, postId, text, uploaded);
+      const id = await createComment(cfg, postId, text, uploaded, parentId);
       const verdict = await moderateOne(cfg, { kind: "comment", id });
       return { id, verdict };
     },
@@ -566,6 +594,33 @@ export function createCommentMutationOptions(
       bumpFeedCommentCount(queryClient, postId, -1);
     },
   };
+}
+
+/** Optimistic comment like, on the thread's cache. */
+export function useToggleCommentLike() {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  const locale = readerLocale(cfg);
+  return useMutation({
+    mutationFn: ({ commentId, liked }: { postId: string; commentId: string; liked: boolean }) =>
+      setCommentLike(cfg, commentId, liked),
+    onMutate: async ({ postId, commentId, liked }) => {
+      const key = threadKey(postId, locale);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ThreadComment[]>(key);
+      queryClient.setQueryData<ThreadComment[]>(key, (d) =>
+        (d ?? []).map((c) =>
+          c.id === commentId
+            ? { ...c, likedByMe: liked, likeCount: Math.max(0, c.likeCount + (liked ? 1 : -1)) }
+            : c,
+        ),
+      );
+      return { previous };
+    },
+    onError: (_err, { postId }, context) => {
+      if (context?.previous) queryClient.setQueryData(threadKey(postId, locale), context.previous);
+    },
+  });
 }
 
 /** Optimistic like toggle across every post cache (feed pages of every topic

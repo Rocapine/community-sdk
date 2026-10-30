@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localizeExcerpts, unreadCount, type InboxItem } from "../inbox-service";
+import { isUnread, localizeExcerpts, unreadCount, type InboxItem } from "../inbox-service";
 
 const item = (over: Partial<InboxItem> = {}): InboxItem => ({
   id: "n1",
@@ -29,6 +29,17 @@ describe("unreadCount", () => {
   it("excludes an item created exactly at seenAt (at-or-before is read)", () => {
     const items = [item({ id: "n1", createdAt: "2026-08-20T10:00:00Z" })];
     expect(unreadCount(items, "2026-08-20T10:00:00Z")).toBe(0);
+  });
+
+  it("skips items read one by one past the watermark", () => {
+    const items = [
+      item({ id: "n1", createdAt: "2026-08-20T11:00:00Z" }),
+      item({ id: "n2", createdAt: "2026-08-20T12:00:00Z" }),
+    ];
+    expect(unreadCount(items, "2026-08-20T10:00:00Z", ["n2"])).toBe(1);
+    expect(unreadCount(items, null, ["n1", "n2"])).toBe(0);
+    expect(isUnread(items[0], "2026-08-20T10:00:00Z", ["n2"])).toBe(true);
+    expect(isUnread(items[1], "2026-08-20T10:00:00Z", ["n2"])).toBe(false);
   });
 
   it("returns 0 for an empty inbox", () => {

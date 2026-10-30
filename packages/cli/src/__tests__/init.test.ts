@@ -40,7 +40,7 @@ describe("runInit", () => {
     await runInit(baseOptions({ modules: ["core"] }));
 
     const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
-    expect(files).toHaveLength(10);
+    expect(files).toHaveLength(11);
     expect(files.every((f) => /^\d{14}_community_core_/.test(f))).toBe(true);
   });
 
@@ -51,7 +51,7 @@ describe("runInit", () => {
     const modulesInFileOrder = files.map((f) => f.split("_community_")[1]!.split("_")[0]);
 
     expect(modulesInFileOrder).toEqual([
-      ...Array<string>(10).fill("core"),
+      ...Array<string>(11).fill("core"),
       "push",
       "push",
       "push",
@@ -60,6 +60,7 @@ describe("runInit", () => {
       "reaction",
       "reaction",
       "reaction",
+      "inbox",
       "inbox",
     ]);
   });

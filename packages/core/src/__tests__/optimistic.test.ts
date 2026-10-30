@@ -161,7 +161,7 @@ describe("create mutations with an image", () => {
     seedThread();
     await run(createCommentMutationOptions(cfg, qc, null), commentVars);
     expect(calls).toEqual(["upload", "create"]);
-    expect(service.createComment).toHaveBeenCalledWith(cfg, "p1", "", uploaded);
+    expect(service.createComment).toHaveBeenCalledWith(cfg, "p1", "", uploaded, undefined);
   });
 
   it("does not create the comment when the upload fails", async () => {

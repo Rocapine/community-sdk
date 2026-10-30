@@ -17,7 +17,7 @@ import { readerLocale } from "./locale";
 
 export type InboxItem = {
   id: string;
-  kind: "like" | "comment" | "reaction" | "official_post" | (string & {});
+  kind: "like" | "comment" | "reply" | "reaction" | "official_post" | (string & {});
   createdAt: string;
   actorName: string | null;
   postId: string | null;
@@ -28,6 +28,8 @@ export interface InboxState {
   items: InboxItem[];
   /** Everything at or before this instant is read; null = never opened. */
   seenAt: string | null;
+  /** Items past `seenAt` read one by one (`readMode: "tap"`). */
+  readIds: string[];
 }
 
 /** Raw shape returned by the `list_notifications` RPC. */
@@ -121,7 +123,40 @@ export async function fetchInbox(cfg: ResolvedCommunityConfig): Promise<InboxSta
     }
     localized = localizeExcerpts(items, (data ?? []) as { post_id: string; content: string }[]);
   }
-  return { items: localized, seenAt: (seenRes.data?.seen_at as string | undefined) ?? null };
+  // Fail-soft: a backend without inbox/002_replies_and_reads.sql has no
+  // per-item reads, which reads as "none".
+  let readIds: string[] = [];
+  if (items.length > 0) {
+    const { data, error } = await client
+      .from("notification_reads")
+      .select("item_id")
+      .eq("user_id", uid)
+      .in(
+        "item_id",
+        items.map((i) => i.id),
+      );
+    if (!error) readIds = (data ?? []).map((r) => (r as { item_id: string }).item_id);
+  }
+  return {
+    items: localized,
+    seenAt: (seenRes.data?.seen_at as string | undefined) ?? null,
+    readIds,
+  };
+}
+
+/** Marks one item read (`readMode: "tap"`). Idempotent. */
+export async function markInboxItemRead(
+  cfg: ResolvedCommunityConfig,
+  itemId: string,
+): Promise<void> {
+  if (!cfg.modules.inbox) throw new Error("inbox module is not enabled");
+  const client = cfg.requireClient();
+  const uid = await requireUid(cfg);
+  const { error } = await client
+    .from("notification_reads")
+    .insert({ user_id: uid, item_id: itemId });
+  // 23505 = already read.
+  if (error && error.code !== "23505") throw error;
 }
 
 /**
@@ -144,9 +179,17 @@ export async function markInboxSeen(cfg: ResolvedCommunityConfig): Promise<void>
   if (error) throw error;
 }
 
-/** Unread = items strictly newer than the seen marker (all of them if never opened). Pure. */
-export function unreadCount(items: InboxItem[], seenAt: string | null): number {
-  if (!seenAt) return items.length;
-  const seen = Date.parse(seenAt);
-  return items.filter((item) => Date.parse(item.createdAt) > seen).length;
+/** Unread = strictly newer than the seen marker (every item if never opened)
+ * and not read one by one. Pure. */
+export function isUnread(item: InboxItem, seenAt: string | null, readIds: string[] = []): boolean {
+  if (readIds.includes(item.id)) return false;
+  return !seenAt || Date.parse(item.createdAt) > Date.parse(seenAt);
+}
+
+export function unreadCount(
+  items: InboxItem[],
+  seenAt: string | null,
+  readIds: string[] = [],
+): number {
+  return items.filter((item) => isUnread(item, seenAt, readIds)).length;
 }

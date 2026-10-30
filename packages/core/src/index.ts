@@ -7,7 +7,12 @@ export type {
   CommunityDefaultName,
   ResolvedCommunityConfig,
 } from "./config";
-export { CommunityDisabledError, DEFAULT_NAME, resolveConfig } from "./config";
+export {
+  CommunityDisabledError,
+  DEFAULT_NAME,
+  DEFAULT_POST_MAX_LENGTH,
+  resolveConfig,
+} from "./config";
 export { readerLocale, languageOf } from "./locale";
 export { CommunityProvider, useCommunityConfig } from "./provider";
 
@@ -67,6 +72,7 @@ export {
 export {
   buildFeedSelect,
   fetchFeedPage,
+  fetchPost,
   countNewPosts,
   fetchProfile,
   fetchUserPosts,
@@ -76,6 +82,7 @@ export {
   votePoll,
   createComment,
   moderateOne,
+  setCommentLike,
   setLike,
   setReaction,
   fetchReactionSummaries,
@@ -109,6 +116,7 @@ export {
   useNewPostsCount,
   useCommunityUnseenCount,
   useThread,
+  usePost,
   useProfile,
   useUserPosts,
   useMyUid,
@@ -116,6 +124,7 @@ export {
   useUpdateProfile,
   useCreatePost,
   useCreateComment,
+  useToggleCommentLike,
   useToggleLike,
   useVotePoll,
   useReactToPost,
@@ -125,9 +134,22 @@ export {
   isOptimistic,
 } from "./hooks";
 
-export { fetchInbox, localizeExcerpts, markInboxSeen, unreadCount } from "./inbox-service";
+export {
+  fetchInbox,
+  isUnread,
+  localizeExcerpts,
+  markInboxItemRead,
+  markInboxSeen,
+  unreadCount,
+} from "./inbox-service";
 export type { InboxItem, InboxState } from "./inbox-service";
 
-export { useNotificationInbox, useUnreadNotificationCount, useMarkInboxSeen } from "./inbox-hooks";
+export {
+  useNotificationInbox,
+  useUnreadNotificationCount,
+  useMarkInboxSeen,
+  useMarkInboxItemRead,
+  useMarkPostNotificationsRead,
+} from "./inbox-hooks";
 
 export { REQUIRED_SCHEMA_VERSION } from "./schema-check";

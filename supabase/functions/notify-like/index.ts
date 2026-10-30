@@ -80,7 +80,7 @@ async function flushPost(postId: string) {
   await sendExpoPush({
     to: pref.expo_push_token,
     title,
-    data: { route: "/community", kind: "community_like" },
+    data: { route: "/community", kind: "community_like", postId },
     badge: await unreadBadge(supabase, post.author_id),
   });
 }

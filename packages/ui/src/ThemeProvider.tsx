@@ -3,10 +3,12 @@ import { defaultTheme, mergeTheme, type CommunityTheme, type DeepPartial } from 
 import { makeT, type TFn } from "./i18n";
 import { defaultIcons, mergeIcons } from "./icons-default";
 import type { CommunityIconSet } from "./icons";
+import type { AvatarRenderProps } from "./components/Avatar";
 
 const ThemeContext = createContext<CommunityTheme>(defaultTheme);
 const TranslationContext = createContext<TFn>(makeT("en"));
 const IconsContext = createContext<CommunityIconSet>(defaultIcons);
+const AvatarContext = createContext<((p: AvatarRenderProps) => ReactNode) | null>(null);
 
 export function CommunityUIProvider(props: {
   theme?: DeepPartial<CommunityTheme>;
@@ -15,9 +17,12 @@ export function CommunityUIProvider(props: {
    * host that supplies every `CommunityIconName` never needs
    * expo-symbols installed at all (see `icons.ts`/`icons-default.ts`). */
   icons?: Partial<CommunityIconSet>;
+  /** Draws every user avatar the SDK shows (feed, comments, profiles, header
+   * button, composer). Without it: the photo, else the initial on a flat colour. */
+  renderAvatar?: (p: AvatarRenderProps) => ReactNode;
   children: ReactNode;
 }): ReactElement {
-  const { theme, translations, icons, children } = props;
+  const { theme, translations, icons, renderAvatar, children } = props;
   const locale = translations?.locale ?? "en";
   const overrides = translations?.overrides;
 
@@ -28,7 +33,9 @@ export function CommunityUIProvider(props: {
   return (
     <ThemeContext.Provider value={resolvedTheme}>
       <TranslationContext.Provider value={t}>
-        <IconsContext.Provider value={resolvedIcons}>{children}</IconsContext.Provider>
+        <IconsContext.Provider value={resolvedIcons}>
+          <AvatarContext.Provider value={renderAvatar ?? null}>{children}</AvatarContext.Provider>
+        </IconsContext.Provider>
       </TranslationContext.Provider>
     </ThemeContext.Provider>
   );
@@ -36,6 +43,11 @@ export function CommunityUIProvider(props: {
 
 export function useCommunityTheme(): CommunityTheme {
   return useContext(ThemeContext);
+}
+
+/** The host's `renderAvatar`, or null for the SDK's default (see `Avatar`). */
+export function useAvatarRenderer(): ((p: AvatarRenderProps) => ReactNode) | null {
+  return useContext(AvatarContext);
 }
 
 export function useT(): TFn {

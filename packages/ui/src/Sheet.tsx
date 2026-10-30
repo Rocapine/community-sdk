@@ -316,7 +316,9 @@ export function SheetView({ style, ...rest }: ComponentProps<typeof BottomSheetV
   return (
     <BottomSheetView
       {...rest}
-      style={[styles.content, { paddingBottom: contentBottomPad }, style]}
+      // One flat object: gorhom spreads an array into StyleSheet.compose, which
+      // takes two styles (react-native-web throws in dev, drops the rest in prod).
+      style={StyleSheet.flatten([styles.content, { paddingBottom: contentBottomPad }, style])}
     />
   );
 }
@@ -324,6 +326,10 @@ export function SheetView({ style, ...rest }: ComponentProps<typeof BottomSheetV
 /** Any text field inside a sheet must be this one: gorhom tracks its focus
  * to handle the keyboard (iOS). */
 export const SheetTextInput = BottomSheetTextInput;
+
+/** The sheet's side gutter, in `theme.spacing` units: content and footer sit
+ * inside it, so a full-width rule bleeds out by `-theme.spacing(SHEET_GUTTER)`. */
+export const SHEET_GUTTER = 5.5;
 
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
@@ -342,10 +348,10 @@ function makeStyles(theme: CommunityTheme) {
       borderRadius: theme.radius.pill,
       backgroundColor: theme.colors.hairline,
     },
-    content: { paddingHorizontal: theme.spacing(5.5) },
+    content: { paddingHorizontal: theme.spacing(SHEET_GUTTER) },
     footer: {
       backgroundColor: theme.colors.background,
-      paddingHorizontal: theme.spacing(5.5),
+      paddingHorizontal: theme.spacing(SHEET_GUTTER),
     },
   });
 }

@@ -7,9 +7,8 @@
 // No store: acceptance state is owned entirely by the host through
 // `cfg.host.rulesAcceptance` (Task 2's config seam). This sheet only calls
 // `.set()` on accept, emits `COMMUNITY_EVENTS.rulesAccepted`, and reports
-// back through `onAccepted` — the caller (typically `ComposerCard`, which
-// also reads `.get()` to decide whether to show this sheet at all) owns any
-// local "am I unlocked" state.
+// back through `onAccepted` — the caller (the feed's `+` button, the thread's
+// comment box) decides whether to show this sheet at all.
 //
 // The brief describes "4 rules from i18n keys rules.1..4" generically; the
 // catalog (Task 9, ported from Eve's actual copy) names them semantically
@@ -31,10 +30,13 @@ export function RulesSheet({
   visible,
   onAccepted,
   onClose,
+  onDismissed,
 }: {
   visible: boolean;
   onAccepted: () => void;
   onClose: () => void;
+  /** Once the sheet has finished animating out. */
+  onDismissed?: () => void;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -56,7 +58,7 @@ export function RulesSheet({
   };
 
   return (
-    <CommunitySheet visible={visible} onClose={onClose} snapTo="half">
+    <CommunitySheet visible={visible} onClose={onClose} onDismissed={onDismissed} snapTo="half">
       <SheetView>
         <Text style={styles.title}>{t("rules.title")}</Text>
         <View style={styles.rules}>

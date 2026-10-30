@@ -55,6 +55,14 @@ describe("findCachedPost", () => {
     expect(findCachedPost(client, "p1", null)).toBe(post);
   });
 
+  it("finds a post fetched on its own (usePost's one-page list under the feed keys)", () => {
+    const post = fakePost("p9");
+    const { client } = makeFakeQueryClient([
+      [["community", "feed", "post", "p9", "fr"], infiniteData([post])],
+    ]);
+    expect(findCachedPost(client, "p9", "fr")).toBe(post);
+  });
+
   it("finds a post in the userPosts cache", () => {
     const post = fakePost("p2");
     const { client } = makeFakeQueryClient([

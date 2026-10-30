@@ -65,6 +65,8 @@ import {
   useMyUid,
   useProfile,
   useThread,
+  usePost,
+  useToggleCommentLike,
   type FeedPost,
   type LocalImage,
   type ThreadComment,
@@ -74,25 +76,28 @@ import { Image } from "expo-image";
 import {
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type ComponentRef,
 } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
-import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
+import { CommunitySheet, SHEET_GUTTER, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
+import { Avatar } from "../components/Avatar";
 import { ClampedBody } from "../components/ClampedBody";
 import { NoticeCard } from "../components/NoticeCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { ImageViewerContext, useImageViewerOverlay } from "../components/ImageViewer";
 import { PostImage } from "../components/PostImage";
 import { imagesSupported, pickImage } from "../utils/postImage";
+import { splitMentions, threadRows } from "../utils/threadRows";
 import { isQueryLoading } from "../utils/query";
 import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
-import { formatTimeAgo, useNow } from "../utils/time";
+import { formatTimeAgo, secondsResolution, useNow } from "../utils/time";
 import { displayText, translationLine } from "../utils/translation";
 import { runGuarded } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
@@ -100,6 +105,7 @@ import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { useMyAuthorName } from "../utils/myName";
 import { RulesSheet } from "../components/RulesSheet";
 import { haptic } from "../components/PressableScale";
+import { noFocusRingMultiline } from "../utils/noFocusRing";
 
 const COMMENT_CLAMP_LINES = 5;
 
@@ -135,6 +141,7 @@ export function ThreadSheet({
   focusComment = false,
   onClose,
   onOpenProfile,
+  onPressTopic,
   slots,
   beforeSubmitComment,
 }: {
@@ -143,6 +150,10 @@ export function ThreadSheet({
   focusComment?: boolean;
   onClose(): void;
   onOpenProfile(userId: string, source?: ProfileSource): void;
+  /** The post's topic was tapped: the sheet closes, then this is called (the
+   * feed selects that tab; elsewhere a host routes back to its feed). Absent:
+   * the topic is not tappable. */
+  onPressTopic?(topicId: string): void;
   slots?: PostSlots;
   /** Awaited before the comment is actually created (`useCreateComment().mutate`).
    * Absent ⇒ byte-identical behavior. Resolving/returning `false` (or
@@ -175,8 +186,18 @@ export function ThreadSheet({
   }, [postId]);
 
   const post = useCachedPost(shownId, readerLocale(cfg));
+  // Not in any loaded list (opened from a notification): fetched on its own,
+  // into a cache `useCachedPost` reads.
+  usePost(shownId, post === null);
   const thread = useThread(shownId);
   const comments = thread.data ?? [];
+  const rows = useMemo(() => threadRows(comments), [comments]);
+  // @handle → member, for tappable mentions (only people in this thread).
+  const handles = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of comments) if (c.authorHandle) map.set(c.authorHandle.toLowerCase(), c.authorId);
+    return map;
+  }, [comments]);
 
   useEffect(() => {
     if (!postId) return;
@@ -199,6 +220,12 @@ export function ThreadSheet({
 
   const [text, setText] = useState("");
   const [image, setImage] = useState<LocalImage | null>(null);
+  // Answering a comment: who, and the "@handle " the field was pre-filled with.
+  const [replyTo, setReplyTo] = useState<{
+    id: string;
+    name: string;
+    prefix: string;
+  } | null>(null);
   // Read by the async send callbacks (the draft may have changed since).
   const latestDraft = useRef({ text, image });
   latestDraft.current = { text, image };
@@ -209,6 +236,7 @@ export function ThreadSheet({
   useEffect(() => {
     setText("");
     setImage(null);
+    setReplyTo(null);
   }, [shownId]);
   // Rules gate on commenting, same shared flag as the feed composer (both
   // source apps gated the first comment behind the UGC rules sheet too).
@@ -250,9 +278,8 @@ export function ThreadSheet({
   const myUid = useMyUid();
   const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
   const myAuthorName = useMyAuthorName();
-  const myInitial = myAuthorName().charAt(0).toUpperCase();
-  // Double-submit latch for the `beforeSubmitComment` await — see the
-  // matching note in `ComposerCard.tsx`'s `gating` state.
+  // Double-submit latch for the `beforeSubmitComment` await: a second tap
+  // during the await would otherwise run the host gate twice.
   const [gating, setGating] = useState(false);
 
   // True while a photo is picked and re-encoded (1–2 s for a large one): Send
@@ -275,9 +302,25 @@ export function ThreadSheet({
     }
   };
 
+  const startReply = (c: ThreadComment) => {
+    const prefix = c.authorHandle ? `@${c.authorHandle} ` : "";
+    // Swap the previous reply's untouched prefix, keep anything typed.
+    setText((current) => {
+      const typed = replyTo && current === replyTo.prefix ? "" : current;
+      return typed.trim() ? typed : prefix;
+    });
+    setReplyTo({ id: c.id, name: c.authorName, prefix });
+    focusReply();
+  };
+  const cancelReply = () => {
+    if (replyTo && text === replyTo.prefix) setText("");
+    setReplyTo(null);
+  };
+
   const send = () => {
     const trimmed = text.trim();
     const sentImage = image;
+    const sentReply = replyTo;
     if ((!trimmed && !sentImage) || !shownId || gating || preparing) return;
     if (!rulesAccepted) {
       setRulesVisible(true);
@@ -294,6 +337,7 @@ export function ThreadSheet({
       if (shownIdRef.current !== postId || now.text.trim() || now.image) return;
       setText(trimmed);
       setImage(sentImage);
+      setReplyTo(sentReply);
     };
 
     const doSend = () => {
@@ -301,7 +345,7 @@ export function ThreadSheet({
       const authorName = myAuthorName();
       haptic("medium");
       createComment.mutate(
-        { postId, text: trimmed, authorName, image: draft.image },
+        { postId, text: trimmed, authorName, image: draft.image, parentId: sentReply?.id },
         {
           onSuccess: (res) => {
             if (res.verdict.status === "rejected") showNotice("rejected", postId);
@@ -314,6 +358,7 @@ export function ThreadSheet({
       );
       setText("");
       setImage(null);
+      setReplyTo(null);
     };
 
     if (!beforeSubmitComment) {
@@ -348,6 +393,12 @@ export function ThreadSheet({
     onClose();
     onOpenProfile(userId, source);
   };
+  const pressTopic = onPressTopic
+    ? (topicId: string) => {
+        onClose();
+        onPressTopic(topicId);
+      }
+    : undefined;
 
   const handleDismissed = () => {
     viewer.close();
@@ -464,6 +515,22 @@ export function ThreadSheet({
           overlay={viewer.overlay}
           footer={
             <>
+              <View style={styles.rule} />
+              {replyTo && (
+                <View style={styles.replyingRow}>
+                  <Text style={styles.replyingText} numberOfLines={1}>
+                    {t("thread.replyingTo", { name: replyTo.name })}
+                  </Text>
+                  <Pressable
+                    hitSlop={12}
+                    onPress={cancelReply}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("a11y.cancelReply")}
+                  >
+                    <icons.close size={14} color={theme.colors.textFaint} weight="bold" />
+                  </Pressable>
+                </View>
+              )}
               {image !== null && (
                 <View style={styles.thumbRow}>
                   <Image source={{ uri: image.url }} style={styles.thumb} contentFit="cover" />
@@ -494,16 +561,8 @@ export function ThreadSheet({
                       <icons.image size={20} color={theme.colors.accent} weight="regular" />
                     )}
                   </Pressable>
-                ) : myAvatarUrl ? (
-                  <Image
-                    source={{ uri: myAvatarUrl }}
-                    style={styles.cAvatarImage}
-                    contentFit="cover"
-                  />
                 ) : (
-                  <View style={styles.cAvatar}>
-                    <Text style={styles.cAvatarLetter}>{myInitial}</Text>
-                  </View>
+                  <Avatar userId={myUid} name={myAuthorName()} url={myAvatarUrl} size={30} />
                 )}
                 <SheetTextInput
                   ref={inputRef}
@@ -532,7 +591,7 @@ export function ThreadSheet({
                   />
                 </Pressable>
                 {/* Rules gate: swallow every touch on the comment box until the UGC
-                rules are accepted (mirrors `ComposerCard`'s overlay). */}
+                rules are accepted. */}
                 {!rulesAccepted && (
                   <Pressable style={StyleSheet.absoluteFill} onPress={() => setRulesVisible(true)}>
                     <View />
@@ -551,16 +610,22 @@ export function ThreadSheet({
           >
             {post && (
               <ModalHandoffContext.Provider value={presentAfterClose}>
-                <CommunityPost
-                  post={post}
-                  onPressComment={focusReply}
-                  onOpenProfile={openProfile}
-                  onMenu={openPostMenu}
-                  {...slots}
-                />
+                {/* The row pads itself for the flat feed: cancel it so the
+                    post lines up with the comments under the sheet's padding. */}
+                <View style={styles.postBleed}>
+                  <CommunityPost
+                    post={post}
+                    onPressComment={focusReply}
+                    onOpenProfile={openProfile}
+                    onMenu={openPostMenu}
+                    onPressTopic={pressTopic}
+                    {...slots}
+                  />
+                </View>
               </ModalHandoffContext.Provider>
             )}
 
+            <View style={[styles.rule, styles.commentsRule]} />
             <Text style={styles.commentsLabel}>
               {t("thread.comments", { count: comments.length })}
             </Text>
@@ -570,12 +635,16 @@ export function ThreadSheet({
             ) : comments.length === 0 ? (
               <Text style={styles.stateText}>{t("thread.emptyComments")}</Text>
             ) : (
-              comments.map((c) => (
+              rows.map(({ comment: c, depth }) => (
                 <CommentRow
                   key={c.id}
                   comment={c}
+                  depth={depth}
+                  postId={shownId!}
+                  handles={handles}
                   onOpenProfile={openProfile}
                   onMenu={openCommentMenu}
+                  onReply={startReply}
                 />
               ))
             )}
@@ -601,19 +670,29 @@ export function ThreadSheet({
 }
 
 /** One comment row: avatar, name/handle/official badge/timestamp, clamped
- * body with a view more/less toggle (reuses `CommunityPost`'s `post.viewMore`/
- * `post.viewLess` catalog keys — same semantics, no new keys needed), and a
+ * body with an inline "View more" (reuses `CommunityPost`'s `post.viewMore`
+ * catalog key), and a
  * menu button. Ported from the mold's inline comment row in `CommunityThread`. */
 function CommentRow({
   comment,
+  depth,
+  postId,
+  handles,
   onOpenProfile,
   onMenu,
+  onReply,
 }: {
   comment: ThreadComment;
+  /** 1 for a reply, shown indented under its root comment. */
+  depth: 0 | 1;
+  postId: string;
+  /** @handle → member id, for tappable mentions. */
+  handles: Map<string, string>;
   onOpenProfile(userId: string, source?: ProfileSource): void;
   onMenu(comment: ThreadComment): void;
+  onReply(comment: ThreadComment): void;
 }) {
-  const now = useNow();
+  const now = useNow(secondsResolution(comment.createdAt, Date.now()));
   const theme = useCommunityTheme();
   const t = useT();
   const icons = useCommunityIcons();
@@ -635,25 +714,41 @@ function CommentRow({
   const handleAuthor = () => {
     if (comment.authorId) onOpenProfile(comment.authorId, "comment");
   };
+  const toggleLike = useToggleCommentLike();
+  // Not on the server yet: nothing to like or answer.
+  const pending = comment.id.startsWith("optimistic-");
+
+  const renderMentions = (shown: string) =>
+    splitMentions(shown).map((part, i) => {
+      if (!part.handle) return part.text;
+      const userId = handles.get(part.handle);
+      return (
+        <Text
+          key={i}
+          style={styles.mention}
+          onPress={userId ? () => onOpenProfile(userId, "comment") : undefined}
+          suppressHighlighting
+        >
+          {part.text}
+        </Text>
+      );
+    });
 
   return (
-    <View style={styles.comment}>
+    <View style={[styles.comment, depth === 1 && styles.reply]}>
       <Pressable onPress={handleAuthor} hitSlop={4}>
-        {comment.authorAvatarUrl ? (
-          <Image
-            source={{ uri: comment.authorAvatarUrl }}
-            style={styles.cAvatarImage}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={styles.cAvatar}>
-            <Text style={styles.cAvatarLetter}>{comment.authorName.charAt(0).toUpperCase()}</Text>
-          </View>
-        )}
+        <Avatar
+          userId={comment.authorId}
+          name={comment.authorName}
+          url={comment.authorAvatarUrl}
+          size={depth === 1 ? 24 : 30}
+        />
       </Pressable>
       <View style={styles.commentBody}>
         <Pressable onPress={handleAuthor} hitSlop={4} style={styles.nameRow}>
-          <Text style={styles.cName}>{comment.authorName}</Text>
+          <Text style={styles.cName} numberOfLines={1}>
+            {comment.authorName}
+          </Text>
           {comment.authorOfficial && (
             <icons.officialSeal size={13} color={theme.colors.official} weight="fill" />
           )}
@@ -672,6 +767,7 @@ function CommentRow({
             clampLines={COMMENT_CLAMP_LINES}
             textStyle={styles.cText}
             viewMoreStyle={styles.cViewMore}
+            renderText={renderMentions}
           />
         )}
         {toggleLine && (
@@ -682,6 +778,43 @@ function CommentRow({
         {comment.image && (
           <View style={styles.cImage}>
             <PostImage image={comment.image} onOpen={openImage} />
+          </View>
+        )}
+        {!pending && (
+          <View style={styles.cActions}>
+            <Pressable
+              hitSlop={8}
+              onPress={() => {
+                haptic(comment.likedByMe ? "light" : "medium");
+                toggleLike.mutate({ postId, commentId: comment.id, liked: !comment.likedByMe });
+              }}
+              style={styles.cAction}
+              accessibilityRole="button"
+              accessibilityLabel={t("a11y.like")}
+              accessibilityState={{ selected: comment.likedByMe }}
+            >
+              <icons.like
+                size={15}
+                color={comment.likedByMe ? theme.colors.like : theme.colors.textFaint}
+                weight={comment.likedByMe ? "fill" : "regular"}
+              />
+              {comment.likeCount > 0 && (
+                <Text
+                  style={[styles.cActionCount, comment.likedByMe && { color: theme.colors.like }]}
+                >
+                  {comment.likeCount}
+                </Text>
+              )}
+            </Pressable>
+            <Pressable
+              hitSlop={8}
+              onPress={() => onReply(comment)}
+              style={styles.cAction}
+              accessibilityRole="button"
+              accessibilityLabel={t("a11y.reply")}
+            >
+              <icons.reply size={15} color={theme.colors.textFaint} weight="regular" />
+            </Pressable>
           </View>
         )}
       </View>
@@ -701,6 +834,7 @@ function CommentRow({
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     content: { paddingTop: theme.spacing(1), paddingBottom: theme.spacing(3) },
+    postBleed: { marginHorizontal: -theme.spacing(4) },
     commentsLabel: {
       fontFamily: theme.fonts.bold,
       fontWeight: theme.fontWeights.bold,
@@ -708,12 +842,16 @@ function makeStyles(theme: CommunityTheme) {
       letterSpacing: 1.5,
       textTransform: "uppercase",
       color: theme.colors.textFaint,
-      marginTop: theme.spacing(6),
+      marginTop: theme.spacing(4.5),
       marginBottom: theme.spacing(4),
-      paddingTop: theme.spacing(4.5),
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
     },
+    // Edge to edge, out of the sheet's gutter.
+    rule: {
+      height: 1,
+      backgroundColor: theme.colors.border,
+      marginHorizontal: -theme.spacing(SHEET_GUTTER),
+    },
+    commentsRule: { marginTop: theme.spacing(6) },
     stateText: {
       fontFamily: theme.fonts.regular,
       fontWeight: theme.fontWeights.regular,
@@ -723,22 +861,36 @@ function makeStyles(theme: CommunityTheme) {
       paddingVertical: theme.spacing(2),
     },
     comment: { flexDirection: "row", gap: theme.spacing(2.5), marginBottom: theme.spacing(4.5) },
-    cAvatar: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      backgroundColor: theme.colors.surfaceMuted,
-      borderWidth: 1,
-      borderColor: theme.colors.borderStrong,
+    // Under the root comment's text column (avatar 30 + gap).
+    reply: { marginLeft: 30 + theme.spacing(2.5) },
+    cActions: {
+      flexDirection: "row",
       alignItems: "center",
-      justifyContent: "center",
+      gap: theme.spacing(5),
+      marginTop: theme.spacing(1.5),
     },
-    cAvatarImage: { width: 30, height: 30, borderRadius: 15 },
-    cAvatarLetter: {
-      fontFamily: theme.fonts.serifBold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 13,
-      color: theme.colors.accent,
+    cAction: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1), minHeight: 20 },
+    cActionCount: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 12,
+      fontVariant: ["tabular-nums"],
+      color: theme.colors.textFaint,
+    },
+    mention: { color: theme.colors.accent, fontFamily: theme.fonts.medium },
+    replyingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing(2),
+      paddingTop: theme.spacing(2.5),
+    },
+    replyingText: {
+      flexShrink: 1,
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 12.5,
+      color: theme.colors.textMuted,
     },
     commentBody: { flex: 1 },
     nameRow: {
@@ -746,6 +898,7 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
       gap: theme.spacing(1),
       alignSelf: "flex-start",
+      maxWidth: "100%",
     },
     link: { alignSelf: "flex-start" },
     cName: {
@@ -753,6 +906,7 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.bold,
       fontSize: 13,
       color: theme.colors.textPrimary,
+      flexShrink: 1,
     },
     handle: {
       fontFamily: theme.fonts.regular,
@@ -766,6 +920,7 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.regular,
       fontSize: 12,
       color: theme.colors.textFaint,
+      flexShrink: 0,
     },
     cText: {
       fontFamily: theme.fonts.regular,
@@ -778,15 +933,15 @@ function makeStyles(theme: CommunityTheme) {
     cViewMore: {
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
-      fontSize: 12.5,
       color: theme.colors.accent,
-      marginTop: theme.spacing(1),
     },
+    // Quieter than the body whatever the host maps `textFaint` to.
     cTranslationLine: {
-      fontFamily: theme.fonts.medium,
-      fontWeight: theme.fontWeights.medium,
-      fontSize: 12.5,
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 12,
       color: theme.colors.textFaint,
+      opacity: 0.75,
       marginTop: theme.spacing(1.5),
     },
     cMenu: { paddingLeft: theme.spacing(1.5), paddingTop: 2 },
@@ -795,8 +950,6 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
       gap: theme.spacing(2.5),
       paddingTop: theme.spacing(3),
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
     },
     input: {
       flex: 1,
@@ -811,18 +964,16 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.regular,
       fontSize: 14.5,
       color: theme.colors.textPrimary,
+      ...noFocusRingMultiline,
     },
     send: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
     // Same 30-pt slot as the avatar it replaces (44-pt target via hitSlop).
     imageButton: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
-    // With a thumbnail, the bar's top border moves up above it.
     thumbRow: {
       flexDirection: "row",
       alignItems: "flex-start",
       gap: theme.spacing(2),
       paddingTop: theme.spacing(3),
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
     },
     thumb: {
       width: 56,
@@ -830,7 +981,7 @@ function makeStyles(theme: CommunityTheme) {
       borderRadius: theme.radius.sm,
       backgroundColor: theme.colors.surfaceMuted,
     },
-    inputRowUnderThumb: { borderTopWidth: 0, paddingTop: theme.spacing(2) },
+    inputRowUnderThumb: { paddingTop: theme.spacing(2) },
     // 60% of the comment column, height from the image's (clamped) ratio.
     cImage: { width: "60%", marginTop: theme.spacing(2) },
   });

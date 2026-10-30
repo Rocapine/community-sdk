@@ -51,7 +51,6 @@ import {
   useUserPosts,
   type FeedPost,
 } from "@rocapine/community-core";
-import { Image } from "expo-image";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -66,6 +65,7 @@ import {
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
+import { Avatar } from "../components/Avatar";
 import { ImageViewerHost } from "../components/ImageViewer";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { PressableScale } from "../components/PressableScale";
@@ -81,6 +81,7 @@ export function ProfileScreen({
   source = "post",
   onOpenThread,
   onBack,
+  onPressTopic,
   slots,
   topInset = 0,
 }: {
@@ -92,6 +93,10 @@ export function ProfileScreen({
    * thread with the reply field focused (`ThreadSheet`'s `focusComment`). */
   onOpenThread(postId: string, focusComment?: boolean): void;
   onBack?: () => void;
+  /** A post's topic was tapped: the host takes the user back to its feed on
+   * that topic (see `CommunityFeedScreen`'s `topicRequest`). Absent: topics
+   * are not tappable here. */
+  onPressTopic?(topicId: string): void;
   slots?: PostSlots;
   // Top safe-area inset in px. This screen owns its back button and is meant
   // to be mounted as a full-screen route, so on a notched device the host
@@ -257,19 +262,14 @@ export function ProfileScreen({
           ) : (
             <>
               <View style={styles.header}>
-                {profile.data.avatarUrl ? (
-                  <Image
-                    source={{ uri: profile.data.avatarUrl }}
-                    style={styles.avatarImage}
-                    contentFit="cover"
+                <View style={styles.avatar}>
+                  <Avatar
+                    userId={userId}
+                    name={profile.data.name}
+                    url={profile.data.avatarUrl}
+                    size={72}
                   />
-                ) : (
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarLetter}>
-                      {profile.data.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
+                </View>
                 <View style={styles.nameRow}>
                   <Text style={styles.name}>{profile.data.name}</Text>
                   {profile.data.official && (
@@ -299,15 +299,17 @@ export function ProfileScreen({
                   </Text>
                 ) : (
                   posts.map((post) => (
-                    <CommunityPost
-                      key={post.id}
-                      post={post}
-                      onOpenThread={onOpenThread}
-                      onPressComment={(postId) => onOpenThread(postId, true)}
-                      onOpenProfile={noop}
-                      onMenu={openPostMenu}
-                      {...slots}
-                    />
+                    <View key={post.id} style={styles.row}>
+                      <CommunityPost
+                        post={post}
+                        onOpenThread={onOpenThread}
+                        onPressComment={(postId) => onOpenThread(postId, true)}
+                        onOpenProfile={noop}
+                        onMenu={openPostMenu}
+                        onPressTopic={onPressTopic}
+                        {...slots}
+                      />
+                    </View>
                   ))
                 )}
                 {hasNextPage && (
@@ -368,24 +370,7 @@ function makeStyles(theme: CommunityTheme) {
     spinner: { marginTop: theme.spacing(8) },
     spinnerSmall: { marginTop: theme.spacing(3) },
     header: { alignItems: "center", marginTop: theme.spacing(2), marginBottom: theme.spacing(7) },
-    avatar: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor: theme.colors.surfaceMuted,
-      borderWidth: 1,
-      borderColor: theme.colors.borderStrong,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: theme.spacing(3.5),
-    },
-    avatarImage: { width: 72, height: 72, borderRadius: 36, marginBottom: theme.spacing(3.5) },
-    avatarLetter: {
-      fontFamily: theme.fonts.serifBold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 30,
-      color: theme.colors.accent,
-    },
+    avatar: { marginBottom: theme.spacing(3.5) },
     nameRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1.5) },
     name: {
       fontFamily: theme.fonts.serifBold,
@@ -434,7 +419,10 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textFaint,
       marginBottom: theme.spacing(3),
     },
-    feed: { marginBottom: theme.spacing(2) },
+    // Flat rows edge to edge, as in the feed: out of the screen padding,
+    // a hairline above each one.
+    feed: { marginHorizontal: -theme.spacing(5), marginBottom: theme.spacing(2) },
+    row: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.hairline },
     loadMore: {
       alignSelf: "center",
       backgroundColor: theme.colors.surfaceMuted,
@@ -443,7 +431,7 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(5),
       borderWidth: 1,
       borderColor: theme.colors.border,
-      marginTop: theme.spacing(1),
+      marginTop: theme.spacing(3),
       minWidth: 96,
       alignItems: "center",
     },

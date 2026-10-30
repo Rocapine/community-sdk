@@ -39,6 +39,8 @@ export type CommunityIconProps = {
  *  - `warning`        — notice card (moderation/network error)
  *  - `compose`        — floating "write a post" bar shown once the composer scrolls away
  *  - `image`          — composer "add an image" button (images module)
+ *  - `reply`          — reply to a comment (thread)
+ *  - `markAllRead`    — notification center "mark all as read"
  */
 export type CommunityIconName =
   | "like"
@@ -58,6 +60,8 @@ export type CommunityIconName =
   | "add"
   | "warning"
   | "compose"
-  | "image";
+  | "image"
+  | "reply"
+  | "markAllRead";
 
 export type CommunityIconSet = Record<CommunityIconName, ComponentType<CommunityIconProps>>;

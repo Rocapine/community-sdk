@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FeedPost } from "./models";
+import { POST_MAX_LENGTH, type FeedPost } from "./models";
 
 export type CommunityTopicDef = { id: string; officialOnly?: boolean };
 
@@ -73,6 +73,13 @@ export type CommunityConfig = {
   modules: CommunityModules;
   host?: CommunityHostAdapters;
   feed?: CommunityFeedConfig;
+  /** Characters a post may hold (the composer's cap and ring). Defaults to
+   * `DEFAULT_POST_MAX_LENGTH`; never above `POST_MAX_LENGTH`, the database's limit. */
+  postMaxLength?: number;
+  /** When an inbox item counts as read. `"open"` (default): opening the
+   * notification center reads everything. `"tap"`: an item is read once
+   * tapped, and the center offers "mark all as read". */
+  inboxReadMode?: "open" | "tap";
 };
 
 export class CommunityDisabledError extends Error {
@@ -87,6 +94,8 @@ type RequiredCommunityHostAdapters = Required<CommunityHostAdapters>;
 export type ResolvedCommunityConfig = CommunityConfig & {
   host: RequiredCommunityHostAdapters;
   feed: CommunityFeedConfig;
+  postMaxLength: number;
+  inboxReadMode: "open" | "tap";
   requireClient(): SupabaseClient;
   /** `defaultName` resolved against the host locale. */
   defaultName: CommunityDefaultName;
@@ -96,6 +105,8 @@ export type ResolvedCommunityConfig = CommunityConfig & {
   composeTopics(): CommunityTopicDef[];
   isOfficialTopic(id: string): boolean;
 };
+
+export const DEFAULT_POST_MAX_LENGTH = 500;
 
 export const DEFAULT_NAME: CommunityDefaultName = { label: "User", handle: "user" };
 
@@ -123,6 +134,8 @@ export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig 
     ...config,
     host,
     feed: config.feed ?? {},
+    inboxReadMode: config.inboxReadMode ?? "open",
+    postMaxLength: Math.min(config.postMaxLength ?? DEFAULT_POST_MAX_LENGTH, POST_MAX_LENGTH),
     defaultName: config.defaultName ?? DEFAULT_NAME,
     requireClient(): SupabaseClient {
       if (!resolved.supabase) {
