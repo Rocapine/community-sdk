@@ -9,6 +9,7 @@ let inFlight: Promise<string | null> | null = null;
 let lastSyncedUsername: string | null = null;
 let lastSyncedLocale: string | null = null;
 let lastSyncedAnalyticsKey: string | null = null;
+let lastSyncedStreakKey: string | null = null;
 
 /**
  * Resolve the community user id, signing in anonymously on first use.
@@ -36,6 +37,7 @@ export function resetIdentity(): void {
   lastSyncedUsername = null;
   lastSyncedLocale = null;
   lastSyncedAnalyticsKey = null;
+  lastSyncedStreakKey = null;
 }
 
 async function bootstrap(cfg: ResolvedCommunityConfig): Promise<string> {
@@ -85,12 +87,22 @@ async function assignDefaultProfile(cfg: ResolvedCommunityConfig): Promise<void>
  */
 export async function resetProfileIdentity(cfg: ResolvedCommunityConfig): Promise<boolean> {
   if (!cfg.supabase) return false;
+  if (cfg.modules.streaks) {
+    const uid = (await cfg.supabase.auth.getSession()).data.session?.user.id;
+    if (uid) {
+      await cfg.supabase
+        .from("profiles")
+        .update({ streak_started_at: null, best_streak_days: null })
+        .eq("id", uid);
+      lastSyncedStreakKey = null;
+    }
+  }
   const { error } = await cfg.supabase.rpc("reset_profile_identity");
   return !error;
 }
 
 /**
- * Mirror the host's display name, locale and analytics ids onto the
+ * Mirror the host's display name, locale, analytics ids and streak onto the
  * profiles row. Safe to call on every app open / community open: each field
  * hits the network at most once per launch per changed value (mold pattern
  * from syncCommunityUsername / syncProfileLocale), batched into one update.
@@ -117,6 +129,12 @@ export async function syncProfileFromHost(cfg: ResolvedCommunityConfig): Promise
     update.amplitude_id = amplitudeId ?? null;
     update.revenuecat_id = revenuecatId ?? null;
   }
+  const streak = cfg.modules.streaks ? cfg.host.getStreak() : null;
+  const streakKey = streak ? JSON.stringify(streak) : null;
+  if (streak && streakKey !== lastSyncedStreakKey) {
+    update.streak_started_at = streak.startedAt;
+    update.best_streak_days = Math.max(0, Math.floor(streak.bestDays));
+  }
   if (Object.keys(update).length === 0) return;
 
   const uid = await ensureIdentity(cfg);
@@ -128,5 +146,6 @@ export async function syncProfileFromHost(cfg: ResolvedCommunityConfig): Promise
     if ("username" in update) lastSyncedUsername = name;
     if ("locale" in update) lastSyncedLocale = locale;
     if ("amplitude_id" in update) lastSyncedAnalyticsKey = analyticsKey;
+    if ("streak_started_at" in update) lastSyncedStreakKey = streakKey;
   }
 }

@@ -90,6 +90,11 @@ export const defaultIcons: CommunityIconSet = {
     iosFill: "checkmark.circle.fill",
     material: "done_all",
   }),
+  streak: fromSymbols("streak", {
+    ios: "flame",
+    iosFill: "flame.fill",
+    material: "local_fire_department",
+  }),
   menu: fromSymbols("menu", { ios: "ellipsis", material: "more_horiz" }),
   back: fromSymbols("back", { ios: "chevron.left", material: "arrow_back" }),
   close: fromSymbols("close", { ios: "xmark", material: "close" }),

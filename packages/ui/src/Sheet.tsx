@@ -68,7 +68,9 @@ import { useCommunityTheme, useThemedStyles } from "./ThemeProvider";
 import type { CommunityTheme } from "./theme";
 import { sheetTransition, type SheetPhase } from "./utils/sheetLifecycle";
 
-const FULL_SNAP_POINTS = ["94%"];
+// The whole height below `topInset` (the status bar, notch or Dynamic Island):
+// every full sheet tops out at the same line and still pans down to close.
+const FULL_SNAP_POINTS = ["100%"];
 /** `snapTo="half"` sheets are content-sized, capped at this share of the window. */
 const HALF_MAX_RATIO = 0.9;
 /** Matches the old hand-rolled sheet's slide, on both platforms (gorhom's iOS

@@ -16,7 +16,15 @@ export type CommunityModules = {
    * bucket, columns added by the images migration). Absent or false ⇒ every
    * query and screen behaves as before. */
   images?: boolean;
+  /** Streaks module: the host's streak on each profile, as a pill on posts
+   * and on the profile (columns added by the streaks migration; values come
+   * from `host.getStreak`). Absent or false ⇒ nothing changes. */
+  streaks?: boolean;
 };
+
+/** The user's streak as the host app counts it. `startedAt`: when the current
+ * streak began (ISO), null when there is none; `bestDays`: the longest one. */
+export type HostStreak = { startedAt: string | null; bestDays: number };
 
 export type CommunityHostAdapters = {
   getDisplayName?: () => string | null;
@@ -25,6 +33,9 @@ export type CommunityHostAdapters = {
   rulesAcceptance?: { get(): Promise<boolean>; set(): Promise<void> };
   onContentPublished?: () => void;
   getLocale?: () => string;
+  /** The streaks module's source; mirrored onto the profile by
+   * `syncProfileFromHost`. */
+  getStreak?: () => HostStreak | null;
 };
 
 /**
@@ -122,6 +133,7 @@ const defaultHost: RequiredCommunityHostAdapters = {
   },
   onContentPublished: () => {},
   getLocale: () => "en",
+  getStreak: () => null,
 };
 
 export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig {

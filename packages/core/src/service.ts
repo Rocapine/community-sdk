@@ -71,6 +71,14 @@ const COMMENT_TRANSLATIONS_SELECT = "comment_translations(locale, source_locale,
 
 const PROFILE_SELECT = "id, username, handle, is_official, bio, avatar_url";
 
+/** Embedded only when the streaks module is on: the columns don't exist on
+ * other installs. A second, aliased embed of the author keeps the base select
+ * untouched. */
+const AUTHOR_STREAK_SELECT =
+  "author_streak:profiles!posts_author_id_fkey(visible_streak_started_at)";
+const PROFILE_STREAK_COLUMNS =
+  "visible_streak_started_at, visible_best_streak_days, show_streak, show_best_streak";
+
 /** Minimal injection guard for `CommunityConfig.feed.extraPostColumns`: a bare
  * column name only, no `.`, `(`, `:`, whitespace, etc. — those are how a
  * PostgREST select embeds a relation or renames a column, and letting them
@@ -88,11 +96,13 @@ export function buildFeedSelect(
   polls = false,
   translations = false,
   images = false,
+  streaks = false,
 ): string {
   const parts = [FEED_SELECT];
   if (polls) parts.push(translations ? POLL_OPTIONS_TRANSLATED_SELECT : POLL_OPTIONS_SELECT);
   if (translations) parts.push(POST_TRANSLATIONS_SELECT);
   if (images) parts.push(IMAGE_COLUMNS);
+  if (streaks) parts.push(AUTHOR_STREAK_SELECT);
   const base = parts.join(", ");
   if (!extraPostColumns || extraPostColumns.length === 0) return base;
   const valid = extraPostColumns.filter((column) => {
@@ -115,6 +125,7 @@ function postsSelect(cfg: ResolvedCommunityConfig): string {
     cfg.modules.polls,
     readerLocale(cfg) !== null,
     !!cfg.modules.images,
+    !!cfg.modules.streaks,
   );
 }
 
@@ -341,7 +352,7 @@ export async function fetchProfile(
   const client = cfg.requireClient();
   const { data, error } = await client
     .from("profiles")
-    .select(PROFILE_SELECT)
+    .select(cfg.modules.streaks ? `${PROFILE_SELECT}, ${PROFILE_STREAK_COLUMNS}` : PROFILE_SELECT)
     .eq("id", userId)
     .single();
   if (error) throw error;
@@ -788,6 +799,22 @@ export async function updateProfile(
  * so the core has no Hermes/`atob` dependency — `fetch` on a `file://` URI is
  * the portable way to read local bytes in React Native.
  */
+/** Streaks module: show or hide the streak and the best streak on one's own
+ * profile and posts. The values themselves are mirrored by
+ * `syncProfileFromHost`. */
+export async function setStreakVisibility(
+  cfg: ResolvedCommunityConfig,
+  input: { showStreak?: boolean; showBestStreak?: boolean },
+): Promise<void> {
+  if (!cfg.modules.streaks) throw new Error("streaks module is not enabled");
+  const uid = await requireUid(cfg);
+  const update: Record<string, boolean> = {};
+  if (input.showStreak !== undefined) update.show_streak = input.showStreak;
+  if (input.showBestStreak !== undefined) update.show_best_streak = input.showBestStreak;
+  const { error } = await cfg.requireClient().from("profiles").update(update).eq("id", uid);
+  if (error) throw error;
+}
+
 export async function uploadAvatar(cfg: ResolvedCommunityConfig, fileUri: string): Promise<string> {
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);

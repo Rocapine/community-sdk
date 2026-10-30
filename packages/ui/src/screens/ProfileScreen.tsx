@@ -50,6 +50,7 @@ import {
   useProfile,
   useUserPosts,
   type FeedPost,
+  streakDays,
 } from "@rocapine/community-core";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -69,6 +70,7 @@ import { Avatar } from "../components/Avatar";
 import { ImageViewerHost } from "../components/ImageViewer";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { PressableScale } from "../components/PressableScale";
+import { StreakPill } from "../components/StreakPill";
 import { isQueryLoading } from "../utils/query";
 import { ProfileEditSheet } from "./ProfileEditSheet";
 
@@ -280,6 +282,26 @@ export function ProfileScreen({
                   <Text style={styles.handle}>@{profile.data.handle}</Text>
                 )}
                 {profile.data.bio ? <Text style={styles.bio}>{profile.data.bio}</Text> : null}
+                {cfg.modules.streaks && (
+                  <View style={styles.streaks}>
+                    {profile.data.streakStartedAt != null &&
+                      streakDays(profile.data.streakStartedAt) >= 1 && (
+                        <View style={styles.streakStat}>
+                          <StreakPill
+                            size="large"
+                            days={streakDays(profile.data.streakStartedAt)}
+                          />
+                          <Text style={styles.streakLabel}>{t("profile.streak")}</Text>
+                        </View>
+                      )}
+                    {profile.data.bestStreakDays != null && profile.data.bestStreakDays >= 1 && (
+                      <View style={styles.streakStat}>
+                        <StreakPill size="large" days={profile.data.bestStreakDays} />
+                        <Text style={styles.streakLabel}>{t("profile.bestStreak")}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
                 {isMe && (
                   <PressableScale onPress={() => setEditOpen(true)} style={styles.editPill}>
                     <Text style={styles.editPillLabel}>{t("profile.editProfile")}</Text>
@@ -384,6 +406,19 @@ function makeStyles(theme: CommunityTheme) {
       fontSize: 13,
       color: theme.colors.textFaint,
       marginTop: theme.spacing(1),
+    },
+    streaks: {
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: theme.spacing(6),
+      marginTop: theme.spacing(4),
+    },
+    streakStat: { alignItems: "center", gap: theme.spacing(1.5) },
+    streakLabel: {
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      fontSize: 12,
+      color: theme.colors.textMuted,
     },
     bio: {
       fontFamily: theme.fonts.regular,

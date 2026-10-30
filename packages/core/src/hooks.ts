@@ -64,6 +64,7 @@ import {
   setCommentLike,
   setLike,
   setReaction,
+  setStreakVisibility,
   setNotificationPreference,
   updateProfile,
   uploadPostImage,
@@ -388,6 +389,17 @@ export function useUpdateProfile() {
   });
 }
 
+/** The owner's streak toggles (streaks module), applied at once: the profile's
+ * pills and every post's pill follow on the refetch. */
+export function useSetStreakVisibility() {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { showStreak?: boolean; showBestStreak?: boolean }>({
+    mutationFn: (input) => setStreakVisibility(cfg, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["community"] }),
+  });
+}
+
 type PostResult = { id: string; verdict: ModerationVerdict };
 
 /**
@@ -455,6 +467,7 @@ export function createPostMutationOptions(
         // The local file uri until the post is published; the background
         // refetch in onSuccess swaps in the server image.
         image: image ?? null,
+        authorStreakStartedAt: null,
       };
       const prepend = (key: readonly unknown[]) =>
         queryClient.setQueryData<InfiniteData<FeedPost[]>>(key, (d) =>

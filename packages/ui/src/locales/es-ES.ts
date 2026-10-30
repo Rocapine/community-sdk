@@ -200,4 +200,11 @@ export const esES: Record<string, string> = {
   "image.photo": "📷 Foto",
   "a11y.openImage": "Abrir imagen",
   "a11y.closeImage": "Cerrar",
+  "streak.days.one": "{count} día",
+  "streak.days.other": "{count} días",
+  "profile.streak": "Racha",
+  "profile.bestStreak": "Mejor racha",
+  "profile.showStreak": "Mostrar mi racha",
+  "profile.showBestStreak": "Mostrar mi mejor racha",
+  "profile.streakHelper": "Visible en tu perfil y bajo tu nombre en tus publicaciones.",
 };

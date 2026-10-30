@@ -90,7 +90,7 @@ export function ReportSheet({
   };
 
   return (
-    <CommunitySheet visible={visible} onClose={close} snapTo="half">
+    <CommunitySheet visible={visible} onClose={close} snapTo="full">
       {/* keyboardShouldPersistTaps="always" so the reason chips and Send fire
           on the first tap while the keyboard is open (mold behavior, ported
           as-is — see that file's own note on why "handled" is not enough

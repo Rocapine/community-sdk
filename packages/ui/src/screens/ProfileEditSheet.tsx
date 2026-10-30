@@ -27,6 +27,7 @@ import {
   useCommunityConfig,
   useMyUid,
   useProfile,
+  useSetStreakVisibility,
   useUpdateProfile,
   uploadAvatar,
 } from "@rocapine/community-core";
@@ -37,6 +38,7 @@ import {
   ActivityIndicator,
   Keyboard,
   StyleSheet,
+  Switch,
   Text,
   View,
   type LayoutChangeEvent,
@@ -67,6 +69,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   const myUid = useMyUid();
   const profile = useProfile(myUid);
   const updateProfile = useUpdateProfile();
+  const streakVisibility = useSetStreakVisibility();
 
   const [base, setBase] = useState<Saved>({ name: "", handle: "", bio: "" });
   const [name, setName] = useState("");
@@ -321,7 +324,11 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
         // "handled": a tap outside a field (not on a button) closes the keyboard.
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: keyboardHeight }]}
+        // Breathing room between the last section and the pinned Save button.
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: keyboardHeight + theme.spacing(6) },
+        ]}
       >
         <Text style={styles.title}>{t("profile.editProfile")}</Text>
 
@@ -421,10 +428,64 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
               </Text>
               {errors.bio && <Text style={styles.errorText}>{errors.bio}</Text>}
             </View>
+
+            {cfg.modules.streaks && (
+              <View style={styles.section}>
+                <Text style={styles.label}>{t("profile.streak")}</Text>
+                <StreakToggle
+                  label={t("profile.showStreak")}
+                  value={profile.data.showStreak}
+                  onChange={(on) => streakVisibility.mutateAsync({ showStreak: on })}
+                />
+                <StreakToggle
+                  label={t("profile.showBestStreak")}
+                  value={profile.data.showBestStreak}
+                  onChange={(on) => streakVisibility.mutateAsync({ showBestStreak: on })}
+                />
+                <Text style={styles.helper}>{t("profile.streakHelper")}</Text>
+              </View>
+            )}
           </>
         )}
       </SheetScrollView>
     </CommunitySheet>
+  );
+}
+
+/** One streak toggle, applied at once (not by Save). Local state keeps the
+ * switch where the finger left it while the change lands; a failure puts it back. */
+function StreakToggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange(on: boolean): Promise<unknown>;
+}) {
+  const theme = useCommunityTheme();
+  const styles = useThemedStyles(makeStyles);
+  const [on, setOn] = useState(value);
+  useEffect(() => setOn(value), [value]);
+  return (
+    <View style={styles.toggleRow}>
+      <Text style={styles.toggleLabel}>{label}</Text>
+      <Switch
+        value={on}
+        onValueChange={(next) => {
+          haptic("selection");
+          setOn(next);
+          onChange(next).catch(() => setOn(!next));
+        }}
+        // Off on a muted track, the white thumb vanished on a light sheet; on, a
+        // white thumb vanishes on a light accent (dark themes): the ground's
+        // color always stands out from the accent.
+        trackColor={{ true: theme.colors.accent, false: theme.colors.textFaint }}
+        ios_backgroundColor={theme.colors.textFaint}
+        thumbColor={on ? theme.colors.background : undefined}
+        accessibilityLabel={label}
+      />
+    </View>
   );
 }
 
@@ -506,6 +567,20 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textPrimary,
       textAlignVertical: "top",
       ...noFocusRingMultiline,
+    },
+    toggleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing(3),
+      minHeight: 44,
+    },
+    toggleLabel: {
+      flex: 1,
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 15,
+      color: theme.colors.textPrimary,
     },
     counter: {
       fontFamily: theme.fonts.regular,

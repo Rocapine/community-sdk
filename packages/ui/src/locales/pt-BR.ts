@@ -197,4 +197,11 @@ export const ptBR: Record<string, string> = {
   "image.photo": "📷 Foto",
   "a11y.openImage": "Abrir imagem",
   "a11y.closeImage": "Fechar",
+  "streak.days.one": "{count} dia",
+  "streak.days.other": "{count} dias",
+  "profile.streak": "Sequência",
+  "profile.bestStreak": "Melhor sequência",
+  "profile.showStreak": "Mostrar minha sequência",
+  "profile.showBestStreak": "Mostrar minha melhor sequência",
+  "profile.streakHelper": "Visível no seu perfil e abaixo do seu nome nas suas publicações.",
 };

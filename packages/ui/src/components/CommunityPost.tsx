@@ -25,6 +25,7 @@ import {
   COMMUNITY_EVENTS,
   emitEvent,
   isOptimistic,
+  streakDays,
   useCommunityConfig,
   useReactToPost,
   useToggleLike,
@@ -51,9 +52,11 @@ import { Avatar } from "./Avatar";
 import { ImageViewerContext } from "./ImageViewer";
 import { PostImage } from "./PostImage";
 import { PollBlock } from "./PollBlock";
+import { StreakPill } from "./StreakPill";
 import { haptic, PressableScale } from "./PressableScale";
 
 const BODY_CLAMP_LINES = 6;
+const PREVIEW_CLAMP_LINES = 3;
 
 /** Where a profile was opened from — forwarded to the host's
  * `onOpenProfile` so it can hand it back to `ProfileScreen`'s `source` prop
@@ -78,6 +81,10 @@ export type PostSlots = {
     defaultButton: ReactNode,
     ctx: PostSlotContext,
   ) => ReactNode;
+  /** Replaces the reaction button's toggle: a tap calls this instead and
+   * records nothing (e.g. open a flow that reacts at its end with
+   * `useReactToPost`). */
+  onPressReaction?: (post: FeedPost, ctx: PostSlotContext) => void;
 };
 
 export function CommunityPost({
@@ -89,8 +96,14 @@ export function CommunityPost({
   onPressTopic,
   renderPostFooter,
   renderReactionButton,
+  onPressReaction,
+  preview = false,
 }: {
   post: FeedPost;
+  /** Read-only quote of the post (e.g. atop a host's reaction sheet): a small
+   * avatar beside the author line, three lines of text full width below; no
+   * streak, menu, footer, image or poll, and no row padding or background. */
+  preview?: boolean;
   /** Absent (e.g. inside the thread itself): the card is not tappable. */
   onOpenThread?(postId: string): void;
   /** The comment button. Defaults to `onOpenThread`; the feed opens the
@@ -142,6 +155,11 @@ export function CommunityPost({
 
   const handleReact = () => {
     if (pending) return;
+    if (onPressReaction) {
+      haptic("selection");
+      onPressReaction(post, slotCtx);
+      return;
+    }
     haptic(post.hasReacted ? "light" : "medium");
     reactToPost.mutate({ postId: post.id, on: !post.hasReacted });
   };
@@ -179,15 +197,17 @@ export function CommunityPost({
       <Text style={[styles.meta, styles.ago]} numberOfLines={1}>
         · {formatTimeAgo(t, post.createdAt, now)}
       </Text>
-      <Pressable
-        hitSlop={8}
-        onPress={handleMenu}
-        style={styles.menuButton}
-        accessibilityRole="button"
-        accessibilityLabel={t("a11y.more")}
-      >
-        <icons.menu size={18} color={theme.colors.textFaint} weight="bold" />
-      </Pressable>
+      {!preview && (
+        <Pressable
+          hitSlop={8}
+          onPress={handleMenu}
+          style={styles.menuButton}
+          accessibilityRole="button"
+          accessibilityLabel={t("a11y.more")}
+        >
+          <icons.menu size={18} color={theme.colors.textFaint} weight="bold" />
+        </Pressable>
+      )}
     </View>
   );
 
@@ -244,16 +264,50 @@ export function CommunityPost({
   );
   const footer = renderPostFooter?.(post, defaultFooter, slotCtx) ?? defaultFooter;
 
+  const avatar = (size: number) => (
+    <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.avatarColumn}>
+      <Avatar
+        userId={post.authorId}
+        name={post.authorName}
+        url={post.authorAvatarUrl}
+        size={size}
+      />
+    </Pressable>
+  );
+
+  const body = hasText && (
+    <>
+      <ClampedBody
+        text={displayText(post, showOriginal)}
+        alternate={post.translation ? displayText(post, !showOriginal) : null}
+        clampLines={preview ? PREVIEW_CLAMP_LINES : BODY_CLAMP_LINES}
+        textStyle={styles.body}
+        viewMoreStyle={styles.viewMore}
+      />
+      {toggleLine && (
+        <Pressable hitSlop={8} onPress={toggleOriginal} style={styles.link}>
+          <Text style={styles.translationLine}>{toggleLine}</Text>
+        </Pressable>
+      )}
+    </>
+  );
+
+  // The quote: author line beside a small avatar, the text full width below it.
+  if (preview) {
+    return (
+      <View>
+        <View style={styles.previewHeader}>
+          {avatar(28)}
+          <View style={styles.main}>{metaLine}</View>
+        </View>
+        {body}
+      </View>
+    );
+  }
+
   const content = (
     <>
-      <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.avatarColumn}>
-        <Avatar
-          userId={post.authorId}
-          name={post.authorName}
-          url={post.authorAvatarUrl}
-          size={40}
-        />
-      </Pressable>
+      {avatar(40)}
       <View style={styles.main}>
         {post.pinnedAt != null && (
           <View style={styles.pinnedRow}>
@@ -262,23 +316,14 @@ export function CommunityPost({
           </View>
         )}
         {metaLine}
-
-        {hasText && (
-          <>
-            <ClampedBody
-              text={displayText(post, showOriginal)}
-              alternate={post.translation ? displayText(post, !showOriginal) : null}
-              clampLines={BODY_CLAMP_LINES}
-              textStyle={styles.body}
-              viewMoreStyle={styles.viewMore}
-            />
-            {toggleLine && (
-              <Pressable hitSlop={8} onPress={toggleOriginal} style={styles.link}>
-                <Text style={styles.translationLine}>{toggleLine}</Text>
-              </Pressable>
-            )}
-          </>
+        {post.authorStreakStartedAt && (
+          <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.streakRow}>
+            {/* Today's clock, not `now`: that one ticks hourly on an old post. */}
+            <StreakPill days={streakDays(post.authorStreakStartedAt)} />
+          </Pressable>
         )}
+
+        {body}
 
         {post.image && (
           <View style={styles.imageGap}>
@@ -311,6 +356,12 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(4),
       backgroundColor: theme.colors.background,
     },
+    previewHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(2.5),
+      marginBottom: theme.spacing(1.5),
+    },
     avatarColumn: { alignSelf: "flex-start" },
     main: { flex: 1, minWidth: 0 },
     pinnedRow: {
@@ -326,6 +377,7 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.pinned,
     },
     // One line, always: the name gives way first, the time never does.
+    streakRow: { alignSelf: "flex-start", marginTop: 1, marginBottom: theme.spacing(1) },
     metaRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1), minHeight: 22 },
     nameBlock: {
       flexDirection: "row",

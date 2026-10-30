@@ -203,4 +203,12 @@ export const uk: Record<string, string> = {
   "image.photo": "📷 Фото",
   "a11y.openImage": "Відкрити зображення",
   "a11y.closeImage": "Закрити",
+  "streak.days.one": "{count} день",
+  "streak.days.few": "{count} дні",
+  "streak.days.other": "{count} днів",
+  "profile.streak": "Серія",
+  "profile.bestStreak": "Найкраща серія",
+  "profile.showStreak": "Показувати мою серію",
+  "profile.showBestStreak": "Показувати мою найкращу серію",
+  "profile.streakHelper": "Видно у твоєму профілі та під твоїм іменем у твоїх дописах.",
 };

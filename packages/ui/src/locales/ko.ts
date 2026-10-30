@@ -191,4 +191,11 @@ export const ko: Record<string, string> = {
   "image.photo": "📷 사진",
   "a11y.openImage": "이미지 열기",
   "a11y.closeImage": "닫기",
+  "streak.days.one": "{count}일",
+  "streak.days.other": "{count}일",
+  "profile.streak": "연속 기록",
+  "profile.bestStreak": "최고 기록",
+  "profile.showStreak": "내 연속 기록 표시",
+  "profile.showBestStreak": "내 최고 기록 표시",
+  "profile.streakHelper": "프로필과 내 게시글의 이름 아래에 표시돼요.",
 };

@@ -199,4 +199,11 @@ export const ptPT: Record<string, string> = {
   "image.photo": "📷 Foto",
   "a11y.openImage": "Abrir imagem",
   "a11y.closeImage": "Fechar",
+  "streak.days.one": "{count} dia",
+  "streak.days.other": "{count} dias",
+  "profile.streak": "Sequência",
+  "profile.bestStreak": "Melhor sequência",
+  "profile.showStreak": "Mostrar a minha sequência",
+  "profile.showBestStreak": "Mostrar a minha melhor sequência",
+  "profile.streakHelper": "Visível no teu perfil e sob o teu nome nas tuas publicações.",
 };
