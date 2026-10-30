@@ -25,6 +25,7 @@ import {
   COMMUNITY_EVENTS,
   emitEvent,
   isOptimistic,
+  streakDays,
   useCommunityConfig,
   useReactToPost,
   useToggleLike,
@@ -51,6 +52,7 @@ import { Avatar } from "./Avatar";
 import { ImageViewerContext } from "./ImageViewer";
 import { PostImage } from "./PostImage";
 import { PollBlock } from "./PollBlock";
+import { StreakPill } from "./StreakPill";
 import { haptic, PressableScale } from "./PressableScale";
 
 const BODY_CLAMP_LINES = 6;
@@ -78,6 +80,10 @@ export type PostSlots = {
     defaultButton: ReactNode,
     ctx: PostSlotContext,
   ) => ReactNode;
+  /** Replaces the reaction button's toggle: a tap calls this instead and
+   * records nothing (e.g. open a flow that reacts at its end with
+   * `useReactToPost`). */
+  onPressReaction?: (post: FeedPost, ctx: PostSlotContext) => void;
 };
 
 export function CommunityPost({
@@ -89,6 +95,7 @@ export function CommunityPost({
   onPressTopic,
   renderPostFooter,
   renderReactionButton,
+  onPressReaction,
 }: {
   post: FeedPost;
   /** Absent (e.g. inside the thread itself): the card is not tappable. */
@@ -142,6 +149,11 @@ export function CommunityPost({
 
   const handleReact = () => {
     if (pending) return;
+    if (onPressReaction) {
+      haptic("selection");
+      onPressReaction(post, slotCtx);
+      return;
+    }
     haptic(post.hasReacted ? "light" : "medium");
     reactToPost.mutate({ postId: post.id, on: !post.hasReacted });
   };
@@ -262,6 +274,11 @@ export function CommunityPost({
           </View>
         )}
         {metaLine}
+        {post.authorStreakStartedAt && (
+          <View style={styles.streakRow}>
+            <StreakPill days={streakDays(post.authorStreakStartedAt, now)} />
+          </View>
+        )}
 
         {hasText && (
           <>
@@ -326,6 +343,7 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.pinned,
     },
     // One line, always: the name gives way first, the time never does.
+    streakRow: { marginTop: 1, marginBottom: theme.spacing(1) },
     metaRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1), minHeight: 22 },
     nameBlock: {
       flexDirection: "row",

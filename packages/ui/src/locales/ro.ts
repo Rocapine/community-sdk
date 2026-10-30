@@ -202,4 +202,12 @@ export const ro: Record<string, string> = {
   "image.photo": "📷 Fotografie",
   "a11y.openImage": "Deschide imaginea",
   "a11y.closeImage": "Închide",
+  "streak.days.one": "{count} zi",
+  "streak.days.few": "{count} zile",
+  "streak.days.other": "{count} de zile",
+  "profile.streak": "Serie",
+  "profile.bestStreak": "Cea mai bună serie",
+  "profile.showStreak": "Arată seria mea",
+  "profile.showBestStreak": "Arată cea mai bună serie a mea",
+  "profile.streakHelper": "Vizibilă pe profilul tău și sub numele tău în postările tale.",
 };

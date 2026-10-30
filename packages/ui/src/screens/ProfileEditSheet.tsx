@@ -27,6 +27,7 @@ import {
   useCommunityConfig,
   useMyUid,
   useProfile,
+  useSetStreakVisibility,
   useUpdateProfile,
   uploadAvatar,
 } from "@rocapine/community-core";
@@ -37,6 +38,7 @@ import {
   ActivityIndicator,
   Keyboard,
   StyleSheet,
+  Switch,
   Text,
   View,
   type LayoutChangeEvent,
@@ -67,6 +69,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   const myUid = useMyUid();
   const profile = useProfile(myUid);
   const updateProfile = useUpdateProfile();
+  const streakVisibility = useSetStreakVisibility();
 
   const [base, setBase] = useState<Saved>({ name: "", handle: "", bio: "" });
   const [name, setName] = useState("");
@@ -403,6 +406,23 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
               )}
             </View>
 
+            {cfg.modules.streaks && (
+              <View style={styles.section}>
+                <Text style={styles.label}>{t("profile.streak")}</Text>
+                <StreakToggle
+                  label={t("profile.showStreak")}
+                  value={profile.data.showStreak}
+                  onChange={(on) => streakVisibility.mutateAsync({ showStreak: on })}
+                />
+                <StreakToggle
+                  label={t("profile.showBestStreak")}
+                  value={profile.data.showBestStreak}
+                  onChange={(on) => streakVisibility.mutateAsync({ showBestStreak: on })}
+                />
+                <Text style={styles.helper}>{t("profile.streakHelper")}</Text>
+              </View>
+            )}
+
             <View style={styles.section} {...fieldProps("bio")}>
               <Text style={styles.label}>{t("profile.bioLabel")}</Text>
               <SheetTextInput
@@ -425,6 +445,38 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
         )}
       </SheetScrollView>
     </CommunitySheet>
+  );
+}
+
+/** One streak toggle, applied at once (not by Save). Local state keeps the
+ * switch where the finger left it while the change lands; a failure puts it back. */
+function StreakToggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange(on: boolean): Promise<unknown>;
+}) {
+  const theme = useCommunityTheme();
+  const styles = useThemedStyles(makeStyles);
+  const [on, setOn] = useState(value);
+  useEffect(() => setOn(value), [value]);
+  return (
+    <View style={styles.toggleRow}>
+      <Text style={styles.toggleLabel}>{label}</Text>
+      <Switch
+        value={on}
+        onValueChange={(next) => {
+          haptic("selection");
+          setOn(next);
+          onChange(next).catch(() => setOn(!next));
+        }}
+        trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceMuted }}
+        accessibilityLabel={label}
+      />
+    </View>
   );
 }
 
@@ -506,6 +558,20 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textPrimary,
       textAlignVertical: "top",
       ...noFocusRingMultiline,
+    },
+    toggleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing(3),
+      minHeight: 44,
+    },
+    toggleLabel: {
+      flex: 1,
+      fontFamily: theme.fonts.regular,
+      fontWeight: theme.fontWeights.regular,
+      fontSize: 15,
+      color: theme.colors.textPrimary,
     },
     counter: {
       fontFamily: theme.fonts.regular,

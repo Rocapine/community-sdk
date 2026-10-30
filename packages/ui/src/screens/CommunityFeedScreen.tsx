@@ -841,7 +841,9 @@ function makeStyles(theme: CommunityTheme) {
       borderColor: theme.colors.background,
     },
     switchRow: {
-      height: TABS_ROW_HEIGHT,
+      // The border sits inside the height: without its share the tab row
+      // overflows by a hairline and scrolls vertically.
+      height: TABS_ROW_HEIGHT + StyleSheet.hairlineWidth,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.colors.hairline,
     },

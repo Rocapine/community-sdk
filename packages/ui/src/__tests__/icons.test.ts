@@ -66,6 +66,7 @@ describe("mergeIcons", () => {
       "image",
       "reply",
       "markAllRead",
+      "streak",
     ];
     expect(allNames.sort()).toEqual([...expectedNames].sort());
     for (const name of allNames) {

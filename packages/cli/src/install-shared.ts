@@ -4,7 +4,7 @@ import { createInterface } from "node:readline/promises";
 
 /**
  * Ruled install order (controller ruling, task 18): core -> push -> polls ->
- * reaction -> inbox -> translation -> images. Reaction MUST land before inbox —
+ * reaction -> inbox -> translation -> images -> streaks. Reaction MUST land before inbox —
  * inbox/001's reaction trigger is guarded with
  * `to_regclass('public.post_reactions')` at install time and is never
  * retroactively wired if the reaction module shows up later, so `reaction`
@@ -22,6 +22,7 @@ export const MODULE_ORDER = [
   "inbox",
   "translation",
   "images",
+  "streaks",
 ] as const;
 export type Module = (typeof MODULE_ORDER)[number];
 

@@ -128,6 +128,7 @@ it("mapPostRow extracts counts, like state and ownership", () => {
     lastReactorName: null,
     translation: null,
     image: null,
+    authorStreakStartedAt: null,
   });
 });
 
@@ -452,6 +453,10 @@ it("mapProfileRow maps names, flags and nullables", () => {
     bio: "Walking in faith.",
     avatarUrl: null,
     username: "Hannah",
+    streakStartedAt: null,
+    bestStreakDays: null,
+    showStreak: true,
+    showBestStreak: true,
   });
   expect(
     mapProfileRow(
@@ -473,6 +478,10 @@ it("mapProfileRow maps names, flags and nullables", () => {
     bio: null,
     avatarUrl: "https://cdn.example/a.jpg",
     username: null,
+    streakStartedAt: null,
+    bestStreakDays: null,
+    showStreak: true,
+    showBestStreak: true,
   });
 });
 

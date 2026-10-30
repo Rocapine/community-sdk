@@ -228,4 +228,12 @@ export const pl: Record<string, string> = {
   "image.photo": "📷 Zdjęcie",
   "a11y.openImage": "Otwórz obraz",
   "a11y.closeImage": "Zamknij",
+  "streak.days.one": "{count} dzień",
+  "streak.days.few": "{count} dni",
+  "streak.days.other": "{count} dni",
+  "profile.streak": "Seria",
+  "profile.bestStreak": "Najlepsza seria",
+  "profile.showStreak": "Pokazuj moją serię",
+  "profile.showBestStreak": "Pokazuj moją najlepszą serię",
+  "profile.streakHelper": "Widoczna na twoim profilu i pod twoim imieniem w twoich postach.",
 };

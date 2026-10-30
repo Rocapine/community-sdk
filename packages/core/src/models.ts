@@ -68,6 +68,8 @@ export interface PostRow {
   image_path?: string | null;
   image_width?: number | null;
   image_height?: number | null;
+  /** The author's visible streak start. Absent when the streaks module is off. */
+  author_streak?: { visible_streak_started_at: string | null } | null;
 }
 
 export interface PollOptionRow {
@@ -192,6 +194,9 @@ export interface FeedPost {
   translation: TranslationInfo | null;
   /** Null when the post has no photo or the images module is off. */
   image: PostImage | null;
+  /** When the author's current streak began; null when they have none, hide
+   * it, or the streaks module is off. See `streakDays`. */
+  authorStreakStartedAt: string | null;
 }
 
 export interface ThreadComment {
@@ -252,6 +257,11 @@ export interface ProfileRow {
   is_official: boolean | null;
   bio: string | null;
   avatar_url: string | null;
+  /** The streaks module's columns, absent when it is off. */
+  visible_streak_started_at?: string | null;
+  visible_best_streak_days?: number | null;
+  show_streak?: boolean;
+  show_best_streak?: boolean;
 }
 
 export interface CommunityProfile {
@@ -264,6 +274,12 @@ export interface CommunityProfile {
   /** Raw username, when available (pre-fallback, unlike `name`); populated by
    * mapProfileRow so a CommunityProfile can itself be threaded back into displayName(). */
   username?: string | null;
+  /** Streaks module: null when none, hidden, or the module is off. */
+  streakStartedAt: string | null;
+  bestStreakDays: number | null;
+  /** The owner's visibility toggles (true when the module is off). */
+  showStreak: boolean;
+  showBestStreak: boolean;
 }
 
 export function mapProfileRow(row: ProfileRow, fallback: string): CommunityProfile {
@@ -277,7 +293,25 @@ export function mapProfileRow(row: ProfileRow, fallback: string): CommunityProfi
     // Raw username (pre-fallback), so a mapped CommunityProfile can itself be threaded back
     // into displayName() elsewhere — see the field doc on CommunityProfile.
     username: row.username ?? null,
+    streakStartedAt: row.visible_streak_started_at ?? null,
+    bestStreakDays: row.visible_best_streak_days ?? null,
+    showStreak: row.show_streak ?? true,
+    showBestStreak: row.show_best_streak ?? true,
   };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Full days since a streak began (0 for the first 24 hours). */
+export function streakDays(startedAt: string, now = Date.now()): number {
+  return Math.max(0, Math.floor((now - Date.parse(startedAt)) / DAY_MS));
+}
+
+export type StreakTier = "bronze" | "silver" | "gold";
+
+/** Bronze under 30 days, silver from 30 to 90, gold beyond 90. */
+export function streakTier(days: number): StreakTier {
+  return days > 90 ? "gold" : days >= 30 ? "silver" : "bronze";
 }
 
 function embedToTranslation(rows: TranslationRowEmbed[] | undefined): TranslationInfo | null {
@@ -348,6 +382,7 @@ export function mapPostRow(
     lastReactorName: reactionData.lastReactorName.get(row.id) ?? null,
     translation: embedToTranslation(row.post_translations),
     image: mapImage(row, imageBase),
+    authorStreakStartedAt: row.author_streak?.visible_streak_started_at ?? null,
   };
   return transformPost ? transformPost(post, row as unknown as Record<string, unknown>) : post;
 }

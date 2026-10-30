@@ -41,6 +41,7 @@ export type CommunityIconProps = {
  *  - `image`          — composer "add an image" button (images module)
  *  - `reply`          — reply to a comment (thread)
  *  - `markAllRead`    — notification center "mark all as read"
+ *  - `streak`         — streak pill on a post and a profile (streaks module)
  */
 export type CommunityIconName =
   | "like"
@@ -62,6 +63,7 @@ export type CommunityIconName =
   | "compose"
   | "image"
   | "reply"
-  | "markAllRead";
+  | "markAllRead"
+  | "streak";
 
 export type CommunityIconSet = Record<CommunityIconName, ComponentType<CommunityIconProps>>;

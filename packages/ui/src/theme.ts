@@ -66,6 +66,11 @@ export type CommunityTheme = {
     reaction: string;
     official: string;
     pinned: string;
+    /** Streak pills by tier (streaks module): under 30 days, 30 to 90, beyond
+     * 90. The pill's text and icon take the color, its fill a tint of it. */
+    streakBronze: string;
+    streakSilver: string;
+    streakGold: string;
   };
   fonts: {
     // NOTE: widened from the brief's `string` to `string | undefined` — the
@@ -130,6 +135,9 @@ export const defaultTheme: CommunityTheme = {
     reaction: accent,
     official: accent,
     pinned: accent,
+    streakBronze: "#B0703A",
+    streakSilver: "#7D8794",
+    streakGold: "#C9930A",
   },
   fonts: {
     regular: undefined,
