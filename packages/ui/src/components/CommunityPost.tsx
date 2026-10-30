@@ -100,8 +100,9 @@ export function CommunityPost({
   preview = false,
 }: {
   post: FeedPost;
-  /** Read-only quote of the post (e.g. atop a host's reaction sheet): three
-   * lines, no menu, no footer, no image or poll, on a transparent row. */
+  /** Read-only quote of the post (e.g. atop a host's reaction sheet): a small
+   * avatar beside the author line, three lines of text full width below; no
+   * streak, menu, footer, image or poll, and no row padding or background. */
   preview?: boolean;
   /** Absent (e.g. inside the thread itself): the card is not tappable. */
   onOpenThread?(postId: string): void;
@@ -263,16 +264,50 @@ export function CommunityPost({
   );
   const footer = renderPostFooter?.(post, defaultFooter, slotCtx) ?? defaultFooter;
 
+  const avatar = (size: number) => (
+    <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.avatarColumn}>
+      <Avatar
+        userId={post.authorId}
+        name={post.authorName}
+        url={post.authorAvatarUrl}
+        size={size}
+      />
+    </Pressable>
+  );
+
+  const body = hasText && (
+    <>
+      <ClampedBody
+        text={displayText(post, showOriginal)}
+        alternate={post.translation ? displayText(post, !showOriginal) : null}
+        clampLines={preview ? PREVIEW_CLAMP_LINES : BODY_CLAMP_LINES}
+        textStyle={styles.body}
+        viewMoreStyle={styles.viewMore}
+      />
+      {toggleLine && (
+        <Pressable hitSlop={8} onPress={toggleOriginal} style={styles.link}>
+          <Text style={styles.translationLine}>{toggleLine}</Text>
+        </Pressable>
+      )}
+    </>
+  );
+
+  // The quote: author line beside a small avatar, the text full width below it.
+  if (preview) {
+    return (
+      <View>
+        <View style={styles.previewHeader}>
+          {avatar(28)}
+          <View style={styles.main}>{metaLine}</View>
+        </View>
+        {body}
+      </View>
+    );
+  }
+
   const content = (
     <>
-      <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.avatarColumn}>
-        <Avatar
-          userId={post.authorId}
-          name={post.authorName}
-          url={post.authorAvatarUrl}
-          size={preview ? 32 : 40}
-        />
-      </Pressable>
+      {avatar(40)}
       <View style={styles.main}>
         {post.pinnedAt != null && (
           <View style={styles.pinnedRow}>
@@ -282,38 +317,23 @@ export function CommunityPost({
         )}
         {metaLine}
         {post.authorStreakStartedAt && (
-          <View style={styles.streakRow}>
+          <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.streakRow}>
             {/* Today's clock, not `now`: that one ticks hourly on an old post. */}
             <StreakPill days={streakDays(post.authorStreakStartedAt)} />
-          </View>
+          </Pressable>
         )}
 
-        {hasText && (
-          <>
-            <ClampedBody
-              text={displayText(post, showOriginal)}
-              alternate={post.translation ? displayText(post, !showOriginal) : null}
-              clampLines={preview ? PREVIEW_CLAMP_LINES : BODY_CLAMP_LINES}
-              textStyle={styles.body}
-              viewMoreStyle={styles.viewMore}
-            />
-            {toggleLine && (
-              <Pressable hitSlop={8} onPress={toggleOriginal} style={styles.link}>
-                <Text style={styles.translationLine}>{toggleLine}</Text>
-              </Pressable>
-            )}
-          </>
-        )}
+        {body}
 
-        {post.image && !preview && (
+        {post.image && (
           <View style={styles.imageGap}>
             <PostImage image={post.image} onOpen={openImage} />
           </View>
         )}
 
-        {post.poll && !preview && <PollBlock post={post} showOriginal={showOriginal} />}
+        {post.poll && <PollBlock post={post} showOriginal={showOriginal} />}
 
-        {!preview && footer}
+        {footer}
       </View>
     </>
   );
@@ -323,7 +343,7 @@ export function CommunityPost({
       {content}
     </PressableScale>
   ) : (
-    <View style={[styles.row, preview && styles.previewRow]}>{content}</View>
+    <View style={styles.row}>{content}</View>
   );
 }
 
@@ -336,7 +356,12 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(4),
       backgroundColor: theme.colors.background,
     },
-    previewRow: { padding: 0, backgroundColor: "transparent" },
+    previewHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(2.5),
+      marginBottom: theme.spacing(1.5),
+    },
     avatarColumn: { alignSelf: "flex-start" },
     main: { flex: 1, minWidth: 0 },
     pinnedRow: {
@@ -352,7 +377,7 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.pinned,
     },
     // One line, always: the name gives way first, the time never does.
-    streakRow: { marginTop: 1, marginBottom: theme.spacing(1) },
+    streakRow: { alignSelf: "flex-start", marginTop: 1, marginBottom: theme.spacing(1) },
     metaRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1), minHeight: 22 },
     nameBlock: {
       flexDirection: "row",

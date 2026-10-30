@@ -58,7 +58,7 @@ export function RulesSheet({
   };
 
   return (
-    <CommunitySheet visible={visible} onClose={onClose} onDismissed={onDismissed} snapTo="half">
+    <CommunitySheet visible={visible} onClose={onClose} onDismissed={onDismissed} snapTo="full">
       <SheetView>
         <Text style={styles.title}>{t("rules.title")}</Text>
         <View style={styles.rules}>

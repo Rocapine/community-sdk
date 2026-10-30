@@ -324,7 +324,11 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
         // "handled": a tap outside a field (not on a button) closes the keyboard.
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: keyboardHeight }]}
+        // Breathing room between the last section and the pinned Save button.
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: keyboardHeight + theme.spacing(6) },
+        ]}
       >
         <Text style={styles.title}>{t("profile.editProfile")}</Text>
 
@@ -406,23 +410,6 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
               )}
             </View>
 
-            {cfg.modules.streaks && (
-              <View style={styles.section}>
-                <Text style={styles.label}>{t("profile.streak")}</Text>
-                <StreakToggle
-                  label={t("profile.showStreak")}
-                  value={profile.data.showStreak}
-                  onChange={(on) => streakVisibility.mutateAsync({ showStreak: on })}
-                />
-                <StreakToggle
-                  label={t("profile.showBestStreak")}
-                  value={profile.data.showBestStreak}
-                  onChange={(on) => streakVisibility.mutateAsync({ showBestStreak: on })}
-                />
-                <Text style={styles.helper}>{t("profile.streakHelper")}</Text>
-              </View>
-            )}
-
             <View style={styles.section} {...fieldProps("bio")}>
               <Text style={styles.label}>{t("profile.bioLabel")}</Text>
               <SheetTextInput
@@ -441,6 +428,23 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
               </Text>
               {errors.bio && <Text style={styles.errorText}>{errors.bio}</Text>}
             </View>
+
+            {cfg.modules.streaks && (
+              <View style={styles.section}>
+                <Text style={styles.label}>{t("profile.streak")}</Text>
+                <StreakToggle
+                  label={t("profile.showStreak")}
+                  value={profile.data.showStreak}
+                  onChange={(on) => streakVisibility.mutateAsync({ showStreak: on })}
+                />
+                <StreakToggle
+                  label={t("profile.showBestStreak")}
+                  value={profile.data.showBestStreak}
+                  onChange={(on) => streakVisibility.mutateAsync({ showBestStreak: on })}
+                />
+                <Text style={styles.helper}>{t("profile.streakHelper")}</Text>
+              </View>
+            )}
           </>
         )}
       </SheetScrollView>
@@ -473,9 +477,12 @@ function StreakToggle({
           setOn(next);
           onChange(next).catch(() => setOn(!next));
         }}
-        // Off on a muted track, the white thumb vanished on a light sheet.
+        // Off on a muted track, the white thumb vanished on a light sheet; on, a
+        // white thumb vanishes on a light accent (dark themes): the ground's
+        // color always stands out from the accent.
         trackColor={{ true: theme.colors.accent, false: theme.colors.textFaint }}
         ios_backgroundColor={theme.colors.textFaint}
+        thumbColor={on ? theme.colors.background : undefined}
         accessibilityLabel={label}
       />
     </View>
