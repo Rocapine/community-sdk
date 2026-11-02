@@ -320,6 +320,13 @@ profiles, composer, edit preview) goes through `Avatar`. Pass
 to draw your own (e.g. a gradient per member); the default is the photo, else
 the initial on a flat colour.
 
+**Streak pills.** The post header and the profile draw the streak through
+`StreakPill`. Pass `renderStreakPill={({ days, tier, size, label }) => …}` to
+`CommunityUIProvider` to draw your own (e.g. a metal finish per tier): `tier`
+and the localized `label` come resolved, and nothing renders under one day.
+The default is the flame and label on a tint of `streakBronze` /
+`streakSilver` / `streakGold`.
+
 ## Images
 
 With `modules.images: true` (core) and the backend `images` module installed:
