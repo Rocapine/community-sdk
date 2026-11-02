@@ -1,5 +1,11 @@
 # @rocapine/community-ui
 
+## 0.14.1
+
+### Patch Changes
+
+- 2f37a10: `renderStreakPill` on `CommunityUIProvider`: the host draws every streak pill (post header, profile) from `{ days, tier, size, label }`, the tier and the localized label already resolved, nothing under one day. Without it the pill stays the flame and label on a tint of the tier colour. `StreakPillRenderProps` is exported.
+
 ## 0.14.0
 
 ### Minor Changes
