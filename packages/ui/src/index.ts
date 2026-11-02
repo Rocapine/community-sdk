@@ -43,6 +43,7 @@ export { CommunitySheet } from "./Sheet";
 export type { PostSlots, PostSlotContext, ProfileSource } from "./components/CommunityPost";
 export { CommunityPost } from "./components/CommunityPost";
 export { Avatar, type AvatarRenderProps } from "./components/Avatar";
+export type { StreakPillRenderProps } from "./components/StreakPill";
 export { ImageViewerHost } from "./components/ImageViewer";
 export { PollBlock } from "./components/PollBlock";
 export { NoticeCard } from "./components/NoticeCard";

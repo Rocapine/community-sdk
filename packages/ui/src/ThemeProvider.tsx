@@ -4,11 +4,13 @@ import { makeT, type TFn } from "./i18n";
 import { defaultIcons, mergeIcons } from "./icons-default";
 import type { CommunityIconSet } from "./icons";
 import type { AvatarRenderProps } from "./components/Avatar";
+import type { StreakPillRenderProps } from "./components/StreakPill";
 
 const ThemeContext = createContext<CommunityTheme>(defaultTheme);
 const TranslationContext = createContext<TFn>(makeT("en"));
 const IconsContext = createContext<CommunityIconSet>(defaultIcons);
 const AvatarContext = createContext<((p: AvatarRenderProps) => ReactNode) | null>(null);
+const StreakPillContext = createContext<((p: StreakPillRenderProps) => ReactNode) | null>(null);
 
 export function CommunityUIProvider(props: {
   theme?: DeepPartial<CommunityTheme>;
@@ -20,9 +22,12 @@ export function CommunityUIProvider(props: {
   /** Draws every user avatar the SDK shows (feed, comments, profiles, header
    * button, composer). Without it: the photo, else the initial on a flat colour. */
   renderAvatar?: (p: AvatarRenderProps) => ReactNode;
+  /** Draws every streak pill (post header, profile). Without it: the flame and
+   * label on a tint of the tier's theme colour. */
+  renderStreakPill?: (p: StreakPillRenderProps) => ReactNode;
   children: ReactNode;
 }): ReactElement {
-  const { theme, translations, icons, renderAvatar, children } = props;
+  const { theme, translations, icons, renderAvatar, renderStreakPill, children } = props;
   const locale = translations?.locale ?? "en";
   const overrides = translations?.overrides;
 
@@ -34,7 +39,11 @@ export function CommunityUIProvider(props: {
     <ThemeContext.Provider value={resolvedTheme}>
       <TranslationContext.Provider value={t}>
         <IconsContext.Provider value={resolvedIcons}>
-          <AvatarContext.Provider value={renderAvatar ?? null}>{children}</AvatarContext.Provider>
+          <AvatarContext.Provider value={renderAvatar ?? null}>
+            <StreakPillContext.Provider value={renderStreakPill ?? null}>
+              {children}
+            </StreakPillContext.Provider>
+          </AvatarContext.Provider>
         </IconsContext.Provider>
       </TranslationContext.Provider>
     </ThemeContext.Provider>
@@ -48,6 +57,11 @@ export function useCommunityTheme(): CommunityTheme {
 /** The host's `renderAvatar`, or null for the SDK's default (see `Avatar`). */
 export function useAvatarRenderer(): ((p: AvatarRenderProps) => ReactNode) | null {
   return useContext(AvatarContext);
+}
+
+/** The host's `renderStreakPill`, or null for the SDK's default (see `StreakPill`). */
+export function useStreakPillRenderer(): ((p: StreakPillRenderProps) => ReactNode) | null {
+  return useContext(StreakPillContext);
 }
 
 export function useT(): TFn {

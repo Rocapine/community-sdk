@@ -1,9 +1,16 @@
 // The streaks module's pill: a flame and "41 days", tinted by tier — bronze
 // under 30 days, silver from 30 to 90, gold beyond (core's `streakTier`).
-// Nothing for a streak under one day: no "0 days" badge next to a name.
+// Nothing for a streak under one day: no "0 days" badge next to a name. A host
+// draws its own through `CommunityUIProvider`'s `renderStreakPill`.
 import { streakTier, type StreakTier } from "@rocapine/community-core";
 import { StyleSheet, Text, View } from "react-native";
-import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import {
+  useCommunityIcons,
+  useCommunityTheme,
+  useStreakPillRenderer,
+  useT,
+  useThemedStyles,
+} from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 
 const TIER_COLOR: Record<StreakTier, "streakBronze" | "streakSilver" | "streakGold"> = {
@@ -12,23 +19,44 @@ const TIER_COLOR: Record<StreakTier, "streakBronze" | "streakSilver" | "streakGo
   gold: "streakGold",
 };
 
+export type StreakPillRenderProps = {
+  days: number;
+  tier: StreakTier;
+  size: "small" | "large";
+  /** The localized "41 days". */
+  label: string;
+};
+
 export function StreakPill({ days, size = "small" }: { days: number; size?: "small" | "large" }) {
+  const render = useStreakPillRenderer();
+  const t = useT();
+  if (days < 1) return null;
+  const label = t("streak.days", { count: days });
+  if (render) return <>{render({ days, tier: streakTier(days), size, label })}</>;
+  return <DefaultStreakPill days={days} size={size} label={label} />;
+}
+
+function DefaultStreakPill({
+  days,
+  size,
+  label,
+}: {
+  days: number;
+  size: "small" | "large";
+  label: string;
+}) {
   const theme = useCommunityTheme();
   const icons = useCommunityIcons();
-  const t = useT();
   const styles = useThemedStyles(makeStyles);
   const color = theme.colors[TIER_COLOR[streakTier(days)]];
   const large = size === "large";
-  if (days < 1) return null;
 
   return (
     <View style={[styles.pill, large && styles.pillLarge]}>
       {/* The tint: the tier color at low opacity, whatever format the host gave it. */}
       <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: color }]} />
       <icons.streak size={large ? 14 : 11} color={color} weight="fill" />
-      <Text style={[styles.label, large && styles.labelLarge, { color }]}>
-        {t("streak.days", { count: days })}
-      </Text>
+      <Text style={[styles.label, large && styles.labelLarge, { color }]}>{label}</Text>
     </View>
   );
 }
