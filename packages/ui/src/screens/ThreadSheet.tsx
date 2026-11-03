@@ -99,7 +99,7 @@ import { isQueryLoading } from "../utils/query";
 import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
 import { formatTimeAgo, secondsResolution, useNow } from "../utils/time";
 import { displayText, translationLine } from "../utils/translation";
-import { runGuarded } from "../utils/gate";
+import { runGuarded, type CommentGate } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { useMyAuthorName } from "../utils/myName";
@@ -159,12 +159,9 @@ export function ThreadSheet({
    * Absent ⇒ byte-identical behavior. Resolving/returning `false` (or
    * throwing) aborts the submit silently — no mutation, no error UI, and the
    * draft text is kept exactly as typed. Meant for a host-side async gate,
-   * e.g. a paywall that resolves once the user is entitled. */
-  beforeSubmitComment?: (draft: {
-    postId: string;
-    body: string;
-    image?: LocalImage;
-  }) => Promise<boolean>;
+   * e.g. a paywall that resolves once the user is entitled; a gate that opens
+   * its own Modal must use `ctx.presentModal` (see `CommentGate`). */
+  beforeSubmitComment?: CommentGate;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -366,7 +363,11 @@ export function ThreadSheet({
       return;
     }
     setGating(true);
-    runGuarded(beforeSubmitComment, draft, doSend).finally(() => setGating(false));
+    runGuarded(
+      (d) => beforeSubmitComment(d, { presentModal: presentAfterClose }),
+      draft,
+      doSend,
+    ).finally(() => setGating(false));
   };
 
   // A slot opening its own Modal from the post card (see `modalHandoff`):
