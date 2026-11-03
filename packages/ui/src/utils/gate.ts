@@ -1,3 +1,6 @@
+import type { LocalImage } from "@rocapine/community-core";
+import type { PresentModal } from "./modalHandoff";
+
 // Pre-submit gate hook: lets a host intercept a comment submission with an
 // async check (e.g. a paywall that resolves once the user is entitled)
 // before the SDK's own mutation fires. Pulled out of `ThreadSheet.tsx` into
@@ -31,6 +34,15 @@ export async function runGuarded<T>(
   if (allowed) action();
   return allowed;
 }
+
+/** `ThreadSheet`'s `beforeSubmitComment`. The comment is sent from inside the
+ * sheet (a Modal), and iOS can't present a second Modal over it: a gate that
+ * shows its own (e.g. sign-in) opens it with `presentModal`, which closes the
+ * thread first. Resolving `true` later still sends the comment. */
+export type CommentGate = (
+  draft: { postId: string; body: string; image?: LocalImage },
+  ctx: { presentModal: PresentModal },
+) => Promise<boolean>;
 
 /** The `+` button's gates, in order, before the composer opens: the community
  * rules (asked for with `requestRules` when not yet accepted, resolving

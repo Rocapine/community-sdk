@@ -61,6 +61,8 @@ export {
   type FeedHeaderTitle,
 } from "./screens/CommunityFeedScreen";
 export { ThreadSheet } from "./screens/ThreadSheet";
+export type { CommentGate } from "./utils/gate";
+export type { PresentModal } from "./utils/modalHandoff";
 export { ProfileScreen } from "./screens/ProfileScreen";
 export { ProfileEditSheet } from "./screens/ProfileEditSheet";
 export { NotificationInboxScreen } from "./screens/NotificationInboxScreen";

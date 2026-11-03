@@ -60,7 +60,6 @@ import {
   useProfile,
   useSearchPosts,
   type FeedPost,
-  type LocalImage,
   useUnreadNotificationCount,
 } from "@rocapine/community-core";
 import {
@@ -103,7 +102,7 @@ import { CommunityPost, type PostSlots, type ProfileSource } from "../components
 import { ImageViewerHost } from "../components/ImageViewer";
 import { ComposerSheet } from "../components/ComposerSheet";
 import { RulesSheet } from "../components/RulesSheet";
-import { openComposerGuarded } from "../utils/gate";
+import { openComposerGuarded, type CommentGate } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
@@ -190,11 +189,7 @@ export function CommunityFeedScreen({
   bottomChrome?: { height: number; hidden: SharedValue<number> };
   /** Forwarded to this screen's own `ThreadSheet` as `beforeSubmitComment` —
    * see that prop's doc comment. Absent ⇒ byte-identical behavior. */
-  beforeSubmitComment?: (draft: {
-    postId: string;
-    body: string;
-    image?: LocalImage;
-  }) => Promise<boolean>;
+  beforeSubmitComment?: CommentGate;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
