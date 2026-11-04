@@ -208,6 +208,7 @@ export const en: Record<string, string> = {
   "a11y.myProfile": "My profile",
   "composer.addImage": "Add an image",
   "composer.removeImage": "Remove image",
+  "composer.removeAttachment": "Remove attachment",
   "image.photo": "📷 Photo",
   "a11y.openImage": "Open image",
   "a11y.closeImage": "Close",

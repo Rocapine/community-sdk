@@ -10,6 +10,7 @@ vi.mock("../components/AnimatedHeight", () => ({}));
 vi.mock("../components/PressableScale", () => ({}));
 vi.mock("react-native-safe-area-context", () => ({}));
 vi.mock("../components/Avatar", () => ({}));
+vi.mock("../components/AttachmentCard", () => ({}));
 
 const { canPublish } = await import("../components/ComposerSheet");
 
@@ -31,6 +32,10 @@ describe("canPublish", () => {
   it("empty (or blank) text and no image is not", () => {
     expect(canPublish(base)).toBe(false);
     expect(canPublish({ ...base, text: "   " })).toBe(false);
+  });
+
+  it("an attachment alone is publishable", () => {
+    expect(canPublish({ ...base, hasAttachment: true })).toBe(true);
   });
 
   it("text alone is publishable", () => {

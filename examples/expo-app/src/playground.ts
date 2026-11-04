@@ -28,6 +28,8 @@ export type PlaygroundSettings = {
   reaction: { label: string; chip: boolean };
   /** `card`: the example's own row, rebuilt from `renderInboxRow`'s parts. */
   inboxRow: "default" | "card";
+  /** The attachments module, with the example's `recipe` and `session` types. */
+  attachments: { enabled: boolean; membersCanAttach: boolean };
   colors: { accent: string; background: string };
   /** `title` role font (null = the theme's serif default) and `body` role size. */
   typography: { titleFont: string | null; bodySize: number };
@@ -78,6 +80,7 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
   badges: "streak",
   reaction: { label: "", chip: false },
   inboxRow: "default",
+  attachments: { enabled: true, membersCanAttach: true },
   colors: { accent: "#6C4DF6", background: "#F7F7F8" },
   typography: { titleFont: null, bodySize: 15 },
   header: HEADER_PRESETS.Default,
@@ -170,6 +173,9 @@ export function buildConfig(settings: PlaygroundSettings): CommunityConfig {
       translation: m.translation ? { locales: ["en", "es-419", "pt-BR"] } : false,
       images: m.images,
       badges: BADGE_PRESETS[settings.badges].declared,
+      attachments: settings.attachments.enabled
+        ? { types: ["recipe", "session"], membersCanAttach: settings.attachments.membersCanAttach }
+        : false,
     },
     host: {
       getBadges: BADGE_PRESETS[settings.badges].mine,

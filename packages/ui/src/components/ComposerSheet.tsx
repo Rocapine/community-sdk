@@ -21,6 +21,7 @@ import {
   useCreatePost,
   useMyUid,
   type LocalImage,
+  type PostAttachment,
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -43,6 +44,7 @@ import type { CommunityTheme } from "../theme";
 import { imageFrame, imagesSupported, pickImage } from "../utils/postImage";
 import { useMyAuthorName } from "../utils/myName";
 import { MyAvatar } from "./Avatar";
+import { AttachmentCard } from "./AttachmentCard";
 import { haptic, PressableScale } from "./PressableScale";
 import { noFocusRingMultiline } from "../utils/noFocusRing";
 
@@ -57,9 +59,11 @@ export function canPublish(s: {
   pending: boolean;
   gating: boolean;
   preparing: boolean;
+  /** An attachment makes an empty text publishable, like an image. */
+  hasAttachment?: boolean;
 }): boolean {
   return (
-    (s.text.trim().length > 0 || s.image !== null) &&
+    (s.text.trim().length > 0 || s.image !== null || !!s.hasAttachment) &&
     !s.pollInvalid &&
     !s.pending &&
     !s.gating &&
@@ -76,6 +80,8 @@ export function ComposerSheet({
   onClose,
   onModerationRejected,
   onPublishFailed,
+  initialText,
+  initialAttachment,
 }: {
   visible: boolean;
   /** Preselected when the sheet opens on an empty draft (the feed's tab when
@@ -89,6 +95,10 @@ export function ComposerSheet({
   /** Publishing failed (network/server): the optimistic post rolled back and
    * the draft is back in the composer for the next `+`. */
   onPublishFailed?: () => void;
+  /** A share from the app (`CommunityFeedScreen`'s `composeRequest`): applied when
+   * the sheet opens; the text only fills an empty draft. */
+  initialText?: string;
+  initialAttachment?: PostAttachment | null;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -125,14 +135,15 @@ export function ComposerSheet({
   // null = no poll on this draft; an array = the poll editor is open.
   const [pollDraft, setPollDraft] = useState<string[] | null>(null);
   const [image, setImage] = useState<LocalImage | null>(null);
+  const [attachment, setAttachment] = useState<PostAttachment | null>(null);
   // True while a photo is picked and re-encoded (1–2 s for a large one).
   const [preparing, setPreparing] = useState(false);
   // Read by the async publish callbacks (the draft may have changed since).
-  const latestDraft = useRef({ text, pollDraft, image });
-  latestDraft.current = { text, pollDraft, image };
+  const latestDraft = useRef({ text, pollDraft, image, attachment });
+  latestDraft.current = { text, pollDraft, image, attachment };
   const imagesOn = !!cfg.modules.images && imagesSupported();
   const keyboardHeight = useKeyboardHeight();
-  const isEmpty = text.trim() === "" && pollDraft === null && image === null;
+  const isEmpty = text.trim() === "" && pollDraft === null && image === null && attachment === null;
 
   // An empty draft follows the feed's tab each time the sheet opens.
   useEffect(() => {
@@ -141,6 +152,18 @@ export function ComposerSheet({
     }
     if (!visible) setTopicMenuOpen(false);
   }, [visible, fallbackTopic]);
+
+  // A share from the app: the attachment replaces any photo or poll (one of the
+  // three per post).
+  useEffect(() => {
+    if (!visible) return;
+    if (initialAttachment) {
+      setAttachment(initialAttachment);
+      setImage(null);
+      setPollDraft(null);
+    }
+    if (initialText && latestDraft.current.text.trim() === "") setText(initialText);
+  }, [visible, initialAttachment, initialText]);
 
   const filledPollOptions = (pollDraft ?? []).map((o) => o.trim()).filter((o) => o.length > 0);
   const pollInvalid = pollDraft !== null && filledPollOptions.length < POLL_MIN_OPTIONS;
@@ -151,12 +174,14 @@ export function ComposerSheet({
     pending: createPost.isPending,
     gating: false,
     preparing,
+    hasAttachment: attachment !== null,
   });
 
   const clearDraft = () => {
     setText("");
     setPollDraft(null);
     setImage(null);
+    setAttachment(null);
   };
 
   const cancel = () => {
@@ -201,6 +226,7 @@ export function ComposerSheet({
       body: text.trim(),
       pollOptions: pollDraft !== null ? filledPollOptions : undefined,
       image: image ?? undefined,
+      attachment: attachment ?? undefined,
     };
     haptic("medium");
     Keyboard.dismiss();
@@ -213,6 +239,7 @@ export function ComposerSheet({
         authorName: myAuthorName(),
         pollOptions: draft.pollOptions,
         image: draft.image,
+        attachment: draft.attachment,
       },
       {
         onSuccess: (result) => {
@@ -222,11 +249,17 @@ export function ComposerSheet({
           // Hand the draft (topic, text, poll and image together) back unless a new
           // one was started meanwhile.
           const now = latestDraft.current;
-          if (!now.text.trim() && now.pollDraft === null && now.image === null) {
+          if (
+            !now.text.trim() &&
+            now.pollDraft === null &&
+            now.image === null &&
+            now.attachment === null
+          ) {
             setTopic(draft.topic);
             setText(draft.body);
             setPollDraft(draft.pollOptions ? [...draft.pollOptions] : null);
             setImage(draft.image ?? null);
+            setAttachment(draft.attachment ?? null);
           }
           onPublishFailed?.();
         },
@@ -307,6 +340,14 @@ export function ComposerSheet({
                   style={styles.input}
                 />
 
+                {attachment !== null && (
+                  <AttachmentCard
+                    attachment={attachment}
+                    placement="composer"
+                    onRemove={() => setAttachment(null)}
+                  />
+                )}
+
                 {image !== null && (
                   <View style={styles.thumbWrap}>
                     <Image
@@ -384,7 +425,7 @@ export function ComposerSheet({
             {imagesOn && (
               <Pressable
                 onPress={attachImage}
-                disabled={preparing || pollDraft !== null}
+                disabled={preparing || pollDraft !== null || attachment !== null}
                 hitSlop={6}
                 style={styles.tool}
                 accessibilityRole="button"
@@ -396,7 +437,11 @@ export function ComposerSheet({
                 ) : (
                   <icons.image
                     size={22}
-                    color={pollDraft !== null ? theme.colors.textFaint : theme.colors.accent}
+                    color={
+                      pollDraft !== null || attachment !== null
+                        ? theme.colors.textFaint
+                        : theme.colors.accent
+                    }
                     weight="regular"
                   />
                 )}
@@ -405,7 +450,7 @@ export function ComposerSheet({
             {cfg.modules.polls && (
               <Pressable
                 onPress={togglePoll}
-                disabled={image !== null}
+                disabled={image !== null || attachment !== null}
                 hitSlop={6}
                 style={styles.tool}
                 accessibilityRole="button"
@@ -416,7 +461,11 @@ export function ComposerSheet({
               >
                 <icons.poll
                   size={22}
-                  color={image !== null ? theme.colors.textFaint : theme.colors.accent}
+                  color={
+                    image !== null || attachment !== null
+                      ? theme.colors.textFaint
+                      : theme.colors.accent
+                  }
                   weight={pollDraft !== null ? "fill" : "regular"}
                 />
               </Pressable>

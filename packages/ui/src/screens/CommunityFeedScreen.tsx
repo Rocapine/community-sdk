@@ -56,9 +56,11 @@ import {
   useCommunityFeed,
   useDeleteContent,
   useMyUid,
+  useProfile,
   useNewPostsCount,
   useSearchPosts,
   type FeedPost,
+  type PostAttachment,
   useUnreadNotificationCount,
 } from "@rocapine/community-core";
 import {
@@ -111,6 +113,7 @@ import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
 import { ThreadSheet } from "./ThreadSheet";
 import { noFocusRing } from "../utils/noFocusRing";
+import { allowedAttachment } from "../utils/attachment";
 import { ScreenBackground } from "../components/ScreenBackground";
 import {
   DEFAULT_FEED_HEADER,
@@ -129,6 +132,7 @@ export function CommunityFeedScreen({
   beforeSubmitComment,
   topicRequest,
   postRequest,
+  composeRequest,
   bottomChrome,
 }: {
   onOpenProfile(userId: string, source?: ProfileSource): void;
@@ -154,6 +158,12 @@ export function CommunityFeedScreen({
   /** Opens a post's thread from outside, e.g. the post a tapped push is
    * about. Applied each time `requestedAt` changes. */
   postRequest?: { postId: string; requestedAt: number };
+  /** Opens the composer from outside, pre-filled: a share from the app ("share
+   * this verse"). Goes through the same rules and `beforeCompose` gate as `+`.
+   * The attachment is dropped (with a warning) unless its type is enabled and the
+   * author may attach (`modules.attachments`). Applied each time `requestedAt`
+   * changes. */
+  composeRequest?: { attachment?: PostAttachment; text?: string; requestedAt: number };
   /** A host bar floating over the feed's bottom (a tab bar) that hides with
    * the feed's top bar. `hidden` is written with how far the top bar is hidden
    * as the reader scrolls (0 shown → 1 hidden), for the host to slide its bar
@@ -329,6 +339,23 @@ export function CommunityFeedScreen({
       rulesAnswer.current = { accepted: false, resolve };
       setRulesVisible(true);
     });
+  // What a `composeRequest` pre-fills; cleared when the composer closes.
+  const [composeSeed, setComposeSeed] = useState<{
+    attachment: PostAttachment | null;
+    text?: string;
+  } | null>(null);
+  const myOfficial = useProfile(myUid).data?.official ?? false;
+  const composeRequestedAt = composeRequest?.requestedAt;
+  useEffect(() => {
+    if (!composeRequest) return;
+    setComposeSeed({
+      attachment: allowedAttachment(cfg, myOfficial, composeRequest.attachment),
+      text: composeRequest.text,
+    });
+    openComposer();
+    // Keyed on `requestedAt`: the same content can be shared twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composeRequestedAt]);
   const openComposer = () => {
     if (opening.current) return;
     opening.current = true;
@@ -712,7 +739,12 @@ export function CommunityFeedScreen({
         <ComposerSheet
           visible={composerOpen}
           defaultTopic={composeDefaultTopic}
-          onClose={() => setComposerOpen(false)}
+          onClose={() => {
+            setComposerOpen(false);
+            setComposeSeed(null);
+          }}
+          initialAttachment={composeSeed?.attachment}
+          initialText={composeSeed?.text}
           onModerationRejected={() => setNotice("rejected")}
           onPublishFailed={() => setNotice("network")}
         />

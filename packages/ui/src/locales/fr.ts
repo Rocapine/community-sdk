@@ -220,6 +220,7 @@ export const fr: Record<string, string> = {
   "a11y.myProfile": "Mon profil",
   "composer.addImage": "Ajouter une image",
   "composer.removeImage": "Retirer l'image",
+  "composer.removeAttachment": "Retirer la pièce jointe",
   "image.photo": "📷 Photo",
   "a11y.openImage": "Ouvrir l'image",
   "a11y.closeImage": "Fermer",

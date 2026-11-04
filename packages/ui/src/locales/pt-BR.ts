@@ -194,6 +194,7 @@ export const ptBR: Record<string, string> = {
   "a11y.myProfile": "Meu perfil",
   "composer.addImage": "Adicionar uma imagem",
   "composer.removeImage": "Remover imagem",
+  "composer.removeAttachment": "Remover anexo",
   "image.photo": "📷 Foto",
   "a11y.openImage": "Abrir imagem",
   "a11y.closeImage": "Fechar",

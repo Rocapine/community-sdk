@@ -278,13 +278,13 @@ you can wrap, replace, or ignore it:
 
 ## Screens
 
-| Screen                    | Key props                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: FeedHeaderConfig` (see Feed header), `slots?: PostSlots`, `beforeCompose?`, `beforeSubmitComment?` (see Gating submissions), `topicRequest?` (see Topics), `postRequest?` (see Pushes), `bottomChrome?` (see Feed, composer and topics) |
-| `ThreadSheet`             | `postId: string \| null`, `focusComment?: boolean` (open with the reply field focused), `onClose()`, `onOpenProfile(userId, source?)`, `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does                                      |
-| `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId, focusComment?)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`                                                        |
-| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                                                                                                                                    |
-| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread, open, parts })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                                                                                 |
+| Screen                    | Key props                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: FeedHeaderConfig` (see Feed header), `composeRequest?` (see Attachments), `slots?: PostSlots`, `beforeCompose?`, `beforeSubmitComment?` (see Gating submissions), `topicRequest?` (see Topics), `postRequest?` (see Pushes), `bottomChrome?` (see Feed, composer and topics) |
+| `ThreadSheet`             | `postId: string \| null`, `focusComment?: boolean` (open with the reply field focused), `onClose()`, `onOpenProfile(userId, source?)`, `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does                                                                           |
+| `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId, focusComment?)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`                                                                                             |
+| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread, open, parts })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                                                                                                                      |
 
 Plus standalone components you can use directly: `PressableScale` (the
 package's press feedback for buttons with a visible surface — a 0.98 scale-down,
@@ -405,6 +405,20 @@ owner's profile sheet gets a `badge.<id>.toggle` switch per badge. Without a
 renderer, `STREAK_BADGES` (`streak: { since }`, `bestStreak: { days }`) draw as the
 built-in pills (`defaultMemberBadge`): the flame and label on a tint of
 `streakBronze` / `streakSilver` / `streakGold`, nothing under one day.
+
+## Attachments
+
+With `modules.attachments: { types: ["verse"], membersCanAttach: true }`, a post can
+carry one reference to your app's content, `{ type, id }`. The post stores nothing
+else: `CommunityUIProvider`'s `renderAttachment(attachment, { placement, open })`
+draws the card from your own data (`placement`: `post`, `thread` or `composer`; null
+for an unknown type), and `onOpenAttachment(attachment)` opens it in your app (its
+call goes through the thread's modal handoff). To share from a detail screen, navigate
+to the community and pass `composeRequest={{ attachment, text?, requestedAt: Date.now() }}`
+to `CommunityFeedScreen`: the composer opens with the card, after the same rules and
+`beforeCompose` gate as `+`. An attachment replaces a photo or a poll. Members can attach
+only when `membersCanAttach` is true; official accounts always can (enforced in the
+UI).
 
 ## Images
 
