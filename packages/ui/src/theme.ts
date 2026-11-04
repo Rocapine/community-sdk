@@ -91,6 +91,12 @@ export type CommunityTheme = {
      * `textPrimary`. */
     adminName: string;
     pinned: string;
+    /** The feed's top bar: its title and icons, and the selected topic tab. Defaults
+     * to `textPrimary`; set it (and `headerTextMuted`) for a bar whose background
+     * calls for another color, e.g. light text over a dark header image. */
+    headerText: string;
+    /** The unselected topic tabs. Defaults to `textMuted`. */
+    headerTextMuted: string;
     /** Streak pills by tier (streaks module): under 30 days, 30 to 90, beyond
      * 90. The pill's text and icon take the color, its fill a tint of it. */
     streakBronze: string;
@@ -211,6 +217,8 @@ export const defaultTheme: CommunityTheme = {
     admin: accent,
     adminName: "#16161A",
     pinned: accent,
+    headerText: "#16161A",
+    headerTextMuted: "rgba(22,22,26,0.6)",
     streakBronze: "#B0703A",
     streakSilver: "#7D8794",
     streakGold: "#C9930A",
@@ -238,6 +246,12 @@ export function mergeTheme(partial: DeepPartial<CommunityTheme> = {}): Community
       ...partial.colors,
       adminName:
         partial.colors?.adminName ?? partial.colors?.textPrimary ?? defaultTheme.colors.adminName,
+      headerText:
+        partial.colors?.headerText ?? partial.colors?.textPrimary ?? defaultTheme.colors.headerText,
+      headerTextMuted:
+        partial.colors?.headerTextMuted ??
+        partial.colors?.textMuted ??
+        defaultTheme.colors.headerTextMuted,
     },
     fonts,
     fontWeights,

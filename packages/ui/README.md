@@ -339,13 +339,19 @@ A left-aligned title is `left: ["title"]` with no `center`; a logo next to the n
 - `CommunityUIProvider`'s `background: { image, contentFit?, opacity? }` sits fixed behind
   the feed, the notification center and profiles. Post rows turn transparent over it;
   sheets, the thread and the composer keep `colors.background`. The feed's top bar keeps
-  its own background: give it `header.background` (the same image, or a colour).
+  its own background: `header.background: "community"` gives it this one, laid out for
+  the whole screen and held still while the bar hides, so bar and feed read as one image.
+- `colors.headerText` (title, header icons, selected tab) and `colors.headerTextMuted`
+  (other tabs) default to `textPrimary` / `textMuted`: set them when the bar's
+  background calls for other text, e.g. white over a dark image on a light theme.
 
 ```tsx
-<CommunityFeedScreen
-  header={{ background: { image: stars }, topInset: insets.top }}
-  …
-/>
+<CommunityUIProvider
+  background={{ image: stars }}
+  theme={{ colors: { headerText: "#FFF", headerTextMuted: "rgba(255,255,255,0.65)" } }}
+>
+  <CommunityFeedScreen header={{ background: "community", topInset: insets.top }} … />
+</CommunityUIProvider>
 ```
 
 ## Feed, composer and topics

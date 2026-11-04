@@ -80,7 +80,13 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
   const { colors, locale, modules, typography, admin, backgrounds, badges } = playground.settings;
   const communityImage = BACKGROUNDS[backgrounds.community];
   const theme = {
-    colors: { ...colors, ...(admin.nameColor ? { adminName: admin.nameColor } : {}) },
+    colors: {
+      ...colors,
+      ...(admin.nameColor ? { adminName: admin.nameColor } : {}),
+      ...(backgrounds.lightHeaderText
+        ? { headerText: "#FFFFFF", headerTextMuted: "rgba(255,255,255,0.65)" }
+        : {}),
+    },
     typography: {
       title: typography.titleFont ? { fontFamily: typography.titleFont } : {},
       body: { fontSize: typography.bodySize },

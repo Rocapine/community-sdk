@@ -216,10 +216,18 @@ export default function ConfigTab() {
         />
         <Text style={styles.hint}>Header</Text>
         <Chips
-          options={Object.keys(BACKGROUNDS) as BackgroundId[]}
+          options={[...(Object.keys(BACKGROUNDS) as BackgroundId[]), "community" as const]}
           value={settings.backgrounds.header}
           onChange={(header) => update({ backgrounds: { ...settings.backgrounds, header } })}
         />
+        <Row label="Light header text">
+          <Switch
+            value={settings.backgrounds.lightHeaderText}
+            onValueChange={(lightHeaderText) =>
+              update({ backgrounds: { ...settings.backgrounds, lightHeaderText } })
+            }
+          />
+        </Row>
         <Row label="Feed owns the status bar">
           <Switch
             value={settings.backgrounds.ownStatusBar}
