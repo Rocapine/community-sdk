@@ -101,7 +101,7 @@ export const defaultIcons: CommunityIconSet = {
   send: fromSymbols("send", { ios: "paperplane", iosFill: "paperplane.fill", material: "send" }),
   bell: fromSymbols("bell", { ios: "bell", iosFill: "bell.fill", material: "notifications" }),
   search: fromSymbols("search", { ios: "magnifyingglass", material: "search" }),
-  officialSeal: fromSymbols("officialSeal", {
+  adminSeal: fromSymbols("adminSeal", {
     ios: "checkmark.seal.fill",
     iosFill: "checkmark.seal.fill",
     material: "verified",

@@ -64,7 +64,7 @@ describe("selects", () => {
     const on = resolveConfig({ ...base, modules: { ...base.modules, badges: STREAK_BADGES } });
     const off = resolveConfig(base);
     expect(threadSelect(on)).toContain(
-      "profiles(username, is_official, handle, avatar_url, visible_badges)",
+      "profiles(username, is_admin, handle, avatar_url, visible_badges)",
     );
     expect(threadSelect(off)).not.toContain("visible_badges");
   });
@@ -79,7 +79,7 @@ const postRow = (extra: Record<string, unknown> = {}) =>
     status: "visible",
     created_at: "2026-11-01T00:00:00Z",
     pinned_at: null,
-    profiles: { username: "Ana", is_official: false, handle: "ana", avatar_url: null },
+    profiles: { username: "Ana", is_admin: false, handle: "ana", avatar_url: null },
     likes: [],
     comments: [],
     ...extra,
@@ -105,7 +105,7 @@ describe("mapping", () => {
       created_at: "2026-11-01T00:00:00Z",
       profiles: {
         username: "Ana",
-        is_official: false,
+        is_admin: false,
         handle: "ana",
         avatar_url: null,
         visible_badges: { rank: { n: 2 } },
@@ -120,7 +120,7 @@ describe("mapping", () => {
         id: "u1",
         username: "Ana",
         handle: "ana",
-        is_official: false,
+        is_admin: false,
         bio: null,
         avatar_url: null,
         visible_badges: { streak: { since: "2026-10-01T00:00:00Z" } },

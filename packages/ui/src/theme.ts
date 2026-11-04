@@ -86,10 +86,10 @@ export type CommunityTheme = {
     /** Active state of the secondary reaction (icon tint and count). Defaults
      * to `accent`. */
     reaction: string;
-    official: string;
-    /** An official account's name on posts, comments and its profile. Defaults to
+    admin: string;
+    /** An admin account's name on posts, comments and its profile. Defaults to
      * `textPrimary`. */
-    officialName: string;
+    adminName: string;
     pinned: string;
     /** Streak pills by tier (streaks module): under 30 days, 30 to 90, beyond
      * 90. The pill's text and icon take the color, its fill a tint of it. */
@@ -203,13 +203,13 @@ export const defaultTheme: CommunityTheme = {
     accentSoft: "rgba(76,111,255,0.55)",
     danger: "#D14343",
     success: "#2E9E5B",
-    // mold reuses its single accent color (`gold`) for like/official/pinned
+    // mold reuses its single accent color (`gold`) for like/admin/pinned
     // indicators; default these to `accent` too, kept as separate tokens so
     // hosts can diverge them independently.
     like: accent,
     reaction: accent,
-    official: accent,
-    officialName: "#16161A",
+    admin: accent,
+    adminName: "#16161A",
     pinned: accent,
     streakBronze: "#B0703A",
     streakSilver: "#7D8794",
@@ -236,10 +236,8 @@ export function mergeTheme(partial: DeepPartial<CommunityTheme> = {}): Community
     colors: {
       ...defaultTheme.colors,
       ...partial.colors,
-      officialName:
-        partial.colors?.officialName ??
-        partial.colors?.textPrimary ??
-        defaultTheme.colors.officialName,
+      adminName:
+        partial.colors?.adminName ?? partial.colors?.textPrimary ?? defaultTheme.colors.adminName,
     },
     fonts,
     fontWeights,

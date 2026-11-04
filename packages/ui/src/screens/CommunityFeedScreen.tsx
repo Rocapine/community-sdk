@@ -25,12 +25,9 @@
 //  - `ScrollView`-based `Screen` → a plain `FlatList`, with `RefreshControl`
 //    for pull-to-refresh and `onEndReached` for infinite scroll; a "Load more"
 //    footer button is still shown for parity with both sources.
-//  - The tabs read the full `cfg.topics` (including any `officialOnly` ones,
-//    e.g. a "News" topic) — that's the *browsing* list, distinct from
-//    `cfg.composeTopics()` (which the composer uses and which excludes them).
-//    The composer's `defaultTopic` is only ever a non-official topic id (or
-//    `undefined`): an `officialOnly` tab would preselect a topic regular
-//    users cannot post to.
+//  - The tabs read the full `cfg.topics`, `adminOnly` ones included (led by
+//    the `announcement` icon) — that's the *browsing* list. On an `adminOnly`
+//    tab a member gets no `+`; an admin gets it, with that topic preselected.
 //  - The reaction ("pray for") affordance lives entirely inside
 //    `CommunityPost` via `cfg.modules.reaction` + `useReactToPost`; a host
 //    wanting Eve's third-person prayer flow builds it as a
@@ -345,10 +342,10 @@ export function CommunityFeedScreen({
     text?: string;
   } | null>(null);
   const myProfile = useProfile(myUid);
-  // Whether the author is official decides whether they may attach: wait for the
+  // Whether the author is admin decides whether they may attach: wait for the
   // profile (a share often mounts this screen) unless there is none to wait for.
   const profileSettled = !myUid || !myProfile.isPending;
-  const myOfficial = myProfile.data?.official ?? false;
+  const myAdmin = myProfile.data?.admin ?? false;
   const composeRequestedAt = composeRequest?.requestedAt;
   const handledRequest = useRef<number | undefined>(undefined);
   useEffect(() => {
@@ -357,7 +354,7 @@ export function CommunityFeedScreen({
     if (handledRequest.current === composeRequest.requestedAt) return;
     handledRequest.current = composeRequest.requestedAt;
     setComposeSeed({
-      attachment: allowedAttachment(cfg, myOfficial, composeRequest.attachment),
+      attachment: allowedAttachment(cfg, myAdmin, composeRequest.attachment),
       text: composeRequest.text,
     });
     openComposer();
@@ -563,15 +560,18 @@ export function CommunityFeedScreen({
   const topicTabs = useMemo(
     () => [
       { id: "all", label: t("feed.all") },
-      ...cfg.topics.map((topic) => ({ id: topic.id, label: t(`topics.${topic.id}`) })),
+      ...cfg.topics.map((topic) => ({
+        id: topic.id,
+        label: t(`topics.${topic.id}`),
+        icon: topic.adminOnly ? icons.announcement : undefined,
+      })),
     ],
-    [cfg.topics, t],
+    [cfg.topics, t, icons],
   );
 
-  // An `officialOnly` filter (e.g. "News") must never become the composer's
-  // preselected topic — regular users cannot post there.
-  const composeDefaultTopic =
-    topicFilter && !cfg.isOfficialTopic(topicFilter) ? topicFilter : undefined;
+  // Only admins post in an `adminOnly` topic: members get no `+` on its tab.
+  const adminTopic = topicFilter != null && cfg.isAdminTopic(topicFilter);
+  const canCompose = !adminTopic || myAdmin;
 
   return (
     <ImageViewerHost>
@@ -684,8 +684,8 @@ export function CommunityFeedScreen({
                 <Text style={styles.stateText}>
                   {searchActive
                     ? t("feed.noSearchResults")
-                    : filter === "news"
-                      ? t("feed.newsEmpty")
+                    : adminTopic
+                      ? t("feed.adminTopicEmpty")
                       : t("feed.empty")}
                 </Text>
               )
@@ -721,7 +721,7 @@ export function CommunityFeedScreen({
             }}
           />
 
-          {!searchOpen && (
+          {!searchOpen && canCompose && (
             <Animated.View style={[styles.fab, { bottom: chromeH + theme.spacing(4) }, fabStyle]}>
               <PressableScale
                 onPress={openComposer}
@@ -746,7 +746,7 @@ export function CommunityFeedScreen({
         />
         <ComposerSheet
           visible={composerOpen}
-          defaultTopic={composeDefaultTopic}
+          defaultTopic={canCompose ? topicFilter : undefined}
           onClose={() => {
             setComposerOpen(false);
             setComposeSeed(null);

@@ -38,7 +38,7 @@ export const en: Record<string, string> = {
   "feed.unreachableRetry": "The community is unreachable right now. Pull to retry.",
   "feed.unreachable": "The community is unreachable right now.",
   "feed.noSearchResults": "No posts match your search.",
-  "feed.newsEmpty": "Announcements from the team will appear here.",
+  "feed.adminTopicEmpty": "Announcements from the team will appear here.",
   "feed.empty": "No posts here yet. Be the first to share.",
   "feed.loadMore": "Load more",
   "feed.newPosts.one": "{count} new post",

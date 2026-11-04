@@ -77,11 +77,10 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
   const config = useMemo(() => (settings ? buildConfig(settings) : null), [settings]);
 
   if (!playground || !config) return null;
-  const { colors, locale, modules, typography, official, backgrounds, badges } =
-    playground.settings;
+  const { colors, locale, modules, typography, admin, backgrounds, badges } = playground.settings;
   const communityImage = BACKGROUNDS[backgrounds.community];
   const theme = {
-    colors: { ...colors, ...(official.nameColor ? { officialName: official.nameColor } : {}) },
+    colors: { ...colors, ...(admin.nameColor ? { adminName: admin.nameColor } : {}) },
     typography: {
       title: typography.titleFont ? { fontFamily: typography.titleFont } : {},
       body: { fontSize: typography.bodySize },
@@ -114,7 +113,7 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
                 : undefined
             }
             renderAvatar={(p) => (
-              <PlaygroundAvatar {...p} ring={official.ring} accent={colors.accent} />
+              <PlaygroundAvatar {...p} ring={admin.ring} accent={colors.accent} />
             )}
           >
             {children}

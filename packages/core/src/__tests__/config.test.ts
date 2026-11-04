@@ -9,7 +9,7 @@ import {
 const base = {
   supabase: null,
   appName: "Test App",
-  topics: [{ id: "general" }, { id: "news", officialOnly: true }],
+  topics: [{ id: "general" }, { id: "news", adminOnly: true }],
   modules: { polls: false, push: false, inbox: false, reaction: false as const },
 };
 
@@ -21,18 +21,16 @@ it("requireClient throws CommunityDisabledError and warns exactly once when supa
   expect(warn).toHaveBeenCalledTimes(1);
 });
 
-it("composeTopics excludes officialOnly topics", () => {
-  expect(
-    resolveConfig({ ...base })
-      .composeTopics()
-      .map((t) => t.id),
-  ).toEqual(["general"]);
+it("composeTopics offers adminOnly topics to admins only", () => {
+  const r = resolveConfig({ ...base });
+  expect(r.composeTopics(false).map((t) => t.id)).toEqual(["general"]);
+  expect(r.composeTopics(true).map((t) => t.id)).toEqual(["general", "news"]);
 });
 
-it("isOfficialTopic", () => {
+it("isAdminTopic", () => {
   const r = resolveConfig({ ...base });
-  expect(r.isOfficialTopic("news")).toBe(true);
-  expect(r.isOfficialTopic("general")).toBe(false);
+  expect(r.isAdminTopic("news")).toBe(true);
+  expect(r.isAdminTopic("general")).toBe(false);
 });
 
 it("host adapters default to safe no-ops", async () => {

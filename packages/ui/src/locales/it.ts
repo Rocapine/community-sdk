@@ -32,7 +32,7 @@ export const it: Record<string, string> = {
   "feed.unreachableRetry": "La comunità non è raggiungibile in questo momento. Tira per riprovare.",
   "feed.unreachable": "La comunità non è raggiungibile in questo momento.",
   "feed.noSearchResults": "Nessun post corrisponde alla tua ricerca.",
-  "feed.newsEmpty": "Gli annunci del team compariranno qui.",
+  "feed.adminTopicEmpty": "Gli annunci del team compariranno qui.",
   "feed.empty": "Ancora nessun post qui. Condividi il primo.",
   "feed.loadMore": "Carica altri",
   "feed.newPosts.one": "{count} nuovo post",

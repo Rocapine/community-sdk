@@ -35,9 +35,9 @@ export type PlaygroundSettings = {
   typography: { titleFont: string | null; bodySize: number };
   /** Item ids per zone; `logo` is the demo logo. */
   header: Record<HeaderZone, HeaderItemId[]>;
-  /** Official accounts: a ring on their avatar (drawn by the app's `renderAvatar`)
-   * and their name's colour (`officialName`, empty = default). */
-  official: { ring: boolean; nameColor: string };
+  /** Admin accounts: a ring on their avatar (drawn by the app's `renderAvatar`)
+   * and their name's colour (`adminName`, empty = default). */
+  admin: { ring: boolean; nameColor: string };
   /** `community`: behind the feed, inbox and profiles; `header`: behind the feed's top
    * bar; `ownStatusBar`: the feed owns the status bar area (`header.topInset`). */
   backgrounds: {
@@ -84,7 +84,7 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
   colors: { accent: "#6C4DF6", background: "#F7F7F8" },
   typography: { titleFont: null, bodySize: 15 },
   header: HEADER_PRESETS.Default,
-  official: { ring: true, nameColor: "" },
+  admin: { ring: true, nameColor: "" },
   backgrounds: { community: "none", communityOpacity: 1, header: "none", ownStatusBar: false },
 };
 
@@ -161,7 +161,7 @@ export function buildConfig(settings: PlaygroundSettings): CommunityConfig {
   return {
     supabase,
     appName: "Community SDK Demo",
-    topics: [{ id: "general" }, { id: "question" }, { id: "news", officialOnly: true }],
+    topics: [{ id: "general" }, { id: "question" }, { id: "news", adminOnly: true }],
     modules: {
       polls: m.polls,
       push: false,

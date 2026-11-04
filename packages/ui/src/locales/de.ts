@@ -49,7 +49,7 @@ export const de: Record<string, string> = {
     "Die Gemeinschaft ist gerade nicht erreichbar. Ziehe nach unten, um es erneut zu versuchen.",
   "feed.unreachable": "Die Gemeinschaft ist gerade nicht erreichbar.",
   "feed.noSearchResults": "Keine Beiträge entsprechen deiner Suche.",
-  "feed.newsEmpty": "Ankündigungen vom Team erscheinen hier.",
+  "feed.adminTopicEmpty": "Ankündigungen vom Team erscheinen hier.",
   "feed.empty": "Hier gibt es noch keine Beiträge. Schreib den ersten Beitrag.",
   "feed.loadMore": "Mehr laden",
   "feed.newPosts.one": "{count} neuer Beitrag",

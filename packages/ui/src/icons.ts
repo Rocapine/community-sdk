@@ -30,9 +30,9 @@ export type CommunityIconProps = {
  *  - `send`           — thread comment composer submit
  *  - `bell`           — feed header notifications entry point
  *  - `search`         — feed search toggle/input
- *  - `officialSeal`   — official-account badge on a post/comment/profile
+ *  - `adminSeal`      — admin-account badge on a post/comment/profile
  *  - `pin`            — pinned-post indicator
- *  - `announcement`   — official-post notification row
+ *  - `announcement`   — admin-post notification row, and before an admin-only topic's tab
  *  - `checkmark`      — selected poll option
  *  - `poll`           — composer poll toggle
  *  - `add`            — composer "add poll option"
@@ -53,7 +53,7 @@ export type CommunityIconName =
   | "send"
   | "bell"
   | "search"
-  | "officialSeal"
+  | "adminSeal"
   | "pin"
   | "announcement"
   | "checkmark"

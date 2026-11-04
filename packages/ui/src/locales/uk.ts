@@ -33,7 +33,7 @@ export const uk: Record<string, string> = {
   "feed.unreachableRetry": "Спільнота зараз недоступна. Потягни, щоб спробувати ще раз.",
   "feed.unreachable": "Спільнота зараз недоступна.",
   "feed.noSearchResults": "Жоден допис не відповідає твоєму запиту.",
-  "feed.newsEmpty": "Оголошення від команди з'являтимуться тут.",
+  "feed.adminTopicEmpty": "Оголошення від команди з'являтимуться тут.",
   "feed.empty": "Тут ще немає дописів. Почни з себе.",
   "feed.loadMore": "Завантажити більше",
   "feed.newPosts.one": "{count} новий допис",

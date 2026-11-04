@@ -189,14 +189,12 @@ export function CommunityPost({
     <View style={styles.metaRow}>
       <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.nameBlock}>
         <Text
-          style={[styles.name, post.authorOfficial && { color: theme.colors.officialName }]}
+          style={[styles.name, post.authorAdmin && { color: theme.colors.adminName }]}
           numberOfLines={1}
         >
           {post.authorName}
         </Text>
-        {post.authorOfficial && (
-          <icons.officialSeal size={15} color={theme.colors.official} weight="fill" />
-        )}
+        {post.authorAdmin && <icons.adminSeal size={15} color={theme.colors.admin} weight="fill" />}
       </Pressable>
       {topicId && (
         <>
@@ -301,7 +299,7 @@ export function CommunityPost({
         url={post.authorAvatarUrl}
         size={size}
         placement="post"
-        official={post.authorOfficial}
+        admin={post.authorAdmin}
         handle={post.authorHandle}
         badges={post.authorBadges}
       />

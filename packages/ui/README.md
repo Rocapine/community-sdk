@@ -78,7 +78,7 @@ type CommunityTheme = {
     success: string;
     like: string;
     reaction: string; // active reaction icon + count
-    official: string;
+    admin: string;
     pinned: string;
   };
   fonts: {
@@ -118,7 +118,7 @@ type CommunityTheme = {
 ```
 
 The default theme is a neutral placeholder palette (`accent: "#4C6FFF"`,
-system fonts) — no app branding. `like`/`reaction`/`official`/`pinned` default to
+system fonts) — no app branding. `like`/`reaction`/`admin`/`pinned` default to
 `accent` too but are separate tokens so you can diverge them.
 
 ### Typography
@@ -205,7 +205,7 @@ so the icon set is injectable — `expo-symbols` is an optional peer
 (see above), not a hard dependency. Every icon this package renders is
 looked up by a semantic role name (`CommunityIconName`: `like`, `comment`,
 `reaction`, `menu`, `back`, `close`, `send`, `bell`, `search`,
-`officialSeal`, `pin`, `announcement`, `checkmark`, `poll`, `add`,
+`adminSeal`, `pin`, `announcement`, `checkmark`, `poll`, `add`,
 `warning`, `compose`, `image`), never by a glyph name. `image` (the composer's
 "add an image" button) is new with the images module: a host that types a
 **complete** `CommunityIconSet` must add it; at runtime a role you didn't pass
@@ -268,7 +268,7 @@ you can wrap, replace, or ignore it:
   must wait; the author fields are already yours.
 - `NotificationInboxScreen`'s `renderInboxRow?: (item: InboxItem, defaults: ReactNode | null, meta) => ReactNode`
   — called for every row; `defaults` is a built-in row for a recognized kind
-  (`like`/`comment`/`reaction`/`official_post`) or `null` for an
+  (`like`/`comment`/`reaction`/`admin_post`) or `null` for an
   app-defined custom kind the SDK doesn't know how to render itself (e.g. a
   `support_reply` notification your own backend inserts). `meta` is
   `{ unread, open, parts }`: `open()` does what tapping the built-in row does
@@ -391,7 +391,7 @@ from core so the matching inbox items count as read.
 
 **Avatars.** Every avatar the SDK draws (rows, comments, header button,
 profiles, composer, edit preview) goes through `Avatar`. Pass
-`renderAvatar={({ userId, name, url, size, official, handle, placement, badges }) => …}` to `CommunityUIProvider`
+`renderAvatar={({ userId, name, url, size, admin, handle, placement, badges }) => …}` to `CommunityUIProvider`
 to draw your own (e.g. a gradient per member); the default is the photo, else
 the initial on a flat colour.
 
@@ -420,7 +420,7 @@ to `CommunityFeedScreen`: the composer opens with the card, after the same rules
 `beforeCompose` gate as `+`. An attachment replaces a photo or a poll, and the post still
 needs text (pushes and inbox rows would otherwise read it as a photo): pass a
 `text` in the request to pre-fill it. Members can attach
-only when `membersCanAttach` is true; official accounts always can (enforced in the
+only when `membersCanAttach` is true; admin accounts always can (enforced in the
 UI).
 
 ## Images

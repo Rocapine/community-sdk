@@ -1,4 +1,4 @@
-// A community member's public profile: header (avatar/handle/bio/official
+// A community member's public profile: header (avatar/handle/bio/admin
 // seal), their posts (via `CommunityPost`, so it shares the feed's like/
 // reaction/comment/menu footer and poll block), an edit affordance on one's
 // own profile, and a block/report menu on someone else's. Ported from the
@@ -274,22 +274,19 @@ export function ProfileScreen({
                     url={profile.data.avatarUrl}
                     size={72}
                     placement="profile"
-                    official={profile.data.official}
+                    admin={profile.data.admin}
                     handle={profile.data.handle}
                     badges={profile.data.badges}
                   />
                 </View>
                 <View style={styles.nameRow}>
                   <Text
-                    style={[
-                      styles.name,
-                      profile.data.official && { color: theme.colors.officialName },
-                    ]}
+                    style={[styles.name, profile.data.admin && { color: theme.colors.adminName }]}
                   >
                     {profile.data.name}
                   </Text>
-                  {profile.data.official && (
-                    <icons.officialSeal size={17} color={theme.colors.official} weight="fill" />
+                  {profile.data.admin && (
+                    <icons.adminSeal size={17} color={theme.colors.admin} weight="fill" />
                   )}
                 </View>
                 {profile.data.handle != null && (

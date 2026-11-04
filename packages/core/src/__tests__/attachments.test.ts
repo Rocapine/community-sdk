@@ -95,12 +95,12 @@ describe("attachments", () => {
     ).rejects.toThrow("a post cannot have both an attachment and a poll or an image");
   });
 
-  it("lets officials attach always, members when the app allows it", () => {
+  it("lets admins attach always, members when the app allows it", () => {
     const allowed = resolveConfig(withAttachments(null, true));
-    const officialsOnly = resolveConfig(withAttachments(null, false));
+    const adminsOnly = resolveConfig(withAttachments(null, false));
     expect(canAttach(allowed, false)).toBe(true);
-    expect(canAttach(officialsOnly, false)).toBe(false);
-    expect(canAttach(officialsOnly, true)).toBe(true);
+    expect(canAttach(adminsOnly, false)).toBe(false);
+    expect(canAttach(adminsOnly, true)).toBe(true);
     expect(canAttach(resolveConfig(base), true)).toBe(false);
   });
 });

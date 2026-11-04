@@ -55,7 +55,7 @@ describe("mergeIcons", () => {
       "send",
       "bell",
       "search",
-      "officialSeal",
+      "adminSeal",
       "pin",
       "announcement",
       "checkmark",

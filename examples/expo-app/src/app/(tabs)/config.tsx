@@ -180,20 +180,20 @@ export default function ConfigTab() {
         ))}
       </Section>
 
-      <Section title="Official accounts">
+      <Section title="Admin accounts">
         <Row label="Ring on their avatar">
           <Switch
-            value={settings.official.ring}
-            onValueChange={(ring) => update({ official: { ...settings.official, ring } })}
+            value={settings.admin.ring}
+            onValueChange={(ring) => update({ admin: { ...settings.admin, ring } })}
           />
         </Row>
         <Text style={styles.hint}>Name colour</Text>
         <Chips
           options={["default", "#C49B00", "#D14343", "#2E9E5B"]}
-          value={settings.official.nameColor || "default"}
+          value={settings.admin.nameColor || "default"}
           onChange={(color) =>
             update({
-              official: { ...settings.official, nameColor: color === "default" ? "" : color },
+              admin: { ...settings.admin, nameColor: color === "default" ? "" : color },
             })
           }
         />
