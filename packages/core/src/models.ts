@@ -68,8 +68,8 @@ export interface PostRow {
   image_path?: string | null;
   image_width?: number | null;
   image_height?: number | null;
-  /** The author's visible streak start. Absent when the streaks module is off. */
-  author_streak?: { visible_streak_started_at: string | null } | null;
+  /** The author's visible badges. Absent when the badges module is off. */
+  author_badges?: { visible_badges: MemberBadges | null } | null;
 }
 
 export interface PollOptionRow {
@@ -109,6 +109,8 @@ export interface CommentRow {
     is_official: boolean | null;
     handle: string | null;
     avatar_url: string | null;
+    /** Absent when the badges module is off. */
+    visible_badges?: MemberBadges | null;
   } | null;
   /** At most one row: server-filtered to the reader's locale. Absent when the
    * translation module is off. */
@@ -166,6 +168,8 @@ export const EMPTY_REACTION_DATA: ReactionData = {
 export type MemberBadgeData = Record<string, unknown>;
 /** A member's visible badges, keyed by the app's badge ids. */
 export type MemberBadges = Record<string, MemberBadgeData>;
+/** Where a badge can show: next to the author on posts, on comments, on the profile. */
+export type BadgePlacement = "post" | "comment" | "profile";
 
 export interface FeedPost {
   id: string;
@@ -201,9 +205,8 @@ export interface FeedPost {
   translation: TranslationInfo | null;
   /** Null when the post has no photo or the images module is off. */
   image: PostImage | null;
-  /** When the author's current streak began; null when they have none, hide
-   * it, or the streaks module is off. See `streakDays`. */
-  authorStreakStartedAt: string | null;
+  /** The author's visible badges; `{}` when none, hidden, or the module is off. */
+  authorBadges: MemberBadges;
 }
 
 export interface ThreadComment {
@@ -226,6 +229,8 @@ export interface ThreadComment {
   parentId: string | null;
   likeCount: number;
   likedByMe: boolean;
+  /** The author's visible badges; `{}` when none, hidden, or the module is off. */
+  authorBadges: MemberBadges;
 }
 
 /**
@@ -264,11 +269,9 @@ export interface ProfileRow {
   is_official: boolean | null;
   bio: string | null;
   avatar_url: string | null;
-  /** The streaks module's columns, absent when it is off. */
-  visible_streak_started_at?: string | null;
-  visible_best_streak_days?: number | null;
-  show_streak?: boolean;
-  show_best_streak?: boolean;
+  /** The badges module's columns, absent when it is off. */
+  visible_badges?: MemberBadges | null;
+  hidden_badges?: string[] | null;
 }
 
 export interface CommunityProfile {
@@ -281,12 +284,10 @@ export interface CommunityProfile {
   /** Raw username, when available (pre-fallback, unlike `name`); populated by
    * mapProfileRow so a CommunityProfile can itself be threaded back into displayName(). */
   username?: string | null;
-  /** Streaks module: null when none, hidden, or the module is off. */
-  streakStartedAt: string | null;
-  bestStreakDays: number | null;
-  /** The owner's visibility toggles (true when the module is off). */
-  showStreak: boolean;
-  showBestStreak: boolean;
+  /** Badges module: the visible badges (`{}` when none or the module is off) and
+   * the ids the owner hides (their toggles). */
+  badges: MemberBadges;
+  hiddenBadges: string[];
 }
 
 export function mapProfileRow(row: ProfileRow, fallback: string): CommunityProfile {
@@ -300,11 +301,24 @@ export function mapProfileRow(row: ProfileRow, fallback: string): CommunityProfi
     // Raw username (pre-fallback), so a mapped CommunityProfile can itself be threaded back
     // into displayName() elsewhere — see the field doc on CommunityProfile.
     username: row.username ?? null,
-    streakStartedAt: row.visible_streak_started_at ?? null,
-    bestStreakDays: row.visible_best_streak_days ?? null,
-    showStreak: row.show_streak ?? true,
-    showBestStreak: row.show_best_streak ?? true,
+    badges: row.visible_badges ?? NO_BADGES,
+    hiddenBadges: row.hidden_badges ?? [],
   };
+}
+
+const NO_BADGES: MemberBadges = {};
+
+/** A host streak as the two streak badges (`STREAK_BADGES`); keys left out when
+ * there is nothing to show. */
+export function streakBadgeData(streak: {
+  startedAt: string | null;
+  bestDays: number;
+}): MemberBadges {
+  const badges: MemberBadges = {};
+  if (streak.startedAt) badges.streak = { since: streak.startedAt };
+  const best = Math.max(0, Math.floor(streak.bestDays));
+  if (best > 0) badges.bestStreak = { days: best };
+  return badges;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -389,7 +403,7 @@ export function mapPostRow(
     lastReactorName: reactionData.lastReactorName.get(row.id) ?? null,
     translation: embedToTranslation(row.post_translations),
     image: mapImage(row, imageBase),
-    authorStreakStartedAt: row.author_streak?.visible_streak_started_at ?? null,
+    authorBadges: row.author_badges?.visible_badges ?? NO_BADGES,
   };
   return transformPost ? transformPost(post, row as unknown as Record<string, unknown>) : post;
 }
@@ -454,6 +468,7 @@ export function mapCommentRow(
     parentId: row.parent_id ?? null,
     likeCount: row.comment_likes?.[0]?.count ?? 0,
     likedByMe,
+    authorBadges: row.profiles?.visible_badges ?? NO_BADGES,
   };
 }
 

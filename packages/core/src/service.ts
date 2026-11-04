@@ -71,13 +71,12 @@ const COMMENT_TRANSLATIONS_SELECT = "comment_translations(locale, source_locale,
 
 const PROFILE_SELECT = "id, username, handle, is_official, bio, avatar_url";
 
-/** Embedded only when the streaks module is on: the columns don't exist on
- * other installs. A second, aliased embed of the author keeps the base select
+/** Embedded only when the badges module is on: the columns don't exist on other
+ * installs. A second, aliased embed of the author keeps the base select
  * untouched. */
-const AUTHOR_STREAK_SELECT =
-  "author_streak:profiles!posts_author_id_fkey(visible_streak_started_at)";
-const PROFILE_STREAK_COLUMNS =
-  "visible_streak_started_at, visible_best_streak_days, show_streak, show_best_streak";
+const AUTHOR_BADGES_SELECT = "author_badges:profiles!posts_author_id_fkey(visible_badges)";
+const PROFILE_BADGE_COLUMNS = "visible_badges, hidden_badges";
+const COMMENT_AUTHOR = "profiles(username, is_official, handle, avatar_url)";
 
 /** Minimal injection guard for `CommunityConfig.feed.extraPostColumns`: a bare
  * column name only, no `.`, `(`, `:`, whitespace, etc. — those are how a
@@ -96,13 +95,13 @@ export function buildFeedSelect(
   polls = false,
   translations = false,
   images = false,
-  streaks = false,
+  badges = false,
 ): string {
   const parts = [FEED_SELECT];
   if (polls) parts.push(translations ? POLL_OPTIONS_TRANSLATED_SELECT : POLL_OPTIONS_SELECT);
   if (translations) parts.push(POST_TRANSLATIONS_SELECT);
   if (images) parts.push(IMAGE_COLUMNS);
-  if (streaks) parts.push(AUTHOR_STREAK_SELECT);
+  if (badges) parts.push(AUTHOR_BADGES_SELECT);
   const base = parts.join(", ");
   if (!extraPostColumns || extraPostColumns.length === 0) return base;
   const valid = extraPostColumns.filter((column) => {
@@ -125,7 +124,7 @@ function postsSelect(cfg: ResolvedCommunityConfig): string {
     cfg.modules.polls,
     readerLocale(cfg) !== null,
     !!cfg.modules.images,
-    !!cfg.modules.streaks,
+    !!cfg.modules.badges,
   );
 }
 
@@ -352,7 +351,7 @@ export async function fetchProfile(
   const client = cfg.requireClient();
   const { data, error } = await client
     .from("profiles")
-    .select(cfg.modules.streaks ? `${PROFILE_SELECT}, ${PROFILE_STREAK_COLUMNS}` : PROFILE_SELECT)
+    .select(cfg.modules.badges ? `${PROFILE_SELECT}, ${PROFILE_BADGE_COLUMNS}` : PROFILE_SELECT)
     .eq("id", userId)
     .single();
   if (error) throw error;
@@ -419,7 +418,11 @@ export async function searchPosts(
 /** The thread (comments) select: + the translation embed iff the reader has a
  * resolved translation locale. */
 export function threadSelect(cfg: ResolvedCommunityConfig): string {
-  const parts = [COMMENTS_SELECT];
+  const parts = [
+    cfg.modules.badges
+      ? COMMENTS_SELECT.replace(COMMENT_AUTHOR, COMMENT_AUTHOR.replace(")", ", visible_badges)"))
+      : COMMENTS_SELECT,
+  ];
   if (readerLocale(cfg)) parts.push(COMMENT_TRANSLATIONS_SELECT);
   if (cfg.modules.images) parts.push(IMAGE_COLUMNS);
   return parts.join(", ");
@@ -799,19 +802,27 @@ export async function updateProfile(
  * so the core has no Hermes/`atob` dependency — `fetch` on a `file://` URI is
  * the portable way to read local bytes in React Native.
  */
-/** Streaks module: show or hide the streak and the best streak on one's own
- * profile and posts. The values themselves are mirrored by
- * `syncProfileFromHost`. */
-export async function setStreakVisibility(
+/** Badges module: show or hide one of one's own badges, everywhere it shows. The
+ * values themselves are mirrored by `syncProfileFromHost`. Reads the stored list
+ * first, so another device's toggles are kept. */
+export async function setBadgeVisibility(
   cfg: ResolvedCommunityConfig,
-  input: { showStreak?: boolean; showBestStreak?: boolean },
+  input: { key: string; visible: boolean },
 ): Promise<void> {
-  if (!cfg.modules.streaks) throw new Error("streaks module is not enabled");
+  if (!cfg.modules.badges) throw new Error("badges module is not enabled");
   const uid = await requireUid(cfg);
-  const update: Record<string, boolean> = {};
-  if (input.showStreak !== undefined) update.show_streak = input.showStreak;
-  if (input.showBestStreak !== undefined) update.show_best_streak = input.showBestStreak;
-  const { error } = await cfg.requireClient().from("profiles").update(update).eq("id", uid);
+  const client = cfg.requireClient();
+  const { data, error: readError } = await client
+    .from("profiles")
+    .select("hidden_badges")
+    .eq("id", uid)
+    .single();
+  if (readError) throw readError;
+  const current = ((data as { hidden_badges: string[] | null } | null)?.hidden_badges ?? []).filter(
+    (k) => k !== input.key,
+  );
+  const hidden = input.visible ? current : [...current, input.key];
+  const { error } = await client.from("profiles").update({ hidden_badges: hidden }).eq("id", uid);
   if (error) throw error;
 }
 
