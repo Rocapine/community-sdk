@@ -33,7 +33,9 @@ export function CommunityUIProvider(props: {
   renderAvatar?: (p: AvatarRenderProps) => ReactNode;
   /** Draws every member badge (badges module): next to the author on posts and
    * comments (`size: "small"`), as stats on the profile (`"large"`). Return null to
-   * show nothing. Without it: the streak badges as pills, other badges hidden. */
+   * show nothing. Called as a plain function, once per badge shown: don't call
+   * hooks in it, return an element instead (`(p) => <MyBadge {...p} />`). Without
+   * it: the streak badges as pills, other badges hidden. */
   renderMemberBadge?: (p: MemberBadgeRenderProps) => ReactNode;
   /** An image fixed behind the feed, the notification center and profiles. Post rows
    * turn transparent over it; sheets and the composer stay opaque. */

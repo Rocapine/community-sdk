@@ -19,13 +19,15 @@ a later `streaks/003` drops them.
 
 Migration:
 
-- DB: install `badges` and `streaks/002` (`npx @rocapine/community upgrade --modules …,badges,streaks`)
-  and push them before shipping the new client.
+- DB: `npx @rocapine/community upgrade` brings `badges/001` and `streaks/002` to an install
+  that has streaks (badges first); push them before shipping the new client.
 - Config: `modules.streaks: true` → `modules.badges: STREAK_BADGES`;
   `host.getStreak: () => s` → `host.getBadges: () => streakBadgeData(s ?? { startedAt: null, bestDays: 0 })`.
 - UI: `renderStreakPill` → `renderMemberBadge` (`id` is `streak` or `bestStreak`; the day
-  count is `streakDays(data.since)` or `data.days`; `defaultMemberBadge(p)` draws the
-  built-in pill). `StreakPillRenderProps` is gone.
+  count is `streakDays(data.since)` or `data.days`; the old `tier` is `streakTier(days)` and
+  `label` is `useT()("streak.days", { count: days })`; `defaultMemberBadge(p)` draws the
+  built-in pill). `StreakPillRenderProps` is gone. The renderer is called as a plain
+  function: no hooks in it, return an element.
 - Data: `FeedPost.authorStreakStartedAt` → `authorBadges`; `CommunityProfile`
   `streakStartedAt` / `bestStreakDays` / `showStreak` / `showBestStreak` → `badges` /
   `hiddenBadges`; `ThreadComment.authorBadges` is new.
