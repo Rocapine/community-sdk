@@ -293,7 +293,8 @@ See `examples/expo-app/App.tsx` for a complete, working wiring of
 
 `CommunityFeedScreen`'s header row is set by `header`: three zones, `left`,
 `center` and `right`, each a row of items. The center zone stays centered whatever
-the sides hold; a zone left out is empty.
+the sides hold; a zone left out is empty. A `header` that sets no zone at all (only a
+`background`, say) keeps the default zones; `left: []` hides the row.
 
 | Item                                             | Shows                                                                                                                           |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -333,7 +334,7 @@ A left-aligned title is `left: ["title"]` with no `center`; a logo next to the n
 
 ```tsx
 <CommunityFeedScreen
-  header={{ ...DEFAULT_FEED_HEADER, background: { image: stars }, topInset: insets.top }}
+  header={{ background: { image: stars }, topInset: insets.top }}
   …
 />
 ```

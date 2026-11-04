@@ -32,7 +32,8 @@ export type FeedHeaderBackground = {
 };
 
 /** The feed's header: three zones, each a row of items. `center` stays centred
- * whatever the side zones hold. A zone left out is empty. */
+ * whatever the side zones hold. A zone left out is empty, unless the config sets no
+ * zone at all: then the zones are `DEFAULT_FEED_HEADER`'s. */
 export type FeedHeaderConfig = {
   left?: FeedHeaderItem[];
   center?: FeedHeaderItem[];
@@ -54,6 +55,7 @@ export function resolveHeaderZones(
   config: FeedHeaderConfig,
   opts: { inbox: boolean },
 ): { left: FeedHeaderItem[]; center: FeedHeaderItem[]; right: FeedHeaderItem[]; visible: boolean } {
+  if (!config.left && !config.center && !config.right) config = { ...DEFAULT_FEED_HEADER };
   const keep = (items: FeedHeaderItem[] = []) =>
     items.filter((item) => item !== "inbox" || opts.inbox);
   const left = keep(config.left);
