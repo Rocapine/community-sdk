@@ -69,12 +69,12 @@ describe("typography", () => {
   });
 });
 
-describe("officialName", () => {
+describe("adminName", () => {
   it("follows textPrimary unless set", () => {
-    expect(defaultTheme.colors.officialName).toBe(defaultTheme.colors.textPrimary);
-    expect(mergeTheme({ colors: { textPrimary: "#111" } }).colors.officialName).toBe("#111");
+    expect(defaultTheme.colors.adminName).toBe(defaultTheme.colors.textPrimary);
+    expect(mergeTheme({ colors: { textPrimary: "#111" } }).colors.adminName).toBe("#111");
     expect(
-      mergeTheme({ colors: { textPrimary: "#111", officialName: "#C49B00" } }).colors.officialName,
+      mergeTheme({ colors: { textPrimary: "#111", adminName: "#C49B00" } }).colors.adminName,
     ).toBe("#C49B00");
   });
 });

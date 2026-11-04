@@ -18,7 +18,7 @@ exact signatures, see the per-package READMEs.
   - optional: an Expo access token, needed only for the push module on an
     Enhanced-Security Expo project.
 - **Product decisions:**
-  - the topic list and which topics are official-only;
+  - the topic list and which topics are admin-only;
   - the anonymous-author fallback name;
   - which optional modules you ship: push, polls, inbox, the reaction and what
     it means (cheer, prayer, support…), translation into which locales, and
@@ -132,8 +132,9 @@ e.g. `lib/community-config.ts`.
    app's own user name to seed the community profile, or `null` to keep users
    on their default pseudonym; either way the user can change name and handle
    from the community profile, and their edit wins over the app's name.
-   `officialOnly` topics are writable only by `is_official` profiles, enforced
-   by RLS on the ids you mark.
+   Everyone reads an `adminOnly` topic; only `is_admin` profiles post in it.
+   The UI applies this (no `+` for members on its tab, not in their composer),
+   the database does not.
 2. **Modules.** Mirror exactly what Phase 1 installed: the `push`, `polls` and
    `inbox` booleans, `reaction: { key } | false`,
    `translation: { locales } | false` and `images` (boolean). Turn `images` on only

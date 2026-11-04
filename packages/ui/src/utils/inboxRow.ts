@@ -21,7 +21,7 @@ function rowTitle(t: TFn, item: InboxItem): string {
   const actor = item.actorName?.trim();
   // An announcement with no named author reads "News from the team" (a host
   // overrides `inbox.newsFromTeam` with its own name), not "from Someone".
-  if (item.kind === "official_post" && !actor) return t("inbox.newsFromTeam");
+  if (item.kind === "admin_post" && !actor) return t("inbox.newsFromTeam");
   const name = actor || t("inbox.someone");
   switch (item.kind) {
     case "like":
@@ -32,7 +32,7 @@ function rowTitle(t: TFn, item: InboxItem): string {
       return t("inbox.replied", { name });
     case "reaction":
       return t("inbox.reacted", { name });
-    case "official_post":
+    case "admin_post":
       return t("inbox.news", { name });
     default:
       return "";

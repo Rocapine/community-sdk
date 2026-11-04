@@ -446,7 +446,7 @@ export function createPostMutationOptions(
       const optimistic: FeedPost = {
         id: tempId,
         authorName,
-        authorOfficial: false,
+        authorAdmin: false,
         ...ownAuthorFields(queryClient),
         topic,
         text,
@@ -575,7 +575,7 @@ export function createCommentMutationOptions(
         id: tempId,
         postId,
         authorName,
-        authorOfficial: false,
+        authorAdmin: false,
         ...ownAuthorFields(queryClient),
         text,
         isOwn: true,

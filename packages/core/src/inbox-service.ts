@@ -17,7 +17,7 @@ import { readerLocale } from "./locale";
 
 export type InboxItem = {
   id: string;
-  kind: "like" | "comment" | "reply" | "reaction" | "official_post" | (string & {});
+  kind: "like" | "comment" | "reply" | "reaction" | "admin_post" | (string & {});
   createdAt: string;
   actorName: string | null;
   postId: string | null;
@@ -66,8 +66,11 @@ async function requireUid(cfg: ResolvedCommunityConfig): Promise<string> {
   return uid;
 }
 
-function mapKind(raw: string): InboxItem["kind"] {
-  return raw === "prayer" ? "reaction" : raw;
+/** Older backends name `reaction` `prayer`, and `admin_post` `official_post`. */
+export function mapKind(raw: string): InboxItem["kind"] {
+  if (raw === "prayer") return "reaction";
+  if (raw === "official_post") return "admin_post";
+  return raw;
 }
 
 function mapNotificationRow(row: NotificationRow): InboxItem {

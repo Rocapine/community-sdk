@@ -52,7 +52,7 @@ export interface PostRow {
   created_at: string;
   profiles: {
     username: string | null;
-    is_official: boolean | null;
+    is_admin: boolean | null;
     handle: string | null;
     avatar_url: string | null;
   } | null;
@@ -108,7 +108,7 @@ export interface CommentRow {
   created_at: string;
   profiles: {
     username: string | null;
-    is_official: boolean | null;
+    is_admin: boolean | null;
     handle: string | null;
     avatar_url: string | null;
     /** Absent when the badges module is off. */
@@ -181,8 +181,8 @@ export interface FeedPost {
   id: string;
   authorId: string;
   authorName: string;
-  /** Official house account — renders a verified seal. */
-  authorOfficial: boolean;
+  /** Admin house account — renders a verified seal. */
+  authorAdmin: boolean;
   /** Unique public handle, e.g. "marie-4821". Null on stale caches. */
   authorHandle: string | null;
   authorAvatarUrl: string | null;
@@ -222,7 +222,7 @@ export interface ThreadComment {
   postId: string;
   authorId: string;
   authorName: string;
-  authorOfficial: boolean;
+  authorAdmin: boolean;
   authorHandle: string | null;
   authorAvatarUrl: string | null;
   text: string;
@@ -274,7 +274,7 @@ export interface ProfileRow {
   id: string;
   username: string | null;
   handle: string | null;
-  is_official: boolean | null;
+  is_admin: boolean | null;
   bio: string | null;
   avatar_url: string | null;
   /** The badges module's columns, absent when it is off. */
@@ -286,7 +286,7 @@ export interface CommunityProfile {
   id: string;
   name: string;
   handle: string | null;
-  official: boolean;
+  admin: boolean;
   bio: string | null;
   avatarUrl: string | null;
   /** Raw username, when available (pre-fallback, unlike `name`); populated by
@@ -303,7 +303,7 @@ export function mapProfileRow(row: ProfileRow, fallback: string): CommunityProfi
     id: row.id,
     name: displayName(row, fallback),
     handle: row.handle ?? null,
-    official: row.is_official ?? false,
+    admin: row.is_admin ?? false,
     bio: row.bio ?? null,
     avatarUrl: row.avatar_url ?? null,
     // Raw username (pre-fallback), so a mapped CommunityProfile can itself be threaded back
@@ -393,7 +393,7 @@ export function mapPostRow(
     id: row.id,
     authorId: row.author_id,
     authorName: displayName(row.profiles, fallback),
-    authorOfficial: row.profiles?.is_official ?? false,
+    authorAdmin: row.profiles?.is_admin ?? false,
     authorHandle: row.profiles?.handle ?? null,
     authorAvatarUrl: row.profiles?.avatar_url ?? null,
     topic: normalizeTopic(row.topic, topics),
@@ -466,7 +466,7 @@ export function mapCommentRow(
     postId: row.post_id,
     authorId: row.author_id,
     authorName: displayName(row.profiles, fallback),
-    authorOfficial: row.profiles?.is_official ?? false,
+    authorAdmin: row.profiles?.is_admin ?? false,
     authorHandle: row.profiles?.handle ?? null,
     authorAvatarUrl: row.profiles?.avatar_url ?? null,
     text: row.content,

@@ -30,7 +30,7 @@ describe("optimistic rows", () => {
       id: "u1",
       name: "Ann",
       handle: "ann-1",
-      official: false,
+      admin: false,
       bio: null,
       avatarUrl: "https://x/a.jpg",
     });

@@ -1,4 +1,4 @@
-// Server-event notification center: likes, comments, reactions and official
+// Server-event notification center: likes, comments, reactions and admin
 // posts on the viewer's own content. Ported from Eve's Rhythm's
 // `NotificationsScreen` (`app/(app)/notifications.tsx`), rebuilt on this
 // package's `CommunitySheet`-free plain screen pattern (`ProfileScreen`'s own
@@ -13,7 +13,7 @@
 //    still has that kind flowing through its inbox rows gets it back via
 //    `renderInboxRow`, with `defaults` as `null` (an unrecognized kind), and
 //    builds its own tap target (e.g. its own support route) there.
-//  - Eve's `"Eve's Rhythm"` brand-name fallback on `official_post` rows (that
+//  - Eve's `"Eve's Rhythm"` brand-name fallback on `admin_post` rows (that
 //    source's `translate("community.inbox.news", { name: n.actorUsername
 //    ?.trim() || "Eve's Rhythm" })`) becomes the full-sentence
 //    `inbox.newsFromTeam` key ("News from the team"; a host puts its app name
@@ -22,7 +22,7 @@
 //  - A row with no `postId` (e.g. an announcement whose post is gone) calls
 //    the optional `onOpenCommunity` instead of doing nothing (Eve source sent
 //    every row to the community tab).
-//  - Only the 4 standard kinds (`like`/`comment`/`reaction`/`official_post`)
+//  - Only the 4 standard kinds (`like`/`comment`/`reaction`/`admin_post`)
 //    get a built-in row; anything else calls `renderInboxRow?.(item, null)`
 //    (mirrors `PostSlots`' `renderPostFooter?.(post, defaults) ?? defaults`
 //    pattern from `CommunityPost`, except the fallback here is `null` since
@@ -67,7 +67,7 @@ const KNOWN_KINDS = new Set<InboxItem["kind"]>([
   "comment",
   "reply",
   "reaction",
-  "official_post",
+  "admin_post",
 ]);
 
 export function NotificationInboxScreen({
@@ -226,7 +226,7 @@ function KindIcon({ kind }: { kind: InboxItem["kind"] }) {
       return <icons.reply size={19} color={color} weight="fill" />;
     case "reaction":
       return <icons.reaction size={19} color={color} weight="fill" />;
-    case "official_post":
+    case "admin_post":
       return <icons.announcement size={19} color={color} weight="fill" />;
     default:
       return null;

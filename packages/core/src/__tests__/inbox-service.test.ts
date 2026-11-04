@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isUnread, localizeExcerpts, unreadCount, type InboxItem } from "../inbox-service";
+import { isUnread, localizeExcerpts, mapKind, unreadCount, type InboxItem } from "../inbox-service";
 
 const item = (over: Partial<InboxItem> = {}): InboxItem => ({
   id: "n1",
@@ -71,5 +71,13 @@ describe("localizeExcerpts", () => {
     const out = localizeExcerpts(items, [{ post_id: "p1", content: "x".repeat(200) }]);
     expect(out[0].payload.postExcerpt).toBe("x".repeat(140));
     expect(out[1].payload.postExcerpt).toBe("Keep");
+  });
+});
+
+describe("mapKind", () => {
+  it("reads the kinds of a backend that predates the admin rename", () => {
+    expect(mapKind("official_post")).toBe("admin_post");
+    expect(mapKind("prayer")).toBe("reaction");
+    expect(mapKind("support_reply")).toBe("support_reply");
   });
 });

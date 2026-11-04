@@ -30,7 +30,7 @@ export const ro: Record<string, string> = {
   "feed.unreachableRetry": "Comunitatea nu este disponibilă acum. Trage în jos pentru a reîncerca.",
   "feed.unreachable": "Comunitatea nu este disponibilă acum.",
   "feed.noSearchResults": "Nicio postare nu se potrivește căutării tale.",
-  "feed.newsEmpty": "Anunțurile echipei vor apărea aici.",
+  "feed.adminTopicEmpty": "Anunțurile echipei vor apărea aici.",
   "feed.empty": "Nicio postare încă. Începe tu.",
   "feed.loadMore": "Încarcă mai multe",
   "feed.newPosts.one": "{count} postare nouă",
