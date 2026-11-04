@@ -83,6 +83,7 @@ import {
 } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { CommunitySheet, SHEET_GUTTER, SheetScrollView, SheetTextInput } from "../Sheet";
+import { usePinMenu } from "../utils/pinMenu";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
@@ -173,6 +174,7 @@ export function ThreadSheet({
   const createComment = useCreateComment();
   const blockUser = useBlockUser();
   const deleteContent = useDeleteContent();
+  const pinMenu = usePinMenu();
 
   // Keep the last opened post's id through the close animation so content
   // doesn't flash empty while the sheet slides down (mirrors the mold's own
@@ -420,20 +422,29 @@ export function ThreadSheet({
 
   const openPostMenu = (p: FeedPost) => {
     if (p.isOwn) {
-      Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
-        { text: t("menu.cancel"), style: "cancel" },
-        {
-          text: t("menu.delete"),
-          style: "destructive",
-          onPress: () => {
-            onClose();
-            deleteContent.mutate({ kind: "post", id: p.id, postId: p.id });
+      const askDelete = () =>
+        Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
+          { text: t("menu.cancel"), style: "cancel" },
+          {
+            text: t("menu.delete"),
+            style: "destructive",
+            onPress: () => {
+              onClose();
+              deleteContent.mutate({ kind: "post", id: p.id, postId: p.id });
+            },
           },
-        },
+        ]);
+      const pin = pinMenu(p);
+      if (pin.length === 0) return askDelete();
+      Alert.alert(p.authorName, undefined, [
+        ...pin,
+        { text: t("menu.delete"), style: "destructive", onPress: askDelete },
+        { text: t("menu.cancel"), style: "cancel" },
       ]);
       return;
     }
     Alert.alert(p.authorName, undefined, [
+      ...pinMenu(p),
       {
         text: t("menu.reportPost"),
         onPress: () => closeThenReport({ kind: "post", id: p.id, authorId: p.authorId }),

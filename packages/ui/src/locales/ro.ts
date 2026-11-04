@@ -49,6 +49,8 @@ export const ro: Record<string, string> = {
   "time.years.other": "{count} ani",
 
   "post.pinned": "Fixată",
+  "post.pin": "Fixează",
+  "post.unpin": "Anulează fixarea",
   "post.viewMore": "Vezi mai mult",
   "post.viewLess": "Vezi mai puțin",
   "post.reaction.received": "{name} a reacționat la postarea ta",

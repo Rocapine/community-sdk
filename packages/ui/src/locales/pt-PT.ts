@@ -51,6 +51,8 @@ export const ptPT: Record<string, string> = {
   "time.years.other": "{count} anos",
 
   "post.pinned": "Fixado",
+  "post.pin": "Fixar",
+  "post.unpin": "Desafixar",
   "post.viewMore": "Ver mais",
   "post.viewLess": "Ver menos",
   "post.reaction.received": "{name} reagiu à tua publicação",
