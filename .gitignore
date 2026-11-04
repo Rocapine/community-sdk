@@ -13,3 +13,7 @@ coverage/
 .expo/
 examples/*/.env
 supabase/.temp/
+
+# Example apps use Continuous Native Generation
+examples/*/ios/
+examples/*/android/
