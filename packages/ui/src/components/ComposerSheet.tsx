@@ -550,9 +550,7 @@ const makeStyles = (theme: CommunityTheme) =>
       borderBottomColor: theme.colors.hairline,
     },
     cancel: {
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 16,
+      ...theme.typography.body,
       color: theme.colors.textPrimary,
     },
     postBtn: {
@@ -565,18 +563,18 @@ const makeStyles = (theme: CommunityTheme) =>
     // Dimmed rather than recolored: stays visible on any background.
     postBtnDisabled: { opacity: 0.4 },
     postBtnLabel: {
+      ...theme.typography.bodySmall,
       fontFamily: theme.fonts.bold,
       fontWeight: theme.fontWeights.bold,
-      fontSize: 14,
       color: theme.colors.textInverse,
     },
     content: { padding: theme.spacing(4) },
     authorRow: { flexDirection: "row", gap: theme.spacing(3) },
     main: { flex: 1, minWidth: 0 },
     name: {
+      ...theme.typography.label,
       fontFamily: theme.fonts.bold,
       fontWeight: theme.fontWeights.bold,
-      fontSize: 15,
       color: theme.colors.textPrimary,
     },
     topicPill: {
@@ -593,9 +591,9 @@ const makeStyles = (theme: CommunityTheme) =>
     },
     topicPillText: {
       flexShrink: 1,
+      ...theme.typography.meta,
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
-      fontSize: 13,
       color: theme.colors.accent,
     },
     chevronDown: { transform: [{ rotate: "-90deg" }] },
@@ -623,9 +621,7 @@ const makeStyles = (theme: CommunityTheme) =>
     },
     topicRowOn: { backgroundColor: theme.colors.surfaceMuted },
     topicRowLabel: {
-      fontFamily: theme.fonts.medium,
-      fontWeight: theme.fontWeights.medium,
-      fontSize: 14.5,
+      ...theme.typography.label,
       color: theme.colors.textSecondary,
     },
     topicRowLabelOn: { color: theme.colors.textPrimary },
@@ -633,9 +629,7 @@ const makeStyles = (theme: CommunityTheme) =>
       marginTop: theme.spacing(2.5),
       minHeight: 120,
       padding: 0,
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 16,
+      ...theme.typography.input,
       lineHeight: 23,
       color: theme.colors.textPrimary,
       textAlignVertical: "top",
@@ -664,9 +658,7 @@ const makeStyles = (theme: CommunityTheme) =>
       borderColor: theme.colors.border,
       paddingHorizontal: theme.spacing(3.5),
       paddingVertical: theme.spacing(2.75),
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 14,
+      ...theme.typography.bodySmall,
       color: theme.colors.textPrimary,
       ...noFocusRingMultiline,
     },
@@ -677,9 +669,9 @@ const makeStyles = (theme: CommunityTheme) =>
       paddingVertical: theme.spacing(1.5),
     },
     pollAddText: {
+      ...theme.typography.meta,
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
-      fontSize: 13,
       color: theme.colors.accent,
     },
     toolbar: {
@@ -696,9 +688,9 @@ const makeStyles = (theme: CommunityTheme) =>
     toolbarEnd: { marginLeft: "auto", paddingRight: theme.spacing(1) },
     ringRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(2) },
     ringCount: {
+      ...theme.typography.meta,
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
-      fontSize: 13,
       fontVariant: ["tabular-nums"],
     },
     ring: {

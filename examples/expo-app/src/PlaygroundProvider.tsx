@@ -15,6 +15,20 @@ const PlaygroundContext = createContext<Playground | null>(null);
 
 const queryClient = new QueryClient();
 
+/** Stored settings from an older version of this app lack the newer fields: fill
+ * each section from the defaults. */
+function withDefaults(stored: Partial<PlaygroundSettings>): PlaygroundSettings {
+  const out = { ...DEFAULT_SETTINGS } as Record<string, unknown>;
+  for (const [key, value] of Object.entries(stored)) {
+    const base = out[key];
+    out[key] =
+      base && typeof base === "object" && value && typeof value === "object"
+        ? { ...base, ...value }
+        : value;
+  }
+  return out as PlaygroundSettings;
+}
+
 export function usePlayground(): Playground {
   const value = useContext(PlaygroundContext);
   if (!value) throw new Error("usePlayground outside PlaygroundProvider");
@@ -26,9 +40,7 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) =>
-        setSettings(raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS),
-      )
+      .then((raw) => setSettings(raw ? withDefaults(JSON.parse(raw)) : DEFAULT_SETTINGS))
       .catch(() => setSettings(DEFAULT_SETTINGS));
   }, []);
 
@@ -48,13 +60,20 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
   const config = useMemo(() => (settings ? buildConfig(settings) : null), [settings]);
 
   if (!playground || !config) return null;
-  const { colors, locale, modules } = playground.settings;
+  const { colors, locale, modules, typography } = playground.settings;
+  const theme = {
+    colors,
+    typography: {
+      title: typography.titleFont ? { fontFamily: typography.titleFont } : {},
+      body: { fontSize: typography.bodySize },
+    },
+  };
   return (
     <PlaygroundContext.Provider value={playground}>
       <QueryClientProvider client={queryClient}>
         {/* The SDK reads its config once: a module or locale switch remounts it. */}
         <CommunityProvider key={JSON.stringify({ modules, locale })} config={config}>
-          <CommunityUIProvider theme={{ colors }} translations={{ locale }}>
+          <CommunityUIProvider theme={theme} translations={{ locale }}>
             {children}
           </CommunityUIProvider>
         </CommunityProvider>

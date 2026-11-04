@@ -2,7 +2,7 @@
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePlayground } from "@/PlaygroundProvider";
-import { LOCALES, type PlaygroundSettings } from "@/playground";
+import { LOCALES, TITLE_FONTS, type PlaygroundSettings } from "@/playground";
 
 type ModuleName = keyof PlaygroundSettings["modules"];
 const MODULE_NAMES: ModuleName[] = [
@@ -55,6 +55,27 @@ export default function ConfigTab() {
             />
           </Row>
         ))}
+      </Section>
+
+      <Section title="Typography">
+        <Text style={styles.hint}>Title font</Text>
+        <Chips
+          options={["Default", ...TITLE_FONTS]}
+          value={settings.typography.titleFont ?? "Default"}
+          onChange={(font) =>
+            update({
+              typography: { ...settings.typography, titleFont: font === "Default" ? null : font },
+            })
+          }
+        />
+        <Text style={styles.hint}>Body size</Text>
+        <Chips
+          options={["13", "15", "17", "19"]}
+          value={String(settings.typography.bodySize)}
+          onChange={(size) =>
+            update({ typography: { ...settings.typography, bodySize: Number(size) } })
+          }
+        />
       </Section>
 
       <Pressable style={styles.reset} onPress={reset}>
@@ -118,6 +139,7 @@ const styles = StyleSheet.create({
     minHeight: 36,
   },
   label: { fontSize: 16 },
+  hint: { fontSize: 14, color: "#6B6B73" },
   input: {
     minWidth: 120,
     borderWidth: 1,

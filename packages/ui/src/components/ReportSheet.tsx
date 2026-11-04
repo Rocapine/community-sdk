@@ -137,9 +137,7 @@ export function ReportSheet({
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     title: {
-      fontFamily: theme.fonts.serifBold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 22,
+      ...theme.typography.heading,
       color: theme.colors.textPrimary,
       marginBottom: theme.spacing(4),
     },
@@ -159,9 +157,9 @@ function makeStyles(theme: CommunityTheme) {
     },
     chipOn: { backgroundColor: theme.colors.accent, borderColor: theme.colors.accent },
     chipText: {
+      ...theme.typography.meta,
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
-      fontSize: 13,
       color: theme.colors.textSecondary,
     },
     chipTextOn: { color: theme.colors.textInverse },
@@ -172,9 +170,7 @@ function makeStyles(theme: CommunityTheme) {
       borderColor: theme.colors.border,
       padding: theme.spacing(4),
       minHeight: 80,
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 15,
+      ...theme.typography.body,
       lineHeight: 22,
       color: theme.colors.textPrimary,
       textAlignVertical: "top",
@@ -189,9 +185,9 @@ function makeStyles(theme: CommunityTheme) {
     },
     ctaDisabled: { opacity: 0.5 },
     ctaLabel: {
+      ...theme.typography.label,
       fontFamily: theme.fonts.bold,
       fontWeight: theme.fontWeights.bold,
-      fontSize: 15,
       color: theme.colors.textInverse,
     },
   });

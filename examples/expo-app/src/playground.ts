@@ -16,6 +16,8 @@ export type PlaygroundSettings = {
     streaks: boolean;
   };
   colors: { accent: string; background: string };
+  /** `title` role font (null = the theme's serif default) and `body` role size. */
+  typography: { titleFont: string | null; bodySize: number };
 };
 
 export const DEFAULT_SETTINGS: PlaygroundSettings = {
@@ -29,7 +31,11 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
     streaks: true,
   },
   colors: { accent: "#6C4DF6", background: "#F7F7F8" },
+  typography: { titleFont: null, bodySize: 15 },
 };
+
+/** Fonts every iOS device has, to try the `title` role without bundling one. */
+export const TITLE_FONTS = ["Georgia", "Courier New", "Avenir Next", "Snell Roundhand"] as const;
 
 /** The 13 locales `@rocapine/community-ui` ships. */
 export const LOCALES = [
