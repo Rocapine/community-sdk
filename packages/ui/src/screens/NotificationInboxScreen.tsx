@@ -234,8 +234,9 @@ function KindIcon({ kind }: { kind: InboxItem["kind"] }) {
 }
 
 export type InboxRowParts = {
-  /** The kind's icon, themed; null for a kind the SDK doesn't know. */
-  icon: ReactNode | null;
+  /** The kind's icon, themed. Always an element; for a kind the SDK doesn't know it
+   * draws nothing. */
+  icon: ReactNode;
   title: string;
   excerpt: string | null;
   /** "3h" */
