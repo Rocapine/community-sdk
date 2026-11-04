@@ -39,12 +39,14 @@ export type PlaygroundSettings = {
    * and their name's colour (`adminName`, empty = default). */
   admin: { ring: boolean; nameColor: string };
   /** `community`: behind the feed, inbox and profiles; `header`: behind the feed's top
-   * bar; `ownStatusBar`: the feed owns the status bar area (`header.topInset`). */
+   * bar ("community" = the community one, continuous); `ownStatusBar`: the feed owns
+   * the status bar area (`header.topInset`); `lightHeaderText`: white bar text. */
   backgrounds: {
     community: BackgroundId;
     communityOpacity: number;
-    header: BackgroundId;
+    header: BackgroundId | "community";
     ownStatusBar: boolean;
+    lightHeaderText: boolean;
   };
 };
 
@@ -85,7 +87,13 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
   typography: { titleFont: null, bodySize: 15 },
   header: HEADER_PRESETS.Default,
   admin: { ring: true, nameColor: "" },
-  backgrounds: { community: "none", communityOpacity: 1, header: "none", ownStatusBar: false },
+  backgrounds: {
+    community: "none",
+    communityOpacity: 1,
+    header: "none",
+    ownStatusBar: false,
+    lightHeaderText: false,
+  },
 };
 
 /** Fonts every iOS device has, to try the `title` role without bundling one. */
@@ -207,9 +215,12 @@ export function headerConfig(
     left: header.left.map(item),
     center: header.center.map(item),
     right: header.right.map(item),
-    background: BACKGROUNDS[backgrounds.header]
-      ? { image: BACKGROUNDS[backgrounds.header] }
-      : undefined,
+    background:
+      backgrounds.header === "community"
+        ? "community"
+        : BACKGROUNDS[backgrounds.header]
+          ? { image: BACKGROUNDS[backgrounds.header] }
+          : undefined,
     topInset: backgrounds.ownStatusBar ? topInset : undefined,
   };
 }
