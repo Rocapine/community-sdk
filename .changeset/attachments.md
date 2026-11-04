@@ -11,10 +11,9 @@ data with `renderAttachment(attachment, { placement, open })` and opens it with
 `modules.attachments: { types, membersCanAttach }`; official accounts can always attach.
 Share from the app with `CommunityFeedScreen`'s `composeRequest`
 (`{ attachment?, text?, requestedAt }`): the composer opens with the card, through the same
-gates as `+`. A post carries an attachment, a poll or a photo, never two; with an
-attachment the text may be empty.
+gates as `+`. A post carries an attachment, a poll or a photo, never two, and still needs
+text (pass `text` in the request to pre-fill it).
 
-New backend module `attachments` (`posts.attachment`, shape and size checked). The images
-module's content check now keeps the attachment clause, whichever is installed first.
+New backend module `attachments` (`posts.attachment`, shape and size checked).
 Core: `createPost({ attachment })`, `FeedPost.attachment`, `canAttach`, `PostAttachment`.
-UI: `canPublish` takes `hasAttachment`; new string `composer.removeAttachment`.
+UI: new string `composer.removeAttachment`.

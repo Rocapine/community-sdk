@@ -59,11 +59,9 @@ export function canPublish(s: {
   pending: boolean;
   gating: boolean;
   preparing: boolean;
-  /** An attachment makes an empty text publishable, like an image. */
-  hasAttachment?: boolean;
 }): boolean {
   return (
-    (s.text.trim().length > 0 || s.image !== null || !!s.hasAttachment) &&
+    (s.text.trim().length > 0 || s.image !== null) &&
     !s.pollInvalid &&
     !s.pending &&
     !s.gating &&
@@ -174,7 +172,6 @@ export function ComposerSheet({
     pending: createPost.isPending,
     gating: false,
     preparing,
-    hasAttachment: attachment !== null,
   });
 
   const clearDraft = () => {

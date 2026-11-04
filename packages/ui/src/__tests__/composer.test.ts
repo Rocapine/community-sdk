@@ -34,10 +34,6 @@ describe("canPublish", () => {
     expect(canPublish({ ...base, text: "   " })).toBe(false);
   });
 
-  it("an attachment alone is publishable", () => {
-    expect(canPublish({ ...base, hasAttachment: true })).toBe(true);
-  });
-
   it("text alone is publishable", () => {
     expect(canPublish({ ...base, text: "hi" })).toBe(true);
   });

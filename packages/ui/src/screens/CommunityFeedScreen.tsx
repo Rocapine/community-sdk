@@ -344,18 +344,25 @@ export function CommunityFeedScreen({
     attachment: PostAttachment | null;
     text?: string;
   } | null>(null);
-  const myOfficial = useProfile(myUid).data?.official ?? false;
+  const myProfile = useProfile(myUid);
+  // Whether the author is official decides whether they may attach: wait for the
+  // profile (a share often mounts this screen) unless there is none to wait for.
+  const profileSettled = !myUid || !myProfile.isPending;
+  const myOfficial = myProfile.data?.official ?? false;
   const composeRequestedAt = composeRequest?.requestedAt;
+  const handledRequest = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (!composeRequest) return;
+    if (!composeRequest || !profileSettled) return;
+    // Keyed on `requestedAt`: the same content can be shared twice, once each.
+    if (handledRequest.current === composeRequest.requestedAt) return;
+    handledRequest.current = composeRequest.requestedAt;
     setComposeSeed({
       attachment: allowedAttachment(cfg, myOfficial, composeRequest.attachment),
       text: composeRequest.text,
     });
     openComposer();
-    // Keyed on `requestedAt`: the same content can be shared twice.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composeRequestedAt]);
+  }, [composeRequestedAt, profileSettled]);
   const openComposer = () => {
     if (opening.current) return;
     opening.current = true;

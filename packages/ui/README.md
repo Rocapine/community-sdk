@@ -400,7 +400,8 @@ the initial on a flat colour.
 from `host.getBadges()` (`{ pregnancy: { month: 5 } }`), and draw them with
 `renderMemberBadge={({ id, data, placement, size }) => …}` on `CommunityUIProvider`
 (`size: "small"` next to a name, `"large"` on the profile; return null to show
-nothing). The profile shows each one above its `badge.<id>.label` string, and the
+nothing). It is called as a plain function, once per badge shown, so it must not call
+hooks: return an element, `(p) => <MyBadge {...p} />`, and use hooks inside `MyBadge`. The profile shows each one above its `badge.<id>.label` string, and the
 owner's profile sheet gets a `badge.<id>.toggle` switch per badge. Without a
 renderer, `STREAK_BADGES` (`streak: { since }`, `bestStreak: { days }`) draw as the
 built-in pills (`defaultMemberBadge`): the flame and label on a tint of
@@ -416,7 +417,9 @@ for an unknown type), and `onOpenAttachment(attachment)` opens it in your app (i
 call goes through the thread's modal handoff). To share from a detail screen, navigate
 to the community and pass `composeRequest={{ attachment, text?, requestedAt: Date.now() }}`
 to `CommunityFeedScreen`: the composer opens with the card, after the same rules and
-`beforeCompose` gate as `+`. An attachment replaces a photo or a poll. Members can attach
+`beforeCompose` gate as `+`. An attachment replaces a photo or a poll, and the post still
+needs text (pushes and inbox rows would otherwise read it as a photo): pass a
+`text` in the request to pre-fill it. Members can attach
 only when `membersCanAttach` is true; official accounts always can (enforced in the
 UI).
 

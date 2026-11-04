@@ -21,22 +21,7 @@ alter table public.posts add constraint posts_attachment_check check (
   )
 );
 
--- Text becomes optional when an attachment is present. The check is rebuilt from
--- the columns that exist, so the images module (which also relaxes it) can be
--- installed before or after this one.
-do $$
-declare
-  has_image boolean := exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'posts' and column_name = 'image_path'
-  );
-begin
-  alter table public.posts drop constraint if exists posts_content_check;
-  execute format(
-    'alter table public.posts add constraint posts_content_check check (char_length(content) <= 2000 and (char_length(content) >= 1%s or attachment is not null))',
-    case when has_image then ' or image_path is not null' else '' end
-  );
-end $$;
+-- The text stays required: pushes and inbox rows read an empty post as a photo.
 
 -- Posts use column-scoped insert grants (core/002_rls.sql); extend them.
 grant insert (attachment) on table public.posts to authenticated;

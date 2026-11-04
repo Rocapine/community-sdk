@@ -8,9 +8,13 @@ declare
 begin
   select id into pid from public.profiles limit 1;
 
-  -- A reference with no text is a valid post.
-  insert into public.posts (author_id, content, attachment)
-    values (pid, '', '{"type":"verse","id":"43.3.16-17"}');
+  -- An attachment still needs text: pushes and inbox rows read an empty post as a photo.
+  begin
+    insert into public.posts (author_id, content, attachment)
+      values (pid, '', '{"type":"verse","id":"43.3.16-17"}');
+    assert false, 'an attachment with no text is refused';
+  exception when check_violation then null;
+  end;
 
   -- With text too.
   insert into public.posts (author_id, content, attachment)
@@ -41,12 +45,6 @@ begin
   exception when check_violation then null;
   end;
 
-  -- Empty text still needs an attachment (or an image).
-  begin
-    insert into public.posts (author_id, content) values (pid, '');
-    assert false, 'an empty post is refused';
-  exception when check_violation then null;
-  end;
 
   raise exception 'ATTACHMENTS_TESTS_PASSED';
 end $$;
