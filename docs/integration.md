@@ -23,8 +23,9 @@ exact signatures, see the per-package READMEs.
   - which optional modules you ship: push, polls, inbox, the reaction and what
     it means (cheer, prayer, support…), translation into which locales, and
     images (one photo per post and per comment — it adds a native module, so
-    the next build must include `expo-image-manipulator`), and streaks (the
-    app's own streak shown on posts and profiles, through `host.getStreak`).
+    the next build must include `expo-image-manipulator`), and badges (the
+    app's own member badges, e.g. a streak, shown on posts, comments and
+    profiles, through `host.getBadges`).
 
 ## Phase 1 — Backend
 
@@ -35,7 +36,7 @@ exact signatures, see the per-package READMEs.
 2. **Copy the modules** from the app repo root:
 
    ```bash
-   npx @rocapine/community init --modules core,push,polls,reaction,inbox,translation,images,streaks
+   npx @rocapine/community init --modules core,push,polls,reaction,inbox,translation,images,badges
    ```
 
    Drop any module you don't want (`core` is always implied; omitting the flag

@@ -70,6 +70,7 @@ export function MyAvatar({
       placement={placement}
       official={me?.official ?? false}
       handle={me?.handle ?? null}
+      badges={me?.badges}
     />
   );
 }

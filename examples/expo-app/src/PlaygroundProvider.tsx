@@ -1,11 +1,17 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CommunityProvider } from "@rocapine/community-core";
+import {
+  CommunityProvider,
+  syncProfileFromHost,
+  useCommunityConfig,
+} from "@rocapine/community-core";
 import { CommunityUIProvider } from "@rocapine/community-ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { PlaygroundAvatar } from "./components/PlaygroundAvatar";
+import { renderPlaygroundBadge } from "./components/PlaygroundBadge";
 import {
   BACKGROUNDS,
+  BADGE_COPY,
   buildConfig,
   DEFAULT_SETTINGS,
   STORAGE_KEY,
@@ -67,7 +73,8 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
   const config = useMemo(() => (settings ? buildConfig(settings) : null), [settings]);
 
   if (!playground || !config) return null;
-  const { colors, locale, modules, typography, official, backgrounds } = playground.settings;
+  const { colors, locale, modules, typography, official, backgrounds, badges } =
+    playground.settings;
   const communityImage = BACKGROUNDS[backgrounds.community];
   const theme = {
     colors: { ...colors, ...(official.nameColor ? { officialName: official.nameColor } : {}) },
@@ -80,10 +87,12 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
     <PlaygroundContext.Provider value={playground}>
       <QueryClientProvider client={queryClient}>
         {/* The SDK reads its config once: a module or locale switch remounts it. */}
-        <CommunityProvider key={JSON.stringify({ modules, locale })} config={config}>
+        <CommunityProvider key={JSON.stringify({ modules, locale, badges })} config={config}>
+          <SyncFromHost />
           <CommunityUIProvider
             theme={theme}
-            translations={{ locale }}
+            translations={{ locale, overrides: BADGE_COPY }}
+            renderMemberBadge={renderPlaygroundBadge}
             background={
               communityImage
                 ? { image: communityImage, opacity: backgrounds.communityOpacity }
@@ -99,4 +108,13 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
       </QueryClientProvider>
     </PlaygroundContext.Provider>
   );
+}
+
+/** What a host does at launch: mirror its name, locale and badges onto the profile. */
+function SyncFromHost() {
+  const cfg = useCommunityConfig();
+  useEffect(() => {
+    syncProfileFromHost(cfg).catch(() => {});
+  }, [cfg]);
+  return null;
 }

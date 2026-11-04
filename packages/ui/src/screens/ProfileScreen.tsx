@@ -45,12 +45,12 @@ import {
   emitEvent,
   useBlockUser,
   useCommunityConfig,
+  type MemberBadges,
   useDeleteContent,
   useMyUid,
   useProfile,
   useUserPosts,
   type FeedPost,
-  streakDays,
 } from "@rocapine/community-core";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -70,7 +70,8 @@ import { Avatar } from "../components/Avatar";
 import { ImageViewerHost } from "../components/ImageViewer";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { PressableScale } from "../components/PressableScale";
-import { StreakPill } from "../components/StreakPill";
+import { useRenderMemberBadge } from "../components/MemberBadge";
+import { badgesFor } from "../utils/badges";
 import { isQueryLoading } from "../utils/query";
 import { ScreenBackground } from "../components/ScreenBackground";
 import { ProfileEditSheet } from "./ProfileEditSheet";
@@ -275,6 +276,7 @@ export function ProfileScreen({
                     placement="profile"
                     official={profile.data.official}
                     handle={profile.data.handle}
+                    badges={profile.data.badges}
                   />
                 </View>
                 <View style={styles.nameRow}>
@@ -294,26 +296,7 @@ export function ProfileScreen({
                   <Text style={styles.handle}>@{profile.data.handle}</Text>
                 )}
                 {profile.data.bio ? <Text style={styles.bio}>{profile.data.bio}</Text> : null}
-                {cfg.modules.streaks && (
-                  <View style={styles.streaks}>
-                    {profile.data.streakStartedAt != null &&
-                      streakDays(profile.data.streakStartedAt) >= 1 && (
-                        <View style={styles.streakStat}>
-                          <StreakPill
-                            size="large"
-                            days={streakDays(profile.data.streakStartedAt)}
-                          />
-                          <Text style={styles.streakLabel}>{t("profile.streak")}</Text>
-                        </View>
-                      )}
-                    {profile.data.bestStreakDays != null && profile.data.bestStreakDays >= 1 && (
-                      <View style={styles.streakStat}>
-                        <StreakPill size="large" days={profile.data.bestStreakDays} />
-                        <Text style={styles.streakLabel}>{t("profile.bestStreak")}</Text>
-                      </View>
-                    )}
-                  </View>
-                )}
+                <ProfileBadges badges={profile.data.badges} />
                 {isMe && (
                   <PressableScale onPress={() => setEditOpen(true)} style={styles.editPill}>
                     <Text style={styles.editPillLabel}>{t("profile.editProfile")}</Text>
@@ -415,14 +398,14 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textFaint,
       marginTop: theme.spacing(1),
     },
-    streaks: {
+    badges: {
       flexDirection: "row",
       justifyContent: "center",
       gap: theme.spacing(6),
       marginTop: theme.spacing(4),
     },
-    streakStat: { alignItems: "center", gap: theme.spacing(1.5) },
-    streakLabel: {
+    badgeStat: { alignItems: "center", gap: theme.spacing(1.5) },
+    badgeLabel: {
       ...theme.typography.caption,
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
@@ -490,4 +473,34 @@ function makeStyles(theme: CommunityTheme) {
       marginBottom: theme.spacing(2),
     },
   });
+}
+
+/** The badges the profile shows, each above its label (`badge.<id>.label`). A badge
+ * that draws nothing takes its label with it. */
+function ProfileBadges({ badges }: { badges: MemberBadges }) {
+  const cfg = useCommunityConfig();
+  const t = useT();
+  const styles = useThemedStyles(makeStyles);
+  const render = useRenderMemberBadge();
+  const stats = badgesFor("profile", cfg.modules.badges, badges)
+    .map(({ key, data }) => ({
+      key,
+      node: render({ id: key, data, placement: "profile", size: "large" }),
+    }))
+    .filter(({ node }) => node != null);
+  if (stats.length === 0) return null;
+  return (
+    <View style={styles.badges}>
+      {stats.map(({ key, node }) => {
+        const labelKey = `badge.${key}.label`;
+        const label = t(labelKey);
+        return (
+          <View key={key} style={styles.badgeStat}>
+            {node}
+            {label !== labelKey && <Text style={styles.badgeLabel}>{label}</Text>}
+          </View>
+        );
+      })}
+    </View>
+  );
 }
