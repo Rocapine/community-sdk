@@ -61,6 +61,7 @@ import type { CommunityTheme } from "../theme";
 import { inboxExcerpt } from "../utils/postImage";
 import { isQueryLoading } from "../utils/query";
 import { formatTimeAgo } from "../utils/time";
+import { ScreenBackground } from "../components/ScreenBackground";
 
 const KNOWN_KINDS = new Set<InboxItem["kind"]>([
   "like",
@@ -149,6 +150,7 @@ export function NotificationInboxScreen({
 
   return (
     <View style={styles.root}>
+      <ScreenBackground />
       <View style={styles.header}>
         <View style={styles.headerSide}>
           {onBack && (

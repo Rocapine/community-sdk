@@ -4,7 +4,13 @@ import { CommunityUIProvider } from "@rocapine/community-ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { PlaygroundAvatar } from "./components/PlaygroundAvatar";
-import { buildConfig, DEFAULT_SETTINGS, STORAGE_KEY, type PlaygroundSettings } from "./playground";
+import {
+  BACKGROUNDS,
+  buildConfig,
+  DEFAULT_SETTINGS,
+  STORAGE_KEY,
+  type PlaygroundSettings,
+} from "./playground";
 
 type Playground = {
   settings: PlaygroundSettings;
@@ -61,7 +67,8 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
   const config = useMemo(() => (settings ? buildConfig(settings) : null), [settings]);
 
   if (!playground || !config) return null;
-  const { colors, locale, modules, typography, official } = playground.settings;
+  const { colors, locale, modules, typography, official, backgrounds } = playground.settings;
+  const communityImage = BACKGROUNDS[backgrounds.community];
   const theme = {
     colors: { ...colors, ...(official.nameColor ? { officialName: official.nameColor } : {}) },
     typography: {
@@ -77,6 +84,11 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
           <CommunityUIProvider
             theme={theme}
             translations={{ locale }}
+            background={
+              communityImage
+                ? { image: communityImage, opacity: backgrounds.communityOpacity }
+                : undefined
+            }
             renderAvatar={(p) => (
               <PlaygroundAvatar {...p} ring={official.ring} accent={colors.accent} />
             )}

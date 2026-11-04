@@ -319,6 +319,25 @@ The default, `DEFAULT_FEED_HEADER`, is `{ left: ["profile"], center: ["title"], 
 A left-aligned title is `left: ["title"]` with no `center`; a logo next to the name is
 `center: [{ logo }, "title"]`.
 
+### Backgrounds
+
+- `header.background: { image?, color?, contentFit? }` paints behind the header row and
+  the topic tabs, and moves with them when they hide on scroll.
+- `header.topInset` (your safe area's top) hands the status bar area to the feed: stop
+  padding it yourself, and the header background reaches behind the status bar. The bar
+  then stops hiding at the status bar, so that area is never left empty.
+- `CommunityUIProvider`'s `background: { image, contentFit?, opacity? }` sits fixed behind
+  the feed, the notification center and profiles. Post rows turn transparent over it;
+  sheets, the thread and the composer keep `colors.background`. The feed's top bar keeps
+  its own background: give it `header.background` (the same image, or a colour).
+
+```tsx
+<CommunityFeedScreen
+  header={{ ...DEFAULT_FEED_HEADER, background: { image: stars }, topInset: insets.top }}
+  …
+/>
+```
+
 ## Feed, composer and topics
 
 The feed is flat: full-width post rows separated by hairlines, the avatar in a

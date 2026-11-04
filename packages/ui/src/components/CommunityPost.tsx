@@ -42,7 +42,13 @@ import {
   type ViewStyle,
 } from "react-native";
 import Animated, { FadeInDown, FadeInUp, LayoutAnimationConfig } from "react-native-reanimated";
-import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import {
+  useCommunityBackground,
+  useCommunityIcons,
+  useCommunityTheme,
+  useT,
+  useThemedStyles,
+} from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { displayText, translationLine } from "../utils/translation";
 import { formatTimeAgo, secondsResolution, useNow } from "../utils/time";
@@ -119,6 +125,7 @@ export function CommunityPost({
   const icons = useCommunityIcons();
   const cfg = useCommunityConfig();
   const styles = useThemedStyles(makeStyles);
+  const overBackground = useCommunityBackground() != null;
 
   const now = useNow(secondsResolution(post.createdAt, Date.now()));
   const slotCtx: PostSlotContext = { presentModal: useContext(ModalHandoffContext) };
@@ -345,11 +352,15 @@ export function CommunityPost({
   );
 
   return onOpenThread ? (
-    <PressableScale scale="surface" onPress={() => onOpenThread(post.id)} style={styles.row}>
+    <PressableScale
+      scale="surface"
+      onPress={() => onOpenThread(post.id)}
+      style={[styles.row, overBackground && styles.rowOverBackground]}
+    >
       {content}
     </PressableScale>
   ) : (
-    <View style={styles.row}>{content}</View>
+    <View style={[styles.row, overBackground && styles.rowOverBackground]}>{content}</View>
   );
 }
 
@@ -362,6 +373,8 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(4),
       backgroundColor: theme.colors.background,
     },
+    // Over the host's community background, the image shows between and behind posts.
+    rowOverBackground: { backgroundColor: "transparent" },
     previewHeader: {
       flexDirection: "row",
       alignItems: "center",

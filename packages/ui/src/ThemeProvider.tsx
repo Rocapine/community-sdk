@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, type ReactElement, type ReactNode } from "react";
+import type { ImageSourcePropType } from "react-native";
 import { defaultTheme, mergeTheme, type CommunityTheme, type DeepPartial } from "./theme";
 import { makeT, type TFn } from "./i18n";
 import { defaultIcons, mergeIcons } from "./icons-default";
@@ -11,6 +12,14 @@ const TranslationContext = createContext<TFn>(makeT("en"));
 const IconsContext = createContext<CommunityIconSet>(defaultIcons);
 const AvatarContext = createContext<((p: AvatarRenderProps) => ReactNode) | null>(null);
 const StreakPillContext = createContext<((p: StreakPillRenderProps) => ReactNode) | null>(null);
+
+/** An image behind the whole community (feed, notification center, profiles). */
+export type CommunityBackground = {
+  image: ImageSourcePropType;
+  contentFit?: "cover" | "contain";
+  opacity?: number;
+};
+const BackgroundContext = createContext<CommunityBackground | null>(null);
 
 export function CommunityUIProvider(props: {
   theme?: DeepPartial<CommunityTheme>;
@@ -25,9 +34,13 @@ export function CommunityUIProvider(props: {
   /** Draws every streak pill (post header, profile). Without it: the flame and
    * label on a tint of the tier's theme colour. */
   renderStreakPill?: (p: StreakPillRenderProps) => ReactNode;
+  /** An image fixed behind the feed, the notification center and profiles. Post rows
+   * turn transparent over it; sheets and the composer stay opaque. */
+  background?: CommunityBackground;
   children: ReactNode;
 }): ReactElement {
-  const { theme, translations, icons, renderAvatar, renderStreakPill, children } = props;
+  const { theme, translations, icons, renderAvatar, renderStreakPill, background, children } =
+    props;
   const locale = translations?.locale ?? "en";
   const overrides = translations?.overrides;
 
@@ -41,7 +54,9 @@ export function CommunityUIProvider(props: {
         <IconsContext.Provider value={resolvedIcons}>
           <AvatarContext.Provider value={renderAvatar ?? null}>
             <StreakPillContext.Provider value={renderStreakPill ?? null}>
-              {children}
+              <BackgroundContext.Provider value={background ?? null}>
+                {children}
+              </BackgroundContext.Provider>
             </StreakPillContext.Provider>
           </AvatarContext.Provider>
         </IconsContext.Provider>
@@ -62,6 +77,11 @@ export function useAvatarRenderer(): ((p: AvatarRenderProps) => ReactNode) | nul
 /** The host's `renderStreakPill`, or null for the SDK's default (see `StreakPill`). */
 export function useStreakPillRenderer(): ((p: StreakPillRenderProps) => ReactNode) | null {
   return useContext(StreakPillContext);
+}
+
+/** The host's community background, or null. */
+export function useCommunityBackground(): CommunityBackground | null {
+  return useContext(BackgroundContext);
 }
 
 export function useT(): TFn {

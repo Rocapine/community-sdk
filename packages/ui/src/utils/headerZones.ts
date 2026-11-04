@@ -15,21 +15,20 @@ export type FeedHeaderItem =
   | "inbox"
   | {
       logo: ImageSourcePropType;
-      /** Defaults to 28. */
+      /** Defaults to 32. */
       height?: number;
       /** Defaults to `height` (a square mark). */
       width?: number;
       accessibilityLabel?: string;
     };
 
-/** Painted behind the feed's top bar, from the top of the screen down to the topic
- * tabs. `extendTop`: how far above the bar it reaches, e.g. the status bar's height
- * when the host pads the screen's top inset itself. */
+/** Painted behind the feed's top bar (header row and topic tabs, and the status bar
+ * area when `topInset` is set). It moves with the bar when the bar hides on scroll. */
 export type FeedHeaderBackground = {
   image?: ImageSourcePropType;
+  /** Under the image; defaults to `colors.background`. */
   color?: string;
   contentFit?: "cover" | "contain";
-  extendTop?: number;
 };
 
 /** The feed's header: three zones, each a row of items. `center` stays centred
@@ -39,6 +38,10 @@ export type FeedHeaderConfig = {
   center?: FeedHeaderItem[];
   right?: FeedHeaderItem[];
   background?: FeedHeaderBackground;
+  /** The status bar's height (safe area top), when the feed should own that area
+   * instead of the host padding it: the top bar starts under the status bar, its
+   * background reaches behind it, and hiding on scroll stops there. */
+  topInset?: number;
 };
 
 export const DEFAULT_FEED_HEADER: FeedHeaderConfig = {
