@@ -30,11 +30,15 @@ Migration:
   function: no hooks in it, return an element.
 - Data: `FeedPost.authorStreakStartedAt` → `authorBadges`; `CommunityProfile`
   `streakStartedAt` / `bestStreakDays` / `showStreak` / `showBestStreak` → `badges` /
-  `hiddenBadges`; `ThreadComment.authorBadges` is new.
+  `hiddenBadges`; `ThreadComment.authorBadges` is new. Raw rows: `PostRow.author_streak`
+  (`{ visible_streak_started_at }`) → `author_badges` (`{ visible_badges }`), and
+  `buildFeedSelect`'s fifth argument `streaks` → `badges`.
 - `setStreakVisibility` / `useSetStreakVisibility` → `setBadgeVisibility` /
   `useSetBadgeVisibility({ key, visible })`.
 - Strings: `profile.streak` → `badge.streak.label`, `profile.bestStreak` →
   `badge.bestStreak.label`, `profile.showStreak` → `badge.streak.toggle`,
   `profile.showBestStreak` → `badge.bestStreak.toggle`, `profile.streakHelper` →
-  `profile.badgesHelper`; new `profile.badges` (the toggles' header). Rename your overrides.
+  `profile.badgesHelper` (now generic copy); new `profile.badges` (the toggles' header).
+  Rename your overrides. A badge's switch reads `badge.<id>.toggle`, else its
+  `badge.<id>.label`, else its id.
 - `renderAvatar` now receives the member's `badges`.

@@ -207,5 +207,5 @@ export const frVous: Record<string, string> = {
   "badge.bestStreak.label": "Meilleure série",
   "badge.streak.toggle": "Afficher ma série",
   "badge.bestStreak.toggle": "Afficher ma meilleure série",
-  "profile.badgesHelper": "Visible sur votre profil et sous votre nom sur vos publications.",
+  "profile.badgesHelper": "Les autres ne voient que les badges que vous activez.",
 };

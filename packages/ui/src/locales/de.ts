@@ -228,5 +228,5 @@ export const de: Record<string, string> = {
   "badge.bestStreak.label": "Beste Serie",
   "badge.streak.toggle": "Meine Serie zeigen",
   "badge.bestStreak.toggle": "Meine beste Serie zeigen",
-  "profile.badgesHelper": "Sichtbar auf deinem Profil und unter deinem Namen in deinen Beiträgen.",
+  "profile.badgesHelper": "Andere sehen nur die Abzeichen, die du einschaltest.",
 };

@@ -218,5 +218,5 @@ export const en: Record<string, string> = {
   "badge.bestStreak.label": "Best streak",
   "badge.streak.toggle": "Show my streak",
   "badge.bestStreak.toggle": "Show my best streak",
-  "profile.badgesHelper": "Shown on your profile and under your name on your posts.",
+  "profile.badgesHelper": "Others only see the badges you turn on.",
 };

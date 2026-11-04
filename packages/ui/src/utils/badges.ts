@@ -11,3 +11,13 @@ export function badgesFor(
     .filter(([key, def]) => def.placements.includes(placement) && data[key] != null)
     .map(([key]) => ({ key, data: data[key]! }));
 }
+
+/** The profile editor's switch for one badge: `badge.<id>.toggle`, else the badge's
+ * `badge.<id>.label`, else its id. `t` returns the key itself when it has no string. */
+export function badgeToggleLabel(t: (key: string) => string, id: string): string {
+  for (const key of [`badge.${id}.toggle`, `badge.${id}.label`]) {
+    const value = t(key);
+    if (value !== key) return value;
+  }
+  return id;
+}

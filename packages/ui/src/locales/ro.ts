@@ -210,5 +210,5 @@ export const ro: Record<string, string> = {
   "badge.bestStreak.label": "Cea mai bună serie",
   "badge.streak.toggle": "Arată seria mea",
   "badge.bestStreak.toggle": "Arată cea mai bună serie a mea",
-  "profile.badgesHelper": "Vizibilă pe profilul tău și sub numele tău în postările tale.",
+  "profile.badgesHelper": "Ceilalți văd doar insignele pe care le activezi.",
 };

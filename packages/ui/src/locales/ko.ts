@@ -198,5 +198,5 @@ export const ko: Record<string, string> = {
   "badge.bestStreak.label": "최고 기록",
   "badge.streak.toggle": "내 연속 기록 표시",
   "badge.bestStreak.toggle": "내 최고 기록 표시",
-  "profile.badgesHelper": "프로필과 내 게시글의 이름 아래에 표시돼요.",
+  "profile.badgesHelper": "다른 사람에게는 켜 둔 배지만 보여요.",
 };

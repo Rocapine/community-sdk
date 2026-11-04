@@ -394,10 +394,20 @@ export function useUpdateProfile() {
 export function useSetBadgeVisibility() {
   const cfg = useCommunityConfig();
   const queryClient = useQueryClient();
-  return useMutation<void, Error, { key: string; visible: boolean }>({
+  return useMutation(badgeVisibilityMutationOptions(cfg, queryClient));
+}
+
+export function badgeVisibilityMutationOptions(
+  cfg: ResolvedCommunityConfig,
+  queryClient: QueryClient,
+): UseMutationOptions<void, Error, { key: string; visible: boolean }> {
+  return {
+    // One at a time: each toggle reads hidden_badges then writes it back, so two
+    // in flight would lose one.
+    scope: { id: "community-badge-visibility" },
     mutationFn: (input) => setBadgeVisibility(cfg, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["community"] }),
-  });
+  };
 }
 
 type PostResult = { id: string; verdict: ModerationVerdict };

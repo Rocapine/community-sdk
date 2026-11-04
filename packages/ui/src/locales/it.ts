@@ -206,5 +206,5 @@ export const it: Record<string, string> = {
   "badge.bestStreak.label": "Serie migliore",
   "badge.streak.toggle": "Mostra la mia serie",
   "badge.bestStreak.toggle": "Mostra la mia serie migliore",
-  "profile.badgesHelper": "Visibile sul tuo profilo e sotto il tuo nome nei tuoi post.",
+  "profile.badgesHelper": "Gli altri vedono solo i badge che attivi.",
 };

@@ -206,5 +206,5 @@ export const es419: Record<string, string> = {
   "badge.bestStreak.label": "Mejor racha",
   "badge.streak.toggle": "Mostrar mi racha",
   "badge.bestStreak.toggle": "Mostrar mi mejor racha",
-  "profile.badgesHelper": "Visible en tu perfil y bajo tu nombre en tus publicaciones.",
+  "profile.badgesHelper": "Los demás solo ven las insignias que activas.",
 };

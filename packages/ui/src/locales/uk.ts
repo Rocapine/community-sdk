@@ -211,5 +211,5 @@ export const uk: Record<string, string> = {
   "badge.bestStreak.label": "Найкраща серія",
   "badge.streak.toggle": "Показувати мою серію",
   "badge.bestStreak.toggle": "Показувати мою найкращу серію",
-  "profile.badgesHelper": "Видно у твоєму профілі та під твоїм іменем у твоїх дописах.",
+  "profile.badgesHelper": "Іншим видно лише значки, які ти ввімкнеш.",
 };

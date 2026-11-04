@@ -64,5 +64,24 @@ begin
   assert p.badges->'rank'->>'n' = '1', 'a legacy write keeps the other badges';
   assert p.badges->'bestStreak'->>'days' = '13', 'and updates its own';
 
+  -- One write carrying both forms: the badges win, and so do hidden_badges.
+  update public.profiles set
+      badges = '{"streak":{"since":"2026-10-07T00:00:00Z"}}',
+      streak_started_at = '2026-01-01T00:00:00Z', best_streak_days = 99,
+      hidden_badges = '{streak}', show_streak = true, show_best_streak = false
+    where id = pid;
+  select * into p from public.profiles where id = pid;
+  assert p.streak_started_at = '2026-10-07T00:00:00Z', 'badges win over legacy in one write';
+  assert p.best_streak_days is null, 'and drive the legacy best too';
+  assert not p.show_streak and p.show_best_streak, 'hidden_badges win over legacy toggles';
+
+  -- An unreadable streak value does not fail the write; the legacy columns go empty.
+  update public.profiles
+    set badges = '{"streak":{"since":"not a date"},"bestStreak":{"days":1e40}}'
+    where id = pid;
+  select * into p from public.profiles where id = pid;
+  assert p.badges->'streak'->>'since' = 'not a date', 'the badges are written as sent';
+  assert p.streak_started_at is null and p.best_streak_days is null, 'unreadable values leave no legacy';
+
   raise exception 'BADGES_TESTS_PASSED';
 end $$;

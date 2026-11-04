@@ -49,6 +49,7 @@ import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { resizeAvatar } from "../utils/avatar";
+import { badgeToggleLabel } from "../utils/badges";
 import { noFocusRing, noFocusRingMultiline } from "../utils/noFocusRing";
 
 const BIO_MAX_LENGTH = 300;
@@ -439,7 +440,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
                 {Object.keys(cfg.modules.badges).map((id) => (
                   <BadgeToggle
                     key={id}
-                    label={t(`badge.${id}.toggle`)}
+                    label={badgeToggleLabel(t, id)}
                     value={!profile.data.hiddenBadges.includes(id)}
                     onChange={(on) => badgeVisibility.mutateAsync({ key: id, visible: on })}
                   />

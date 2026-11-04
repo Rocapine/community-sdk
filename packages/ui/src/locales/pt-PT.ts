@@ -206,5 +206,5 @@ export const ptPT: Record<string, string> = {
   "badge.bestStreak.label": "Melhor sequência",
   "badge.streak.toggle": "Mostrar a minha sequência",
   "badge.bestStreak.toggle": "Mostrar a minha melhor sequência",
-  "profile.badgesHelper": "Visível no teu perfil e sob o teu nome nas tuas publicações.",
+  "profile.badgesHelper": "Os outros só veem os distintivos que ativares.",
 };

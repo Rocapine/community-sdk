@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { badgesFor } from "../utils/badges";
+import { badgeToggleLabel, badgesFor } from "../utils/badges";
 
 const declared = {
   streak: { placements: ["post", "profile"] as const },
@@ -35,5 +35,19 @@ describe("badgesFor", () => {
     expect(badgesFor("post", declared, undefined)).toEqual([]);
     expect(badgesFor("post", false, data)).toEqual([]);
     expect(badgesFor("post", undefined, data)).toEqual([]);
+  });
+});
+
+describe("badgeToggleLabel", () => {
+  const strings: Record<string, string> = {
+    "badge.streak.toggle": "Show my streak",
+    "badge.rank.label": "Rank",
+  };
+  const t = (key: string) => strings[key] ?? key;
+
+  it("prefers the toggle string, then the badge's label, then its id", () => {
+    expect(badgeToggleLabel(t, "streak")).toBe("Show my streak");
+    expect(badgeToggleLabel(t, "rank")).toBe("Rank");
+    expect(badgeToggleLabel(t, "zodiac")).toBe("zodiac");
   });
 });

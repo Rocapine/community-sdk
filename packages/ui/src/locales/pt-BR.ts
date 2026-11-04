@@ -204,5 +204,5 @@ export const ptBR: Record<string, string> = {
   "badge.bestStreak.label": "Melhor sequência",
   "badge.streak.toggle": "Mostrar minha sequência",
   "badge.bestStreak.toggle": "Mostrar minha melhor sequência",
-  "profile.badgesHelper": "Visível no seu perfil e abaixo do seu nome nas suas publicações.",
+  "profile.badgesHelper": "Os outros só veem os selos que você ativar.",
 };

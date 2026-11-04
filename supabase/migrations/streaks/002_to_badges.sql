@@ -40,8 +40,24 @@ declare
   badges_changed boolean := new.badges is distinct from old.badges;
   hidden_changed boolean := new.hidden_badges is distinct from old.hidden_badges;
 begin
+  -- A new build wrote the badges: keep the legacy columns in step for old readers.
+  -- The badges win when one write carries both forms. A value that does not read as
+  -- a date or a day count leaves the legacy column empty rather than failing the write.
+  if badges_changed then
+    begin
+      new.streak_started_at := case when jsonb_typeof(new.badges -> 'streak' -> 'since') = 'string'
+        then (new.badges -> 'streak' ->> 'since')::timestamptz end;
+    exception when data_exception then
+      new.streak_started_at := null;
+    end;
+    begin
+      new.best_streak_days := case when jsonb_typeof(new.badges -> 'bestStreak' -> 'days') = 'number'
+        then greatest((new.badges -> 'bestStreak' ->> 'days')::numeric, 0)::int end;
+    exception when data_exception then
+      new.best_streak_days := null;
+    end;
   -- An old build wrote the legacy values: rewrite the two streak badges.
-  if legacy_changed and not badges_changed then
+  elsif legacy_changed then
     new.badges := (new.badges - 'streak' - 'bestStreak')
       || case when new.streak_started_at is not null
            then jsonb_build_object('streak', jsonb_build_object('since', to_jsonb(new.streak_started_at)))
@@ -49,23 +65,17 @@ begin
       || case when new.best_streak_days is not null
            then jsonb_build_object('bestStreak', jsonb_build_object('days', new.best_streak_days))
            else '{}'::jsonb end;
-  -- A new build wrote the badges: keep the legacy columns in step for old readers.
-  elsif badges_changed and not legacy_changed then
-    new.streak_started_at := case when jsonb_typeof(new.badges -> 'streak' -> 'since') = 'string'
-      then (new.badges -> 'streak' ->> 'since')::timestamptz end;
-    new.best_streak_days := case when jsonb_typeof(new.badges -> 'bestStreak' -> 'days') = 'number'
-      then greatest((new.badges -> 'bestStreak' ->> 'days')::numeric, 0)::int end;
   end if;
 
-  if legacy_shown_changed and not hidden_changed then
+  if hidden_changed then
+    new.show_streak := not ('streak' = any (new.hidden_badges));
+    new.show_best_streak := not ('bestStreak' = any (new.hidden_badges));
+  elsif legacy_shown_changed then
     new.hidden_badges := array(
         select h from unnest(new.hidden_badges) h where h not in ('streak', 'bestStreak')
       )
       || case when not new.show_streak then array['streak'] else '{}'::text[] end
       || case when not new.show_best_streak then array['bestStreak'] else '{}'::text[] end;
-  elsif hidden_changed and not legacy_shown_changed then
-    new.show_streak := not ('streak' = any (new.hidden_badges));
-    new.show_best_streak := not ('bestStreak' = any (new.hidden_badges));
   end if;
   return new;
 end;
