@@ -67,7 +67,11 @@ export type { CommentGate } from "./utils/gate";
 export type { PresentModal } from "./utils/modalHandoff";
 export { ProfileScreen } from "./screens/ProfileScreen";
 export { ProfileEditSheet } from "./screens/ProfileEditSheet";
-export { NotificationInboxScreen } from "./screens/NotificationInboxScreen";
+export {
+  NotificationInboxScreen,
+  type InboxRowMeta,
+  type InboxRowParts,
+} from "./screens/NotificationInboxScreen";
 
 // Avatar downscale used by `ProfileEditSheet`, for hosts with their own picker.
 export { resizeAvatar, AVATAR_SIZE } from "./utils/avatar";

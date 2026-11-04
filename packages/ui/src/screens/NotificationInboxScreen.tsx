@@ -58,9 +58,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import type { TFn } from "../i18n";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
-import { inboxExcerpt } from "../utils/postImage";
+import { inboxRowText } from "../utils/inboxRow";
 import { isQueryLoading } from "../utils/query";
-import { formatTimeAgo } from "../utils/time";
 import { ScreenBackground } from "../components/ScreenBackground";
 
 const KNOWN_KINDS = new Set<InboxItem["kind"]>([
@@ -83,14 +82,11 @@ export function NotificationInboxScreen({
   /** Tapped row with no post attached (e.g. a deleted announcement). */
   onOpenCommunity?: () => void;
   /** Custom row renderer. `defaults` is the built-in row (or `null` for a
-   * kind the SDK doesn't know); `meta.unread` is the same "newer than the
-   * pre-open seen marker" flag the built-in rows use for their dot, so a host
-   * row for a custom kind can style unread state identically. */
-  renderInboxRow?: (
-    item: InboxItem,
-    defaults: ReactNode | null,
-    meta: { unread: boolean },
-  ) => ReactNode;
+   * kind the SDK doesn't know). `meta`: `unread`, the same flag the built-in
+   * rows use for their dot; `open()`, what tapping the built-in row does (opens
+   * the post, marks the item read); `parts`, the built-in row's pieces (the
+   * kind's icon, title, excerpt, "3h"), to rebuild a row of your own from. */
+  renderInboxRow?: (item: InboxItem, defaults: ReactNode | null, meta: InboxRowMeta) => ReactNode;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -138,6 +134,7 @@ export function NotificationInboxScreen({
   }, [inbox.data]);
 
   const items = inbox.data?.items ?? [];
+  const now = Date.now();
   const seenAt = frozenSeenAt !== undefined ? frozenSeenAt : (inbox.data?.seenAt ?? null);
   // Live in "tap" mode (dots go out as items are read); frozen per visit in "open".
   const readIds = tapToRead ? (inbox.data?.readIds ?? []) : [];
@@ -196,17 +193,16 @@ export function NotificationInboxScreen({
           <View style={styles.list}>
             {items.map((item, i) => {
               const unread = isUnread(item, seenAt, readIds);
+              const parts = { icon: <KindIcon kind={item.kind} />, ...inboxRowText(t, item, now) };
+              const open = () => openItem(item);
               const defaultRow = KNOWN_KINDS.has(item.kind) ? (
-                <NotificationRow
-                  item={item}
-                  unread={unread}
-                  showDivider={i > 0}
-                  onPress={() => openItem(item)}
-                />
+                <NotificationRow parts={parts} unread={unread} showDivider={i > 0} onPress={open} />
               ) : null;
               return (
                 <Fragment key={item.id}>
-                  {renderInboxRow ? renderInboxRow(item, defaultRow, { unread }) : defaultRow}
+                  {renderInboxRow
+                    ? renderInboxRow(item, defaultRow, { unread, open, parts })
+                    : defaultRow}
                 </Fragment>
               );
             })}
@@ -237,42 +233,29 @@ function KindIcon({ kind }: { kind: InboxItem["kind"] }) {
   }
 }
 
-function rowTitle(t: TFn, item: InboxItem): string {
-  const actor = item.actorName?.trim();
-  // An announcement with no named author reads "News from the team" (a host
-  // overrides `inbox.newsFromTeam` with its own name), not "from Someone".
-  if (item.kind === "official_post" && !actor) return t("inbox.newsFromTeam");
-  const name = actor || t("inbox.someone");
-  switch (item.kind) {
-    case "like":
-      return t("inbox.liked", { name });
-    case "comment":
-      return t("inbox.commented", { name });
-    case "reply":
-      return t("inbox.replied", { name });
-    case "reaction":
-      return t("inbox.reacted", { name });
-    case "official_post":
-      return t("inbox.news", { name });
-    default:
-      return "";
-  }
-}
+export type InboxRowParts = {
+  /** The kind's icon, themed; null for a kind the SDK doesn't know. */
+  icon: ReactNode | null;
+  title: string;
+  excerpt: string | null;
+  /** "3h" */
+  timeLabel: string;
+};
+
+export type InboxRowMeta = { unread: boolean; open(): void; parts: InboxRowParts };
 
 function NotificationRow({
-  item,
+  parts,
   unread,
   showDivider,
   onPress,
 }: {
-  item: InboxItem;
+  parts: InboxRowParts;
   unread: boolean;
   showDivider: boolean;
   onPress(): void;
 }) {
-  const t = useT();
   const styles = useThemedStyles(makeStyles);
-  const excerpt = inboxExcerpt(item.payload.postExcerpt, t);
 
   return (
     <Pressable
@@ -283,21 +266,19 @@ function NotificationRow({
         pressed && styles.rowPressed,
       ]}
     >
-      <View style={styles.iconWrap}>
-        <KindIcon kind={item.kind} />
-      </View>
+      <View style={styles.iconWrap}>{parts.icon}</View>
       <View style={styles.rowBody}>
         <Text style={[styles.rowTitle, unread && styles.rowTitleUnread]} numberOfLines={2}>
-          {rowTitle(t, item)}
+          {parts.title}
         </Text>
-        {excerpt ? (
+        {parts.excerpt ? (
           <Text style={styles.rowExcerpt} numberOfLines={2}>
-            {excerpt}
+            {parts.excerpt}
           </Text>
         ) : null}
       </View>
       <View style={styles.rowMeta}>
-        <Text style={styles.rowDate}>{formatTimeAgo(t, item.createdAt, Date.now())}</Text>
+        <Text style={styles.rowDate}>{parts.timeLabel}</Text>
         {unread && <View style={styles.unreadDot} />}
       </View>
     </Pressable>

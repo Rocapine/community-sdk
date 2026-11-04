@@ -266,11 +266,15 @@ you can wrap, replace, or ignore it:
 - `isOptimistic(post)` (core): true while a just-sent post/comment still has
   its temporary id. Server actions keyed on the id (reactions, likes, votes)
   must wait; the author fields are already yours.
-- `NotificationInboxScreen`'s `renderInboxRow?: (item: InboxItem, defaults: ReactNode | null) => ReactNode`
+- `NotificationInboxScreen`'s `renderInboxRow?: (item: InboxItem, defaults: ReactNode | null, meta) => ReactNode`
   — called for every row; `defaults` is a built-in row for a recognized kind
   (`like`/`comment`/`reaction`/`official_post`) or `null` for an
   app-defined custom kind the SDK doesn't know how to render itself (e.g. a
-  `support_reply` notification your own backend inserts).
+  `support_reply` notification your own backend inserts). `meta` is
+  `{ unread, open, parts }`: `open()` does what tapping the built-in row does
+  (opens the post, marks the item read), and `parts` (`icon`, `title`,
+  `excerpt`, `timeLabel`) are the built-in row's pieces, so a row of your own
+  design keeps the SDK's copy and icons.
 
 ## Screens
 
@@ -280,7 +284,7 @@ you can wrap, replace, or ignore it:
 | `ThreadSheet`             | `postId: string \| null`, `focusComment?: boolean` (open with the reply field focused), `onClose()`, `onOpenProfile(userId, source?)`, `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does                                      |
 | `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId, focusComment?)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`                                                        |
 | `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                                                                                                                                    |
-| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                                                                                              |
+| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread, open, parts })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                                                                                 |
 
 Plus standalone components you can use directly: `PressableScale` (the
 package's press feedback for buttons with a visible surface — a 0.98 scale-down,

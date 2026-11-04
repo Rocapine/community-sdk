@@ -26,6 +26,8 @@ export type PlaygroundSettings = {
   /** `label`: the word next to the reaction icon; `chip`: the example's own
    * reaction button, drawn from the slot context only. */
   reaction: { label: string; chip: boolean };
+  /** `card`: the example's own row, rebuilt from `renderInboxRow`'s parts. */
+  inboxRow: "default" | "card";
   colors: { accent: string; background: string };
   /** `title` role font (null = the theme's serif default) and `body` role size. */
   typography: { titleFont: string | null; bodySize: number };
@@ -75,6 +77,7 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
   },
   badges: "streak",
   reaction: { label: "", chip: false },
+  inboxRow: "default",
   colors: { accent: "#6C4DF6", background: "#F7F7F8" },
   typography: { titleFont: null, bodySize: 15 },
   header: HEADER_PRESETS.Default,
