@@ -22,6 +22,7 @@ export const MODULE_ORDER = [
   "inbox",
   "translation",
   "images",
+  "attachments",
   "badges",
   // Deprecated: kept to move existing streaks onto badges (streaks/002). Implies badges.
   "streaks",

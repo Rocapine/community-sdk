@@ -44,10 +44,20 @@ alter table public.comments add constraint comments_image_path_format check (
 
 -- Text becomes optional when an image is present (image-only items store '').
 -- core/001_tables.sql leaves the inline check auto-named <table>_content_check.
-alter table public.posts drop constraint if exists posts_content_check;
-alter table public.posts add constraint posts_content_check check (
-  char_length(content) <= 2000 and (char_length(content) >= 1 or image_path is not null)
-);
+-- On posts it also keeps the attachments module's clause when that module is in.
+do $$
+declare
+  has_attachment boolean := exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'posts' and column_name = 'attachment'
+  );
+begin
+  alter table public.posts drop constraint if exists posts_content_check;
+  execute format(
+    'alter table public.posts add constraint posts_content_check check (char_length(content) <= 2000 and (char_length(content) >= 1 or image_path is not null%s))',
+    case when has_attachment then ' or attachment is not null' else '' end
+  );
+end $$;
 alter table public.comments drop constraint if exists comments_content_check;
 alter table public.comments add constraint comments_content_check check (
   char_length(content) <= 1000 and (char_length(content) >= 1 or image_path is not null)
