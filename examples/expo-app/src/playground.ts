@@ -23,6 +23,9 @@ export type PlaygroundSettings = {
   };
   /** Which badge preset the community declares (`modules.badges`). */
   badges: BadgePreset;
+  /** `label`: the word next to the reaction icon; `chip`: the example's own
+   * reaction button, drawn from the slot context only. */
+  reaction: { label: string; chip: boolean };
   colors: { accent: string; background: string };
   /** `title` role font (null = the theme's serif default) and `body` role size. */
   typography: { titleFont: string | null; bodySize: number };
@@ -71,6 +74,7 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
     images: true,
   },
   badges: "streak",
+  reaction: { label: "", chip: false },
   colors: { accent: "#6C4DF6", background: "#F7F7F8" },
   typography: { titleFont: null, bodySize: 15 },
   header: HEADER_PRESETS.Default,
@@ -156,7 +160,9 @@ export function buildConfig(settings: PlaygroundSettings): CommunityConfig {
       polls: m.polls,
       push: false,
       inbox: m.inbox,
-      reaction: m.reaction ? { key: "cheer" } : false,
+      reaction: m.reaction
+        ? { key: "cheer", ...(settings.reaction.label ? { label: settings.reaction.label } : {}) }
+        : false,
       // Must match the scratch backend's COMMUNITY_TRANSLATION_LOCALES.
       translation: m.translation ? { locales: ["en", "es-419", "pt-BR"] } : false,
       images: m.images,
