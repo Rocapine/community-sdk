@@ -87,7 +87,10 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
     <PlaygroundContext.Provider value={playground}>
       <QueryClientProvider client={queryClient}>
         {/* The SDK reads its config once: a module or locale switch remounts it. */}
-        <CommunityProvider key={JSON.stringify({ modules, locale, badges })} config={config}>
+        <CommunityProvider
+          key={JSON.stringify({ modules, locale, badges, reaction: playground.settings.reaction })}
+          config={config}
+        >
           <SyncFromHost />
           <CommunityUIProvider
             theme={theme}

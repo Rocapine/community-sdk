@@ -4,6 +4,7 @@ import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePlayground } from "@/PlaygroundProvider";
 import { headerConfig } from "@/playground";
+import { ReactionChip } from "@/components/ReactionChip";
 
 export default function CommunityTab() {
   const insets = useSafeAreaInsets();
@@ -21,6 +22,15 @@ export default function CommunityTab() {
       <CommunityFeedScreen
         isFocused={isFocused}
         header={headerConfig(settings.header, settings.backgrounds, insets.top)}
+        slots={
+          settings.reaction.chip
+            ? {
+                renderReactionButton: (post, _default, ctx) => (
+                  <ReactionChip post={post} label={settings.reaction.label} ctx={ctx} />
+                ),
+              }
+            : undefined
+        }
         onOpenProfile={(userId) =>
           router.push({ pathname: "/profile/[userId]", params: { userId } })
         }

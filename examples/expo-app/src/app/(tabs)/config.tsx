@@ -45,6 +45,23 @@ export default function ConfigTab() {
         />
       </Section>
 
+      <Section title="Reaction">
+        <Text style={styles.hint}>Label next to the icon</Text>
+        <Chips
+          options={["none", "Yum", "Slay", "Amen"]}
+          value={settings.reaction.label || "none"}
+          onChange={(label) =>
+            update({ reaction: { ...settings.reaction, label: label === "none" ? "" : label } })
+          }
+        />
+        <Row label="Custom chip (slot context only)">
+          <Switch
+            value={settings.reaction.chip}
+            onValueChange={(chip) => update({ reaction: { ...settings.reaction, chip } })}
+          />
+        </Row>
+      </Section>
+
       <Section title="Locale">
         <Chips
           options={LOCALES}

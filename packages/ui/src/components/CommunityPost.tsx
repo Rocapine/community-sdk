@@ -51,6 +51,7 @@ import {
 import type { CommunityTheme } from "../theme";
 import { displayText, translationLine } from "../utils/translation";
 import { formatTimeAgo, secondsResolution, useNow } from "../utils/time";
+import { reactionLabel, reactionState } from "../utils/reaction";
 import { ModalHandoffContext, type PresentModal } from "../utils/modalHandoff";
 import { ClampedBody } from "./ClampedBody";
 import { Avatar } from "./Avatar";
@@ -71,8 +72,13 @@ export type ProfileSource = "post" | "comment";
 /** Passed to every slot. `presentModal(open)`: use it to open your own
  * native Modal from a post — inside the thread sheet it closes the sheet
  * first and calls `open` once it's gone (iOS can't stack two Modals);
- * elsewhere it calls `open` right away. */
-export type PostSlotContext = { presentModal: PresentModal };
+ * elsewhere it calls `open` right away. `reaction`: the post's reaction state
+ * and the built-in toggle (it honours `onPressReaction`), so a custom reaction
+ * button needs no hook of its own. */
+export type PostSlotContext = {
+  presentModal: PresentModal;
+  reaction: { active: boolean; count: number; toggle(): void };
+};
 
 export type PostSlots = {
   /** Wraps the whole footer row (like, reaction, comment). Called with
@@ -127,7 +133,11 @@ export function CommunityPost({
   const overBackground = useCommunityBackground() != null;
 
   const now = useNow(secondsResolution(post.createdAt, Date.now()));
-  const slotCtx: PostSlotContext = { presentModal: useContext(ModalHandoffContext) };
+  const slotCtx: PostSlotContext = {
+    presentModal: useContext(ModalHandoffContext),
+    reaction: { ...reactionState(post), toggle: () => handleReact() },
+  };
+  const reactionWord = reactionLabel(cfg.modules.reaction);
   const openImage = useContext(ImageViewerContext);
   // Image-only posts store `content = ''`: no text block (nor toggle line).
   const hasText = post.text !== "";
@@ -236,15 +246,24 @@ export function CommunityPost({
   );
 
   const defaultReactionButton = (
-    <PressableScale hitSlop={4} onPress={handleReact} style={styles.stat}>
+    <PressableScale
+      hitSlop={4}
+      onPress={handleReact}
+      style={[styles.stat, reactionWord != null && styles.statWithWord]}
+    >
       <icons.reaction
         size={18}
         color={post.hasReacted ? theme.colors.reaction : theme.colors.textFaint}
         weight={post.hasReacted ? "fill" : "regular"}
       />
+      {reactionWord != null && (
+        <Text style={[styles.reactionWord, post.hasReacted && { color: theme.colors.reaction }]}>
+          {reactionWord}
+        </Text>
+      )}
       <StatCount
         value={post.reactionCount}
-        boxStyle={styles.statCount}
+        boxStyle={reactionWord != null ? styles.statCountBeside : styles.statCount}
         style={[styles.statText, post.hasReacted && { color: theme.colors.reaction }]}
       />
     </PressableScale>
@@ -453,6 +472,15 @@ function makeStyles(theme: CommunityTheme) {
     link: { alignSelf: "flex-start" },
     imageGap: { marginTop: theme.spacing(2.5) },
     statCount: { flex: 1, overflow: "hidden" },
+    // With a word ("Yum"), the stat grows to fit it and keeps room for four digits.
+    statWithWord: { width: "auto", minWidth: 64, marginRight: theme.spacing(3) },
+    statCountBeside: { minWidth: 28, overflow: "hidden" },
+    reactionWord: {
+      ...theme.typography.meta,
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
+      color: theme.colors.textFaint,
+    },
     statText: {
       ...theme.typography.meta,
       fontFamily: theme.fonts.medium,
