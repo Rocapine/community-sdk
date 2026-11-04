@@ -115,11 +115,12 @@ see-through. If the SDK draws the image itself, no new colour token is needed.
 - Post rows and other in-screen surfaces that paint `colors.background` become transparent
   when a background image is set, so the image shows between and behind posts. Sheets,
   the composer and the thread keep painting `colors.background`, opaque.
-- `header.background?: { image?: ImageSourcePropType; color?: string; contentFit? }`:
-  painted behind the feed's top bar, from the top of the screen (under the status bar)
-  down to the bottom of the topic tabs, moving with the top bar when it hides on scroll.
-  The SDK does not own the status-bar inset today (the host pads it); the header background
-  therefore takes a `topInset` it extends upward by: `header.background.extendTop?: number`.
+- `header.background?: { image?, color?, contentFit? }`: painted behind the feed's top bar
+  (header row and topic tabs), moving with the bar when it hides on scroll.
+- `header.topInset?: number` (the safe area's top): the feed owns the status bar area
+  instead of the host padding it. The top bar starts under the status bar, its background
+  reaches behind it, and hiding on scroll stops there. (A background drawn above the
+  feed's root would be clipped by it, hence the feed owning that area.)
 - No new native dependency (gradients are baked into the image). Unchaind ships this
   release as an OTA, which cannot add native code.
 

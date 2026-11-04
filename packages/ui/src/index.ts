@@ -29,6 +29,8 @@ export type { InboxItem } from "@rocapine/community-core";
 
 export {
   CommunityUIProvider,
+  type CommunityBackground,
+  useCommunityBackground,
   useCommunityTheme,
   useT,
   useThemedStyles,

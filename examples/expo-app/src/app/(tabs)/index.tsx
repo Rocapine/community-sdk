@@ -10,10 +10,17 @@ export default function CommunityTab() {
   const isFocused = useIsFocused();
   const { settings } = usePlayground();
   return (
-    <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: settings.colors.background }}>
+    <View
+      style={{
+        flex: 1,
+        // With `topInset`, the feed owns the status bar area itself.
+        paddingTop: settings.backgrounds.ownStatusBar ? 0 : insets.top,
+        backgroundColor: settings.colors.background,
+      }}
+    >
       <CommunityFeedScreen
         isFocused={isFocused}
-        header={headerConfig(settings.header)}
+        header={headerConfig(settings.header, settings.backgrounds, insets.top)}
         onOpenProfile={(userId) =>
           router.push({ pathname: "/profile/[userId]", params: { userId } })
         }

@@ -111,6 +111,7 @@ import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
 import { ThreadSheet } from "./ThreadSheet";
 import { noFocusRing } from "../utils/noFocusRing";
+import { ScreenBackground } from "../components/ScreenBackground";
 import {
   DEFAULT_FEED_HEADER,
   resolveHeaderZones,
@@ -266,6 +267,12 @@ export function CommunityFeedScreen({
   const hidden = useSharedValue(0);
   const lastY = useSharedValue(0);
   const insetsTop = Platform.OS === "ios";
+  // With `header.topInset` the bar covers the status bar too, and stops hiding there.
+  const statusInset = header.topInset ?? 0;
+  const maxHide = (barHeight: number) => {
+    "worklet";
+    return Math.max(barHeight - statusInset, 0);
+  };
   const toListTop = (animated: boolean) =>
     listRef.current?.scrollToOffset({ offset: insetsTop ? -topH.value : 0, animated });
   const onListScroll = useAnimatedScrollHandler({
@@ -273,23 +280,25 @@ export function CommunityFeedScreen({
       const y = e.contentOffset.y + (insetsTop ? topH.value : 0);
       const dy = y - lastY.value;
       lastY.value = y;
-      hidden.value = y <= 0 ? 0 : Math.min(Math.max(hidden.value + dy, 0), topH.value);
+      hidden.value = y <= 0 ? 0 : Math.min(Math.max(hidden.value + dy, 0), maxHide(topH.value));
     },
     // Never left half-shown: settle once the finger lifts without a fling,
     // or once the fling stops.
     onEndDrag: (e) => {
       if (Math.abs(e.velocity?.y ?? 0) > 0.1) return;
-      hidden.value = withTiming(hidden.value > topH.value / 2 ? topH.value : 0, { duration: 180 });
+      const max = maxHide(topH.value);
+      hidden.value = withTiming(hidden.value > max / 2 ? max : 0, { duration: 180 });
     },
     onMomentumEnd: () => {
-      hidden.value = withTiming(hidden.value > topH.value / 2 ? topH.value : 0, { duration: 180 });
+      const max = maxHide(topH.value);
+      hidden.value = withTiming(hidden.value > max / 2 ? max : 0, { duration: 180 });
     },
   });
   const topStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -hidden.value }] }));
   const chromeHidden = bottomChrome?.hidden;
   const chromeH = bottomChrome?.height ?? 0;
   useAnimatedReaction(
-    () => (topH.value > 0 ? hidden.value / topH.value : 0),
+    () => (maxHide(topH.value) > 0 ? hidden.value / maxHide(topH.value) : 0),
     (progress) => {
       if (chromeHidden) chromeHidden.value = progress;
     },
@@ -532,8 +541,13 @@ export function CommunityFeedScreen({
   return (
     <ImageViewerHost>
       <View style={styles.root}>
+        <ScreenBackground />
         <Animated.View
-          style={[styles.top, topStyle]}
+          style={[
+            styles.top,
+            header.background?.color != null && { backgroundColor: header.background.color },
+            topStyle,
+          ]}
           onLayout={(e) => {
             const h = e.nativeEvent.layout.height;
             if (h === topH.value) return;
@@ -545,6 +559,15 @@ export function CommunityFeedScreen({
               listRef.current?.scrollToOffset({ offset: -h, animated: false });
           }}
         >
+          {header.background?.image != null && (
+            <Image
+              source={header.background.image}
+              style={StyleSheet.absoluteFill}
+              contentFit={header.background.contentFit ?? "cover"}
+              pointerEvents="none"
+            />
+          )}
+          {statusInset > 0 && <View style={{ height: statusInset }} />}
           <View style={styles.controls}>
             {zones.visible && (
               <View style={styles.headerRow}>

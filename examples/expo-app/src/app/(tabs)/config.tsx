@@ -3,6 +3,8 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePlayground } from "@/PlaygroundProvider";
 import {
+  BACKGROUNDS,
+  type BackgroundId,
   HEADER_ITEMS,
   HEADER_PRESETS,
   HEADER_ZONES,
@@ -144,6 +146,37 @@ export default function ConfigTab() {
             })
           }
         />
+      </Section>
+
+      <Section title="Backgrounds">
+        <Text style={styles.hint}>Community (feed, inbox, profiles)</Text>
+        <Chips
+          options={Object.keys(BACKGROUNDS) as BackgroundId[]}
+          value={settings.backgrounds.community}
+          onChange={(community) => update({ backgrounds: { ...settings.backgrounds, community } })}
+        />
+        <Text style={styles.hint}>Community opacity</Text>
+        <Chips
+          options={["1", "0.6", "0.3"]}
+          value={String(settings.backgrounds.communityOpacity)}
+          onChange={(o) =>
+            update({ backgrounds: { ...settings.backgrounds, communityOpacity: Number(o) } })
+          }
+        />
+        <Text style={styles.hint}>Header</Text>
+        <Chips
+          options={Object.keys(BACKGROUNDS) as BackgroundId[]}
+          value={settings.backgrounds.header}
+          onChange={(header) => update({ backgrounds: { ...settings.backgrounds, header } })}
+        />
+        <Row label="Feed owns the status bar">
+          <Switch
+            value={settings.backgrounds.ownStatusBar}
+            onValueChange={(ownStatusBar) =>
+              update({ backgrounds: { ...settings.backgrounds, ownStatusBar } })
+            }
+          />
+        </Row>
       </Section>
 
       <Pressable style={styles.reset} onPress={reset}>

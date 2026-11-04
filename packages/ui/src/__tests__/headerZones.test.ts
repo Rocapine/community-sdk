@@ -27,11 +27,24 @@ describe("resolveHeaderZones", () => {
 
   it("hides the row when every zone ends up empty", () => {
     expect(resolveHeaderZones({ right: ["inbox"] }, { inbox: false }).visible).toBe(false);
-    expect(resolveHeaderZones({}, { inbox: true })).toEqual({
+    expect(resolveHeaderZones({ left: [] }, { inbox: true })).toEqual({
       left: [],
       center: [],
       right: [],
       visible: false,
+    });
+  });
+
+  it("keeps the default zones when the config sets none (only a background, say)", () => {
+    const zones = resolveHeaderZones(
+      { background: { color: "#000" }, topInset: 47 },
+      { inbox: true },
+    );
+    expect(zones).toEqual({
+      left: ["profile"],
+      center: ["title"],
+      right: ["search", "inbox"],
+      visible: true,
     });
   });
 
