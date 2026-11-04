@@ -101,6 +101,7 @@ export {
   reportContent,
   blockUser,
   deleteOwnPost,
+  setPostPinned,
   deleteOwnComment,
   updateProfile,
   fetchNotificationPreferences,
@@ -144,6 +145,7 @@ export {
   useReport,
   useBlockUser,
   useDeleteContent,
+  usePinPost,
   isOptimistic,
 } from "./hooks";
 

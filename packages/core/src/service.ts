@@ -747,6 +747,18 @@ export async function deleteOwnPost(cfg: ResolvedCommunityConfig, postId: string
   if (error) throw error;
 }
 
+/** Pins or unpins a post. Admins only (`set_post_pinned` refuses anyone else). */
+export async function setPostPinned(
+  cfg: ResolvedCommunityConfig,
+  postId: string,
+  pinned: boolean,
+): Promise<void> {
+  const client = cfg.requireClient();
+  await requireUid(cfg);
+  const { error } = await client.rpc("set_post_pinned", { p_post_id: postId, p_pinned: pinned });
+  if (error) throw error;
+}
+
 export async function deleteOwnComment(
   cfg: ResolvedCommunityConfig,
   commentId: string,

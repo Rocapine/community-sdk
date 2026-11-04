@@ -63,6 +63,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { usePinMenu } from "../utils/pinMenu";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
@@ -121,6 +122,7 @@ export function ProfileScreen({
 
   const blockUser = useBlockUser();
   const deleteContent = useDeleteContent();
+  const pinMenu = usePinMenu();
 
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -150,17 +152,26 @@ export function ProfileScreen({
 
   const openPostMenu = (post: FeedPost) => {
     if (post.isOwn) {
-      Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
+      const askDelete = () =>
+        Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
+          { text: t("menu.cancel"), style: "cancel" },
+          {
+            text: t("menu.delete"),
+            style: "destructive",
+            onPress: () => deleteContent.mutate({ kind: "post", id: post.id, postId: post.id }),
+          },
+        ]);
+      const pin = pinMenu(post);
+      if (pin.length === 0) return askDelete();
+      Alert.alert(post.authorName, undefined, [
+        ...pin,
+        { text: t("menu.delete"), style: "destructive", onPress: askDelete },
         { text: t("menu.cancel"), style: "cancel" },
-        {
-          text: t("menu.delete"),
-          style: "destructive",
-          onPress: () => deleteContent.mutate({ kind: "post", id: post.id, postId: post.id }),
-        },
       ]);
       return;
     }
     Alert.alert(post.authorName, undefined, [
+      ...pinMenu(post),
       {
         text: t("menu.reportPost"),
         onPress: () => setReportTarget({ kind: "post", id: post.id, authorId: post.authorId }),

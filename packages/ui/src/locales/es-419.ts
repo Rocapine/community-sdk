@@ -52,6 +52,8 @@ export const es419: Record<string, string> = {
   "time.years.other": "{count} años",
 
   "post.pinned": "Fijado",
+  "post.pin": "Fijar",
+  "post.unpin": "Desfijar",
   "post.viewMore": "Ver más",
   "post.viewLess": "Ver menos",
   "post.reaction.received": "{name} reaccionó a tu publicación",

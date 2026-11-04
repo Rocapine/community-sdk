@@ -53,6 +53,8 @@ export const uk: Record<string, string> = {
   "time.years.other": "{count} р.",
 
   "post.pinned": "Закріплено",
+  "post.pin": "Закріпити",
+  "post.unpin": "Відкріпити",
   "post.viewMore": "Показати більше",
   "post.viewLess": "Згорнути",
   "post.reaction.received": "{name} відреагував(ла) на твій допис",

@@ -74,6 +74,8 @@ export const fr: Record<string, string> = {
   "time.years.other": "{count} ans",
 
   "post.pinned": "Épinglé",
+  "post.pin": "Épingler",
+  "post.unpin": "Désépingler",
   "post.viewMore": "Voir plus",
   "post.viewLess": "Voir moins",
   "post.reaction.received": "{name} a réagi à ta publication",
