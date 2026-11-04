@@ -76,10 +76,10 @@ function makeStyles(theme: CommunityTheme) {
     pillLarge: { height: 28, paddingHorizontal: 11, gap: 5 },
     tint: { opacity: 0.16 },
     label: {
+      ...theme.typography.caption,
       fontFamily: theme.fonts.bold,
       fontWeight: theme.fontWeights.bold,
-      fontSize: 11.5,
     },
-    labelLarge: { fontSize: 14 },
+    labelLarge: { fontSize: theme.typography.bodySmall.fontSize },
   });
 }

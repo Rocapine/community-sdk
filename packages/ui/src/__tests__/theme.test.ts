@@ -50,6 +50,8 @@ describe("typography", () => {
     expect(th.typography.bodySmall.fontSize).toBe(14);
     expect(th.typography.meta.fontSize).toBe(13);
     expect(th.typography.caption.fontSize).toBe(12);
+    // 16 keeps iOS Safari from zooming into a focused field on the web build.
+    expect(th.typography.input).toMatchObject({ fontFamily: "Inter", fontSize: 16 });
   });
 
   it("overrides one field of one role and keeps the rest", () => {

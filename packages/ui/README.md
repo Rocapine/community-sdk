@@ -91,6 +91,18 @@ type CommunityTheme = {
   // Paired with each family; default 400 / 500 / 600. Lets a host that loads one
   // family with several weights (expo-font `fontDefinitions`) get real bold text.
   fontWeights: { regular: FontWeight; medium: FontWeight; bold: FontWeight };
+  // The named text styles every component draws with. Derived from `fonts` and
+  // `fontWeights`; override any role, field by field (see below).
+  typography: Record<
+    "display" | "title" | "heading" | "body" | "bodySmall" | "label" | "meta" | "caption" | "input",
+    {
+      fontFamily: string | undefined;
+      fontWeight: FontWeight;
+      fontSize: number;
+      lineHeight?: number;
+      letterSpacing?: number;
+    }
+  >;
   // The only four radii used. Nested surfaces are concentric: a `lg` card with
   // `spacing(4)` padding holds `sm` children.
   radius: { sm: number; md: number; lg: number; pill: number };
@@ -108,6 +120,30 @@ type CommunityTheme = {
 The default theme is a neutral placeholder palette (`accent: "#4C6FFF"`,
 system fonts) — no app branding. `like`/`reaction`/`official`/`pinned` default to
 `accent` too but are separate tokens so you can diverge them.
+
+### Typography
+
+| Role        | Size | Family (default) | Used for                                              |
+| ----------- | ---- | ---------------- | ----------------------------------------------------- |
+| `display`   | 24   | `serifBold`      | a profile's name                                      |
+| `title`     | 20   | `serifBold`      | the feed header's title, notice titles                |
+| `heading`   | 22   | `serifBold`      | sheet titles                                          |
+| `body`      | 15   | `regular`        | post text                                             |
+| `bodySmall` | 14   | `regular`        | comments, bios                                        |
+| `label`     | 15   | `medium`         | buttons, tabs, author names                           |
+| `meta`      | 13   | `regular`        | handle · time, counts                                 |
+| `caption`   | 12   | `regular`        | helpers, pills                                        |
+| `input`     | 16   | `regular`        | text fields (16 stops iOS Safari zooming in on focus) |
+
+A host that only sets `fonts` keeps working: the roles follow. To give the header
+title its own font without touching the other serif text:
+
+```ts
+theme={{ typography: { title: { fontFamily: "Orbitron-Bold" } } }}
+```
+
+Some styles keep a heavier weight than their role (an author name is `label` in
+`fonts.bold`); they still take the role's size.
 
 Icons receive `weight: "fill"` in their active state (liked, reacted), so a
 custom icon can swap glyphs there instead of filling the outline one.

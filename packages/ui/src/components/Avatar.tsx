@@ -37,8 +37,8 @@ function DefaultAvatar({ name, url, size }: AvatarRenderProps): ReactElement {
     >
       <Text
         style={{
-          fontFamily: theme.fonts.serifBold,
-          fontWeight: theme.fontWeights.bold,
+          fontFamily: theme.typography.title.fontFamily,
+          fontWeight: theme.typography.title.fontWeight,
           fontSize: Math.round(size * 0.44),
           color: theme.colors.accent,
         }}

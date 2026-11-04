@@ -50,9 +50,10 @@ export type TextRole = {
  *  - `bodySmall` (14): comments, a profile's bio
  *  - `label` (15): buttons, tabs, author names
  *  - `meta` (13): handle · time, counts, inbox excerpts
- *  - `caption` (12): helpers, pills, small print */
+ *  - `caption` (12): helpers, pills, small print
+ *  - `input` (16): text fields (16 keeps iOS Safari from zooming in on focus) */
 export type TextRoleName =
-  "display" | "title" | "heading" | "body" | "bodySmall" | "label" | "meta" | "caption";
+  "display" | "title" | "heading" | "body" | "bodySmall" | "label" | "meta" | "caption" | "input";
 
 export type CommunityTheme = {
   colors: {
@@ -144,6 +145,7 @@ const ROLES: Record<
   label: [15, "medium", "medium"],
   meta: [13, "regular", "regular"],
   caption: [12, "regular", "regular"],
+  input: [16, "regular", "regular"],
 };
 
 function deriveTypography(
