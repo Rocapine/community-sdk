@@ -27,6 +27,8 @@ export type {
   PollData,
   ReactionData,
   FeedPost,
+  MemberBadgeData,
+  MemberBadges,
   ThreadComment,
   PostImage,
   LocalImage,

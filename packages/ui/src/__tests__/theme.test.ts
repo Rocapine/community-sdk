@@ -68,3 +68,13 @@ describe("typography", () => {
     expect(defaultTheme.typography.title.fontWeight).toBe(defaultTheme.fontWeights.bold);
   });
 });
+
+describe("officialName", () => {
+  it("follows textPrimary unless set", () => {
+    expect(defaultTheme.colors.officialName).toBe(defaultTheme.colors.textPrimary);
+    expect(mergeTheme({ colors: { textPrimary: "#111" } }).colors.officialName).toBe("#111");
+    expect(
+      mergeTheme({ colors: { textPrimary: "#111", officialName: "#C49B00" } }).colors.officialName,
+    ).toBe("#C49B00");
+  });
+});

@@ -63,7 +63,6 @@ import {
   useCreateComment,
   useDeleteContent,
   useMyUid,
-  useProfile,
   useThread,
   usePost,
   useToggleCommentLike,
@@ -87,7 +86,7 @@ import { CommunitySheet, SHEET_GUTTER, SheetScrollView, SheetTextInput } from ".
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
-import { Avatar } from "../components/Avatar";
+import { Avatar, MyAvatar } from "../components/Avatar";
 import { ClampedBody } from "../components/ClampedBody";
 import { NoticeCard } from "../components/NoticeCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
@@ -273,7 +272,6 @@ export function ThreadSheet({
   };
 
   const myUid = useMyUid();
-  const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
   const myAuthorName = useMyAuthorName();
   // Double-submit latch for the `beforeSubmitComment` await: a second tap
   // during the await would otherwise run the host gate twice.
@@ -563,7 +561,7 @@ export function ThreadSheet({
                     )}
                   </Pressable>
                 ) : (
-                  <Avatar userId={myUid} name={myAuthorName()} url={myAvatarUrl} size={30} />
+                  <MyAvatar size={30} placement="reply" />
                 )}
                 <SheetTextInput
                   ref={inputRef}
@@ -743,11 +741,17 @@ function CommentRow({
           name={comment.authorName}
           url={comment.authorAvatarUrl}
           size={depth === 1 ? 24 : 30}
+          placement="comment"
+          official={comment.authorOfficial}
+          handle={comment.authorHandle}
         />
       </Pressable>
       <View style={styles.commentBody}>
         <Pressable onPress={handleAuthor} hitSlop={4} style={styles.nameRow}>
-          <Text style={styles.cName} numberOfLines={1}>
+          <Text
+            style={[styles.cName, comment.authorOfficial && { color: theme.colors.officialName }]}
+            numberOfLines={1}
+          >
             {comment.authorName}
           </Text>
           {comment.authorOfficial && (

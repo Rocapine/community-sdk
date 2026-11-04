@@ -1,13 +1,22 @@
 // The one place the SDK draws a user's avatar (feed rows, comments, the reply
 // bar, profiles, the edit preview, the header profile button, the composer).
 // A host restyles every one of them at once through `CommunityUIProvider`'s
-// `renderAvatar` (e.g. a gradient per member); the default stays dependency-free:
-// the photo, else the initial on a flat colour.
+// `renderAvatar` (e.g. a gradient per member, a ring on official accounts), told
+// whose avatar it is and where; the default stays dependency-free: the photo, else
+// the initial on a flat colour.
+import { useMyUid, useProfile, type MemberBadges } from "@rocapine/community-core";
 import { Image } from "expo-image";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useAvatarRenderer, useCommunityTheme } from "../ThemeProvider";
 import { initialOf } from "../utils/initial";
+import { useMyAuthorName } from "../utils/myName";
+
+/** Where an avatar is drawn: a post's author, a comment's, a profile's header, the
+ * feed header's profile button, the composer, the thread's reply bar, the profile
+ * edit sheet's preview. */
+export type AvatarPlacement =
+  "post" | "comment" | "profile" | "header" | "composer" | "reply" | "edit";
 
 export type AvatarRenderProps = {
   /** The member's community id; null when unknown (e.g. the viewer before sign-in). */
@@ -15,12 +24,54 @@ export type AvatarRenderProps = {
   name: string;
   url: string | null;
   size: number;
+  /** An official (house) account. */
+  official: boolean;
+  /** The member's public handle; null when unknown. */
+  handle: string | null;
+  placement: AvatarPlacement;
+  /** The member's visible badges (badges module); `{}` when none or unknown. */
+  badges: MemberBadges;
 };
 
-export function Avatar(props: AvatarRenderProps): ReactElement {
+type AvatarProps = Omit<AvatarRenderProps, "official" | "handle" | "badges"> &
+  Partial<Pick<AvatarRenderProps, "official" | "handle" | "badges">>;
+
+const NO_BADGES: MemberBadges = {};
+
+export function Avatar({
+  official = false,
+  handle = null,
+  badges = NO_BADGES,
+  ...rest
+}: AvatarProps): ReactElement {
   const render = useAvatarRenderer();
+  const props: AvatarRenderProps = { ...rest, official, handle, badges };
   if (render) return <>{render(props)}</>;
   return <DefaultAvatar {...props} />;
+}
+
+/** The viewer's own avatar (feed header, composer, reply bar). */
+export function MyAvatar({
+  size,
+  placement,
+}: {
+  size: number;
+  placement: AvatarPlacement;
+}): ReactElement {
+  const myUid = useMyUid();
+  const me = useProfile(myUid).data;
+  const myAuthorName = useMyAuthorName();
+  return (
+    <Avatar
+      userId={myUid}
+      name={myAuthorName()}
+      url={me?.avatarUrl ?? null}
+      size={size}
+      placement={placement}
+      official={me?.official ?? false}
+      handle={me?.handle ?? null}
+    />
+  );
 }
 
 function DefaultAvatar({ name, url, size }: AvatarRenderProps): ReactElement {
