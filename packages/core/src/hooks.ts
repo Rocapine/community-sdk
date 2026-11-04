@@ -89,7 +89,7 @@ export function isOptimistic(item: { id: string }): boolean {
 
 /** Our own author fields for an optimistic row, read from the query cache
  * (`useMyUid` + `useProfile`), so the placeholder links to our profile and
- * shows our avatar instead of an empty author until the next refetch. */
+ * shows our avatar and admin seal instead of an empty author until the next refetch. */
 export function ownAuthorFields(queryClient: QueryClient) {
   const uid = queryClient.getQueryData<string>(MY_UID_KEY) ?? "";
   const profile = uid ? queryClient.getQueryData<CommunityProfile>(profileKey(uid)) : undefined;
@@ -97,6 +97,7 @@ export function ownAuthorFields(queryClient: QueryClient) {
     authorId: uid,
     authorHandle: profile?.handle ?? null,
     authorAvatarUrl: profile?.avatarUrl ?? null,
+    authorAdmin: profile?.admin ?? false,
   };
 }
 
@@ -446,7 +447,6 @@ export function createPostMutationOptions(
       const optimistic: FeedPost = {
         id: tempId,
         authorName,
-        authorAdmin: false,
         ...ownAuthorFields(queryClient),
         topic,
         text,
@@ -575,7 +575,6 @@ export function createCommentMutationOptions(
         id: tempId,
         postId,
         authorName,
-        authorAdmin: false,
         ...ownAuthorFields(queryClient),
         text,
         isOwn: true,

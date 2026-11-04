@@ -30,7 +30,7 @@ describe("optimistic rows", () => {
       id: "u1",
       name: "Ann",
       handle: "ann-1",
-      admin: false,
+      admin: true,
       bio: null,
       avatarUrl: "https://x/a.jpg",
     });
@@ -38,6 +38,7 @@ describe("optimistic rows", () => {
       authorId: "u1",
       authorHandle: "ann-1",
       authorAvatarUrl: "https://x/a.jpg",
+      authorAdmin: true,
     });
   });
 
@@ -46,6 +47,7 @@ describe("optimistic rows", () => {
       authorId: "",
       authorHandle: null,
       authorAvatarUrl: null,
+      authorAdmin: false,
     });
   });
 
