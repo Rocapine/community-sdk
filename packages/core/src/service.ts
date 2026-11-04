@@ -23,6 +23,7 @@ import {
   type CommentRow,
   type CommunityProfile,
   type FeedPost,
+  type PostAttachment,
   type LocalImage,
   type PollData,
   type PostRow,
@@ -96,12 +97,14 @@ export function buildFeedSelect(
   translations = false,
   images = false,
   badges = false,
+  attachments = false,
 ): string {
   const parts = [FEED_SELECT];
   if (polls) parts.push(translations ? POLL_OPTIONS_TRANSLATED_SELECT : POLL_OPTIONS_SELECT);
   if (translations) parts.push(POST_TRANSLATIONS_SELECT);
   if (images) parts.push(IMAGE_COLUMNS);
   if (badges) parts.push(AUTHOR_BADGES_SELECT);
+  if (attachments) parts.push("attachment");
   const base = parts.join(", ");
   if (!extraPostColumns || extraPostColumns.length === 0) return base;
   const valid = extraPostColumns.filter((column) => {
@@ -125,6 +128,7 @@ function postsSelect(cfg: ResolvedCommunityConfig): string {
     readerLocale(cfg) !== null,
     !!cfg.modules.images,
     !!cfg.modules.badges,
+    !!cfg.modules.attachments,
   );
 }
 
@@ -481,6 +485,8 @@ export type CreatePostInput = {
   body: string;
   pollOptions?: string[];
   image?: UploadedImage;
+  /** Attachments module: one of the app's `types`. Not with a poll or an image. */
+  attachment?: PostAttachment;
 };
 
 const imageColumns = (image?: UploadedImage) =>
@@ -496,8 +502,15 @@ export async function createPost(
   cfg: ResolvedCommunityConfig,
   input: CreatePostInput,
 ): Promise<string> {
-  const { topic, body, pollOptions, image } = input;
+  const { topic, body, pollOptions, image, attachment } = input;
   const hasPoll = !!pollOptions && pollOptions.length > 0;
+  if (attachment) {
+    if (!cfg.modules.attachments) throw new Error("attachments module is not enabled");
+    if (!cfg.modules.attachments.types.includes(attachment.type))
+      throw new Error("attachment type not enabled");
+    if (hasPoll || image)
+      throw new Error("a post cannot have both an attachment and a poll or an image");
+  }
   if (hasPoll && !cfg.modules.polls) throw new Error("polls module is not enabled");
   if (image && !cfg.modules.images) throw new Error("images module is not enabled");
   if (image && hasPoll) throw new Error("a post cannot have both a poll and an image");
@@ -514,7 +527,13 @@ export async function createPost(
   }
   const { data, error } = await client
     .from("posts")
-    .insert({ author_id: uid, topic, content: body, ...imageColumns(image) })
+    .insert({
+      author_id: uid,
+      topic,
+      content: body,
+      ...imageColumns(image),
+      ...(attachment ? { attachment } : {}),
+    })
     .select("id")
     .single();
   if (error) throw error;

@@ -23,6 +23,11 @@ export type CommunityModules = {
    * values come from `host.getBadges`, visibility from the member). A streak app
    * passes `STREAK_BADGES`. Absent or false ⇒ nothing changes. */
   badges?: Record<string, { placements: BadgePlacement[] }> | false;
+  /** Attachments module: a post may carry one reference to the app's content
+   * (`{ type, id }`), drawn and opened by the app. `types`: the app's attachable
+   * types. `membersCanAttach`: false ⇒ only official accounts attach (enforced in
+   * the UI). Absent or false ⇒ nothing changes. */
+  attachments?: { types: string[]; membersCanAttach: boolean } | false;
 };
 
 /** The streak as a streak app counts it. `startedAt`: when the current streak
@@ -186,4 +191,11 @@ export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig 
   };
 
   return Object.freeze(resolved);
+}
+
+/** Whether this author may attach app content to a post: official accounts always,
+ * members when the app allows it. */
+export function canAttach(cfg: ResolvedCommunityConfig, official: boolean): boolean {
+  if (!cfg.modules.attachments) return false;
+  return official || cfg.modules.attachments.membersCanAttach;
 }
