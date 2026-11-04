@@ -13,6 +13,7 @@ export {
   DEFAULT_NAME,
   DEFAULT_POST_MAX_LENGTH,
   resolveConfig,
+  canAttach,
   STREAK_BADGES,
 } from "./config";
 export { readerLocale, languageOf } from "./locale";
@@ -30,6 +31,7 @@ export type {
   FeedPost,
   MemberBadgeData,
   MemberBadges,
+  PostAttachment,
   BadgePlacement,
   ThreadComment,
   PostImage,

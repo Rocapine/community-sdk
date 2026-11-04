@@ -31,6 +31,8 @@ export {
   CommunityUIProvider,
   type CommunityBackground,
   useCommunityBackground,
+  type AttachmentPlacement,
+  type RenderAttachment,
   useCommunityTheme,
   useT,
   useThemedStyles,

@@ -200,6 +200,7 @@ export const uk: Record<string, string> = {
   "a11y.myProfile": "Мій профіль",
   "composer.addImage": "Додати зображення",
   "composer.removeImage": "Видалити зображення",
+  "composer.removeAttachment": "Видалити вкладення",
   "image.photo": "📷 Фото",
   "a11y.openImage": "Відкрити зображення",
   "a11y.closeImage": "Закрити",

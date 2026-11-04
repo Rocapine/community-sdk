@@ -199,6 +199,7 @@ export const ro: Record<string, string> = {
   "a11y.myProfile": "Profilul meu",
   "composer.addImage": "Adaugă o imagine",
   "composer.removeImage": "Elimină imaginea",
+  "composer.removeAttachment": "Elimină atașamentul",
   "image.photo": "📷 Fotografie",
   "a11y.openImage": "Deschide imaginea",
   "a11y.closeImage": "Închide",

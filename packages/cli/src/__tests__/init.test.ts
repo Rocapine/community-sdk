@@ -104,6 +104,11 @@ describe("runInit", () => {
     expect(result.manifest.modules).toEqual(["core", "push"]);
   });
 
+  it("installs attachments after images", async () => {
+    const result = await runInit(baseOptions({ modules: ["attachments", "images"] }));
+    expect(result.manifest.modules).toEqual(["core", "images", "attachments"]);
+  });
+
   it("installs badges with streaks, badges first", async () => {
     const result = await runInit(baseOptions({ modules: ["streaks"] }));
     expect(result.manifest.modules).toEqual(["core", "badges", "streaks"]);

@@ -263,8 +263,9 @@ modules.attachments?: {
 ```
 
 - Storage (`attachments/001`): `posts.attachment jsonb`, insert-granted to `authenticated`,
-  checked `jsonb_typeof = object`, `type` and `id` strings, `octet_length <= 512`. The
-  content check is relaxed so a post with an attachment may have empty text.
+  checked: an object with string `type` and `id`, `octet_length <= 512`. The post still
+  needs text (pushes and inbox rows read an empty post as a photo); the host pre-fills it
+  through `composeRequest.text`.
 - `createPost({ ..., attachment })`, `FeedPost.attachment: PostAttachment | null`. A post
   carries an attachment, a poll or an image, never two of them.
 - `CommunityUIProvider` gets `renderAttachment(attachment, { placement: "post" | "thread" | "composer", open })`
