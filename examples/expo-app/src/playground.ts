@@ -4,6 +4,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { CommunityConfig } from "@rocapine/community-core";
+import type { FeedHeaderConfig, FeedHeaderItem } from "@rocapine/community-ui";
 
 export type PlaygroundSettings = {
   locale: string;
@@ -18,6 +19,24 @@ export type PlaygroundSettings = {
   colors: { accent: string; background: string };
   /** `title` role font (null = the theme's serif default) and `body` role size. */
   typography: { titleFont: string | null; bodySize: number };
+  /** Item ids per zone; `logo` is the demo logo. */
+  header: Record<HeaderZone, HeaderItemId[]>;
+  /** Official accounts: a ring on their avatar (drawn by the app's `renderAvatar`)
+   * and their name's colour (`officialName`, empty = default). */
+  official: { ring: boolean; nameColor: string };
+};
+
+export const HEADER_ZONES = ["left", "center", "right"] as const;
+export type HeaderZone = (typeof HEADER_ZONES)[number];
+export const HEADER_ITEMS = ["title", "logo", "profile", "search", "inbox"] as const;
+export type HeaderItemId = (typeof HEADER_ITEMS)[number];
+
+/** The showcase's header layouts. */
+export const HEADER_PRESETS: Record<string, PlaygroundSettings["header"]> = {
+  Default: { left: ["profile"], center: ["title"], right: ["search", "inbox"] },
+  Eve: { left: ["logo"], center: ["title"], right: ["search"] },
+  Harmony: { left: ["profile"], center: ["logo", "title"], right: ["inbox"] },
+  "Left title": { left: ["title"], center: [], right: ["search", "inbox", "profile"] },
 };
 
 export const DEFAULT_SETTINGS: PlaygroundSettings = {
@@ -32,6 +51,8 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
   },
   colors: { accent: "#6C4DF6", background: "#F7F7F8" },
   typography: { titleFont: null, bodySize: 15 },
+  header: HEADER_PRESETS.Default,
+  official: { ring: true, nameColor: "" },
 };
 
 /** Fonts every iOS device has, to try the `title` role without bundling one. */
@@ -86,5 +107,17 @@ export function buildConfig(settings: PlaygroundSettings): CommunityConfig {
       getLocale: () => settings.locale,
       onEvent: (name, props) => console.log("[event]", name, props),
     },
+  };
+}
+
+const DEMO_LOGO = require("../assets/images/icon.png");
+
+export function headerConfig(header: PlaygroundSettings["header"]): FeedHeaderConfig {
+  const item = (id: HeaderItemId): FeedHeaderItem =>
+    id === "logo" ? { logo: DEMO_LOGO, height: 28, accessibilityLabel: "Demo" } : id;
+  return {
+    left: header.left.map(item),
+    center: header.center.map(item),
+    right: header.right.map(item),
   };
 }

@@ -160,6 +160,13 @@ export const EMPTY_REACTION_DATA: ReactionData = {
   lastReactorName: new Map(),
 };
 
+/** One member badge's data: app-defined JSON (e.g. `{ since: "2026-10-01T…" }` for a
+ * streak, `{ month: 5 }` for a pregnancy). The app computes it; the member only
+ * chooses whether it shows. */
+export type MemberBadgeData = Record<string, unknown>;
+/** A member's visible badges, keyed by the app's badge ids. */
+export type MemberBadges = Record<string, MemberBadgeData>;
+
 export interface FeedPost {
   id: string;
   authorId: string;

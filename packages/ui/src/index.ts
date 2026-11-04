@@ -42,7 +42,7 @@ export { CommunitySheet } from "./Sheet";
 
 export type { PostSlots, PostSlotContext, ProfileSource } from "./components/CommunityPost";
 export { CommunityPost } from "./components/CommunityPost";
-export { Avatar, type AvatarRenderProps } from "./components/Avatar";
+export { Avatar, type AvatarPlacement, type AvatarRenderProps } from "./components/Avatar";
 export type { StreakPillRenderProps } from "./components/StreakPill";
 export { ImageViewerHost } from "./components/ImageViewer";
 export { PollBlock } from "./components/PollBlock";
@@ -53,13 +53,13 @@ export { RulesSheet } from "./components/RulesSheet";
 export type { ReportTarget } from "./components/ReportSheet";
 export { ReportSheet } from "./components/ReportSheet";
 
+export { CommunityFeedScreen } from "./screens/CommunityFeedScreen";
 export {
-  CommunityFeedScreen,
-  DEFAULT_FEED_HEADER_LAYOUT,
-  type FeedHeaderButton,
-  type FeedHeaderLayout,
-  type FeedHeaderTitle,
-} from "./screens/CommunityFeedScreen";
+  DEFAULT_FEED_HEADER,
+  type FeedHeaderBackground,
+  type FeedHeaderConfig,
+  type FeedHeaderItem,
+} from "./utils/headerZones";
 export { ThreadSheet } from "./screens/ThreadSheet";
 export type { CommentGate } from "./utils/gate";
 export type { PresentModal } from "./utils/modalHandoff";

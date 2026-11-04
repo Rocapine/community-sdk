@@ -15,9 +15,8 @@
 //    `markCommunitySeen` is store-based, a host concern. The focus gate on
 //    new-post polling comes back as the `isFocused` prop (the host owns the
 //    router), alongside the `AppState` foreground/background gate.
-//  - `router.push(...)`/`router.back()` → `onOpenProfile(userId)` /
-//    the `header` prop (the app renders its own top bar, including any back
-//    button).
+//  - `router.push(...)`/`router.back()` → `onOpenProfile(userId)`; a back
+//    button, if any, is the host's (above or around this screen).
 //
 // Differences from both sources, beyond the standard reconciliation:
 //  - Composing: the `+` button runs the gates first (rules, then the host's
@@ -44,8 +43,9 @@
 //    button next to the search toggle, shown only when both the prop is
 //    given and `cfg.modules.inbox` is on — a host wires it to Task 13's
 //    `NotificationInboxScreen`.
-//  - The header row (title + profile / search / inbox buttons) is laid out
-//    by the `headerLayout` prop, so each app picks its own arrangement.
+//  - The header row is configured by the `header` prop: three zones (left,
+//    center, right) of title / logo / profile / search / inbox items, and an
+//    optional background (see `utils/headerZones.ts`).
 
 import {
   COMMUNITY_EVENTS,
@@ -57,7 +57,6 @@ import {
   useDeleteContent,
   useMyUid,
   useNewPostsCount,
-  useProfile,
   useSearchPosts,
   type FeedPost,
   useUnreadNotificationCount,
@@ -84,7 +83,6 @@ import {
   Text,
   TextInput,
   View,
-  type ImageSourcePropType,
 } from "react-native";
 import { Image } from "expo-image";
 import Animated, {
@@ -106,49 +104,25 @@ import { openComposerGuarded, type CommentGate } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
-import { Avatar } from "../components/Avatar";
+import { MyAvatar } from "../components/Avatar";
 import { TABS_ROW_HEIGHT, TopicTabs } from "../components/TopicTabs";
 import { PressableScale } from "../components/PressableScale";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
-import { useMyAuthorName } from "../utils/myName";
 import { ThreadSheet } from "./ThreadSheet";
 import { noFocusRing } from "../utils/noFocusRing";
-
-/** A button the feed's header row can show. `profile` (the user's avatar)
- * opens their own profile through `onOpenProfile`; `inbox` shows only when
- * the inbox module is on and `onOpenInbox` is given. */
-export type FeedHeaderButton = "profile" | "search" | "inbox";
-
-/** What the header row shows between its buttons: the "Community" title
- * (`title` i18n key) on the left or centred, an image in its place (e.g. the
- * app's logo — the host passes the source matching its theme), or nothing. */
-export type FeedHeaderTitle =
-  | "left"
-  | "center"
-  | false
-  | { image: ImageSourcePropType; position?: "left" | "center"; accessibilityLabel?: string };
-
-/** The feed's header row. Replaces the default as a whole: a side or title
- * left out is empty. */
-export type FeedHeaderLayout = {
-  left?: FeedHeaderButton[];
-  right?: FeedHeaderButton[];
-  title?: FeedHeaderTitle;
-};
-
-export const DEFAULT_FEED_HEADER_LAYOUT: FeedHeaderLayout = {
-  left: ["profile"],
-  title: "center",
-  right: ["search", "inbox"],
-};
+import {
+  DEFAULT_FEED_HEADER,
+  resolveHeaderZones,
+  type FeedHeaderConfig,
+  type FeedHeaderItem,
+} from "../utils/headerZones";
 
 export function CommunityFeedScreen({
   onOpenProfile,
   onOpenInbox,
   isFocused = true,
-  header,
-  headerLayout = DEFAULT_FEED_HEADER_LAYOUT,
+  header = DEFAULT_FEED_HEADER,
   slots,
   beforeCompose,
   beforeSubmitComment,
@@ -162,10 +136,9 @@ export function CommunityFeedScreen({
    * it mounted while hidden (tabs) passes its focus state, so new-post
    * polling stops while the user is on another tab. Defaults to `true`. */
   isFocused?: boolean;
-  header?: ReactNode;
-  /** Buttons and title of the header row. Defaults to
-   * `DEFAULT_FEED_HEADER_LAYOUT`. */
-  headerLayout?: FeedHeaderLayout;
+  /** The header row: three zones of items, and an optional background.
+   * Defaults to `DEFAULT_FEED_HEADER` (profile · title · search, inbox). */
+  header?: FeedHeaderConfig;
   slots?: PostSlots;
   /** Awaited when the `+` button is tapped, after the community rules are
    * accepted and before the composer opens (e.g. ask a signed-out user to
@@ -333,8 +306,6 @@ export function CommunityFeedScreen({
   }));
   const pillStyle = useAnimatedStyle(() => ({ top: topH.value - hidden.value + 8 }));
   const myUid = useMyUid();
-  const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
-  const myAuthorName = useMyAuthorName();
 
   // `+`: the rules, then the host gate, then the composer (see
   // `openComposerGuarded`). The rules sheet resolves once it has fully
@@ -488,49 +459,48 @@ export function CommunityFeedScreen({
     [openThread, openThreadToComment, onOpenProfile, openPostMenu, selectTopic, slots],
   );
 
-  const showButton = (b: FeedHeaderButton) => b !== "inbox" || (cfg.modules.inbox && !!onOpenInbox);
-  const leftButtons = (headerLayout.left ?? []).filter(showButton);
-  const rightButtons = (headerLayout.right ?? []).filter(showButton);
-  const hasHeaderRow = leftButtons.length > 0 || rightButtons.length > 0 || !!headerLayout.title;
-  const titleSpec = headerLayout.title;
-  const titlePosition =
-    typeof titleSpec === "object" && titleSpec ? (titleSpec.position ?? "center") : titleSpec;
-  const title =
-    typeof titleSpec === "object" && titleSpec ? (
-      <Image
-        source={titleSpec.image}
-        style={styles.headerImage}
-        contentFit="contain"
-        accessible
-        accessibilityRole="header"
-        accessibilityLabel={titleSpec.accessibilityLabel}
-      />
-    ) : (
-      <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">
-        {t("title")}
-      </Text>
-    );
-  const renderHeaderButton = (button: FeedHeaderButton) => {
-    switch (button) {
+  const zones = resolveHeaderZones(header, { inbox: !!cfg.modules.inbox && !!onOpenInbox });
+  const renderHeaderItem = (item: FeedHeaderItem, index: number) => {
+    if (typeof item === "object") {
+      const height = item.height ?? LOGO_HEIGHT;
+      return (
+        <Image
+          key={index}
+          source={item.logo}
+          style={{ height, width: item.width ?? height }}
+          contentFit="contain"
+          accessible={!!item.accessibilityLabel}
+          accessibilityRole="image"
+          accessibilityLabel={item.accessibilityLabel}
+        />
+      );
+    }
+    switch (item) {
+      case "title":
+        return (
+          <Text key={index} style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">
+            {t("title")}
+          </Text>
+        );
       case "profile":
         return (
           <PressableScale
-            key={button}
+            key={index}
             onPress={() => myUid && onOpenProfile(myUid)}
             disabled={!myUid}
             style={styles.iconButton}
             accessibilityRole="button"
             accessibilityLabel={t("a11y.myProfile")}
           >
-            <Avatar userId={myUid} name={myAuthorName()} url={myAvatarUrl} size={32} />
+            <MyAvatar size={32} placement="header" />
           </PressableScale>
         );
       case "inbox":
-        return <InboxBell key={button} onPress={onOpenInbox!} />;
+        return <InboxBell key={index} onPress={onOpenInbox!} />;
       case "search":
         return (
           <PressableScale
-            key={button}
+            key={index}
             onPress={toggleSearch}
             style={styles.iconButton}
             accessibilityRole="button"
@@ -575,18 +545,15 @@ export function CommunityFeedScreen({
               listRef.current?.scrollToOffset({ offset: -h, animated: false });
           }}
         >
-          {header}
-
           <View style={styles.controls}>
-            {hasHeaderRow && (
+            {zones.visible && (
               <View style={styles.headerRow}>
-                <View style={styles.headerSide}>
-                  {leftButtons.map(renderHeaderButton)}
-                  {titlePosition === "left" && title}
-                </View>
-                {titlePosition === "center" && title}
+                <View style={styles.headerSide}>{zones.left.map(renderHeaderItem)}</View>
+                {zones.center.length > 0 && (
+                  <View style={styles.headerCenter}>{zones.center.map(renderHeaderItem)}</View>
+                )}
                 <View style={[styles.headerSide, styles.headerSideRight]}>
-                  {rightButtons.map(renderHeaderButton)}
+                  {zones.right.map(renderHeaderItem)}
                 </View>
               </View>
             )}
@@ -785,6 +752,8 @@ const ICON_TARGET = 44;
 /** The search bar that takes the topic tabs' slot. */
 const CONTROL_HEIGHT = 40;
 const FAB_SIZE = 56;
+/** A header logo's default height (and width, for a square mark). */
+const LOGO_HEIGHT = 32;
 
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
@@ -805,8 +774,14 @@ function makeStyles(theme: CommunityTheme) {
       minHeight: ICON_TARGET,
       marginHorizontal: -(ICON_TARGET - 22) / 2,
     },
-    // Both sides flex equally, so a centered title stays centered.
+    // Both sides flex equally, so the center zone stays centered.
     headerSide: { flex: 1, flexDirection: "row", alignItems: "center", gap: theme.spacing(1) },
+    headerCenter: {
+      flexShrink: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(2),
+    },
     headerSideRight: { justifyContent: "flex-end" },
     headerTitle: {
       flexShrink: 1,
@@ -814,8 +789,6 @@ function makeStyles(theme: CommunityTheme) {
       ...theme.typography.title,
       color: theme.colors.textPrimary,
     },
-    // Fits a square mark or a wordmark alike (`contentFit="contain"`).
-    headerImage: { height: 32, width: 160 },
     iconButton: {
       width: ICON_TARGET,
       height: ICON_TARGET,

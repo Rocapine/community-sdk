@@ -270,10 +270,20 @@ export function ProfileScreen({
                     name={profile.data.name}
                     url={profile.data.avatarUrl}
                     size={72}
+                    placement="profile"
+                    official={profile.data.official}
+                    handle={profile.data.handle}
                   />
                 </View>
                 <View style={styles.nameRow}>
-                  <Text style={styles.name}>{profile.data.name}</Text>
+                  <Text
+                    style={[
+                      styles.name,
+                      profile.data.official && { color: theme.colors.officialName },
+                    ]}
+                  >
+                    {profile.data.name}
+                  </Text>
                   {profile.data.official && (
                     <icons.officialSeal size={17} color={theme.colors.official} weight="fill" />
                   )}

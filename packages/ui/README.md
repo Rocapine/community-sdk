@@ -269,13 +269,13 @@ you can wrap, replace, or ignore it:
 
 ## Screens
 
-| Screen                    | Key props                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: ReactNode`, `headerLayout?: FeedHeaderLayout` (see Feed header), `slots?: PostSlots`, `beforeCompose?`, `beforeSubmitComment?` (see Gating submissions), `topicRequest?` (see Topics), `postRequest?` (see Pushes), `bottomChrome?` (see Feed, composer and topics) |
-| `ThreadSheet`             | `postId: string \| null`, `focusComment?: boolean` (open with the reply field focused), `onClose()`, `onOpenProfile(userId, source?)`, `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does                                                                  |
-| `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId, focusComment?)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`                                                                                    |
-| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                                                                                                                                                                |
-| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                                                                                                                          |
+| Screen                    | Key props                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CommunityFeedScreen`     | `onOpenProfile(userId, source?)`, `onOpenInbox?()`, `isFocused?: boolean` (pass your navigator's focus so new-post polling stops on other tabs), `header?: FeedHeaderConfig` (see Feed header), `slots?: PostSlots`, `beforeCompose?`, `beforeSubmitComment?` (see Gating submissions), `topicRequest?` (see Topics), `postRequest?` (see Pushes), `bottomChrome?` (see Feed, composer and topics) |
+| `ThreadSheet`             | `postId: string \| null`, `focusComment?: boolean` (open with the reply field focused), `onClose()`, `onOpenProfile(userId, source?)`, `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does                                      |
+| `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId, focusComment?)`, `onBack?()`, `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`                                                        |
+| `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                                                                                                                                    |
+| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                                                                                              |
 
 Plus standalone components you can use directly: `PressableScale` (the
 package's press feedback for buttons with a visible surface — a 0.98 scale-down,
@@ -291,23 +291,33 @@ See `examples/expo-app/App.tsx` for a complete, working wiring of
 
 ## Feed header
 
-`CommunityFeedScreen`'s header row is set by `headerLayout`: which buttons sit
-left and right, and whether the "Community" title (`title` key) shows on the
-left or in the center, or an image in its place (`title: { image, position?,
-accessibilityLabel? }`, e.g. your logo; pass the source that matches your
-theme). Buttons: `profile` (the user's avatar, opens their own
-profile through `onOpenProfile(myUid)`), `search`, `inbox` (shown only with
-`modules.inbox` on and `onOpenInbox` given). The default,
-`DEFAULT_FEED_HEADER_LAYOUT`, is profile left, title centered, search and
-inbox right. A layout replaces the default as a whole: a side or title left
-out is empty.
+`CommunityFeedScreen`'s header row is set by `header`: three zones, `left`,
+`center` and `right`, each a row of items. The center zone stays centered whatever
+the sides hold; a zone left out is empty.
+
+| Item                                             | Shows                                                                                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `"title"`                                        | the community's name (the `title` translation key, `typography.title`)                                                          |
+| `{ logo, height?, width?, accessibilityLabel? }` | an image, e.g. your logo (pass the source matching your theme); 32 high, square unless `width` is set                           |
+| `"profile"`                                      | the user's avatar, opening their own profile through `onOpenProfile(myUid)`; drawn by `renderAvatar` with `placement: "header"` |
+| `"search"`                                       | the search toggle                                                                                                               |
+| `"inbox"`                                        | the notification bell, only with `modules.inbox` on and `onOpenInbox` given                                                     |
+
+The default, `DEFAULT_FEED_HEADER`, is `{ left: ["profile"], center: ["title"], right: ["search", "inbox"] }`.
 
 ```tsx
 <CommunityFeedScreen
-  headerLayout={{ left: ["inbox"], right: ["search", "profile"], title: false }}
+  header={{
+    left: [{ logo: require("./lotus.png"), accessibilityLabel: "Eve" }],
+    center: ["title"],
+    right: ["search"],
+  }}
   …
 />
 ```
+
+A left-aligned title is `left: ["title"]` with no `center`; a logo next to the name is
+`center: [{ logo }, "title"]`.
 
 ## Feed, composer and topics
 

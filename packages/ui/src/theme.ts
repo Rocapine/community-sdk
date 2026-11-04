@@ -87,6 +87,9 @@ export type CommunityTheme = {
      * to `accent`. */
     reaction: string;
     official: string;
+    /** An official account's name on posts, comments and its profile. Defaults to
+     * `textPrimary`. */
+    officialName: string;
     pinned: string;
     /** Streak pills by tier (streaks module): under 30 days, 30 to 90, beyond
      * 90. The pill's text and icon take the color, its fill a tint of it. */
@@ -206,6 +209,7 @@ export const defaultTheme: CommunityTheme = {
     like: accent,
     reaction: accent,
     official: accent,
+    officialName: "#16161A",
     pinned: accent,
     streakBronze: "#B0703A",
     streakSilver: "#7D8794",
@@ -229,7 +233,14 @@ export function mergeTheme(partial: DeepPartial<CommunityTheme> = {}): Community
   const fonts = { ...defaultTheme.fonts, ...partial.fonts };
   const fontWeights = { ...defaultTheme.fontWeights, ...partial.fontWeights };
   return {
-    colors: { ...defaultTheme.colors, ...partial.colors },
+    colors: {
+      ...defaultTheme.colors,
+      ...partial.colors,
+      officialName:
+        partial.colors?.officialName ??
+        partial.colors?.textPrimary ??
+        defaultTheme.colors.officialName,
+    },
     fonts,
     fontWeights,
     typography: deriveTypography(fonts, fontWeights, partial.typography),
