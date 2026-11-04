@@ -33,6 +33,27 @@ export interface ShadowToken {
 
 type FontWeight = "400" | "500" | "600" | "700" | "800" | "normal" | "bold";
 
+/** One complete text style. Components spread it, then add colour and layout. */
+export type TextRole = {
+  fontFamily: string | undefined;
+  fontWeight: FontWeight;
+  fontSize: number;
+  lineHeight?: number;
+  letterSpacing?: number;
+};
+
+/** The named text styles every component draws with:
+ *  - `display` (24): a profile's name
+ *  - `title` (20): the feed header's title, a notice card's title
+ *  - `heading` (22): sheet titles (rules, report, profile edit)
+ *  - `body` (15): post text, the composer field
+ *  - `bodySmall` (14): comments, a profile's bio
+ *  - `label` (15): buttons, tabs, author names
+ *  - `meta` (13): handle · time, counts, inbox excerpts
+ *  - `caption` (12): helpers, pills, small print */
+export type TextRoleName =
+  "display" | "title" | "heading" | "body" | "bodySmall" | "label" | "meta" | "caption";
+
 export type CommunityTheme = {
   colors: {
     background: string;
@@ -98,6 +119,9 @@ export type CommunityTheme = {
     medium: FontWeight;
     bold: FontWeight;
   };
+  /** Derived from `fonts` and `fontWeights` unless overridden, role by role and field
+   * by field (`typography: { title: { fontFamily: "Orbitron" } }`). */
+  typography: Record<TextRoleName, TextRole>;
   /** The only four corner radii the package uses. Nested surfaces follow the
    * concentric rule: inner radius = outer radius − the padding between them
    * (a `lg` card with `spacing(4)` padding holds `sm` children). */
@@ -107,9 +131,55 @@ export type CommunityTheme = {
   shadow: ShadowToken;
 };
 
+/** Each role's size, family slot and weight slot. */
+const ROLES: Record<
+  TextRoleName,
+  [number, keyof CommunityTheme["fonts"], keyof CommunityTheme["fontWeights"]]
+> = {
+  display: [24, "serifBold", "bold"],
+  title: [20, "serifBold", "bold"],
+  heading: [22, "serifBold", "bold"],
+  body: [15, "regular", "regular"],
+  bodySmall: [14, "regular", "regular"],
+  label: [15, "medium", "medium"],
+  meta: [13, "regular", "regular"],
+  caption: [12, "regular", "regular"],
+};
+
+function deriveTypography(
+  fonts: CommunityTheme["fonts"],
+  fontWeights: CommunityTheme["fontWeights"],
+  partial: DeepPartial<CommunityTheme["typography"]> = {},
+): CommunityTheme["typography"] {
+  const out = {} as CommunityTheme["typography"];
+  for (const name of Object.keys(ROLES) as TextRoleName[]) {
+    const [fontSize, family, weight] = ROLES[name];
+    out[name] = {
+      fontFamily: fonts[family],
+      fontWeight: fontWeights[weight],
+      fontSize,
+      ...(partial[name] as Partial<TextRole> | undefined),
+    };
+  }
+  return out;
+}
+
 // Neutral placeholder palette — no Eve (or any host app) branding. Hosts
 // override via `CommunityUIProvider`'s `theme` prop / `mergeTheme`.
 const accent = "#4C6FFF";
+
+const DEFAULT_FONTS: CommunityTheme["fonts"] = {
+  regular: undefined,
+  medium: undefined,
+  bold: undefined,
+  serifBold: undefined,
+  serifBoldItalic: undefined,
+};
+const DEFAULT_FONT_WEIGHTS: CommunityTheme["fontWeights"] = {
+  regular: "400",
+  medium: "500",
+  bold: "600",
+};
 
 export const defaultTheme: CommunityTheme = {
   colors: {
@@ -139,14 +209,9 @@ export const defaultTheme: CommunityTheme = {
     streakSilver: "#7D8794",
     streakGold: "#C9930A",
   },
-  fonts: {
-    regular: undefined,
-    medium: undefined,
-    bold: undefined,
-    serifBold: undefined,
-    serifBoldItalic: undefined,
-  },
-  fontWeights: { regular: "400", medium: "500", bold: "600" },
+  fonts: DEFAULT_FONTS,
+  fontWeights: DEFAULT_FONT_WEIGHTS,
+  typography: deriveTypography(DEFAULT_FONTS, DEFAULT_FONT_WEIGHTS),
   radius: { sm: 8, md: 16, lg: 24, pill: 9999 },
   spacing: (n: number) => n * 4,
   shadow: {
@@ -159,10 +224,13 @@ export const defaultTheme: CommunityTheme = {
 };
 
 export function mergeTheme(partial: DeepPartial<CommunityTheme> = {}): CommunityTheme {
+  const fonts = { ...defaultTheme.fonts, ...partial.fonts };
+  const fontWeights = { ...defaultTheme.fontWeights, ...partial.fontWeights };
   return {
     colors: { ...defaultTheme.colors, ...partial.colors },
-    fonts: { ...defaultTheme.fonts, ...partial.fonts },
-    fontWeights: { ...defaultTheme.fontWeights, ...partial.fontWeights },
+    fonts,
+    fontWeights,
+    typography: deriveTypography(fonts, fontWeights, partial.typography),
     radius: { ...defaultTheme.radius, ...partial.radius },
     spacing: partial.spacing ?? defaultTheme.spacing,
     shadow: {

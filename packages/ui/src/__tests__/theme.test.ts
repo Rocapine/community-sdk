@@ -31,3 +31,38 @@ describe("mergeTheme", () => {
     expect(merged.spacing(2)).toBe(16);
   });
 });
+
+describe("typography", () => {
+  it("derives every role from fonts and fontWeights", () => {
+    const th = mergeTheme({
+      fonts: { serifBold: "Orbitron", regular: "Inter", medium: "Inter-Medium" },
+      fontWeights: { bold: "700" },
+    });
+    expect(th.typography.title).toMatchObject({
+      fontFamily: "Orbitron",
+      fontWeight: "700",
+      fontSize: 20,
+    });
+    expect(th.typography.body).toMatchObject({ fontFamily: "Inter", fontSize: 15 });
+    expect(th.typography.label).toMatchObject({ fontFamily: "Inter-Medium", fontSize: 15 });
+    expect(th.typography.display.fontSize).toBe(24);
+    expect(th.typography.heading.fontSize).toBe(22);
+    expect(th.typography.bodySmall.fontSize).toBe(14);
+    expect(th.typography.meta.fontSize).toBe(13);
+    expect(th.typography.caption.fontSize).toBe(12);
+  });
+
+  it("overrides one field of one role and keeps the rest", () => {
+    const th = mergeTheme({
+      fonts: { serifBold: "Orbitron" },
+      typography: { title: { fontFamily: "System" } },
+    });
+    expect(th.typography.title).toMatchObject({ fontFamily: "System", fontSize: 20 });
+    expect(th.typography.heading).toMatchObject({ fontFamily: "Orbitron", fontSize: 22 });
+  });
+
+  it("keeps the system font when no fonts are set", () => {
+    expect(defaultTheme.typography.body.fontFamily).toBeUndefined();
+    expect(defaultTheme.typography.title.fontWeight).toBe(defaultTheme.fontWeights.bold);
+  });
+});
