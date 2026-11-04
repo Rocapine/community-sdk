@@ -14,6 +14,8 @@ export {
   DEFAULT_POST_MAX_LENGTH,
   resolveConfig,
   canAttach,
+  isEventTopic,
+  topicLive,
   STREAK_BADGES,
 } from "./config";
 export { readerLocale, languageOf } from "./locale";

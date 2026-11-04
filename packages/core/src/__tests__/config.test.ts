@@ -3,7 +3,9 @@ import {
   type CommunityConfig,
   CommunityDisabledError,
   DEFAULT_NAME,
+  isEventTopic,
   resolveConfig,
+  topicLive,
 } from "../config";
 
 const base = {
@@ -90,4 +92,42 @@ it("postMaxLength defaults to 500 and never exceeds the database's 2000", () => 
   expect(resolveConfig({ ...base }).postMaxLength).toBe(500);
   expect(resolveConfig({ ...base, postMaxLength: 800 }).postMaxLength).toBe(800);
   expect(resolveConfig({ ...base, postMaxLength: 5000 }).postMaxLength).toBe(2000);
+});
+
+describe("event topics", () => {
+  const cfg = resolveConfig({
+    ...base,
+    topics: [
+      { id: "general" },
+      { id: "news", adminOnly: true },
+      { id: "nnn", from: "2026-11-01", until: "2026-12-01" },
+    ],
+  });
+  const ids = (topics: { id: string }[]) => topics.map((t) => t.id);
+
+  it("lists a live event topic first, and nowhere outside its window", () => {
+    expect(ids(cfg.feedTopics(new Date(2026, 10, 4)))).toEqual(["nnn", "general", "news"]);
+    expect(ids(cfg.feedTopics(new Date(2026, 9, 31, 23, 59)))).toEqual(["general", "news"]);
+    expect(ids(cfg.feedTopics(new Date(2026, 11, 1)))).toEqual(["general", "news"]);
+  });
+
+  it("offers a live event topic in the composer, first", () => {
+    expect(ids(cfg.composeTopics(false, new Date(2026, 10, 4)))).toEqual(["nnn", "general"]);
+    expect(ids(cfg.composeTopics(true, new Date(2026, 11, 2)))).toEqual(["general", "news"]);
+  });
+
+  it("reads a date as local midnight and a timestamp as given, either bound optional", () => {
+    expect(isEventTopic({ id: "general" })).toBe(false);
+    expect(topicLive({ id: "x", from: "2026-11-01" }, new Date(2026, 10, 1))).toBe(true);
+    expect(
+      topicLive({ id: "x", from: "2026-11-01T10:00:00Z" }, new Date("2026-11-01T09:59:59Z")),
+    ).toBe(false);
+    expect(
+      topicLive(
+        { id: "x", until: new Date("2026-11-01T10:00:00Z") },
+        new Date("2026-11-01T09:59:59Z"),
+      ),
+    ).toBe(true);
+    expect(topicLive({ id: "x", until: "2026-11-01" }, new Date(2026, 10, 1))).toBe(false);
+  });
 });
