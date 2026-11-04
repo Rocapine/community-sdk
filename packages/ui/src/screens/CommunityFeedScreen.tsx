@@ -368,7 +368,8 @@ export function CommunityFeedScreen({
     opening.current = true;
     Keyboard.dismiss();
     openComposerGuarded({ rulesAccepted, requestRules, beforeCompose })
-      .then((ok) => ok && setComposerOpen(true))
+      // Refused: a pending share goes too, or it would come back on the next `+`.
+      .then((ok) => (ok ? setComposerOpen(true) : setComposeSeed(null)))
       .finally(() => (opening.current = false));
   };
 

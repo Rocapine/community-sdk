@@ -151,16 +151,28 @@ export function ComposerSheet({
     if (!visible) setTopicMenuOpen(false);
   }, [visible, fallbackTopic]);
 
-  // A share from the app: the attachment replaces any photo or poll (one of the
-  // three per post).
+  // A share from the app: a post holds one attachment, photo or poll, so a share
+  // over a draft with a photo or poll asks first. Keeping the draft drops the share.
   useEffect(() => {
     if (!visible) return;
-    if (initialAttachment) {
-      setAttachment(initialAttachment);
-      setImage(null);
-      setPollDraft(null);
+    const draft = latestDraft.current;
+    const takeShare = (replaceText: boolean) => {
+      if (initialAttachment) {
+        setAttachment(initialAttachment);
+        setImage(null);
+        setPollDraft(null);
+      }
+      if (initialText && (replaceText || draft.text.trim() === "")) setText(initialText);
+    };
+    if (initialAttachment && (draft.image !== null || draft.pollDraft !== null)) {
+      Alert.alert(t("composer.discardTitle"), undefined, [
+        { text: t("composer.keepEditing"), style: "cancel" },
+        { text: t("composer.discard"), style: "destructive", onPress: () => takeShare(true) },
+      ]);
+      return;
     }
-    if (initialText && latestDraft.current.text.trim() === "") setText(initialText);
+    takeShare(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, initialAttachment, initialText]);
 
   const filledPollOptions = (pollDraft ?? []).map((o) => o.trim()).filter((o) => o.length > 0);
