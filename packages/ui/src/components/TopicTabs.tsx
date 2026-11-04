@@ -4,9 +4,10 @@
 // so switching tabs animates as one motion. Labels keep one weight, so
 // selecting never changes their width. The selected tab is kept in view
 // however it was chosen: a tap here, a post's topic, or a host request
-// (`topicRequest`). A tab may lead with an icon (an admin-only topic's).
+// (`topicRequest`). A tab may lead with an icon (an admin-only topic's) and sit in
+// a pill tinted with its own color (an event topic's): its label then keeps that color.
 import { useEffect, useRef, type ComponentType } from "react";
-import { Pressable, ScrollView, StyleSheet } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import Animated, {
   interpolateColor,
   useAnimatedStyle,
@@ -27,7 +28,7 @@ export function TopicTabs({
   selected,
   onSelect,
 }: {
-  tabs: { id: string; label: string; icon?: ComponentType<CommunityIconProps> }[];
+  tabs: { id: string; label: string; icon?: ComponentType<CommunityIconProps>; color?: string }[];
   selected: string;
   onSelect(id: string): void;
 }) {
@@ -87,6 +88,7 @@ export function TopicTabs({
           key={tab.id}
           label={tab.label}
           icon={tab.icon}
+          color={tab.color}
           active={tab.id === selected}
           lineX={lineX}
           onPress={() => {
@@ -109,6 +111,7 @@ export function TopicTabs({
 function Tab({
   label,
   icon: Icon,
+  color,
   active,
   lineX,
   onPress,
@@ -116,6 +119,7 @@ function Tab({
 }: {
   label: string;
   icon?: ComponentType<CommunityIconProps>;
+  color?: string;
   active: boolean;
   lineX: SharedValue<number>;
   onPress(): void;
@@ -148,10 +152,21 @@ function Tab({
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
     >
-      {Icon && (
-        <Icon size={14} color={active ? primary : muted} weight={active ? "fill" : "regular"} />
-      )}
-      <Animated.Text style={[styles.label, labelStyle]}>{label}</Animated.Text>
+      <View style={[styles.content, color != null && styles.pill]}>
+        {color != null && (
+          <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: color }]} />
+        )}
+        {Icon && (
+          <Icon
+            size={14}
+            color={color ?? (active ? primary : muted)}
+            weight={active ? "fill" : "regular"}
+          />
+        )}
+        <Animated.Text style={[styles.label, color != null ? { color } : labelStyle]}>
+          {label}
+        </Animated.Text>
+      </View>
     </Pressable>
   );
 }
@@ -161,13 +176,15 @@ const TAB_PADDING = 12;
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     row: { paddingHorizontal: theme.spacing(1.5), height: TABS_ROW_HEIGHT },
-    tab: {
-      height: TABS_ROW_HEIGHT,
-      paddingHorizontal: TAB_PADDING,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 5,
+    tab: { height: TABS_ROW_HEIGHT, paddingHorizontal: TAB_PADDING, justifyContent: "center" },
+    content: { flexDirection: "row", alignItems: "center", gap: 5 },
+    pill: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: theme.radius.pill,
+      overflow: "hidden",
     },
+    tint: { opacity: 0.14 },
     label: {
       ...theme.typography.label,
       color: theme.colors.textMuted,

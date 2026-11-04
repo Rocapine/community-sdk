@@ -14,6 +14,7 @@
 // carries a poll or an image, never both.
 
 import {
+  isEventTopic,
   POLL_MAX_OPTIONS,
   POLL_MIN_OPTIONS,
   POLL_OPTION_MAX_LENGTH,
@@ -112,7 +113,9 @@ export function ComposerSheet({
   // Admins also post in the `adminOnly` topics.
   const admin = useProfile(myUid).data?.admin ?? false;
   const topics = cfg.composeTopics(admin);
-  const fallbackTopic = defaultTopic ?? topics[0]?.id ?? "general";
+  // From "All", the first standing topic: an event topic is offered, never assumed.
+  const fallbackTopic =
+    defaultTopic ?? (topics.find((tp) => !isEventTopic(tp)) ?? topics[0])?.id ?? "general";
   const [topic, setTopic] = useState<string>(fallbackTopic);
   const [topicMenuOpen, setTopicMenuOpen] = useState(false);
   // The topic menu floats over the sheet, anchored under the pill.

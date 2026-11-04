@@ -2,8 +2,43 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { POST_MAX_LENGTH, type BadgePlacement, type FeedPost, type MemberBadges } from "./models";
 
 /** A feed topic. `adminOnly`: everyone reads it, only admin accounts post in it
- * (applied by the UI: members get no `+` on its tab and never see it in the composer). */
-export type CommunityTopicDef = { id: string; adminOnly?: boolean };
+ * (applied by the UI: members get no `+` on its tab and never see it in the composer).
+ * `from` / `until` make it an event topic: listed first, and only from `from` until
+ * `until` (excluded), read on the device's clock. A date alone ("2026-11-01") means
+ * local midnight. Outside its window its posts stay in "All". */
+export type CommunityTopicDef = {
+  id: string;
+  adminOnly?: boolean;
+  from?: string | Date;
+  until?: string | Date;
+};
+
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function instant(value: string | Date): number {
+  if (value instanceof Date) return value.getTime();
+  const day = DATE_ONLY.exec(value);
+  return day ? new Date(+day[1], +day[2] - 1, +day[3]).getTime() : Date.parse(value);
+}
+
+/** Whether a topic has a time window (`from` or `until`). */
+export function isEventTopic(topic: CommunityTopicDef): boolean {
+  return topic.from != null || topic.until != null;
+}
+
+/** Whether a topic is listed at `now`: always, or inside its event window. */
+export function topicLive(topic: CommunityTopicDef, now: Date = new Date()): boolean {
+  const t = now.getTime();
+  if (topic.from != null && t < instant(topic.from)) return false;
+  if (topic.until != null && t >= instant(topic.until)) return false;
+  return true;
+}
+
+/** Live topics, event topics first. */
+function liveTopics(topics: CommunityTopicDef[], now?: Date): CommunityTopicDef[] {
+  const live = topics.filter((topic) => topicLive(topic, now));
+  return [...live.filter(isEventTopic), ...live.filter((topic) => !isEventTopic(topic))];
+}
 
 export type CommunityModules = {
   polls: boolean;
@@ -132,9 +167,12 @@ export type ResolvedCommunityConfig = CommunityConfig & {
   /** `defaultName.label` resolved against `host.getLocale()`: the name shown for a
    * profile that has none yet (one that has not relaunched since defaults existed). */
   authorFallback(): string;
-  /** The topics this author may post in: all of them for an admin, the others
-   * without the `adminOnly` ones. */
-  composeTopics(admin?: boolean): CommunityTopicDef[];
+  /** The feed's tabs at `now` (default: the device's clock): live topics, event
+   * topics first. */
+  feedTopics(now?: Date): CommunityTopicDef[];
+  /** The topics this author may post in at `now`: the live ones, without the
+   * `adminOnly` ones unless `admin`. Event topics first. */
+  composeTopics(admin?: boolean, now?: Date): CommunityTopicDef[];
   isAdminTopic(id: string): boolean;
 };
 
@@ -186,8 +224,11 @@ export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig 
       const label = resolved.defaultName.label;
       return typeof label === "function" ? label(host.getLocale()) : label;
     },
-    composeTopics(admin = false): CommunityTopicDef[] {
-      return resolved.topics.filter((topic) => admin || !topic.adminOnly);
+    feedTopics(now?: Date): CommunityTopicDef[] {
+      return liveTopics(resolved.topics, now);
+    },
+    composeTopics(admin = false, now?: Date): CommunityTopicDef[] {
+      return liveTopics(resolved.topics, now).filter((topic) => admin || !topic.adminOnly);
     },
     isAdminTopic(id: string): boolean {
       return resolved.topics.some((topic) => topic.id === id && topic.adminOnly === true);

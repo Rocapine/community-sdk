@@ -144,6 +144,15 @@ export const BADGE_COPY: Record<string, string> = {
   "badge.zodiac.toggle": "Show my sign",
   "badge.rank.label": "Rank",
   "badge.rank.toggle": "Show my rank",
+  "topics.challenge": "Monthly challenge",
+};
+
+// An event topic live for the current month.
+const today = new Date();
+const EVENT_TOPIC = {
+  id: "challenge",
+  from: new Date(today.getFullYear(), today.getMonth(), 1),
+  until: new Date(today.getFullYear(), today.getMonth() + 1, 1),
 };
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -161,7 +170,7 @@ export function buildConfig(settings: PlaygroundSettings): CommunityConfig {
   return {
     supabase,
     appName: "Community SDK Demo",
-    topics: [{ id: "general" }, { id: "question" }, { id: "news", adminOnly: true }],
+    topics: [{ id: "general" }, { id: "question" }, { id: "news", adminOnly: true }, EVENT_TOPIC],
     modules: {
       polls: m.polls,
       push: false,
