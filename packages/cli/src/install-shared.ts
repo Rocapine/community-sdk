@@ -22,6 +22,8 @@ export const MODULE_ORDER = [
   "inbox",
   "translation",
   "images",
+  "badges",
+  // Deprecated: kept to move existing streaks onto badges (streaks/002). Implies badges.
   "streaks",
 ] as const;
 export type Module = (typeof MODULE_ORDER)[number];
@@ -65,8 +67,9 @@ export function resolveModules(
     }
   }
 
-  // core is always required/implied.
+  // core is always required/implied; streaks/002 moves the streak onto badges.
   requestedSet.add("core");
+  if (requestedSet.has("streaks")) requestedSet.add("badges");
 
   const canonicalModules = MODULE_ORDER.filter((m) => requestedSet.has(m));
 
