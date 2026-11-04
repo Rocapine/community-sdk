@@ -128,7 +128,7 @@ it("mapPostRow extracts counts, like state and ownership", () => {
     lastReactorName: null,
     translation: null,
     image: null,
-    authorStreakStartedAt: null,
+    authorBadges: {},
   });
 });
 
@@ -273,6 +273,7 @@ it("mapCommentRow maps author name and ownership", () => {
     parentId: null,
     likeCount: 0,
     likedByMe: false,
+    authorBadges: {},
   });
 });
 
@@ -453,10 +454,8 @@ it("mapProfileRow maps names, flags and nullables", () => {
     bio: "Walking in faith.",
     avatarUrl: null,
     username: "Hannah",
-    streakStartedAt: null,
-    bestStreakDays: null,
-    showStreak: true,
-    showBestStreak: true,
+    badges: {},
+    hiddenBadges: [],
   });
   expect(
     mapProfileRow(
@@ -478,10 +477,8 @@ it("mapProfileRow maps names, flags and nullables", () => {
     bio: null,
     avatarUrl: "https://cdn.example/a.jpg",
     username: null,
-    streakStartedAt: null,
-    bestStreakDays: null,
-    showStreak: true,
-    showBestStreak: true,
+    badges: {},
+    hiddenBadges: [],
   });
 });
 

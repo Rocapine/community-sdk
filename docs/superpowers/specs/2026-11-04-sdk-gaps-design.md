@@ -175,7 +175,7 @@ host.getBadges?: () => MemberBadges | null;               // replaces host.getSt
 - `FeedPost.authorBadges`, `ThreadComment.authorBadges` and `CommunityProfile.badges` carry
   the visible badges. Posts and comments embed the author's `visible_badges` only when the
   module is on (as the streak embed does today).
-- Render slot `renderMemberBadge({ key, data, placement, size })` on `CommunityUIProvider`,
+- Render slot `renderMemberBadge({ id, data, placement, size })` on `CommunityUIProvider`,
   replacing `renderStreakPill`. Placements: next to the author on posts and comments
   (`size: "small"`), and as a row of stats with a label (`badge.<key>.label`) under each on
   the profile (`size: "large"`).

@@ -87,6 +87,7 @@ import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
 import { Avatar, MyAvatar } from "../components/Avatar";
+import { MemberBadgeRow } from "../components/MemberBadge";
 import { ClampedBody } from "../components/ClampedBody";
 import { NoticeCard } from "../components/NoticeCard";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
@@ -744,6 +745,7 @@ function CommentRow({
           placement="comment"
           official={comment.authorOfficial}
           handle={comment.authorHandle}
+          badges={comment.authorBadges}
         />
       </Pressable>
       <View style={styles.commentBody}>
@@ -764,6 +766,12 @@ function CommentRow({
           )}
           <Text style={styles.cAgo}>· {formatTimeAgo(t, comment.createdAt, now)}</Text>
         </Pressable>
+        <MemberBadgeRow
+          badges={comment.authorBadges}
+          placement="comment"
+          onPress={handleAuthor}
+          style={styles.cBadges}
+        />
         {/* Image-only comments store an empty text. */}
         {comment.text !== "" && (
           <ClampedBody
@@ -914,6 +922,7 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textFaint,
       flexShrink: 1,
     },
+    cBadges: { marginTop: 2 },
     cAgo: {
       ...theme.typography.caption,
       color: theme.colors.textFaint,

@@ -104,6 +104,16 @@ describe("runInit", () => {
     expect(result.manifest.modules).toEqual(["core", "push"]);
   });
 
+  it("installs badges with streaks, badges first", async () => {
+    const result = await runInit(baseOptions({ modules: ["streaks"] }));
+    expect(result.manifest.modules).toEqual(["core", "badges", "streaks"]);
+    const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
+    const badges = files.findIndex((f) => f.includes("_community_badges_"));
+    const toBadges = files.findIndex((f) => f.includes("_community_streaks_to_badges"));
+    expect(badges).toBeGreaterThan(-1);
+    expect(toBadges).toBeGreaterThan(badges);
+  });
+
   it("warns when inbox is selected without reaction, but proceeds", async () => {
     const onWarn = vi.fn();
     const result = await runInit(baseOptions({ modules: ["core", "inbox"], onWarn }));

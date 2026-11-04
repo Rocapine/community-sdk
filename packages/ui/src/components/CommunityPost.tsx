@@ -25,7 +25,6 @@ import {
   COMMUNITY_EVENTS,
   emitEvent,
   isOptimistic,
-  streakDays,
   useCommunityConfig,
   useReactToPost,
   useToggleLike,
@@ -58,7 +57,7 @@ import { Avatar } from "./Avatar";
 import { ImageViewerContext } from "./ImageViewer";
 import { PostImage } from "./PostImage";
 import { PollBlock } from "./PollBlock";
-import { StreakPill } from "./StreakPill";
+import { MemberBadgeRow } from "./MemberBadge";
 import { haptic, PressableScale } from "./PressableScale";
 
 const BODY_CLAMP_LINES = 6;
@@ -284,6 +283,7 @@ export function CommunityPost({
         placement="post"
         official={post.authorOfficial}
         handle={post.authorHandle}
+        badges={post.authorBadges}
       />
     </Pressable>
   );
@@ -329,12 +329,12 @@ export function CommunityPost({
           </View>
         )}
         {metaLine}
-        {post.authorStreakStartedAt && (
-          <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.streakRow}>
-            {/* Today's clock, not `now`: that one ticks hourly on an old post. */}
-            <StreakPill days={streakDays(post.authorStreakStartedAt)} />
-          </Pressable>
-        )}
+        <MemberBadgeRow
+          badges={post.authorBadges}
+          placement="post"
+          onPress={handleOpenProfile}
+          style={styles.badgeRow}
+        />
 
         {body}
 
@@ -396,7 +396,7 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.pinned,
     },
     // One line, always: the name gives way first, the time never does.
-    streakRow: { alignSelf: "flex-start", marginTop: 1, marginBottom: theme.spacing(1) },
+    badgeRow: { marginTop: 1, marginBottom: theme.spacing(1) },
     metaRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1), minHeight: 22 },
     nameBlock: {
       flexDirection: "row",

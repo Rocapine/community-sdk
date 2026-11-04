@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePlayground } from "@/PlaygroundProvider";
 import {
   BACKGROUNDS,
+  BADGE_PRESETS,
+  type BadgePreset,
   type BackgroundId,
   HEADER_ITEMS,
   HEADER_PRESETS,
@@ -14,14 +16,7 @@ import {
 } from "@/playground";
 
 type ModuleName = keyof PlaygroundSettings["modules"];
-const MODULE_NAMES: ModuleName[] = [
-  "polls",
-  "inbox",
-  "reaction",
-  "translation",
-  "images",
-  "streaks",
-];
+const MODULE_NAMES: ModuleName[] = ["polls", "inbox", "reaction", "translation", "images"];
 
 export default function ConfigTab() {
   const insets = useSafeAreaInsets();
@@ -40,6 +35,14 @@ export default function ConfigTab() {
             />
           </Row>
         ))}
+      </Section>
+
+      <Section title="Badges">
+        <Chips
+          options={Object.keys(BADGE_PRESETS) as BadgePreset[]}
+          value={settings.badges}
+          onChange={(badges) => update({ badges })}
+        />
       </Section>
 
       <Section title="Locale">
