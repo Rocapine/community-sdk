@@ -17,7 +17,7 @@ import {
 } from "@/playground";
 
 type ModuleName = keyof PlaygroundSettings["modules"];
-const MODULE_NAMES: ModuleName[] = ["polls", "inbox", "reaction", "translation", "images"];
+const MODULE_NAMES: ModuleName[] = ["polls", "inbox", "reaction", "translation", "images", "push"];
 
 export default function ConfigTab() {
   const insets = useSafeAreaInsets();
@@ -185,6 +185,12 @@ export default function ConfigTab() {
           <Switch
             value={settings.admin.ring}
             onValueChange={(ring) => update({ admin: { ...settings.admin, ring } })}
+          />
+        </Row>
+        <Row label="Every post notifies everyone">
+          <Switch
+            value={settings.admin.notifyAll}
+            onValueChange={(notifyAll) => update({ admin: { ...settings.admin, notifyAll } })}
           />
         </Row>
         <Text style={styles.hint}>Name colour</Text>

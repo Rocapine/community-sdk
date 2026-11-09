@@ -364,12 +364,18 @@ topic's leads with the `announcement` icon; `CommunityUIProvider`'s
 instead. A body longer than six lines is cut with "View
 more" at the end of its last line (tapping expands it for good). Times count
 seconds, then minutes, hours, days, months and years. An admin's `…` menu also
-pins and unpins a post: pinned posts lead "All" and their topic, newest pin first.
+pins and unpins a post: pinned posts lead "All" and their topic, newest pin first. A
+topic holds at most `maxPinnedPerTopic` pinned posts (core config, default 1): pinning
+one more shows a warning instead.
 
 A round `+` button (bottom right, `feed.compose` label) opens `ComposerSheet`,
 a full-screen page sheet: Cancel / Post on top, the topic pill under the
 user's name, a toolbar on the keyboard with the photo and poll buttons and a
-character ring. Before it opens, the `+` asks for the community rules (first
+character ring. An admin also gets two options above the toolbar: "Pin" (the post
+is pinned once created, within `maxPinnedPerTopic`) and, with the push module,
+"Notify everyone" (the post is pushed to every member once published, even later by
+moderation, and then appears in their notification center). With `adminPostsNotifyAll`
+every admin post does that, and the option is not shown. Before it opens, the `+` asks for the community rules (first
 time) and then awaits your `beforeCompose` (see Gating submissions). Posting
 closes the sheet and publishes optimistically; a failed publish puts the draft
 back for the next `+`, and Cancel on a draft asks to discard it.

@@ -51,6 +51,11 @@ export const ro: Record<string, string> = {
   "post.pinned": "Fixată",
   "post.pin": "Fixează",
   "post.unpin": "Anulează fixarea",
+  "composer.pinPost": "Fixează",
+  "composer.notifyAll": "Anunță pe toată lumea",
+  "pin.limitTitle": "Limită atinsă",
+  "pin.limitBody":
+    "„{topic}” are deja numărul maxim de postări fixate. Anulează mai întâi fixarea uneia.",
   "post.viewMore": "Vezi mai mult",
   "post.viewLess": "Vezi mai puțin",
   "post.reaction.received": "{name} a reacționat la postarea ta",

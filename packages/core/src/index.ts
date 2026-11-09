@@ -104,6 +104,8 @@ export {
   blockUser,
   deleteOwnPost,
   setPostPinned,
+  countPinnedPosts,
+  requestPostBroadcast,
   deleteOwnComment,
   updateProfile,
   fetchNotificationPreferences,

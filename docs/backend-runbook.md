@@ -303,7 +303,12 @@ first 1000 devices. Tokens are de-duplicated before sending. If a page read fail
 `fetchAllRows: page failed, keeping N rows` and sends to the tokens already
 read — do not re-run the broadcast to cover the rest, that would double-send
 to everyone already pushed. Messages go to Expo 4 requests × 100 tokens at a
-time, each request aborted after 10 s.
+time, each request aborted after 10 s. The author's own devices are skipped.
+
+The notification center lists an admin post only once `broadcast_at` is set
+(`inbox/003_pushed_admin_posts.sql`): the center shows what was pushed. To send an admin
+post from a dashboard, call `broadcast-post` with the service role; to have the app send
+it, the admin author calls `request_post_broadcast(post_id)`.
 
 ### Who can call what
 
@@ -312,7 +317,9 @@ least the public anon key. On top of that:
 
 - `moderate-one` only accepts the row's own author (user JWT, resolved
   through Auth) or the service role.
-- `broadcast-post` only accepts the service role.
+- `broadcast-post` accepts the service role (a dashboard), or the trigger
+  (`push/005_broadcast_trigger.sql`, anon key) for a post its admin author asked to send
+  ("Notify everyone" in the app's composer, `request_post_broadcast`); anything else gets 403. It stamps `posts.broadcast_at` before sending, so a post goes out once.
 - `notify-comment` / `report-to-slack` / `notify-like` / `notify-reaction`
   are invoked by database triggers with the anon key and therefore treat the
   request body as untrusted: only the row `id` (or `post_id`) is read and

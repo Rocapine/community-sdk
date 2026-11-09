@@ -54,6 +54,11 @@ export const esES: Record<string, string> = {
   "post.pinned": "Fijado",
   "post.pin": "Fijar",
   "post.unpin": "Desfijar",
+  "composer.pinPost": "Fijar",
+  "composer.notifyAll": "Notificar a todos",
+  "pin.limitTitle": "Límite de fijados",
+  "pin.limitBody":
+    "«{topic}» ya tiene tantas publicaciones fijadas como admite. Desfija una primero.",
   "post.viewMore": "Ver más",
   "post.viewLess": "Ver menos",
   "post.reaction.received": "{name} ha reaccionado a tu publicación",

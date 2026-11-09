@@ -26,7 +26,7 @@ import {
   type PostAttachment,
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -43,7 +43,9 @@ import {
 import type { ViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import type { CommunityIconProps } from "../icons";
 import type { CommunityTheme } from "../theme";
+import { usePinRoom } from "../utils/pinMenu";
 import { imageFrame, imagesSupported, pickImage } from "../utils/postImage";
 import { useMyAuthorName } from "../utils/myName";
 import { MyAvatar } from "./Avatar";
@@ -141,6 +143,10 @@ export function ComposerSheet({
   const [pollDraft, setPollDraft] = useState<string[] | null>(null);
   const [image, setImage] = useState<LocalImage | null>(null);
   const [attachment, setAttachment] = useState<PostAttachment | null>(null);
+  // Admins only: pin the post, push it to every member.
+  const [pin, setPin] = useState(false);
+  const [notifyAll, setNotifyAll] = useState(false);
+  const hasPinRoom = usePinRoom();
   // True while a photo is picked and re-encoded (1–2 s for a large one).
   const [preparing, setPreparing] = useState(false);
   // Read by the async publish callbacks (the draft may have changed since).
@@ -198,6 +204,20 @@ export function ComposerSheet({
     setPollDraft(null);
     setImage(null);
     setAttachment(null);
+    setPin(false);
+    setNotifyAll(false);
+  };
+
+  const togglePin = async () => {
+    haptic("selection");
+    if (pin) setPin(false);
+    else if (await hasPinRoom(topic)) setPin(true);
+  };
+
+  // A pin follows the topic: moving it to a full topic drops the pin, with the warning.
+  const chooseTopic = async (next: string) => {
+    setTopic(next);
+    if (pin && !(await hasPinRoom(next))) setPin(false);
   };
 
   const cancel = () => {
@@ -243,6 +263,8 @@ export function ComposerSheet({
       pollOptions: pollDraft !== null ? filledPollOptions : undefined,
       image: image ?? undefined,
       attachment: attachment ?? undefined,
+      pin: admin && pin,
+      notifyAll: admin && cfg.modules.push && (cfg.adminPostsNotifyAll || notifyAll),
     };
     haptic("medium");
     Keyboard.dismiss();
@@ -256,6 +278,8 @@ export function ComposerSheet({
         pollOptions: draft.pollOptions,
         image: draft.image,
         attachment: draft.attachment,
+        pin: draft.pin,
+        notifyAll: draft.notifyAll,
       },
       {
         onSuccess: (result) => {
@@ -276,6 +300,8 @@ export function ComposerSheet({
             setPollDraft(draft.pollOptions ? [...draft.pollOptions] : null);
             setImage(draft.image ?? null);
             setAttachment(draft.attachment ?? null);
+            setPin(draft.pin);
+            setNotifyAll(draft.notifyAll);
           }
           onPublishFailed?.();
         },
@@ -432,6 +458,28 @@ export function ComposerSheet({
             </View>
           </ScrollView>
 
+          {admin && (
+            <View style={styles.adminOptions}>
+              <OptionPill
+                icon={icons.pin}
+                label={t("composer.pinPost")}
+                on={pin}
+                onPress={togglePin}
+              />
+              {/* With adminPostsNotifyAll every admin post notifies: nothing to pick. */}
+              {cfg.modules.push && !cfg.adminPostsNotifyAll && (
+                <OptionPill
+                  icon={icons.bell}
+                  label={t("composer.notifyAll")}
+                  on={notifyAll}
+                  onPress={() => {
+                    haptic("selection");
+                    setNotifyAll((on) => !on);
+                  }}
+                />
+              )}
+            </View>
+          )}
           <View
             style={[
               styles.toolbar,
@@ -509,7 +557,7 @@ export function ComposerSheet({
                       key={option.id}
                       onPress={() => {
                         if (!on) haptic("selection");
-                        setTopic(option.id);
+                        chooseTopic(option.id);
                         setTopicMenuOpen(false);
                       }}
                       style={({ pressed }) => [
@@ -534,6 +582,36 @@ export function ComposerSheet({
         )}
       </View>
     </Modal>
+  );
+}
+
+/** An admin publishing option: a pill that reads as on (filled) or off. */
+function OptionPill({
+  icon: Icon,
+  label,
+  on,
+  onPress,
+}: {
+  icon: ComponentType<CommunityIconProps>;
+  label: string;
+  on: boolean;
+  onPress: () => void;
+}) {
+  const theme = useCommunityTheme();
+  const styles = useThemedStyles(makeStyles);
+  const color = on ? theme.colors.textInverse : theme.colors.accent;
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={4}
+      style={[styles.optionPill, on && styles.optionPillOn]}
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: on }}
+    >
+      <Icon size={14} color={color} weight={on ? "fill" : "regular"} />
+      <Text style={[styles.optionPillText, { color }]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -736,6 +814,28 @@ const makeStyles = (theme: CommunityTheme) =>
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
       color: theme.colors.accent,
+    },
+    adminOptions: {
+      flexDirection: "row",
+      gap: theme.spacing(2),
+      paddingHorizontal: theme.spacing(4),
+      paddingVertical: theme.spacing(2),
+      backgroundColor: theme.colors.background,
+    },
+    optionPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(1.5),
+      paddingHorizontal: theme.spacing(3),
+      height: 30,
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.colors.accentSoft,
+    },
+    optionPillOn: { backgroundColor: theme.colors.accent },
+    optionPillText: {
+      ...theme.typography.meta,
+      fontFamily: theme.fonts.medium,
+      fontWeight: theme.fontWeights.medium,
     },
     toolbar: {
       flexDirection: "row",

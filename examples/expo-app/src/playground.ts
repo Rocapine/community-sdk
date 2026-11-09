@@ -20,6 +20,9 @@ export type PlaygroundSettings = {
     reaction: boolean;
     translation: boolean;
     images: boolean;
+    /** Off by default: a simulator gets no push token. On shows an admin's
+     * "Notify everyone" option. */
+    push: boolean;
   };
   /** Which badge preset the community declares (`modules.badges`). */
   badges: BadgePreset;
@@ -36,8 +39,9 @@ export type PlaygroundSettings = {
   /** Item ids per zone; `logo` is the demo logo. */
   header: Record<HeaderZone, HeaderItemId[]>;
   /** Admin accounts: a ring on their avatar (drawn by the app's `renderAvatar`)
-   * and their name's colour (`adminName`, empty = default). */
-  admin: { ring: boolean; nameColor: string };
+   * and their name's colour (`adminName`, empty = default); `notifyAll`: every
+   * post of theirs notifies everyone (`adminPostsNotifyAll`). */
+  admin: { ring: boolean; nameColor: string; notifyAll: boolean };
   /** `community`: behind the feed, inbox and profiles; `header`: behind the feed's top
    * bar ("community" = the community one, continuous); `ownStatusBar`: the feed owns
    * the status bar area (`header.topInset`); `lightHeaderText`: white bar text. */
@@ -78,6 +82,7 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
     reaction: true,
     translation: true,
     images: true,
+    push: false,
   },
   badges: "streak",
   reaction: { label: "", chip: false },
@@ -86,7 +91,7 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
   colors: { accent: "#6C4DF6", background: "#F7F7F8" },
   typography: { titleFont: null, bodySize: 15 },
   header: HEADER_PRESETS.Default,
-  admin: { ring: true, nameColor: "" },
+  admin: { ring: true, nameColor: "", notifyAll: false },
   backgrounds: {
     community: "none",
     communityOpacity: 1,
@@ -179,9 +184,10 @@ export function buildConfig(settings: PlaygroundSettings): CommunityConfig {
     supabase,
     appName: "Community SDK Demo",
     topics: [{ id: "general" }, { id: "question" }, { id: "news", adminOnly: true }, EVENT_TOPIC],
+    adminPostsNotifyAll: settings.admin.notifyAll,
     modules: {
       polls: m.polls,
-      push: false,
+      push: m.push,
       inbox: m.inbox,
       reaction: m.reaction
         ? { key: "cheer", ...(settings.reaction.label ? { label: settings.reaction.label } : {}) }

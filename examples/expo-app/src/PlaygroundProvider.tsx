@@ -102,6 +102,7 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
             locale,
             badges,
             reaction: playground.settings.reaction,
+            adminPostsNotifyAll: admin.notifyAll,
             attachments: playground.settings.attachments,
           })}
           config={config}

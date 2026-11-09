@@ -50,6 +50,11 @@ export const frVous: Record<string, string> = {
   "post.pinned": "Épinglé",
   "post.pin": "Épingler",
   "post.unpin": "Désépingler",
+  "composer.pinPost": "Épingler",
+  "composer.notifyAll": "Notifier tout le monde",
+  "pin.limitTitle": "Limite d’épingles atteinte",
+  "pin.limitBody":
+    "« {topic} » a déjà autant de publications épinglées que possible. Désépinglez-en une d’abord.",
   "post.viewMore": "Voir plus",
   "post.viewLess": "Voir moins",
   "post.reaction.received": "{name} a réagi à votre publication",

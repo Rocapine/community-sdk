@@ -20,6 +20,8 @@ vi.mock("../service", async (importOriginal) => ({
   createPost: vi.fn(),
   createComment: vi.fn(),
   moderateOne: vi.fn(),
+  setPostPinned: vi.fn(),
+  requestPostBroadcast: vi.fn(),
 }));
 
 describe("optimistic rows", () => {
@@ -135,6 +137,43 @@ describe("create mutations with an image", () => {
     await expect(run(createPostMutationOptions(cfg, qc, null), postVars)).rejects.toThrow("boom");
     expect(service.createPost).not.toHaveBeenCalled();
     expect(feedIds()).toEqual([[], []]);
+  });
+
+  it("pins and notifies everyone once the post is published", async () => {
+    seedFeed();
+    vi.mocked(service.setPostPinned).mockResolvedValue();
+    vi.mocked(service.requestPostBroadcast).mockResolvedValue();
+    await run(createPostMutationOptions(cfg, qc, null), {
+      ...postVars,
+      pin: true,
+      notifyAll: true,
+    });
+    expect(service.setPostPinned).toHaveBeenCalledWith(cfg, "p1", true);
+    expect(service.requestPostBroadcast).toHaveBeenCalledWith(cfg, "p1");
+  });
+
+  it("asks to notify everyone for a post moderation holds, sent once it is published", async () => {
+    seedFeed();
+    vi.mocked(service.moderateOne).mockResolvedValueOnce({
+      status: "pending",
+    } as service.ModerationVerdict);
+    await run(createPostMutationOptions(cfg, qc, null), { ...postVars, notifyAll: true });
+    expect(service.requestPostBroadcast).toHaveBeenCalledWith(cfg, "p1");
+  });
+
+  it("neither pins nor notifies a rejected post, nor a post that didn't ask", async () => {
+    seedFeed();
+    vi.mocked(service.moderateOne).mockResolvedValueOnce({
+      status: "rejected",
+    } as service.ModerationVerdict);
+    await run(createPostMutationOptions(cfg, qc, null), {
+      ...postVars,
+      pin: true,
+      notifyAll: true,
+    });
+    await run(createPostMutationOptions(cfg, qc, null), postVars);
+    expect(service.setPostPinned).not.toHaveBeenCalled();
+    expect(service.requestPostBroadcast).not.toHaveBeenCalled();
   });
 
   it("reports hasImage on postPublished", async () => {

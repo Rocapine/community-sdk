@@ -51,6 +51,7 @@ import {
   createPost,
   deleteOwnComment,
   deleteOwnPost,
+  requestPostBroadcast,
   setPostPinned,
   fetchFeedPage,
   fetchNotificationPreferences,
@@ -433,6 +434,11 @@ export type CreatePostVariables = {
   pollOptions?: string[];
   image?: LocalImage;
   attachment?: PostAttachment;
+  /** Admins only: pin the post once it is created. */
+  pin?: boolean;
+  /** Admins only: push the post to every member once it is published (also when
+   * moderation publishes it later). */
+  notifyAll?: boolean;
 };
 
 /** The options behind `useCreatePost`, split out so they can be driven without React. */
@@ -491,7 +497,7 @@ export function createPostMutationOptions(
       prepend(feedKey(topic, locale));
       return { tempId };
     },
-    mutationFn: async ({ topic, text, pollOptions, image, attachment }) => {
+    mutationFn: async ({ topic, text, pollOptions, image, attachment, pin, notifyAll }) => {
       // Upload first: a failed upload must not leave a post row behind.
       const uploaded = image ? await uploadPostImage(cfg, image) : undefined;
       const id = await createPost(cfg, {
@@ -502,9 +508,16 @@ export function createPostMutationOptions(
         attachment,
       });
       const verdict = await moderateOne(cfg, { kind: "post", id });
+      // The post exists by now: a failed pin or push must not undo it.
+      if (pin && verdict.status !== "rejected")
+        await setPostPinned(cfg, id, true).catch((e) => console.warn("[community] pin failed", e));
+      if (notifyAll && verdict.status !== "rejected")
+        await requestPostBroadcast(cfg, id).catch((e) =>
+          console.warn("[community] notify everyone failed", e),
+        );
       return { id, verdict };
     },
-    onSuccess: ({ id, verdict }, { topic, text, pollOptions, image }, { tempId }) => {
+    onSuccess: ({ id, verdict }, { topic, text, pollOptions, image, pin }, { tempId }) => {
       const rejected = verdict.status === "rejected";
       queryClient.setQueriesData<InfiniteData<FeedPost[]>>({ queryKey: FEED_KEY }, (d) =>
         d
@@ -532,7 +545,8 @@ export function createPostMutationOptions(
         // The in-place swap above keeps the optimistic poll's temp option ids
         // (voting needs the real uuids) and the image's local uri, so a poll or
         // image post refetches in background.
-        if (hasPoll || image) queryClient.invalidateQueries({ queryKey: FEED_KEY });
+        // A pinned post moves to the top of its feeds.
+        if (hasPoll || image || pin) queryClient.invalidateQueries({ queryKey: FEED_KEY });
       }
     },
     onError: (_e, _v, context) => {

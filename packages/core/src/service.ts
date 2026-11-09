@@ -759,6 +759,34 @@ export async function setPostPinned(
   if (error) throw error;
 }
 
+/** How many visible posts of `topic` are pinned, against `maxPinnedPerTopic`. */
+export async function countPinnedPosts(
+  cfg: ResolvedCommunityConfig,
+  topic: string,
+): Promise<number> {
+  const client = cfg.requireClient();
+  const { count, error } = await client
+    .from("posts")
+    .select("id", { count: "exact", head: true })
+    .eq("topic", topic)
+    .eq("status", "visible")
+    .not("pinned_at", "is", null);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/** Asks for the admin's own post to be pushed to every member: the push module
+ * sends it once the post is visible, and the inbox then lists it. Admins only. */
+export async function requestPostBroadcast(
+  cfg: ResolvedCommunityConfig,
+  postId: string,
+): Promise<void> {
+  const client = cfg.requireClient();
+  await requireUid(cfg);
+  const { error } = await client.rpc("request_post_broadcast", { p_post_id: postId });
+  if (error) throw error;
+}
+
 export async function deleteOwnComment(
   cfg: ResolvedCommunityConfig,
   commentId: string,
