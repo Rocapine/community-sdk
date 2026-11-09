@@ -27,7 +27,7 @@ import {
   useCommunityConfig,
   useMyUid,
   useProfile,
-  useSetStreakVisibility,
+  useSetBadgeVisibility,
   useUpdateProfile,
   uploadAvatar,
 } from "@rocapine/community-core";
@@ -50,6 +50,7 @@ import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { resizeAvatar } from "../utils/avatar";
+import { badgeToggleLabel } from "../utils/badges";
 import { noFocusRing, noFocusRingMultiline } from "../utils/noFocusRing";
 
 const BIO_MAX_LENGTH = 300;
@@ -70,7 +71,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   const myUid = useMyUid();
   const profile = useProfile(myUid);
   const updateProfile = useUpdateProfile();
-  const streakVisibility = useSetStreakVisibility();
+  const badgeVisibility = useSetBadgeVisibility();
 
   const [base, setBase] = useState<Saved>({ name: "", handle: "", bio: "" });
   const [name, setName] = useState("");
@@ -353,6 +354,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
                   placement="edit"
                   official={profile.data.official}
                   handle={profile.data.handle}
+                  badges={profile.data.badges}
                 />
                 <View style={styles.pencilBadge}>
                   {photoBusy ? (
@@ -433,20 +435,18 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
               {errors.bio && <Text style={styles.errorText}>{errors.bio}</Text>}
             </View>
 
-            {cfg.modules.streaks && (
+            {cfg.modules.badges && Object.keys(cfg.modules.badges).length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.label}>{t("profile.streak")}</Text>
-                <StreakToggle
-                  label={t("profile.showStreak")}
-                  value={profile.data.showStreak}
-                  onChange={(on) => streakVisibility.mutateAsync({ showStreak: on })}
-                />
-                <StreakToggle
-                  label={t("profile.showBestStreak")}
-                  value={profile.data.showBestStreak}
-                  onChange={(on) => streakVisibility.mutateAsync({ showBestStreak: on })}
-                />
-                <Text style={styles.helper}>{t("profile.streakHelper")}</Text>
+                <Text style={styles.label}>{t("profile.badges")}</Text>
+                {Object.keys(cfg.modules.badges).map((id) => (
+                  <BadgeToggle
+                    key={id}
+                    label={badgeToggleLabel(t, id)}
+                    value={!profile.data.hiddenBadges.includes(id)}
+                    onChange={(on) => badgeVisibility.mutateAsync({ key: id, visible: on })}
+                  />
+                ))}
+                <Text style={styles.helper}>{t("profile.badgesHelper")}</Text>
               </View>
             )}
           </>
@@ -456,9 +456,9 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   );
 }
 
-/** One streak toggle, applied at once (not by Save). Local state keeps the
- * switch where the finger left it while the change lands; a failure puts it back. */
-function StreakToggle({
+/** One badge toggle, applied at once (not by Save). Local state keeps the switch
+ * where the finger left it while the change lands; a failure puts it back. */
+function BadgeToggle({
   label,
   value,
   onChange,

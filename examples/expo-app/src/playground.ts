@@ -3,7 +3,13 @@
 // so each one can be tried on the scratch backend without touching code.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { CommunityConfig } from "@rocapine/community-core";
+import {
+  STREAK_BADGES,
+  streakBadgeData,
+  type BadgePlacement,
+  type CommunityConfig,
+  type MemberBadges,
+} from "@rocapine/community-core";
 import type { FeedHeaderConfig, FeedHeaderItem } from "@rocapine/community-ui";
 
 export type PlaygroundSettings = {
@@ -14,8 +20,9 @@ export type PlaygroundSettings = {
     reaction: boolean;
     translation: boolean;
     images: boolean;
-    streaks: boolean;
   };
+  /** Which badge preset the community declares (`modules.badges`). */
+  badges: BadgePreset;
   colors: { accent: string; background: string };
   /** `title` role font (null = the theme's serif default) and `body` role size. */
   typography: { titleFont: string | null; bodySize: number };
@@ -62,8 +69,8 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
     reaction: true,
     translation: true,
     images: true,
-    streaks: true,
   },
+  badges: "streak",
   colors: { accent: "#6C4DF6", background: "#F7F7F8" },
   typography: { titleFont: null, bodySize: 15 },
   header: HEADER_PRESETS.Default,
@@ -93,6 +100,42 @@ export const LOCALES = [
 
 export const STORAGE_KEY = "playground.settings.v1";
 
+const EVERYWHERE: BadgePlacement[] = ["post", "comment", "profile"];
+const DAY = 24 * 60 * 60 * 1000;
+
+/** The showcase's badges: each preset's declaration and the viewer's own data. */
+export const BADGE_PRESETS = {
+  none: { declared: false as const, mine: (): MemberBadges => ({}) },
+  streak: {
+    declared: STREAK_BADGES,
+    mine: () =>
+      streakBadgeData({ startedAt: new Date(Date.now() - 12 * DAY).toISOString(), bestDays: 40 }),
+  },
+  pregnancy: {
+    declared: { pregnancy: { placements: EVERYWHERE } },
+    mine: () => ({ pregnancy: { month: 5 } }),
+  },
+  zodiac: {
+    declared: { zodiac: { placements: EVERYWHERE } },
+    mine: () => ({ zodiac: { sign: "leo" } }),
+  },
+  rank: {
+    declared: { rank: { placements: ["post", "profile"] as BadgePlacement[] } },
+    mine: () => ({ rank: { n: 7 } }),
+  },
+};
+export type BadgePreset = keyof typeof BADGE_PRESETS;
+
+/** Labels for the example's own badge ids (the SDK ships the streak ones). */
+export const BADGE_COPY: Record<string, string> = {
+  "badge.pregnancy.label": "Pregnancy",
+  "badge.pregnancy.toggle": "Show my pregnancy month",
+  "badge.zodiac.label": "Sign",
+  "badge.zodiac.toggle": "Show my sign",
+  "badge.rank.label": "Rank",
+  "badge.rank.toggle": "Show my rank",
+};
+
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_KEY;
 
@@ -117,9 +160,10 @@ export function buildConfig(settings: PlaygroundSettings): CommunityConfig {
       // Must match the scratch backend's COMMUNITY_TRANSLATION_LOCALES.
       translation: m.translation ? { locales: ["en", "es-419", "pt-BR"] } : false,
       images: m.images,
-      streaks: m.streaks,
+      badges: BADGE_PRESETS[settings.badges].declared,
     },
     host: {
+      getBadges: BADGE_PRESETS[settings.badges].mine,
       getLocale: () => settings.locale,
       onEvent: (name, props) => console.log("[event]", name, props),
     },

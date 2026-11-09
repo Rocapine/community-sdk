@@ -13,6 +13,7 @@ export {
   DEFAULT_NAME,
   DEFAULT_POST_MAX_LENGTH,
   resolveConfig,
+  STREAK_BADGES,
 } from "./config";
 export { readerLocale, languageOf } from "./locale";
 export { CommunityProvider, useCommunityConfig } from "./provider";
@@ -29,6 +30,7 @@ export type {
   FeedPost,
   MemberBadgeData,
   MemberBadges,
+  BadgePlacement,
   ThreadComment,
   PostImage,
   LocalImage,
@@ -49,6 +51,7 @@ export {
   displayName,
   normalizeTopic,
   mapProfileRow,
+  streakBadgeData,
   streakDays,
   streakTier,
   buildPoll,
@@ -91,7 +94,7 @@ export {
   setCommentLike,
   setLike,
   setReaction,
-  setStreakVisibility,
+  setBadgeVisibility,
   fetchReactionSummaries,
   reportContent,
   blockUser,
@@ -129,7 +132,7 @@ export {
   useMyUid,
   useNotificationPreferences,
   useUpdateProfile,
-  useSetStreakVisibility,
+  useSetBadgeVisibility,
   useCreatePost,
   useCreateComment,
   useToggleCommentLike,

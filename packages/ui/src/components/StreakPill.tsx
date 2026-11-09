@@ -1,16 +1,11 @@
 // The streaks module's pill: a flame and "41 days", tinted by tier — bronze
 // under 30 days, silver from 30 to 90, gold beyond (core's `streakTier`).
-// Nothing for a streak under one day: no "0 days" badge next to a name. A host
-// draws its own through `CommunityUIProvider`'s `renderStreakPill`.
+// Nothing for a streak under one day: no "0 days" badge next to a name. The
+// built-in look of the `streak` and `bestStreak` badges (see `MemberBadge`); a host
+// draws its own through `CommunityUIProvider`'s `renderMemberBadge`.
 import { streakTier, type StreakTier } from "@rocapine/community-core";
 import { StyleSheet, Text, View } from "react-native";
-import {
-  useCommunityIcons,
-  useCommunityTheme,
-  useStreakPillRenderer,
-  useT,
-  useThemedStyles,
-} from "../ThemeProvider";
+import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 
 const TIER_COLOR: Record<StreakTier, "streakBronze" | "streakSilver" | "streakGold"> = {
@@ -19,21 +14,10 @@ const TIER_COLOR: Record<StreakTier, "streakBronze" | "streakSilver" | "streakGo
   gold: "streakGold",
 };
 
-export type StreakPillRenderProps = {
-  days: number;
-  tier: StreakTier;
-  size: "small" | "large";
-  /** The localized "41 days". */
-  label: string;
-};
-
 export function StreakPill({ days, size = "small" }: { days: number; size?: "small" | "large" }) {
-  const render = useStreakPillRenderer();
   const t = useT();
   if (days < 1) return null;
-  const label = t("streak.days", { count: days });
-  if (render) return <>{render({ days, tier: streakTier(days), size, label })}</>;
-  return <DefaultStreakPill days={days} size={size} label={label} />;
+  return <DefaultStreakPill days={days} size={size} label={t("streak.days", { count: days })} />;
 }
 
 function DefaultStreakPill({

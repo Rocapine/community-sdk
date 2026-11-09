@@ -77,6 +77,45 @@ describe("runUpgrade", () => {
     );
   });
 
+  it("brings badges along when a streaks install upgrades, badges first", async () => {
+    // A 0.14 install: streaks/001 in, no badges module yet.
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core", "streaks"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+    const migrationsDir = path.join(cwd, "supabase", "migrations");
+    for (const f of fs.readdirSync(migrationsDir)) {
+      if (f.includes("_community_badges_") || f.includes("_community_streaks_to_badges")) {
+        fs.rmSync(path.join(migrationsDir, f));
+      }
+    }
+    const old = readManifest(cwd)!;
+    writeManifest(cwd, {
+      ...old,
+      modules: ["core", "streaks"],
+      installedTemplates: (old.installedTemplates ?? []).filter(
+        (id) => !id.startsWith("badges/") && id !== "streaks/to_badges",
+      ),
+      installedFiles: old.installedFiles.filter(
+        (f) => !f.includes("_community_badges_") && !f.includes("_community_streaks_to_badges"),
+      ),
+    });
+
+    await runUpgrade(baseOptions());
+
+    expect(readManifest(cwd)!.modules).toEqual(["core", "badges", "streaks"]);
+    const files = fs.readdirSync(migrationsDir).sort();
+    const badges = files.findIndex((f) => f.includes("_community_badges_"));
+    const toBadges = files.findIndex((f) => f.includes("_community_streaks_to_badges"));
+    expect(badges).toBeGreaterThan(-1);
+    expect(toBadges).toBeGreaterThan(badges);
+  });
+
   it("copies exactly a newly added template migration, timestamped after the existing ones", async () => {
     await runInit({
       cwd,

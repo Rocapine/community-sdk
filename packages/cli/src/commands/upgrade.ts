@@ -85,10 +85,15 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   // rules `init --modules` uses; left empty/undefined, behaviour here must stay
   // byte-identical to the pre-`addModules` path (no resolveModules call, no
   // spurious warnings for e.g. an existing inbox-without-reaction install).
+  // One implication still applies: streaks/002 moves the streak onto badges, so an
+  // install that has streaks gets badges too.
+  const installed = manifest.modules.includes("streaks")
+    ? [...manifest.modules, "badges"]
+    : manifest.modules;
   const canonicalModules =
     options.addModules && options.addModules.length > 0
-      ? resolveModules([...manifest.modules, ...options.addModules], onWarn)
-      : MODULE_ORDER.filter((m) => manifest.modules.includes(m));
+      ? resolveModules([...installed, ...options.addModules], onWarn)
+      : MODULE_ORDER.filter((m) => installed.includes(m));
   const addedModules = canonicalModules.filter((m) => !manifest.modules.includes(m));
 
   const installedTemplateIds = new Set<string>(
@@ -233,10 +238,13 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   const updatedManifest: Manifest = {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     sdkVersion: readOwnPackageVersion(),
-    // Only --add-modules rewrites the module list; a plain upgrade keeps the
-    // manifest's own (order and any entry this CLI doesn't know).
+    // Only --add-modules (or a module brought along, like badges with streaks)
+    // rewrites the module list; a plain upgrade keeps the manifest's own (order
+    // and any entry this CLI doesn't know).
     modules:
-      options.addModules && options.addModules.length > 0 ? canonicalModules : manifest.modules,
+      (options.addModules && options.addModules.length > 0) || addedModules.length > 0
+        ? canonicalModules
+        : manifest.modules,
     installedFiles,
     installedTemplates: [...newInstalledTemplateIds].sort(),
   };

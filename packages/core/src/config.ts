@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { POST_MAX_LENGTH, type FeedPost } from "./models";
+import { POST_MAX_LENGTH, type BadgePlacement, type FeedPost, type MemberBadges } from "./models";
 
 export type CommunityTopicDef = { id: string; officialOnly?: boolean };
 
@@ -16,15 +16,25 @@ export type CommunityModules = {
    * bucket, columns added by the images migration). Absent or false ⇒ every
    * query and screen behaves as before. */
   images?: boolean;
-  /** Streaks module: the host's streak on each profile, as a pill on posts
-   * and on the profile (columns added by the streaks migration; values come
-   * from `host.getStreak`). Absent or false ⇒ nothing changes. */
-  streaks?: boolean;
+  /** Badges module: the app's badges on each profile, keyed by the app's own ids,
+   * each shown where `placements` says (columns added by the badges migration;
+   * values come from `host.getBadges`, visibility from the member). A streak app
+   * passes `STREAK_BADGES`. Absent or false ⇒ nothing changes. */
+  badges?: Record<string, { placements: BadgePlacement[] }> | false;
 };
 
-/** The user's streak as the host app counts it. `startedAt`: when the current
- * streak began (ISO), null when there is none; `bestDays`: the longest one. */
+/** The streak as a streak app counts it. `startedAt`: when the current streak
+ * began (ISO), null when there is none; `bestDays`: the longest one. Turn it into
+ * badges with `streakBadgeData`. */
 export type HostStreak = { startedAt: string | null; bestDays: number };
+
+/** The streak preset: the current streak next to the author on posts and on the
+ * profile, the best one on the profile. Data: `streak: { since }`,
+ * `bestStreak: { days }` (see `streakBadgeData`). */
+export const STREAK_BADGES: Record<string, { placements: BadgePlacement[] }> = {
+  streak: { placements: ["post", "profile"] },
+  bestStreak: { placements: ["profile"] },
+};
 
 export type CommunityHostAdapters = {
   getDisplayName?: () => string | null;
@@ -33,9 +43,9 @@ export type CommunityHostAdapters = {
   rulesAcceptance?: { get(): Promise<boolean>; set(): Promise<void> };
   onContentPublished?: () => void;
   getLocale?: () => string;
-  /** The streaks module's source; mirrored onto the profile by
-   * `syncProfileFromHost`. */
-  getStreak?: () => HostStreak | null;
+  /** The badges module's source: this member's badges, computed by the app (the
+   * member never types them). Mirrored onto the profile by `syncProfileFromHost`. */
+  getBadges?: () => MemberBadges | null;
 };
 
 /**
@@ -133,7 +143,7 @@ const defaultHost: RequiredCommunityHostAdapters = {
   },
   onContentPublished: () => {},
   getLocale: () => "en",
-  getStreak: () => null,
+  getBadges: () => null,
 };
 
 export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig {

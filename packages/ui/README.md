@@ -382,16 +382,20 @@ from core so the matching inbox items count as read.
 
 **Avatars.** Every avatar the SDK draws (rows, comments, header button,
 profiles, composer, edit preview) goes through `Avatar`. Pass
-`renderAvatar={({ userId, name, url, size }) => …}` to `CommunityUIProvider`
+`renderAvatar={({ userId, name, url, size, official, handle, placement, badges }) => …}` to `CommunityUIProvider`
 to draw your own (e.g. a gradient per member); the default is the photo, else
 the initial on a flat colour.
 
-**Streak pills.** The post header and the profile draw the streak through
-`StreakPill`. Pass `renderStreakPill={({ days, tier, size, label }) => …}` to
-`CommunityUIProvider` to draw your own (e.g. a metal finish per tier): `tier`
-and the localized `label` come resolved, and nothing renders under one day.
-The default is the flame and label on a tint of `streakBronze` /
-`streakSilver` / `streakGold`.
+**Member badges** (badges module). Declare your badges in `modules.badges`, e.g.
+`{ pregnancy: { placements: ["post", "comment", "profile"] } }`, return their data
+from `host.getBadges()` (`{ pregnancy: { month: 5 } }`), and draw them with
+`renderMemberBadge={({ id, data, placement, size }) => …}` on `CommunityUIProvider`
+(`size: "small"` next to a name, `"large"` on the profile; return null to show
+nothing). The profile shows each one above its `badge.<id>.label` string, and the
+owner's profile sheet gets a `badge.<id>.toggle` switch per badge. Without a
+renderer, `STREAK_BADGES` (`streak: { since }`, `bestStreak: { days }`) draw as the
+built-in pills (`defaultMemberBadge`): the flame and label on a tint of
+`streakBronze` / `streakSilver` / `streakGold`, nothing under one day.
 
 ## Images
 
