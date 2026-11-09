@@ -22,6 +22,16 @@ describe("translation helpers", () => {
       translationLine(t, { text: "x", translation: { text: "y", sourceLocale: "xx" } }, false),
     ).toBe("Translated from xx · See original");
   });
+  it("names a regional source language by its base language", () => {
+    const t = makeT("es-ES");
+    const br = { text: "x", translation: { text: "y", sourceLocale: "pt-BR" } };
+    expect(translationLine(t, br, false)).toBe("Traducido del portugués · Ver original");
+  });
+  it("keeps the raw code when neither the region nor the base is known", () => {
+    const t = makeT("en");
+    const zh = { text: "x", translation: { text: "y", sourceLocale: "zh-Hant" } };
+    expect(translationLine(t, zh, false)).toBe("Translated from zh-Hant · See original");
+  });
   it("shows no caption for an undetermined source language", () => {
     const t = makeT("en");
     const undItem = { text: "x", translation: { text: "y", sourceLocale: "und" } };
