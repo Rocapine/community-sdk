@@ -1,5 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // react-native >= 0.80 publishes its types only through `exports`, which the
+    // base's `node` resolution ignores.
+    "paths": { "react-native": ["../../node_modules/react-native/types_generated/index.d.ts"] }
+  },
   "include": ["src"],
   "exclude": ["src/**/__tests__"]
 }

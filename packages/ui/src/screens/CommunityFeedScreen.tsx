@@ -83,6 +83,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Image } from "expo-image";
 import Animated, {
   useAnimatedReaction,
@@ -375,7 +376,7 @@ export function CommunityFeedScreen({
     toListTop(true);
   };
 
-  const searchInputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<TextInputInstance>(null);
   const clearSearch = () => {
     // Native clear too: with a predictive-text word pending, iOS puts it back
     // when only the JS value is reset, so the first tap seemed to do nothing.
@@ -672,7 +673,7 @@ export function CommunityFeedScreen({
             }
             automaticallyAdjustContentInsets={false}
             data={posts}
-            keyExtractor={(p) => p.id}
+            keyExtractor={(p: FeedPost) => p.id}
             renderItem={renderItem}
             ItemSeparatorComponent={RowSeparator}
             ListEmptyComponent={
