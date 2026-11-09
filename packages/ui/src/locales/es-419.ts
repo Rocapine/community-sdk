@@ -196,6 +196,7 @@ export const es419: Record<string, string> = {
   "a11y.myProfile": "Mi perfil",
   "composer.addImage": "Agregar una imagen",
   "composer.removeImage": "Quitar la imagen",
+  "composer.removeAttachment": "Quitar el adjunto",
   "image.photo": "📷 Foto",
   "a11y.openImage": "Abrir imagen",
   "a11y.closeImage": "Cerrar",

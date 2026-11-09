@@ -39,6 +39,7 @@ import {
   type CommunityProfile,
   type FeedPost,
   type LocalImage,
+  type PostAttachment,
   type ThreadComment,
 } from "./models";
 import type { ResolvedCommunityConfig } from "./config";
@@ -429,6 +430,7 @@ export type CreatePostVariables = {
   authorName: string;
   pollOptions?: string[];
   image?: LocalImage;
+  attachment?: PostAttachment;
 };
 
 /** The options behind `useCreatePost`, split out so they can be driven without React. */
@@ -438,7 +440,7 @@ export function createPostMutationOptions(
   locale: string | null,
 ): UseMutationOptions<PostResult, Error, CreatePostVariables, { tempId: string }> {
   return {
-    onMutate: async ({ topic, text, authorName, pollOptions, image }) => {
+    onMutate: async ({ topic, text, authorName, pollOptions, image, attachment }) => {
       await queryClient.cancelQueries({ queryKey: FEED_KEY });
       const tempId = `optimistic-${Date.now()}`;
       const optimistic: FeedPost = {
@@ -478,6 +480,7 @@ export function createPostMutationOptions(
         // refetch in onSuccess swaps in the server image.
         image: image ?? null,
         authorBadges: {},
+        attachment: attachment ?? null,
       };
       const prepend = (key: readonly unknown[]) =>
         queryClient.setQueryData<InfiniteData<FeedPost[]>>(key, (d) =>
@@ -487,10 +490,16 @@ export function createPostMutationOptions(
       prepend(feedKey(topic, locale));
       return { tempId };
     },
-    mutationFn: async ({ topic, text, pollOptions, image }) => {
+    mutationFn: async ({ topic, text, pollOptions, image, attachment }) => {
       // Upload first: a failed upload must not leave a post row behind.
       const uploaded = image ? await uploadPostImage(cfg, image) : undefined;
-      const id = await createPost(cfg, { topic, body: text, pollOptions, image: uploaded });
+      const id = await createPost(cfg, {
+        topic,
+        body: text,
+        pollOptions,
+        image: uploaded,
+        attachment,
+      });
       const verdict = await moderateOne(cfg, { kind: "post", id });
       return { id, verdict };
     },

@@ -129,6 +129,7 @@ it("mapPostRow extracts counts, like state and ownership", () => {
     translation: null,
     image: null,
     authorBadges: {},
+    attachment: null,
   });
 });
 

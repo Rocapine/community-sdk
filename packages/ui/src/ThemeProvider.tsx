@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, type ReactElement, type ReactNode } from "react";
 import type { ImageProps } from "expo-image";
+import type { PostAttachment } from "@rocapine/community-core";
 import { defaultTheme, mergeTheme, type CommunityTheme, type DeepPartial } from "./theme";
 import { makeT, type TFn } from "./i18n";
 import { defaultIcons, mergeIcons } from "./icons-default";
@@ -21,6 +22,19 @@ export type CommunityBackground = {
 };
 const BackgroundContext = createContext<CommunityBackground | null>(null);
 
+/** Where an attachment card is drawn: under a post in the feed or a profile, under
+ * the post atop its thread, in the composer. */
+export type AttachmentPlacement = "post" | "thread" | "composer";
+export type RenderAttachment = (
+  attachment: PostAttachment,
+  ctx: { placement: AttachmentPlacement; open(): void },
+) => ReactNode;
+type AttachmentHandlers = {
+  render: RenderAttachment | null;
+  open: ((attachment: PostAttachment) => void) | null;
+};
+const AttachmentContext = createContext<AttachmentHandlers>({ render: null, open: null });
+
 export function CommunityUIProvider(props: {
   theme?: DeepPartial<CommunityTheme>;
   translations?: { locale?: string; overrides?: Record<string, string> };
@@ -40,10 +54,29 @@ export function CommunityUIProvider(props: {
   /** An image fixed behind the feed, the notification center and profiles. Post rows
    * turn transparent over it; sheets and the composer stay opaque. */
   background?: CommunityBackground;
+  /** Draws a post's attachment (attachments module) from the app's own data: under
+   * the post, atop its thread, in the composer. `open()` calls `onOpenAttachment`.
+   * Return null for an unknown type or missing content. */
+  renderAttachment?: RenderAttachment;
+  /** Opens the attached content in the app (navigate to the verse, the recipe…). */
+  onOpenAttachment?: (attachment: PostAttachment) => void;
   children: ReactNode;
 }): ReactElement {
-  const { theme, translations, icons, renderAvatar, renderMemberBadge, background, children } =
-    props;
+  const {
+    theme,
+    translations,
+    icons,
+    renderAvatar,
+    renderMemberBadge,
+    background,
+    renderAttachment,
+    onOpenAttachment,
+    children,
+  } = props;
+  const attachmentHandlers = useMemo<AttachmentHandlers>(
+    () => ({ render: renderAttachment ?? null, open: onOpenAttachment ?? null }),
+    [renderAttachment, onOpenAttachment],
+  );
   const locale = translations?.locale ?? "en";
   const overrides = translations?.overrides;
 
@@ -58,7 +91,9 @@ export function CommunityUIProvider(props: {
           <AvatarContext.Provider value={renderAvatar ?? null}>
             <MemberBadgeContext.Provider value={renderMemberBadge ?? null}>
               <BackgroundContext.Provider value={background ?? null}>
-                {children}
+                <AttachmentContext.Provider value={attachmentHandlers}>
+                  {children}
+                </AttachmentContext.Provider>
               </BackgroundContext.Provider>
             </MemberBadgeContext.Provider>
           </AvatarContext.Provider>
@@ -80,6 +115,11 @@ export function useAvatarRenderer(): ((p: AvatarRenderProps) => ReactNode) | nul
 /** The host's `renderMemberBadge`, or null for the SDK's default (see `MemberBadge`). */
 export function useMemberBadgeRenderer(): ((p: MemberBadgeRenderProps) => ReactNode) | null {
   return useContext(MemberBadgeContext);
+}
+
+/** The host's attachment renderer and opener (null each when not given). */
+export function useAttachmentHandlers(): AttachmentHandlers {
+  return useContext(AttachmentContext);
 }
 
 /** The host's community background, or null. */

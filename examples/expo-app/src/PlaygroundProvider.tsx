@@ -10,6 +10,10 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { PlaygroundAvatar } from "./components/PlaygroundAvatar";
 import { renderPlaygroundBadge } from "./components/PlaygroundBadge";
 import {
+  openPlaygroundAttachment,
+  renderPlaygroundAttachment,
+} from "./components/PlaygroundAttachment";
+import {
   BACKGROUNDS,
   BADGE_COPY,
   buildConfig,
@@ -88,7 +92,13 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
       <QueryClientProvider client={queryClient}>
         {/* The SDK reads its config once: a module or locale switch remounts it. */}
         <CommunityProvider
-          key={JSON.stringify({ modules, locale, badges, reaction: playground.settings.reaction })}
+          key={JSON.stringify({
+            modules,
+            locale,
+            badges,
+            reaction: playground.settings.reaction,
+            attachments: playground.settings.attachments,
+          })}
           config={config}
         >
           <SyncFromHost />
@@ -96,6 +106,8 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
             theme={theme}
             translations={{ locale, overrides: BADGE_COPY }}
             renderMemberBadge={renderPlaygroundBadge}
+            renderAttachment={renderPlaygroundAttachment}
+            onOpenAttachment={openPlaygroundAttachment}
             background={
               communityImage
                 ? { image: communityImage, opacity: backgrounds.communityOpacity }

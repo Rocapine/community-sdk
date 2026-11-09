@@ -59,6 +59,7 @@ import { ImageViewerContext } from "./ImageViewer";
 import { PostImage } from "./PostImage";
 import { PollBlock } from "./PollBlock";
 import { MemberBadgeRow } from "./MemberBadge";
+import { AttachmentCard } from "./AttachmentCard";
 import { haptic, PressableScale } from "./PressableScale";
 
 const BODY_CLAMP_LINES = 6;
@@ -356,6 +357,15 @@ export function CommunityPost({
         />
 
         {body}
+
+        {post.attachment && (
+          <View style={styles.imageGap}>
+            <AttachmentCard
+              attachment={post.attachment}
+              placement={onOpenThread ? "post" : "thread"}
+            />
+          </View>
+        )}
 
         {post.image && (
           <View style={styles.imageGap}>

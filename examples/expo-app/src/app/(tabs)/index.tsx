@@ -1,5 +1,6 @@
 import { CommunityFeedScreen } from "@rocapine/community-ui";
-import { router, useIsFocused } from "expo-router";
+import { router, useIsFocused, useLocalSearchParams } from "expo-router";
+import { useMemo } from "react";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePlayground } from "@/PlaygroundProvider";
@@ -10,6 +11,19 @@ export default function CommunityTab() {
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const { settings } = usePlayground();
+  // A "Share" from the catalog lands here with the item in the params.
+  const { shareType, shareId, at } = useLocalSearchParams<{
+    shareType?: string;
+    shareId?: string;
+    at?: string;
+  }>();
+  const composeRequest = useMemo(
+    () =>
+      shareType && shareId && at
+        ? { attachment: { type: shareType, id: shareId }, requestedAt: Number(at) }
+        : undefined,
+    [shareType, shareId, at],
+  );
   return (
     <View
       style={{
@@ -22,6 +36,7 @@ export default function CommunityTab() {
       <CommunityFeedScreen
         isFocused={isFocused}
         header={headerConfig(settings.header, settings.backgrounds, insets.top)}
+        composeRequest={composeRequest}
         slots={
           settings.reaction.chip
             ? {

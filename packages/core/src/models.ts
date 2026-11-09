@@ -70,6 +70,8 @@ export interface PostRow {
   image_height?: number | null;
   /** The author's visible badges. Absent when the badges module is off. */
   author_badges?: { visible_badges: MemberBadges | null } | null;
+  /** Absent when the attachments module is off. */
+  attachment?: PostAttachment | null;
 }
 
 export interface PollOptionRow {
@@ -168,6 +170,10 @@ export const EMPTY_REACTION_DATA: ReactionData = {
 export type MemberBadgeData = Record<string, unknown>;
 /** A member's visible badges, keyed by the app's badge ids. */
 export type MemberBadges = Record<string, MemberBadgeData>;
+/** A reference to the app's own content, attached to a post (attachments module):
+ * the app draws its card and opens it. Never a URL. */
+export type PostAttachment = { type: string; id: string };
+
 /** Where a badge can show: next to the author on posts, on comments, on the profile. */
 export type BadgePlacement = "post" | "comment" | "profile";
 
@@ -207,6 +213,8 @@ export interface FeedPost {
   image: PostImage | null;
   /** The author's visible badges; `{}` when none, hidden, or the module is off. */
   authorBadges: MemberBadges;
+  /** The app content this post shares; null when none or the module is off. */
+  attachment: PostAttachment | null;
 }
 
 export interface ThreadComment {
@@ -404,6 +412,7 @@ export function mapPostRow(
     translation: embedToTranslation(row.post_translations),
     image: mapImage(row, imageBase),
     authorBadges: row.author_badges?.visible_badges ?? NO_BADGES,
+    attachment: row.attachment ?? null,
   };
   return transformPost ? transformPost(post, row as unknown as Record<string, unknown>) : post;
 }

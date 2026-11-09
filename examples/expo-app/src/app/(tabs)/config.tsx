@@ -1,5 +1,6 @@
 // Every playground option, applied live. New options get a section here.
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePlayground } from "@/PlaygroundProvider";
 import {
@@ -68,6 +69,28 @@ export default function ConfigTab() {
           value={settings.inboxRow}
           onChange={(inboxRow) => update({ inboxRow })}
         />
+      </Section>
+
+      <Section title="Attachments">
+        <Row label="Attachments module">
+          <Switch
+            value={settings.attachments.enabled}
+            onValueChange={(enabled) =>
+              update({ attachments: { ...settings.attachments, enabled } })
+            }
+          />
+        </Row>
+        <Row label="Members can attach">
+          <Switch
+            value={settings.attachments.membersCanAttach}
+            onValueChange={(membersCanAttach) =>
+              update({ attachments: { ...settings.attachments, membersCanAttach } })
+            }
+          />
+        </Row>
+        <Pressable onPress={() => router.push("/catalog")}>
+          <Text style={styles.link}>Open the catalog to share something ›</Text>
+        </Pressable>
       </Section>
 
       <Section title="Locale">
@@ -269,6 +292,7 @@ const styles = StyleSheet.create({
   },
   label: { fontSize: 16 },
   hint: { fontSize: 14, color: "#6B6B73" },
+  link: { fontSize: 16, color: "#6C4DF6", paddingVertical: 6 },
   zone: { gap: 6 },
   input: {
     minWidth: 120,
