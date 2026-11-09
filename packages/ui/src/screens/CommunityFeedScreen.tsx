@@ -706,6 +706,30 @@ export function CommunityFeedScreen({
             )}
           </View>
         </Animated.View>
+        {/* `header.topInset`: the status bar strip stays put; the bar slides under it. */}
+        {statusInset > 0 && (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.statusCap,
+              { height: statusInset },
+              ownBackground?.color != null && { backgroundColor: ownBackground.color },
+            ]}
+          >
+            {sharedBackground && screenSize && (
+              <View style={[styles.stillBackground, screenSize]}>
+                <ScreenBackground />
+              </View>
+            )}
+            {ownBackground?.image != null && (
+              <Image
+                source={ownBackground.image}
+                style={[styles.stillBackground, { right: 0, height: topHeight }]}
+                contentFit={ownBackground.contentFit ?? "cover"}
+              />
+            )}
+          </View>
+        )}
 
         <View style={styles.listWrap}>
           {newCount > 0 && (
@@ -885,6 +909,15 @@ function makeStyles(theme: CommunityTheme) {
     },
     topClipped: { overflow: "hidden" },
     stillBackground: { position: "absolute", top: 0, left: 0 },
+    statusCap: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 2,
+      overflow: "hidden",
+      backgroundColor: theme.colors.background,
+    },
     controls: { paddingHorizontal: theme.spacing(5), paddingTop: theme.spacing(1) },
     // Icons sit flush with the content edge; each keeps a 44pt target.
     headerRow: {
