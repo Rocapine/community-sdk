@@ -36,7 +36,15 @@ const config: CommunityConfig = {
   // package's i18n catalog (see packages/ui/README.md); the app supplies
   // the key for any topic it invents. Everyone reads an `adminOnly: true`
   // topic; only `is_admin` profiles post in it (the UI's rule, not RLS).
-  topics: [{ id: "general" }, { id: "question" }, { id: "news", adminOnly: true }],
+  // `from` / `until` make an event topic: its tab comes right after "All", and
+  // only inside the window (device clock; a bare date is local midnight,
+  // `until` excluded). Outside it the tab is gone, its posts stay in "All".
+  topics: [
+    { id: "nnn", from: "2026-11-01", until: "2026-12-01" },
+    { id: "general" },
+    { id: "question" },
+    { id: "news", adminOnly: true },
+  ],
 
   // Opt-in modules — MUST mirror what the CLI installed on the backend.
   modules: {

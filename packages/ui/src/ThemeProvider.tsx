@@ -1,10 +1,17 @@
-import { createContext, useContext, useMemo, type ReactElement, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  type ComponentType,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import type { ImageProps } from "expo-image";
 import type { PostAttachment } from "@rocapine/community-core";
 import { defaultTheme, mergeTheme, type CommunityTheme, type DeepPartial } from "./theme";
 import { makeT, type TFn } from "./i18n";
 import { defaultIcons, mergeIcons } from "./icons-default";
-import type { CommunityIconSet } from "./icons";
+import type { CommunityIconProps, CommunityIconSet } from "./icons";
 import type { AvatarRenderProps } from "./components/Avatar";
 import type { MemberBadgeRenderProps } from "./components/MemberBadge";
 
@@ -21,6 +28,14 @@ export type CommunityBackground = {
   opacity?: number;
 };
 const BackgroundContext = createContext<CommunityBackground | null>(null);
+
+/** How a topic's tab stands out: an icon before its name, a tinted pill in `color`
+ * (the name and icon take the color too). */
+export type CommunityTopicStyle = {
+  icon?: ComponentType<CommunityIconProps>;
+  color?: string;
+};
+const TopicStylesContext = createContext<Record<string, CommunityTopicStyle>>({});
 
 /** Where an attachment card is drawn: under a post in the feed or a profile, under
  * the post atop its thread, in the composer. */
@@ -60,6 +75,10 @@ export function CommunityUIProvider(props: {
   renderAttachment?: RenderAttachment;
   /** Opens the attached content in the app (navigate to the verse, the recipe…). */
   onOpenAttachment?: (attachment: PostAttachment) => void;
+  /** Per topic id, how its tab stands out. By default an event topic (`from` /
+   * `until`) is tinted in `accent` and an `adminOnly` topic leads with the
+   * `announcement` icon; an entry here replaces those. */
+  topicStyles?: Record<string, CommunityTopicStyle>;
   children: ReactNode;
 }): ReactElement {
   const {
@@ -71,6 +90,7 @@ export function CommunityUIProvider(props: {
     background,
     renderAttachment,
     onOpenAttachment,
+    topicStyles,
     children,
   } = props;
   const attachmentHandlers = useMemo<AttachmentHandlers>(
@@ -92,7 +112,9 @@ export function CommunityUIProvider(props: {
             <MemberBadgeContext.Provider value={renderMemberBadge ?? null}>
               <BackgroundContext.Provider value={background ?? null}>
                 <AttachmentContext.Provider value={attachmentHandlers}>
-                  {children}
+                  <TopicStylesContext.Provider value={topicStyles ?? NO_TOPIC_STYLES}>
+                    {children}
+                  </TopicStylesContext.Provider>
                 </AttachmentContext.Provider>
               </BackgroundContext.Provider>
             </MemberBadgeContext.Provider>
@@ -120,6 +142,13 @@ export function useMemberBadgeRenderer(): ((p: MemberBadgeRenderProps) => ReactN
 /** The host's attachment renderer and opener (null each when not given). */
 export function useAttachmentHandlers(): AttachmentHandlers {
   return useContext(AttachmentContext);
+}
+
+const NO_TOPIC_STYLES: Record<string, CommunityTopicStyle> = {};
+
+/** The host's per-topic tab styles (`topicStyles`). */
+export function useTopicStyles(): Record<string, CommunityTopicStyle> {
+  return useContext(TopicStylesContext);
 }
 
 /** The host's community background, or null. */

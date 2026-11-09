@@ -49,6 +49,7 @@ import {
   emitEvent,
   newestCreatedAt,
   useBlockUser,
+  isEventTopic,
   useCommunityConfig,
   useCommunityFeed,
   useDeleteContent,
@@ -95,7 +96,13 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePinMenu } from "../utils/pinMenu";
-import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
+import {
+  useCommunityIcons,
+  useCommunityTheme,
+  useT,
+  useThemedStyles,
+  useTopicStyles,
+} from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
 import { ImageViewerHost } from "../components/ImageViewer";
@@ -151,8 +158,8 @@ export function CommunityFeedScreen({
   beforeCompose?: () => Promise<boolean>;
   /** Selects a topic's tab from outside, e.g. a topic tapped on a profile
    * the host navigated back from. Applied each time `requestedAt` changes, so
-   * the same topic can be asked for twice; an id `cfg.topics` doesn't list is
-   * ignored. */
+   * the same topic can be asked for twice; an id that isn't a tab right now (unknown,
+   * or an event outside its window) is ignored. */
   topicRequest?: { topicId: string; requestedAt: number };
   /** Opens a post's thread from outside, e.g. the post a tapped push is
    * about. Applied each time `requestedAt` changes. */
@@ -192,6 +199,7 @@ export function CommunityFeedScreen({
   const blockUser = useBlockUser();
   const deleteContent = useDeleteContent();
   const pinMenu = usePinMenu();
+  const topicStyles = useTopicStyles();
 
   useEffect(() => {
     emitEvent(cfg, COMMUNITY_EVENTS.opened);
@@ -392,6 +400,8 @@ export function CommunityFeedScreen({
   const currentTab = useRef({ filter, searchOpen });
   currentTab.current = { filter, searchOpen };
   const selectTopic = useCallback((topicId: string) => {
+    // Not a tab right now (an ended event, an unknown id): stay put.
+    if (!cfg.feedTopics().some((topic) => topic.id === topicId)) return;
     const now = currentTab.current;
     if (now.filter === topicId && !now.searchOpen) return;
     setSearchOpen(false);
@@ -404,9 +414,7 @@ export function CommunityFeedScreen({
   const requestedTopic = topicRequest?.topicId;
   const requestedAt = topicRequest?.requestedAt;
   useEffect(() => {
-    if (requestedTopic && cfg.topics.some((tp) => tp.id === requestedTopic)) {
-      selectTopic(requestedTopic);
-    }
+    if (requestedTopic) selectTopic(requestedTopic);
     // Keyed on `requestedAt`: the same topic can be asked for twice.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedAt]);
@@ -569,17 +577,27 @@ export function CommunityFeedScreen({
     }
   };
 
+  // Event topics come and go with the clock: re-read on focus and foreground.
+  const liveTopics = useMemo(() => cfg.feedTopics(), [cfg, appActive, isFocused]);
   const topicTabs = useMemo(
     () => [
       { id: "all", label: t("feed.all") },
-      ...cfg.topics.map((topic) => ({
-        id: topic.id,
-        label: t(`topics.${topic.id}`),
-        icon: topic.adminOnly ? icons.announcement : undefined,
-      })),
+      ...liveTopics.map((topic) => {
+        const style = topicStyles[topic.id];
+        return {
+          id: topic.id,
+          label: t(`topics.${topic.id}`),
+          icon: style ? style.icon : topic.adminOnly ? icons.announcement : undefined,
+          color: style ? style.color : isEventTopic(topic) ? theme.colors.accent : undefined,
+        };
+      }),
     ],
-    [cfg.topics, t, icons],
+    [liveTopics, topicStyles, t, icons, theme],
   );
+  // An event that ended while its tab was open: back to "All".
+  useEffect(() => {
+    if (filter !== "all" && !liveTopics.some((topic) => topic.id === filter)) setFilter("all");
+  }, [liveTopics, filter]);
 
   // Only admins post in an `adminOnly` topic: members get no `+` on its tab.
   const adminTopic = topicFilter != null && cfg.isAdminTopic(topicFilter);

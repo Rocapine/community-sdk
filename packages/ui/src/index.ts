@@ -30,6 +30,7 @@ export type { InboxItem } from "@rocapine/community-core";
 export {
   CommunityUIProvider,
   type CommunityBackground,
+  type CommunityTopicStyle,
   useCommunityBackground,
   type AttachmentPlacement,
   type RenderAttachment,
