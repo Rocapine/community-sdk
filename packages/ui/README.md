@@ -258,6 +258,11 @@ you can wrap, replace, or ignore it:
   Modal) it closes the thread first and opens yours once it's gone — iOS
   can't stack two Modals and would leave an invisible layer that blocks every
   touch. Elsewhere it just runs your callback.
+  `ctx.reaction` is `{ active, count, toggle }`: a custom reaction button reads
+  its state and toggles it (honouring `onPressReaction`) without a hook of its
+  own. For a word next to the icon ("Yum"), no slot is needed:
+  `modules.reaction: { key, label: "Yum" }`; the active colour is
+  `colors.reaction`.
 - `isOptimistic(post)` (core): true while a just-sent post/comment still has
   its temporary id. Server actions keyed on the id (reactions, likes, votes)
   must wait; the author fields are already yours.

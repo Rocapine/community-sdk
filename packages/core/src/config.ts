@@ -7,7 +7,9 @@ export type CommunityModules = {
   polls: boolean;
   push: boolean;
   inbox: boolean;
-  reaction: { key: string } | false;
+  /** The secondary reaction (a prayer, a cheer…): `key` is stored with each
+   * reaction; `label` is shown next to its icon ("Yum"), icon alone when absent. */
+  reaction: { key: string; label?: string } | false;
   /** Translation module: posts/comments/poll labels translated at publication
    * into these locales (must equal the backend's COMMUNITY_TRANSLATION_LOCALES
    * secret). Absent or false ⇒ every query and screen behaves as before. */
