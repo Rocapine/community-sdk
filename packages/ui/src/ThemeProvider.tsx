@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, type ReactElement, type ReactNode } from "react";
-import type { ImageSourcePropType } from "react-native";
+import type { ImageProps } from "expo-image";
 import type { PostAttachment } from "@rocapine/community-core";
 import { defaultTheme, mergeTheme, type CommunityTheme, type DeepPartial } from "./theme";
 import { makeT, type TFn } from "./i18n";
@@ -16,7 +16,7 @@ const MemberBadgeContext = createContext<((p: MemberBadgeRenderProps) => ReactNo
 
 /** An image behind the whole community (feed, notification center, profiles). */
 export type CommunityBackground = {
-  image: ImageSourcePropType;
+  image: ImageProps["source"];
   contentFit?: "cover" | "contain";
   opacity?: number;
 };

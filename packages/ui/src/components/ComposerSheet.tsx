@@ -38,6 +38,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { ViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -113,8 +114,8 @@ export function ComposerSheet({
   const [topic, setTopic] = useState<string>(fallbackTopic);
   const [topicMenuOpen, setTopicMenuOpen] = useState(false);
   // The topic menu floats over the sheet, anchored under the pill.
-  const rootRef = useRef<View>(null);
-  const pillRef = useRef<View>(null);
+  const rootRef = useRef<ViewInstance>(null);
+  const pillRef = useRef<ViewInstance>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const openTopicMenu = () => {
     const root = rootRef.current;
