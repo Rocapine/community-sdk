@@ -2,7 +2,14 @@
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePlayground } from "@/PlaygroundProvider";
-import { LOCALES, TITLE_FONTS, type PlaygroundSettings } from "@/playground";
+import {
+  HEADER_ITEMS,
+  HEADER_PRESETS,
+  HEADER_ZONES,
+  LOCALES,
+  TITLE_FONTS,
+  type PlaygroundSettings,
+} from "@/playground";
 
 type ModuleName = keyof PlaygroundSettings["modules"];
 const MODULE_NAMES: ModuleName[] = [
@@ -78,6 +85,67 @@ export default function ConfigTab() {
         />
       </Section>
 
+      <Section title="Header">
+        <Chips
+          options={Object.keys(HEADER_PRESETS)}
+          value={
+            Object.entries(HEADER_PRESETS).find(
+              ([, h]) => JSON.stringify(h) === JSON.stringify(settings.header),
+            )?.[0] ?? ""
+          }
+          onChange={(name) => update({ header: HEADER_PRESETS[name] })}
+        />
+        {HEADER_ZONES.map((zone) => (
+          <View key={zone} style={styles.zone}>
+            <Text style={styles.hint}>
+              {zone}: {settings.header[zone].join(" · ") || "empty"}
+            </Text>
+            <View style={styles.chips}>
+              {HEADER_ITEMS.map((id) => {
+                const on = settings.header[zone].includes(id);
+                return (
+                  <Pressable
+                    key={id}
+                    onPress={() =>
+                      update({
+                        header: {
+                          ...settings.header,
+                          [zone]: on
+                            ? settings.header[zone].filter((x) => x !== id)
+                            : [...settings.header[zone], id],
+                        },
+                      })
+                    }
+                    style={[styles.chip, on && styles.chipOn]}
+                  >
+                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{id}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ))}
+      </Section>
+
+      <Section title="Official accounts">
+        <Row label="Ring on their avatar">
+          <Switch
+            value={settings.official.ring}
+            onValueChange={(ring) => update({ official: { ...settings.official, ring } })}
+          />
+        </Row>
+        <Text style={styles.hint}>Name colour</Text>
+        <Chips
+          options={["default", "#C49B00", "#D14343", "#2E9E5B"]}
+          value={settings.official.nameColor || "default"}
+          onChange={(color) =>
+            update({
+              official: { ...settings.official, nameColor: color === "default" ? "" : color },
+            })
+          }
+        />
+      </Section>
+
       <Pressable style={styles.reset} onPress={reset}>
         <Text style={styles.resetText}>Reset everything</Text>
       </Pressable>
@@ -140,6 +208,7 @@ const styles = StyleSheet.create({
   },
   label: { fontSize: 16 },
   hint: { fontSize: 14, color: "#6B6B73" },
+  zone: { gap: 6 },
   input: {
     minWidth: 120,
     borderWidth: 1,

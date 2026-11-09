@@ -350,6 +350,9 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
                   name={profile.data.name}
                   url={shownAvatar}
                   size={AVATAR_SIZE}
+                  placement="edit"
+                  official={profile.data.official}
+                  handle={profile.data.handle}
                 />
                 <View style={styles.pencilBadge}>
                   {photoBusy ? (

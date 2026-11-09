@@ -171,7 +171,10 @@ export function CommunityPost({
   const metaLine = (
     <View style={styles.metaRow}>
       <Pressable onPress={handleOpenProfile} hitSlop={4} style={styles.nameBlock}>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text
+          style={[styles.name, post.authorOfficial && { color: theme.colors.officialName }]}
+          numberOfLines={1}
+        >
           {post.authorName}
         </Text>
         {post.authorOfficial && (
@@ -271,6 +274,9 @@ export function CommunityPost({
         name={post.authorName}
         url={post.authorAvatarUrl}
         size={size}
+        placement="post"
+        official={post.authorOfficial}
+        handle={post.authorHandle}
       />
     </Pressable>
   );

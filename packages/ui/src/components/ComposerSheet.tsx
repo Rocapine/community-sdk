@@ -20,7 +20,6 @@ import {
   useCommunityConfig,
   useCreatePost,
   useMyUid,
-  useProfile,
   type LocalImage,
 } from "@rocapine/community-core";
 import { Image } from "expo-image";
@@ -44,7 +43,7 @@ import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../
 import type { CommunityTheme } from "../theme";
 import { imageFrame, imagesSupported, pickImage } from "../utils/postImage";
 import { useMyAuthorName } from "../utils/myName";
-import { Avatar } from "./Avatar";
+import { MyAvatar } from "./Avatar";
 import { haptic, PressableScale } from "./PressableScale";
 import { noFocusRingMultiline } from "../utils/noFocusRing";
 
@@ -100,7 +99,6 @@ export function ComposerSheet({
   const insets = useSafeAreaInsets();
   const createPost = useCreatePost();
   const myUid = useMyUid();
-  const myAvatarUrl = useProfile(myUid).data?.avatarUrl ?? null;
   const myAuthorName = useMyAuthorName();
 
   const topics = cfg.composeTopics();
@@ -274,7 +272,7 @@ export function ComposerSheet({
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.authorRow}>
-              <Avatar userId={myUid} name={myAuthorName()} url={myAvatarUrl} size={40} />
+              <MyAvatar size={40} placement="composer" />
               <View style={styles.main}>
                 <Text style={styles.name} numberOfLines={1}>
                   {myAuthorName()}
