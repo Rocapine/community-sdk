@@ -1,5 +1,162 @@
 # @rocapine/community-core
 
+## 0.15.0
+
+### Minor Changes
+
+- b69bf37: **Admins pin and notify everyone from the composer.** An admin's composer shows two
+  options above the toolbar: "Pin" (`composer.pinPost`) pins the post once it is created,
+  and "Notify everyone" (`composer.notifyAll`, push module only) pushes it to every member
+  once it is published, also when moderation publishes it later. `CreatePostVariables`
+  takes `pin` and `notifyAll`; core exports `requestPostBroadcast()`.
+
+  `adminPostsNotifyAll` (default false): every admin post notifies everyone, and the
+  composer drops the "Notify everyone" option.
+
+  `maxPinnedPerTopic` (default 1) caps the pinned posts of a topic. Pinning one more, from
+  the composer or a post's `…` menu, shows a warning (`pin.limitTitle` / `pin.limitBody`)
+  and pins nothing; core exports `countPinnedPosts()`.
+
+  **The notification center lists what was pushed.** An admin post appears in the center
+  only once it was sent to everyone, dated when it was sent; admin posts that were never
+  pushed leave it, also for app versions already installed. The broadcast never reaches
+  the author's own devices, and a post goes out once.
+
+  Backend: `core/013_post_broadcasts.sql` (`posts.broadcast_requested`,
+  `posts.broadcast_at`, `request_post_broadcast()`, admins only),
+  `push/005_broadcast_trigger.sql` (sends once the post is visible) and
+  `inbox/003_pushed_admin_posts.sql`. `broadcast-post` accepts the service role, or the
+  trigger for a post its admin author asked to send. Run
+  `npx @rocapine/community upgrade`, `supabase db push`, then redeploy `broadcast-post`.
+
+- 6672084: **Admins pin posts from the app.** An admin's `…` menu on a post offers "Pin" or
+  "Unpin" (`post.pin` / `post.unpin`). Pinned posts lead "All" and their topic, newest pin
+  first, until unpinned. Through `set_post_pinned` (`core/012_pin_posts.sql`), which
+  refuses anyone but an admin; `usePinPost()` / `setPostPinned()` in core. Run
+  `npx @rocapine/community upgrade` and `supabase db push`.
+- 6092dbb: **Admin accounts and admin-only topics (breaking).** "Official" accounts are now called
+  admin accounts everywhere, and any topic can be reserved for them, not only `news`.
+
+  - Everyone reads an `adminOnly: true` topic. On its tab a member gets no `+` and never
+    sees it in the composer; an admin gets the `+`, with that topic preselected. Its tab
+    leads with the `announcement` icon, and its empty state reads `feed.adminTopicEmpty`.
+  - The database no longer reserves `news` (`core/011_admins.sql`): which topics are
+    admin-only is the app's config, applied by the UI.
+
+  Migration:
+
+  - Run `npx @rocapine/community upgrade`, then `supabase db push`. `profiles.is_official`
+    becomes `is_admin`; a read-only `is_official` copy stays for app versions on 0.14 or
+    older, and the inbox still names admin posts `official_post` for them (0.15 reads
+    both). Make an account admin with `update profiles set is_admin = true where id = …`.
+  - Renames: `CommunityTopicDef.officialOnly` → `adminOnly`, `isOfficialTopic` →
+    `isAdminTopic`, `FeedPost`/`ThreadComment.authorOfficial` → `authorAdmin`,
+    `CommunityProfile.official` → `admin`, the `renderAvatar` prop `official` → `admin`,
+    the inbox kind `official_post` → `admin_post`, the icon `officialSeal` → `adminSeal`,
+    the colors `official`/`officialName` → `admin`/`adminName`, the string
+    `feed.newsEmpty` → `feed.adminTopicEmpty`, and `broadcast-post`'s push data kind
+    `community_official_post` → `community_admin_post`.
+  - `composeTopics(admin?)` now takes whether the author is an admin.
+
+- 05caa2d: Attachments. A post can carry one reference to the app's own content (`{ type, id }`: a
+  verse, a recipe, a session), never a URL: each reader's app draws the card from its own
+  data with `renderAttachment(attachment, { placement, open })` and opens it with
+  `onOpenAttachment` (both on `CommunityUIProvider`). Configure it with
+  `modules.attachments: { types, membersCanAttach }`; official accounts can always attach.
+  Share from the app with `CommunityFeedScreen`'s `composeRequest`
+  (`{ attachment?, text?, requestedAt }`): the composer opens with the card, through the same
+  gates as `+`. A post carries an attachment, a poll or a photo, never two, and still needs
+  text (pass `text` in the request to pre-fill it).
+
+  New backend module `attachments` (`posts.attachment`, shape and size checked).
+  Core: `createPost({ attachment })`, `FeedPost.attachment`, `canAttach`, `PostAttachment`.
+  UI: new string `composer.removeAttachment`.
+
+- e3661c7: **Event topics.** A topic with `from` / `until` (`{ id: "nnn", from: "2026-11-01", until:
+"2026-12-01" }`) only exists inside its window, read on the device's clock (a bare date
+  is local midnight, `until` excluded): its tab comes right after "All" and the composer
+  offers it, without preselecting it from "All". Outside the window the tab is gone and
+  its posts stay in "All" with their label. The feed re-reads the clock on focus and
+  foreground, and leaves a tab whose event ended for "All". Feed the dates from remote
+  config to move an event without a release.
+
+  **Topic styles.** `CommunityUIProvider`'s `topicStyles` gives a topic's tab an icon
+  before its name and a pill tinted in its color. By default an event topic is tinted in
+  `accent` and an admin-only topic leads with the `announcement` icon.
+
+  Core: `cfg.feedTopics(now?)`, `cfg.composeTopics(admin?, now?)` (live topics, events
+  first), `topicLive()`, `isEventTopic()`.
+
+- 07c33a5: **community-ui (breaking).** The feed header is configured in three zones. `header`
+  takes `{ left?, center?, right?, background? }`, each zone a row of items: `"title"`,
+  `"profile"`, `"search"`, `"inbox"` or `{ logo, height?, width?, accessibilityLabel? }`.
+  The center zone stays centered; a logo and the title can sit side by side.
+  `DEFAULT_FEED_HEADER` is `{ left: ["profile"], center: ["title"], right: ["search", "inbox"] }`.
+
+  `renderAvatar` now knows whose avatar it draws and where: `AvatarRenderProps` gains
+  `official`, `handle`, `placement` (`post`, `comment`, `profile`, `header`, `composer`,
+  `reply`, `edit`) and `badges`. New colour `officialName` (defaults to `textPrimary`) for an
+  official account's name on posts, comments and its profile.
+
+  Migration:
+
+  - `headerLayout` is gone. `{ left: ["search"], title: { image: LOGO, position: "center", accessibilityLabel: "App" }, right: ["inbox", "profile"] }`
+    becomes `header={{ left: ["search"], center: [{ logo: LOGO, width: 160, accessibilityLabel: "App" }], right: ["inbox", "profile"] }}`.
+    A logo is 32 high and square unless you set `width` (the old title image was a 160 × 32
+    box); `title: "left"` becomes `left: [..., "title"]`; `title: false` is an empty center.
+  - The old `header?: ReactNode` (a node above the row) is removed: put it above the screen.
+  - `FeedHeaderLayout`, `FeedHeaderButton`, `FeedHeaderTitle` and `DEFAULT_FEED_HEADER_LAYOUT`
+    are replaced by `FeedHeaderConfig`, `FeedHeaderItem`, `FeedHeaderBackground` and
+    `DEFAULT_FEED_HEADER`.
+  - A custom `renderAvatar` keeps working; it simply receives more props.
+
+  **community-core.** Exports the `MemberBadges` / `MemberBadgeData` types (filled by the
+  badges module in a later change).
+
+- 093fc9f: **Member badges (breaking).** The streaks module becomes a generic badges module: each
+  app declares its badges (`modules.badges: { [id]: { placements } }`, placements `post`,
+  `comment`, `profile`), computes their data on the device (`host.getBadges()`), and draws
+  them with `renderMemberBadge({ id, data, placement, size })`. Each badge gets its own
+  visibility toggle in the profile sheet; a hidden badge never leaves the database.
+  `STREAK_BADGES` + `streakBadgeData()` reproduce the streak (current streak on posts and
+  the profile, best streak on the profile) with the built-in pills.
+
+  New backend module `badges` (`profiles.badges`, `hidden_badges`, generated
+  `visible_badges`). `streaks/002_to_badges` moves an existing streak install over and keeps
+  the legacy columns in step both ways, so app builds still on the streaks API keep working;
+  a later `streaks/003` drops them.
+
+  Migration:
+
+  - DB: `npx @rocapine/community upgrade` brings `badges/001` and `streaks/002` to an install
+    that has streaks (badges first); push them before shipping the new client.
+  - Config: `modules.streaks: true` → `modules.badges: STREAK_BADGES`;
+    `host.getStreak: () => s` → `host.getBadges: () => streakBadgeData(s ?? { startedAt: null, bestDays: 0 })`.
+  - UI: `renderStreakPill` → `renderMemberBadge` (`id` is `streak` or `bestStreak`; the day
+    count is `streakDays(data.since)` or `data.days`; the old `tier` is `streakTier(days)` and
+    `label` is `useT()("streak.days", { count: days })`; `defaultMemberBadge(p)` draws the
+    built-in pill). `StreakPillRenderProps` is gone. The renderer is called as a plain
+    function: no hooks in it, return an element.
+  - Data: `FeedPost.authorStreakStartedAt` → `authorBadges`; `CommunityProfile`
+    `streakStartedAt` / `bestStreakDays` / `showStreak` / `showBestStreak` → `badges` /
+    `hiddenBadges`; `ThreadComment.authorBadges` is new. Raw rows: `PostRow.author_streak`
+    (`{ visible_streak_started_at }`) → `author_badges` (`{ visible_badges }`), and
+    `buildFeedSelect`'s fifth argument `streaks` → `badges`.
+  - `setStreakVisibility` / `useSetStreakVisibility` → `setBadgeVisibility` /
+    `useSetBadgeVisibility({ key, visible })`.
+  - Strings: `profile.streak` → `badge.streak.label`, `profile.bestStreak` →
+    `badge.bestStreak.label`, `profile.showStreak` → `badge.streak.toggle`,
+    `profile.showBestStreak` → `badge.bestStreak.toggle`, `profile.streakHelper` →
+    `profile.badgesHelper` (now generic copy); new `profile.badges` (the toggles' header).
+    Rename your overrides. A badge's switch reads `badge.<id>.toggle`, else its
+    `badge.<id>.label`, else its id.
+  - `renderAvatar` now receives the member's `badges`.
+
+- b548fae: Reactions: `modules.reaction` takes an optional `label` shown next to the icon (e.g.
+  `{ key: "yum", label: "Yum" }`), coloured `colors.reaction` when active. `PostSlotContext`
+  gains `reaction: { active, count, toggle }`, so a `renderReactionButton` can draw its own
+  button without re-implementing the toggle (`toggle` honours `onPressReaction`).
+
 ## 0.14.0
 
 ### Minor Changes
