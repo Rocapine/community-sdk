@@ -62,6 +62,14 @@ export default function ConfigTab() {
         </Row>
       </Section>
 
+      <Section title="Notification rows">
+        <Chips
+          options={["default", "card"] as const}
+          value={settings.inboxRow}
+          onChange={(inboxRow) => update({ inboxRow })}
+        />
+      </Section>
+
       <Section title="Locale">
         <Chips
           options={LOCALES}
