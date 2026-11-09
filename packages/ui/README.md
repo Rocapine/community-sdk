@@ -354,7 +354,8 @@ The feed is flat: full-width post rows separated by hairlines, the avatar in a
 first column and `name › topic · time` on one line, the `…` menu at its end.
 Topics are scrollable tabs. A body longer than six lines is cut with "View
 more" at the end of its last line (tapping expands it for good). Times count
-seconds, then minutes, hours, days, months and years.
+seconds, then minutes, hours, days, months and years. An admin's `…` menu also
+pins and unpins a post: pinned posts lead "All" and their topic, newest pin first.
 
 A round `+` button (bottom right, `feed.compose` label) opens `ComposerSheet`,
 a full-screen page sheet: Cancel / Post on top, the topic pill under the

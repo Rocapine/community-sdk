@@ -70,6 +70,8 @@ export const de: Record<string, string> = {
   "time.years.other": "{count} J.",
 
   "post.pinned": "Angeheftet",
+  "post.pin": "Anheften",
+  "post.unpin": "Lösen",
   "post.viewMore": "Mehr anzeigen",
   "post.viewLess": "Weniger anzeigen",
   "post.reaction.received": "{name} hat auf deinen Beitrag reagiert",

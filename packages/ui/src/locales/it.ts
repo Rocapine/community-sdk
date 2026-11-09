@@ -52,6 +52,8 @@ export const it: Record<string, string> = {
   "time.years.other": "{count} anni",
 
   "post.pinned": "In evidenza",
+  "post.pin": "Metti in evidenza",
+  "post.unpin": "Togli dall'evidenza",
   "post.viewMore": "Mostra di più",
   "post.viewLess": "Mostra meno",
   "post.reaction.received": "{name} ha reagito al tuo post",

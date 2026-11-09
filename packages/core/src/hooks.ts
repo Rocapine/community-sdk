@@ -51,6 +51,7 @@ import {
   createPost,
   deleteOwnComment,
   deleteOwnPost,
+  setPostPinned,
   fetchFeedPage,
   fetchNotificationPreferences,
   fetchPost,
@@ -764,6 +765,21 @@ export function useBlockUser() {
     onSuccess: () => {
       emitEvent(cfg, COMMUNITY_EVENTS.userBlocked);
       queryClient.invalidateQueries({ queryKey: ["community"] });
+    },
+  });
+}
+
+/** An admin pins or unpins a post; every feed reorders. */
+export function usePinPost() {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ postId, pinned }: { postId: string; pinned: boolean }) =>
+      setPostPinned(cfg, postId, pinned),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: FEED_KEY });
+      queryClient.invalidateQueries({ queryKey: USER_POSTS_KEY });
+      queryClient.invalidateQueries({ queryKey: SEARCH_KEY });
     },
   });
 }

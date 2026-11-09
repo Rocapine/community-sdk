@@ -45,6 +45,8 @@ export const ko: Record<string, string> = {
   "time.years.other": "{count}년",
 
   "post.pinned": "고정됨",
+  "post.pin": "고정",
+  "post.unpin": "고정 해제",
   "post.viewMore": "더 보기",
   "post.viewLess": "접기",
   "post.reaction.received": "{name}님이 내 게시글에 반응했어요",
