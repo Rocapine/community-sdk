@@ -1,7 +1,7 @@
 // Full-screen dismissible notice for a rejected post/comment, or a network
 // failure. Ported from the mold's `NoticeCard`
 // (`sdk/client/components/community/NoticeCard.tsx`). Renders itself
-// absolutely-positioned (`StyleSheet.absoluteFillObject`), so a host places
+// absolutely-positioned (`StyleSheet.absoluteFill`), so a host places
 // it directly over its feed screen — no layout wiring needed at the call
 // site.
 //
@@ -74,7 +74,7 @@ export function NoticeCard({
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     backdrop: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: "rgba(8,6,3,0.6)",
       alignItems: "center",
       justifyContent: "center",
