@@ -1,6 +1,6 @@
 // The feed header's configuration, and which items each zone actually shows.
 // Pure (type-only React Native import) so it is unit-testable.
-import type { ImageSourcePropType } from "react-native";
+import type { ImageProps } from "expo-image";
 
 /** One thing the header row can show:
  *  - `title`: the community's name (the `title` translation key)
@@ -14,7 +14,7 @@ export type FeedHeaderItem =
   | "search"
   | "inbox"
   | {
-      logo: ImageSourcePropType;
+      logo: ImageProps["source"];
       /** Defaults to 28. */
       height?: number;
       /** Defaults to `height` (a square mark). */
@@ -26,7 +26,7 @@ export type FeedHeaderItem =
  * tabs. `extendTop`: how far above the bar it reaches, e.g. the status bar's height
  * when the host pads the screen's top inset itself. */
 export type FeedHeaderBackground = {
-  image?: ImageSourcePropType;
+  image?: ImageProps["source"];
   color?: string;
   contentFit?: "cover" | "contain";
   extendTop?: number;

@@ -72,16 +72,9 @@ import {
 } from "@rocapine/community-core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import {
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ComponentRef,
-} from "react";
+import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { CommunitySheet, SHEET_GUTTER, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -238,7 +231,7 @@ export function ThreadSheet({
   // source apps gated the first comment behind the UGC rules sheet too).
   const rulesAccepted = useRulesAccepted(cfg);
   const [rulesVisible, setRulesVisible] = useState(false);
-  const inputRef = useRef<ComponentRef<typeof SheetTextInput>>(undefined);
+  const inputRef = useRef<TextInputInstance>(null);
   const focusReply = () => {
     if (rulesAccepted) inputRef.current?.focus();
     else setRulesVisible(true);
@@ -564,7 +557,8 @@ export function ThreadSheet({
                   <MyAvatar size={30} placement="reply" />
                 )}
                 <SheetTextInput
-                  ref={inputRef}
+                  // gorhom still types this ref with the pre-0.88 `TextInput` class.
+                  ref={inputRef as never}
                   value={text}
                   onChangeText={setText}
                   placeholder={t("thread.commentPlaceholder")}
