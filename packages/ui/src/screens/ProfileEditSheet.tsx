@@ -43,6 +43,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from "react-native";
+import type { ViewInstance } from "react-native";
 import { haptic, PressableScale } from "../components/PressableScale";
 import { Avatar } from "../components/Avatar";
 import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
@@ -112,7 +113,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   // ---- keyboard: a focused field the keyboard would cover scrolls into view ----
   const scrollRef = useRef<BottomSheetScrollViewMethods>(null);
   const fieldY = useRef<Partial<Record<Field, number>>>({});
-  const fieldViews = useRef<Partial<Record<Field, View | null>>>({});
+  const fieldViews = useRef<Partial<Record<Field, ViewInstance | null>>>({});
   const focused = useRef<Field | null>(null);
   const keyboardTop = useRef<number | null>(null);
   const footerHeight = useRef(0);
@@ -150,7 +151,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   }, []);
 
   const fieldProps = (field: Field) => ({
-    ref: (v: View | null) => {
+    ref: (v: ViewInstance | null) => {
       fieldViews.current[field] = v;
     },
     onLayout: (e: LayoutChangeEvent) => {
