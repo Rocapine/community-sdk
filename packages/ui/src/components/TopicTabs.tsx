@@ -7,6 +7,7 @@
 // (`topicRequest`).
 import { useEffect, useRef } from "react";
 import { Pressable, ScrollView, StyleSheet } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import Animated, {
   interpolateColor,
   useAnimatedStyle,
@@ -31,7 +32,7 @@ export function TopicTabs({
   onSelect(id: string): void;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const boxes = useRef<Record<string, { x: number; width: number }>>({});
   const rowWidth = useRef(0);
   // The underline: left edge and width of the label it sits under.
