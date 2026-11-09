@@ -47,6 +47,11 @@ export const ko: Record<string, string> = {
   "post.pinned": "고정됨",
   "post.pin": "고정",
   "post.unpin": "고정 해제",
+  "composer.pinPost": "고정",
+  "composer.notifyAll": "모두에게 알림",
+  "pin.limitTitle": "고정 한도 도달",
+  "pin.limitBody":
+    "‘{topic}’에는 이미 고정할 수 있는 만큼의 게시물이 고정되어 있어요. 먼저 하나를 고정 해제하세요.",
   "post.viewMore": "더 보기",
   "post.viewLess": "접기",
   "post.reaction.received": "{name}님이 내 게시글에 반응했어요",

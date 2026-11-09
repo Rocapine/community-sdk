@@ -94,6 +94,11 @@ it("postMaxLength defaults to 500 and never exceeds the database's 2000", () => 
   expect(resolveConfig({ ...base, postMaxLength: 5000 }).postMaxLength).toBe(2000);
 });
 
+it("maxPinnedPerTopic defaults to 1", () => {
+  expect(resolveConfig({ ...base }).maxPinnedPerTopic).toBe(1);
+  expect(resolveConfig({ ...base, maxPinnedPerTopic: 3 }).maxPinnedPerTopic).toBe(3);
+});
+
 describe("event topics", () => {
   const cfg = resolveConfig({
     ...base,

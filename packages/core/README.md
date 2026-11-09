@@ -69,6 +69,9 @@ const config: CommunityConfig = {
   // everything when the notification center opens; "tap" reads an item once
   // tapped, and the center offers "mark all as read".
   inboxReadMode: "tap",
+  // Optional. Pinned posts a topic may hold at once (default 1): an admin
+  // pinning one more is warned instead.
+  maxPinnedPerTopic: 2,
 
   // Host adapters — every field optional, no-op defaults.
   host: {

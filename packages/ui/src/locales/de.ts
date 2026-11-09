@@ -72,6 +72,11 @@ export const de: Record<string, string> = {
   "post.pinned": "Angeheftet",
   "post.pin": "Anheften",
   "post.unpin": "Lösen",
+  "composer.pinPost": "Anheften",
+  "composer.notifyAll": "Alle benachrichtigen",
+  "pin.limitTitle": "Limit erreicht",
+  "pin.limitBody":
+    "„{topic}“ hat schon so viele angeheftete Beiträge wie möglich. Löse zuerst einen.",
   "post.viewMore": "Mehr anzeigen",
   "post.viewLess": "Weniger anzeigen",
   "post.reaction.received": "{name} hat auf deinen Beitrag reagiert",

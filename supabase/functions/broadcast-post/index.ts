@@ -1,10 +1,10 @@
-// Broadcast push for an admin dashboard post: Rocactopus invokes this with
-// the service-role key after composing a post with "Send push notification"
-// checked. Sends an Expo push to every registered token (batches of 100).
-// Guarded by a service-role check — the public anon key passes the platform's
-// verify_jwt but must NOT be able to trigger a broadcast.
+// Broadcast push for an admin post. Two callers: a dashboard with the
+// service-role key, or an admin's app pushing their own post ("Notify
+// everyone" in the composer). Sends an Expo push to every registered token
+// (batches of 100). The public anon key passes the platform's verify_jwt but
+// must NOT be able to trigger a broadcast, nor may a member.
 
-import { adminClient, fetchAllRows, isServiceCaller } from "../_shared/client.ts";
+import { adminClient, callerUserId, fetchAllRows, isServiceCaller } from "../_shared/client.ts";
 import { excerptOrPhoto, pushCopy } from "../_shared/copy.ts";
 import { sendExpoPushBatch } from "../_shared/push.ts";
 import { BROADCAST_FALLBACK_TITLE } from "../_shared/config.ts";
@@ -13,7 +13,9 @@ import { ensureTranslations, resolveTargetLocale, TARGET_LOCALES } from "../_sha
 const supabase = adminClient();
 
 Deno.serve(async (req) => {
-  if (!isServiceCaller(req)) {
+  const service = isServiceCaller(req);
+  const callerId = service ? null : await callerUserId(req);
+  if (!service && !callerId) {
     return new Response("unauthorized", { status: 401 });
   }
 
@@ -29,9 +31,12 @@ Deno.serve(async (req) => {
 
   const { data: author } = await supabase
     .from("profiles")
-    .select("username")
+    .select("username, is_admin")
     .eq("id", post.author_id)
     .single();
+  if (!service && (post.author_id !== callerId || !author?.is_admin)) {
+    return new Response("forbidden", { status: 403 });
+  }
   const title = author?.username?.trim() || BROADCAST_FALLBACK_TITLE;
 
   // waitMs: when translate-one holds the claim (it fires on the same insert),

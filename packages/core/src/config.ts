@@ -145,6 +145,9 @@ export type CommunityConfig = {
    * notification center reads everything. `"tap"`: an item is read once
    * tapped, and the center offers "mark all as read". */
   inboxReadMode?: "open" | "tap";
+  /** Pinned posts a topic may hold at once; an admin pinning one more is warned
+   * instead. Defaults to 1. */
+  maxPinnedPerTopic?: number;
 };
 
 export class CommunityDisabledError extends Error {
@@ -161,6 +164,7 @@ export type ResolvedCommunityConfig = CommunityConfig & {
   feed: CommunityFeedConfig;
   postMaxLength: number;
   inboxReadMode: "open" | "tap";
+  maxPinnedPerTopic: number;
   requireClient(): SupabaseClient;
   /** `defaultName` resolved against the host locale. */
   defaultName: CommunityDefaultName;
@@ -206,6 +210,7 @@ export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig 
     host,
     feed: config.feed ?? {},
     inboxReadMode: config.inboxReadMode ?? "open",
+    maxPinnedPerTopic: config.maxPinnedPerTopic ?? 1,
     postMaxLength: Math.min(config.postMaxLength ?? DEFAULT_POST_MAX_LENGTH, POST_MAX_LENGTH),
     defaultName: config.defaultName ?? DEFAULT_NAME,
     requireClient(): SupabaseClient {

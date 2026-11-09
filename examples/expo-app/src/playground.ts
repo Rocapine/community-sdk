@@ -20,6 +20,9 @@ export type PlaygroundSettings = {
     reaction: boolean;
     translation: boolean;
     images: boolean;
+    /** Off by default: a simulator gets no push token. On shows an admin's
+     * "Notify everyone" option. */
+    push: boolean;
   };
   /** Which badge preset the community declares (`modules.badges`). */
   badges: BadgePreset;
@@ -78,6 +81,7 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
     reaction: true,
     translation: true,
     images: true,
+    push: false,
   },
   badges: "streak",
   reaction: { label: "", chip: false },
@@ -181,7 +185,7 @@ export function buildConfig(settings: PlaygroundSettings): CommunityConfig {
     topics: [{ id: "general" }, { id: "question" }, { id: "news", adminOnly: true }, EVENT_TOPIC],
     modules: {
       polls: m.polls,
-      push: false,
+      push: m.push,
       inbox: m.inbox,
       reaction: m.reaction
         ? { key: "cheer", ...(settings.reaction.label ? { label: settings.reaction.label } : {}) }

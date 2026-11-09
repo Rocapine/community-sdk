@@ -54,6 +54,11 @@ export const it: Record<string, string> = {
   "post.pinned": "In evidenza",
   "post.pin": "Metti in evidenza",
   "post.unpin": "Togli dall'evidenza",
+  "composer.pinPost": "Metti in evidenza",
+  "composer.notifyAll": "Avvisa tutti",
+  "pin.limitTitle": "Limite raggiunto",
+  "pin.limitBody":
+    "«{topic}» ha già tutti i post in evidenza che può avere. Togline prima uno dall'evidenza.",
   "post.viewMore": "Mostra di più",
   "post.viewLess": "Mostra meno",
   "post.reaction.received": "{name} ha reagito al tuo post",

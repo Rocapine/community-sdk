@@ -312,7 +312,8 @@ least the public anon key. On top of that:
 
 - `moderate-one` only accepts the row's own author (user JWT, resolved
   through Auth) or the service role.
-- `broadcast-post` only accepts the service role.
+- `broadcast-post` accepts the service role (a dashboard) or the post's own author when that
+  author is an admin ("Notify everyone" in the app's composer); anyone else gets 401/403.
 - `notify-comment` / `report-to-slack` / `notify-like` / `notify-reaction`
   are invoked by database triggers with the anon key and therefore treat the
   request body as untrusted: only the row `id` (or `post_id`) is read and
