@@ -22,8 +22,17 @@ export function translationLine(t: TFn, item: Translatable, showOriginal: boolea
   // technical-looking text): a caption over identical text is noise.
   if (item.translation.text === item.text) return null;
   if (showOriginal) return `${t("translation.original")} · ${t("translation.showTranslation")}`;
-  const key = `language.${item.translation.sourceLocale}`;
-  const named = t(key);
-  const language = named === key ? item.translation.sourceLocale : named;
+  const language = languageName(t, item.translation.sourceLocale);
   return `${t("translation.translatedFrom", { language })} · ${t("translation.showOriginal")}`;
+}
+
+/** "portugués" for `pt-BR` too (the translator may report a regional code); the raw
+ * code when neither the code nor its base language has a name. */
+function languageName(t: TFn, code: string): string {
+  for (const candidate of [code, code.split("-")[0]]) {
+    const key = `language.${candidate}`;
+    const named = t(key);
+    if (named !== key) return named;
+  }
+  return code;
 }
