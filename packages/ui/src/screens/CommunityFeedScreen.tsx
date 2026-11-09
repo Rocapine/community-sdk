@@ -313,6 +313,12 @@ export function CommunityFeedScreen({
     },
   });
   const topStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -hidden.value }] }));
+  // `header.background: "community"`: the screen's background, drawn again inside
+  // the bar at the screen's size and held still while the bar slides.
+  const sharedBackground = header.background === "community";
+  const ownBackground = header.background === "community" ? undefined : header.background;
+  const [screenSize, setScreenSize] = useState<{ width: number; height: number } | null>(null);
+  const stillStyle = useAnimatedStyle(() => ({ transform: [{ translateY: hidden.value }] }));
   const chromeHidden = bottomChrome?.hidden;
   const chromeH = bottomChrome?.height ?? 0;
   useAnimatedReaction(
@@ -568,9 +574,9 @@ export function CommunityFeedScreen({
             accessibilityLabel={searchOpen ? t("a11y.closeSearch") : t("a11y.search")}
           >
             {searchOpen ? (
-              <icons.close size={22} color={theme.colors.textPrimary} weight="bold" />
+              <icons.close size={22} color={theme.colors.headerText} weight="bold" />
             ) : (
-              <icons.search size={22} color={theme.colors.textPrimary} weight="regular" />
+              <icons.search size={22} color={theme.colors.headerText} weight="regular" />
             )}
           </PressableScale>
         );
@@ -605,12 +611,23 @@ export function CommunityFeedScreen({
 
   return (
     <ImageViewerHost>
-      <View style={styles.root}>
+      <View
+        style={styles.root}
+        onLayout={
+          sharedBackground
+            ? (e) => {
+                const { width, height } = e.nativeEvent.layout;
+                setScreenSize({ width, height });
+              }
+            : undefined
+        }
+      >
         <ScreenBackground />
         <Animated.View
           style={[
             styles.top,
-            header.background?.color != null && { backgroundColor: header.background.color },
+            ownBackground?.color != null && { backgroundColor: ownBackground.color },
+            sharedBackground && styles.topClipped,
             topStyle,
           ]}
           onLayout={(e) => {
@@ -624,11 +641,19 @@ export function CommunityFeedScreen({
               listRef.current?.scrollToOffset({ offset: -h, animated: false });
           }}
         >
-          {header.background?.image != null && (
+          {sharedBackground && screenSize && (
+            <Animated.View
+              style={[styles.stillBackground, screenSize, stillStyle]}
+              pointerEvents="none"
+            >
+              <ScreenBackground />
+            </Animated.View>
+          )}
+          {ownBackground?.image != null && (
             <Image
-              source={header.background.image}
+              source={ownBackground.image}
               style={StyleSheet.absoluteFill}
-              contentFit={header.background.contentFit ?? "cover"}
+              contentFit={ownBackground.contentFit ?? "cover"}
               pointerEvents="none"
             />
           )}
@@ -682,6 +707,30 @@ export function CommunityFeedScreen({
             )}
           </View>
         </Animated.View>
+        {/* `header.topInset`: the status bar strip stays put; the bar slides under it. */}
+        {statusInset > 0 && (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.statusCap,
+              { height: statusInset },
+              ownBackground?.color != null && { backgroundColor: ownBackground.color },
+            ]}
+          >
+            {sharedBackground && screenSize && (
+              <View style={[styles.stillBackground, screenSize]}>
+                <ScreenBackground />
+              </View>
+            )}
+            {ownBackground?.image != null && (
+              <Image
+                source={ownBackground.image}
+                style={[styles.stillBackground, { right: 0, height: topHeight }]}
+                contentFit={ownBackground.contentFit ?? "cover"}
+              />
+            )}
+          </View>
+        )}
 
         <View style={styles.listWrap}>
           {newCount > 0 && (
@@ -834,7 +883,7 @@ function InboxBell({ onPress }: { onPress: () => void }) {
       accessibilityRole="button"
       accessibilityLabel={t("inbox.title")}
     >
-      <icons.bell size={22} color={theme.colors.textPrimary} weight="regular" />
+      <icons.bell size={22} color={theme.colors.headerText} weight="regular" />
       {unread > 0 && <View style={styles.bellDot} />}
     </PressableScale>
   );
@@ -859,6 +908,17 @@ function makeStyles(theme: CommunityTheme) {
       zIndex: 1,
       backgroundColor: theme.colors.background,
     },
+    topClipped: { overflow: "hidden" },
+    stillBackground: { position: "absolute", top: 0, left: 0 },
+    statusCap: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 2,
+      overflow: "hidden",
+      backgroundColor: theme.colors.background,
+    },
     controls: { paddingHorizontal: theme.spacing(5), paddingTop: theme.spacing(1) },
     // Icons sit flush with the content edge; each keeps a 44pt target.
     headerRow: {
@@ -880,7 +940,7 @@ function makeStyles(theme: CommunityTheme) {
       flexShrink: 1,
       paddingHorizontal: (ICON_TARGET - 22) / 2,
       ...theme.typography.title,
-      color: theme.colors.textPrimary,
+      color: theme.colors.headerText,
     },
     iconButton: {
       width: ICON_TARGET,

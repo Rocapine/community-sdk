@@ -131,8 +131,8 @@ function Tab({
   // This label's own left edge and width, for the underline's distance to it.
   const x = useSharedValue(-1);
   const w = useSharedValue(1);
-  const muted = theme.colors.textMuted;
-  const primary = theme.colors.textPrimary;
+  const muted = theme.colors.headerTextMuted;
+  const primary = theme.colors.headerText;
   const labelStyle = useAnimatedStyle(() => {
     const near = x.value < 0 ? 0 : Math.max(0, 1 - Math.abs(lineX.value - x.value) / w.value);
     return { color: interpolateColor(near, [0, 1], [muted, primary]) };
@@ -188,7 +188,7 @@ function makeStyles(theme: CommunityTheme) {
     tint: { opacity: 0.14 },
     label: {
       ...theme.typography.label,
-      color: theme.colors.textMuted,
+      color: theme.colors.headerTextMuted,
     },
     line: {
       position: "absolute",

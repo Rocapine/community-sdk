@@ -38,7 +38,10 @@ export type FeedHeaderConfig = {
   left?: FeedHeaderItem[];
   center?: FeedHeaderItem[];
   right?: FeedHeaderItem[];
-  background?: FeedHeaderBackground;
+  /** `"community"`: the bar shows `CommunityUIProvider`'s `background`, laid out
+   * for the whole screen and held still while the bar hides, so bar and feed read
+   * as one image. */
+  background?: FeedHeaderBackground | "community";
   /** The status bar's height (safe area top), when the feed should own that area
    * instead of the host padding it: the top bar starts under the status bar, its
    * background reaches behind it, and hiding on scroll stops there. */

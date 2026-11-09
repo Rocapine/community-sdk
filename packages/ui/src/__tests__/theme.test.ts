@@ -78,3 +78,14 @@ describe("adminName", () => {
     ).toBe("#C49B00");
   });
 });
+
+describe("header text", () => {
+  it("follows textPrimary / textMuted unless set", () => {
+    expect(defaultTheme.colors.headerText).toBe(defaultTheme.colors.textPrimary);
+    expect(defaultTheme.colors.headerTextMuted).toBe(defaultTheme.colors.textMuted);
+    const themed = mergeTheme({ colors: { textPrimary: "#111", textMuted: "#777" } }).colors;
+    expect([themed.headerText, themed.headerTextMuted]).toEqual(["#111", "#777"]);
+    const dark = mergeTheme({ colors: { headerText: "#FFF", headerTextMuted: "#CCC" } }).colors;
+    expect([dark.headerText, dark.headerTextMuted]).toEqual(["#FFF", "#CCC"]);
+  });
+});
