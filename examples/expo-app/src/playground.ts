@@ -24,7 +24,22 @@ export type PlaygroundSettings = {
   /** Official accounts: a ring on their avatar (drawn by the app's `renderAvatar`)
    * and their name's colour (`officialName`, empty = default). */
   official: { ring: boolean; nameColor: string };
+  /** `community`: behind the feed, inbox and profiles; `header`: behind the feed's top
+   * bar; `ownStatusBar`: the feed owns the status bar area (`header.topInset`). */
+  backgrounds: {
+    community: BackgroundId;
+    communityOpacity: number;
+    header: BackgroundId;
+    ownStatusBar: boolean;
+  };
 };
+
+export const BACKGROUNDS = {
+  none: null,
+  "starry sky": require("../assets/backgrounds/starry-sky.jpg"),
+  paper: require("../assets/backgrounds/paper.jpg"),
+} as const;
+export type BackgroundId = keyof typeof BACKGROUNDS;
 
 export const HEADER_ZONES = ["left", "center", "right"] as const;
 export type HeaderZone = (typeof HEADER_ZONES)[number];
@@ -53,6 +68,7 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
   typography: { titleFont: null, bodySize: 15 },
   header: HEADER_PRESETS.Default,
   official: { ring: true, nameColor: "" },
+  backgrounds: { community: "none", communityOpacity: 1, header: "none", ownStatusBar: false },
 };
 
 /** Fonts every iOS device has, to try the `title` role without bundling one. */
@@ -112,12 +128,20 @@ export function buildConfig(settings: PlaygroundSettings): CommunityConfig {
 
 const DEMO_LOGO = require("../assets/images/icon.png");
 
-export function headerConfig(header: PlaygroundSettings["header"]): FeedHeaderConfig {
+export function headerConfig(
+  header: PlaygroundSettings["header"],
+  backgrounds: PlaygroundSettings["backgrounds"],
+  topInset: number,
+): FeedHeaderConfig {
   const item = (id: HeaderItemId): FeedHeaderItem =>
     id === "logo" ? { logo: DEMO_LOGO, height: 28, accessibilityLabel: "Demo" } : id;
   return {
     left: header.left.map(item),
     center: header.center.map(item),
     right: header.right.map(item),
+    background: BACKGROUNDS[backgrounds.header]
+      ? { image: BACKGROUNDS[backgrounds.header] }
+      : undefined,
+    topInset: backgrounds.ownStatusBar ? topInset : undefined,
   };
 }

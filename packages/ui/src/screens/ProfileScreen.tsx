@@ -72,6 +72,7 @@ import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { PressableScale } from "../components/PressableScale";
 import { StreakPill } from "../components/StreakPill";
 import { isQueryLoading } from "../utils/query";
+import { ScreenBackground } from "../components/ScreenBackground";
 import { ProfileEditSheet } from "./ProfileEditSheet";
 
 // Every post rendered on this screen already belongs to `userId` — see file
@@ -212,6 +213,7 @@ export function ProfileScreen({
   return (
     <ImageViewerHost>
       <View style={styles.root}>
+        <ScreenBackground />
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[
