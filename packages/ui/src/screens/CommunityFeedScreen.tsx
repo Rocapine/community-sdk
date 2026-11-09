@@ -84,9 +84,9 @@ import {
   Text,
   TextInput,
   View,
-  type ImageSourcePropType,
 } from "react-native";
-import { Image } from "expo-image";
+import type { TextInputInstance } from "react-native";
+import { Image, type ImageProps } from "expo-image";
 import Animated, {
   useAnimatedReaction,
   useAnimatedScrollHandler,
@@ -127,7 +127,7 @@ export type FeedHeaderTitle =
   | "left"
   | "center"
   | false
-  | { image: ImageSourcePropType; position?: "left" | "center"; accessibilityLabel?: string };
+  | { image: ImageProps["source"]; position?: "left" | "center"; accessibilityLabel?: string };
 
 /** The feed's header row. Replaces the default as a whole: a side or title
  * left out is empty. */
@@ -363,7 +363,7 @@ export function CommunityFeedScreen({
     toListTop(true);
   };
 
-  const searchInputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<TextInputInstance>(null);
   const clearSearch = () => {
     // Native clear too: with a predictive-text word pending, iOS puts it back
     // when only the JS value is reset, so the first tap seemed to do nothing.
@@ -647,7 +647,7 @@ export function CommunityFeedScreen({
             }
             automaticallyAdjustContentInsets={false}
             data={posts}
-            keyExtractor={(p) => p.id}
+            keyExtractor={(p: FeedPost) => p.id}
             renderItem={renderItem}
             ItemSeparatorComponent={RowSeparator}
             ListEmptyComponent={
