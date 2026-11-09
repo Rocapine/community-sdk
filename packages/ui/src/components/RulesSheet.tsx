@@ -79,17 +79,13 @@ export function RulesSheet({
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     title: {
-      fontFamily: theme.fonts.serifBold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 22,
+      ...theme.typography.heading,
       color: theme.colors.textPrimary,
       marginBottom: theme.spacing(4),
     },
     rules: { gap: theme.spacing(3) },
     rule: {
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 14.5,
+      ...theme.typography.body,
       lineHeight: 21,
       color: theme.colors.textSecondary,
     },
@@ -101,9 +97,9 @@ function makeStyles(theme: CommunityTheme) {
       marginTop: theme.spacing(6),
     },
     ctaLabel: {
+      ...theme.typography.label,
       fontFamily: theme.fonts.bold,
       fontWeight: theme.fontWeights.bold,
-      fontSize: 15,
       color: theme.colors.textInverse,
     },
   });

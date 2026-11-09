@@ -157,9 +157,7 @@ function makeStyles(theme: CommunityTheme) {
     row: { paddingHorizontal: theme.spacing(1.5), height: TABS_ROW_HEIGHT },
     tab: { height: TABS_ROW_HEIGHT, paddingHorizontal: TAB_PADDING, justifyContent: "center" },
     label: {
-      fontFamily: theme.fonts.medium,
-      fontWeight: theme.fontWeights.medium,
-      fontSize: 15,
+      ...theme.typography.label,
       color: theme.colors.textMuted,
     },
     line: {

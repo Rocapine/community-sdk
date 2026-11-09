@@ -371,9 +371,9 @@ function makeStyles(theme: CommunityTheme) {
       marginBottom: 2,
     },
     pinnedText: {
+      ...theme.typography.caption,
       fontFamily: theme.fonts.bold,
       fontWeight: theme.fontWeights.bold,
-      fontSize: 11.5,
       color: theme.colors.pinned,
     },
     // One line, always: the name gives way first, the time never does.
@@ -387,9 +387,9 @@ function makeStyles(theme: CommunityTheme) {
       minWidth: 0,
     },
     name: {
+      ...theme.typography.label,
       fontFamily: theme.fonts.bold,
       fontWeight: theme.fontWeights.bold,
-      fontSize: 14.5,
       color: theme.colors.textPrimary,
       flexShrink: 1,
     },
@@ -397,18 +397,14 @@ function makeStyles(theme: CommunityTheme) {
     // past 40% of the line.
     topic: { flexShrink: 0, maxWidth: "40%" },
     meta: {
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 13,
+      ...theme.typography.meta,
       color: theme.colors.textFaint,
     },
     // Never shrinks (web Text shrinks by default): the name gives way instead.
     ago: { flexShrink: 0 },
     menuButton: { marginLeft: "auto", paddingLeft: theme.spacing(2) },
     body: {
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 14.5,
+      ...theme.typography.body,
       lineHeight: 21,
       color: theme.colors.textSecondary,
       marginTop: 2,
@@ -420,9 +416,7 @@ function makeStyles(theme: CommunityTheme) {
     },
     // Quieter than the body whatever the host maps `textFaint` to.
     translationLine: {
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 12,
+      ...theme.typography.caption,
       color: theme.colors.textFaint,
       opacity: 0.75,
       marginTop: theme.spacing(1.5),
@@ -441,9 +435,9 @@ function makeStyles(theme: CommunityTheme) {
     imageGap: { marginTop: theme.spacing(2.5) },
     statCount: { flex: 1, overflow: "hidden" },
     statText: {
+      ...theme.typography.meta,
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
-      fontSize: 13,
       fontVariant: ["tabular-nums"],
       color: theme.colors.textFaint,
     },

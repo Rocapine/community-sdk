@@ -811,9 +811,7 @@ function makeStyles(theme: CommunityTheme) {
     headerTitle: {
       flexShrink: 1,
       paddingHorizontal: (ICON_TARGET - 22) / 2,
-      fontFamily: theme.fonts.serifBold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 20,
+      ...theme.typography.title,
       color: theme.colors.textPrimary,
     },
     // Fits a square mark or a wordmark alike (`contentFit="contain"`).
@@ -856,9 +854,7 @@ function makeStyles(theme: CommunityTheme) {
     },
     searchInput: {
       flex: 1,
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 15,
+      ...theme.typography.body,
       color: theme.colors.textPrimary,
       padding: 0,
       ...noFocusRing,
@@ -875,9 +871,7 @@ function makeStyles(theme: CommunityTheme) {
     rowSeparator: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.hairline },
     spinner: { marginTop: theme.spacing(8) },
     stateText: {
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 13.5,
+      ...theme.typography.meta,
       color: theme.colors.textMuted,
       textAlign: "center",
       marginTop: theme.spacing(8),
@@ -897,9 +891,9 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
     },
     loadMoreText: {
+      ...theme.typography.meta,
       fontFamily: theme.fonts.medium,
       fontWeight: theme.fontWeights.medium,
-      fontSize: 13,
       color: theme.colors.textMuted,
     },
     // Positioned under the top bar as it slides (`pillStyle`).
@@ -924,9 +918,9 @@ function makeStyles(theme: CommunityTheme) {
       ...theme.shadow,
     },
     newPillText: {
+      ...theme.typography.meta,
       fontFamily: theme.fonts.bold,
       fontWeight: theme.fontWeights.bold,
-      fontSize: 13,
       color: theme.colors.textInverse,
     },
   });

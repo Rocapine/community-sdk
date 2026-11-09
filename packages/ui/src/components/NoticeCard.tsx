@@ -103,17 +103,13 @@ function makeStyles(theme: CommunityTheme) {
       marginBottom: theme.spacing(4),
     },
     title: {
-      fontFamily: theme.fonts.serifBold,
-      fontWeight: theme.fontWeights.bold,
-      fontSize: 20,
+      ...theme.typography.title,
       color: theme.colors.textPrimary,
       textAlign: "center",
       marginBottom: theme.spacing(2.5),
     },
     body: {
-      fontFamily: theme.fonts.regular,
-      fontWeight: theme.fontWeights.regular,
-      fontSize: 14.5,
+      ...theme.typography.body,
       lineHeight: 21,
       color: theme.colors.textMuted,
       textAlign: "center",
@@ -127,9 +123,9 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
     },
     buttonLabel: {
+      ...theme.typography.label,
       fontFamily: theme.fonts.bold,
       fontWeight: theme.fontWeights.bold,
-      fontSize: 15,
       color: theme.colors.textInverse,
     },
   });

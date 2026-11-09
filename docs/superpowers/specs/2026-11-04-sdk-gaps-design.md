@@ -59,13 +59,16 @@ typography: {
   label: TextRole; // 15 medium — buttons, tabs, names
   meta: TextRole; // 13 — handle · time, counts, inbox excerpt
   caption: TextRole; // 12 — helpers, pills, small print
+  input: TextRole; // 16 — text fields (16 stops iOS Safari zooming in on focus)
 }
 ```
 
 - Defaults are derived from `fonts` and `fontWeights`, so a host that only sets `fonts`
   keeps working. `title`, `heading` and `display` default to `fonts.serifBold`.
-- Every component reads a role instead of a literal size. Sizes in between (13.5, 14.5,
-  11.5, 12.5) snap to the nearest role: a visible change of at most 0.5 pt, accepted.
+- Every component reads a role instead of a literal size. Sizes in between snap to the nearest role (14.5 → `body` or `label`, 13.5 → `meta`,
+  11–12.5 → `caption`): mostly 0.5 pt, 1 pt for the inbox title (19), the composer's
+  Cancel (16) and the 11 pt labels. A style heavier than its role keeps its family and
+  weight and takes the role's size.
 - `mergeTheme` deep-merges `typography` per role (a host can change only `title.fontFamily`).
 
 ## 2. Header in three zones (#1)
