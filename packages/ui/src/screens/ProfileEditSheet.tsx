@@ -352,7 +352,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
                   url={shownAvatar}
                   size={AVATAR_SIZE}
                   placement="edit"
-                  official={profile.data.official}
+                  admin={profile.data.admin}
                   handle={profile.data.handle}
                   badges={profile.data.badges}
                 />

@@ -9,7 +9,7 @@ import {
 
 export function allowedAttachment(
   cfg: ResolvedCommunityConfig,
-  official: boolean,
+  admin: boolean,
   attachment: PostAttachment | undefined | null,
 ): PostAttachment | null {
   if (!attachment || !cfg.modules.attachments) return null;
@@ -19,9 +19,9 @@ export function allowedAttachment(
     );
     return null;
   }
-  if (!canAttach(cfg, official)) {
+  if (!canAttach(cfg, admin)) {
     console.warn(
-      "[@rocapine/community-ui] only official accounts can attach (modules.attachments.membersCanAttach is false)",
+      "[@rocapine/community-ui] only admin accounts can attach (modules.attachments.membersCanAttach is false)",
     );
     return null;
   }

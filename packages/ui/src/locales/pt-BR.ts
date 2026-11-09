@@ -31,7 +31,7 @@ export const ptBR: Record<string, string> = {
   "feed.unreachableRetry": "Não foi possível acessar a comunidade agora. Puxe para tentar de novo.",
   "feed.unreachable": "Não foi possível acessar a comunidade agora.",
   "feed.noSearchResults": "Nenhuma publicação corresponde à sua busca.",
-  "feed.newsEmpty": "Os anúncios da equipe vão aparecer aqui.",
+  "feed.adminTopicEmpty": "Os anúncios da equipe vão aparecer aqui.",
   "feed.empty": "Ainda não tem publicações por aqui. Compartilhe a primeira.",
   "feed.loadMore": "Carregar mais",
   "feed.newPosts.one": "{count} publicação nova",

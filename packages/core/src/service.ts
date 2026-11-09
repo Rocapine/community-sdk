@@ -49,7 +49,7 @@ async function requireUid(cfg: ResolvedCommunityConfig): Promise<string> {
 // Embedded filter: comment counts only count visible comments, so the badge
 // on a card always matches what the opened thread renders.
 const FEED_SELECT =
-  "id, author_id, topic, content, status, pinned_at, created_at, profiles!posts_author_id_fkey(username, is_official, handle, avatar_url), likes(count), comments(count)";
+  "id, author_id, topic, content, status, pinned_at, created_at, profiles!posts_author_id_fkey(username, is_admin, handle, avatar_url), likes(count), comments(count)";
 
 /** Embedded only when the polls module is on: on a core-only backend the
  * `poll_options` table does not exist and PostgREST rejects the whole select
@@ -65,19 +65,19 @@ const POLL_OPTIONS_TRANSLATED_SELECT =
 const POST_TRANSLATIONS_SELECT = "post_translations(locale, source_locale, content)";
 
 const COMMENTS_SELECT =
-  "id, post_id, author_id, parent_id, content, status, created_at, profiles(username, is_official, handle, avatar_url), comment_likes(count)";
+  "id, post_id, author_id, parent_id, content, status, created_at, profiles(username, is_admin, handle, avatar_url), comment_likes(count)";
 
 /** Embedded only when the reader has a resolved translation locale. */
 const COMMENT_TRANSLATIONS_SELECT = "comment_translations(locale, source_locale, content)";
 
-const PROFILE_SELECT = "id, username, handle, is_official, bio, avatar_url";
+const PROFILE_SELECT = "id, username, handle, is_admin, bio, avatar_url";
 
 /** Embedded only when the badges module is on: the columns don't exist on other
  * installs. A second, aliased embed of the author keeps the base select
  * untouched. */
 const AUTHOR_BADGES_SELECT = "author_badges:profiles!posts_author_id_fkey(visible_badges)";
 const PROFILE_BADGE_COLUMNS = "visible_badges, hidden_badges";
-const COMMENT_AUTHOR = "profiles(username, is_official, handle, avatar_url)";
+const COMMENT_AUTHOR = "profiles(username, is_admin, handle, avatar_url)";
 
 /** Minimal injection guard for `CommunityConfig.feed.extraPostColumns`: a bare
  * column name only, no `.`, `(`, `:`, whitespace, etc. — those are how a

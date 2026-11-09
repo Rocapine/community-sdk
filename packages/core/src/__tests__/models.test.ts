@@ -24,7 +24,7 @@ import type { CommunityTopicDef } from "../config";
 const ANON_NAME_FALLBACK = "A member";
 
 const TOPICS: CommunityTopicDef[] = [
-  { id: "news", officialOnly: true },
+  { id: "news", adminOnly: true },
   { id: "general" },
   { id: "question" },
   { id: "encouragement" },
@@ -39,7 +39,7 @@ const postRow = (over: Partial<PostRow> = {}): PostRow => ({
   status: "visible",
   pinned_at: null,
   created_at: "2026-07-08T10:00:00Z",
-  profiles: { username: "Hannah", is_official: false, handle: "hannah-1234", avatar_url: null },
+  profiles: { username: "Hannah", is_admin: false, handle: "hannah-1234", avatar_url: null },
   likes: [{ count: 3 }],
   comments: [{ count: 2 }],
   poll_options: [],
@@ -53,7 +53,7 @@ const commentRow = (over: Partial<CommentRow> = {}): CommentRow => ({
   content: "amen",
   status: "visible",
   created_at: "2026-07-08T11:00:00Z",
-  profiles: { username: null, is_official: null, handle: null, avatar_url: null },
+  profiles: { username: null, is_admin: null, handle: null, avatar_url: null },
   ...over,
 });
 
@@ -61,7 +61,7 @@ const makePost = (over: Partial<FeedPost> = {}): FeedPost => ({
   id: "p1",
   authorId: "u1",
   authorName: "Hannah",
-  authorOfficial: false,
+  authorAdmin: false,
   authorHandle: "hannah-1234",
   authorAvatarUrl: null,
   topic: "question",
@@ -110,7 +110,7 @@ it("mapPostRow extracts counts, like state and ownership", () => {
     id: "p1",
     authorId: "u1",
     authorName: "Hannah",
-    authorOfficial: false,
+    authorAdmin: false,
     authorHandle: "hannah-1234",
     authorAvatarUrl: null,
     topic: "question",
@@ -165,7 +165,7 @@ it("mapPostRow carries pinnedAt and tolerates a missing handle", () => {
   const pinned = mapPostRow(
     postRow({
       pinned_at: "2026-07-19T08:00:00Z",
-      profiles: { username: "House Account", is_official: true, handle: null, avatar_url: null },
+      profiles: { username: "House Account", is_admin: true, handle: null, avatar_url: null },
     }),
     "u2",
     ANON_NAME_FALLBACK,
@@ -255,7 +255,7 @@ it("mapCommentRow maps author name and ownership", () => {
     content: "amen",
     status: "visible",
     created_at: "2026-07-08T11:00:00Z",
-    profiles: { username: null, is_official: null, handle: null, avatar_url: null },
+    profiles: { username: null, is_admin: null, handle: null, avatar_url: null },
   };
   const comment = mapCommentRow(row, "u1", ANON_NAME_FALLBACK);
   expect(comment).toEqual({
@@ -263,7 +263,7 @@ it("mapCommentRow maps author name and ownership", () => {
     postId: "p1",
     authorId: "u9",
     authorName: ANON_NAME_FALLBACK,
-    authorOfficial: false,
+    authorAdmin: false,
     authorHandle: null,
     authorAvatarUrl: null,
     text: "amen",
@@ -287,7 +287,7 @@ it("mapCommentRow maps the reply link, the like count and the reader's like", ()
     content: "@marie same here",
     status: "visible",
     created_at: "2026-07-08T11:05:00Z",
-    profiles: { username: "Luc", is_official: false, handle: "luc", avatar_url: null },
+    profiles: { username: "Luc", is_admin: false, handle: "luc", avatar_url: null },
     comment_likes: [{ count: 3 }],
   };
   const comment = mapCommentRow(row, "u1", ANON_NAME_FALLBACK, undefined, true);
@@ -441,7 +441,7 @@ it("mapProfileRow maps names, flags and nullables", () => {
       id: "u1",
       username: "Hannah",
       handle: "hannah-4031",
-      is_official: null,
+      is_admin: null,
       bio: "Walking in faith.",
       avatar_url: null,
     },
@@ -451,7 +451,7 @@ it("mapProfileRow maps names, flags and nullables", () => {
     id: "u1",
     name: "Hannah",
     handle: "hannah-4031",
-    official: false,
+    admin: false,
     bio: "Walking in faith.",
     avatarUrl: null,
     username: "Hannah",
@@ -464,7 +464,7 @@ it("mapProfileRow maps names, flags and nullables", () => {
         id: "u2",
         username: null,
         handle: null,
-        is_official: true,
+        is_admin: true,
         bio: null,
         avatar_url: "https://cdn.example/a.jpg",
       },
@@ -474,7 +474,7 @@ it("mapProfileRow maps names, flags and nullables", () => {
     id: "u2",
     name: ANON_NAME_FALLBACK,
     handle: null,
-    official: true,
+    admin: true,
     bio: null,
     avatarUrl: "https://cdn.example/a.jpg",
     username: null,

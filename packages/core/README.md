@@ -34,9 +34,9 @@ const config: CommunityConfig = {
 
   // Topics — nothing hardcoded. `id` resolves to `topics.<id>` in the UI
   // package's i18n catalog (see packages/ui/README.md); the app supplies
-  // the key for any topic it invents. `officialOnly: true` topics (e.g.
-  // "news") are writable only by `is_official` profiles — enforced by RLS.
-  topics: [{ id: "general" }, { id: "question" }, { id: "news", officialOnly: true }],
+  // the key for any topic it invents. Everyone reads an `adminOnly: true`
+  // topic; only `is_admin` profiles post in it (the UI's rule, not RLS).
+  topics: [{ id: "general" }, { id: "question" }, { id: "news", adminOnly: true }],
 
   // Opt-in modules — MUST mirror what the CLI installed on the backend.
   modules: {

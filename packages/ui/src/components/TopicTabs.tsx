@@ -4,8 +4,8 @@
 // so switching tabs animates as one motion. Labels keep one weight, so
 // selecting never changes their width. The selected tab is kept in view
 // however it was chosen: a tap here, a post's topic, or a host request
-// (`topicRequest`).
-import { useEffect, useRef } from "react";
+// (`topicRequest`). A tab may lead with an icon (an admin-only topic's).
+import { useEffect, useRef, type ComponentType } from "react";
 import { Pressable, ScrollView, StyleSheet } from "react-native";
 import type { ScrollViewInstance } from "react-native";
 import Animated, {
@@ -16,6 +16,7 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { useCommunityTheme, useThemedStyles } from "../ThemeProvider";
+import type { CommunityIconProps } from "../icons";
 import type { CommunityTheme } from "../theme";
 import { haptic } from "./PressableScale";
 
@@ -27,7 +28,7 @@ export function TopicTabs({
   selected,
   onSelect,
 }: {
-  tabs: { id: string; label: string }[];
+  tabs: { id: string; label: string; icon?: ComponentType<CommunityIconProps> }[];
   selected: string;
   onSelect(id: string): void;
 }) {
@@ -86,6 +87,7 @@ export function TopicTabs({
         <Tab
           key={tab.id}
           label={tab.label}
+          icon={tab.icon}
           active={tab.id === selected}
           lineX={lineX}
           onPress={() => {
@@ -107,12 +109,14 @@ export function TopicTabs({
 
 function Tab({
   label,
+  icon: Icon,
   active,
   lineX,
   onPress,
   onBox,
 }: {
   label: string;
+  icon?: ComponentType<CommunityIconProps>;
   active: boolean;
   lineX: SharedValue<number>;
   onPress(): void;
@@ -145,6 +149,9 @@ function Tab({
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
     >
+      {Icon && (
+        <Icon size={14} color={active ? primary : muted} weight={active ? "fill" : "regular"} />
+      )}
       <Animated.Text style={[styles.label, labelStyle]}>{label}</Animated.Text>
     </Pressable>
   );
@@ -155,7 +162,13 @@ const TAB_PADDING = 12;
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     row: { paddingHorizontal: theme.spacing(1.5), height: TABS_ROW_HEIGHT },
-    tab: { height: TABS_ROW_HEIGHT, paddingHorizontal: TAB_PADDING, justifyContent: "center" },
+    tab: {
+      height: TABS_ROW_HEIGHT,
+      paddingHorizontal: TAB_PADDING,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+    },
     label: {
       ...theme.typography.label,
       color: theme.colors.textMuted,

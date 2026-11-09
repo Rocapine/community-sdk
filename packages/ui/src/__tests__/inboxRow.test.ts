@@ -26,8 +26,8 @@ describe("inboxRowText", () => {
     });
   });
 
-  it("reads an official post without an author as news from the team", () => {
-    expect(inboxRowText(t, item({ kind: "official_post", actorName: null }), now).title).toBe(
+  it("reads an admin post without an author as news from the team", () => {
+    expect(inboxRowText(t, item({ kind: "admin_post", actorName: null }), now).title).toBe(
       "News from the team",
     );
   });

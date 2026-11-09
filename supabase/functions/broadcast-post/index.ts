@@ -1,4 +1,4 @@
-// Broadcast push for an official dashboard post: Rocactopus invokes this with
+// Broadcast push for an admin dashboard post: Rocactopus invokes this with
 // the service-role key after composing a post with "Send push notification"
 // checked. Sends an Expo push to every registered token (batches of 100).
 // Guarded by a service-role check — the public anon key passes the platform's
@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
       to,
       title,
       body: excerptFor(locale, profileLocale),
-      data: { route: "/community", kind: "community_official_post", postId: post.id },
+      data: { route: "/community", kind: "community_admin_post", postId: post.id },
       badge: 1,
     }));
   await sendExpoPushBatch(messages);

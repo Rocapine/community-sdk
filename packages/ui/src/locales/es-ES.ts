@@ -32,7 +32,7 @@ export const esES: Record<string, string> = {
     "Ahora mismo no podemos conectar con la comunidad. Desliza para reintentar.",
   "feed.unreachable": "Ahora mismo no podemos conectar con la comunidad.",
   "feed.noSearchResults": "Ninguna publicación coincide con tu búsqueda.",
-  "feed.newsEmpty": "Los anuncios del equipo aparecerán aquí.",
+  "feed.adminTopicEmpty": "Los anuncios del equipo aparecerán aquí.",
   "feed.empty": "Aún no hay publicaciones aquí. Comparte la primera.",
   "feed.loadMore": "Cargar más",
   "feed.newPosts.one": "{count} publicación nueva",

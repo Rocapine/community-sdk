@@ -26,7 +26,7 @@ export const ko: Record<string, string> = {
   "feed.unreachableRetry": "지금은 커뮤니티에 연결할 수 없어요. 당겨서 다시 시도해 주세요.",
   "feed.unreachable": "지금은 커뮤니티에 연결할 수 없어요.",
   "feed.noSearchResults": "검색 결과가 없어요.",
-  "feed.newsEmpty": "팀의 공지가 여기에 표시돼요.",
+  "feed.adminTopicEmpty": "팀의 공지가 여기에 표시돼요.",
   "feed.empty": "아직 게시글이 없어요. 첫 번째로 나눠 보세요.",
   "feed.loadMore": "더 보기",
   "feed.newPosts.one": "새 게시글 {count}개",

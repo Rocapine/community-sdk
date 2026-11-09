@@ -55,7 +55,7 @@ export const pl: Record<string, string> = {
   "feed.unreachableRetry": "Wspólnota jest teraz nieosiągalna. Pociągnij, aby spróbować ponownie.",
   "feed.unreachable": "Wspólnota jest teraz nieosiągalna.",
   "feed.noSearchResults": "Żaden post nie odpowiada twojemu wyszukiwaniu.",
-  "feed.newsEmpty": "Ogłoszenia od zespołu pojawią się tutaj.",
+  "feed.adminTopicEmpty": "Ogłoszenia od zespołu pojawią się tutaj.",
   "feed.empty": "Jeszcze nie ma tu postów. Zacznij od siebie.",
   "feed.loadMore": "Wczytaj więcej",
   "feed.newPosts.one": "{count} nowy post",

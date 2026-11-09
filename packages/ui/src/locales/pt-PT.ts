@@ -32,7 +32,7 @@ export const ptPT: Record<string, string> = {
     "Neste momento não é possível aceder à comunidade. Puxa para tentar de novo.",
   "feed.unreachable": "Neste momento não é possível aceder à comunidade.",
   "feed.noSearchResults": "Nenhuma publicação corresponde à tua pesquisa.",
-  "feed.newsEmpty": "Os anúncios da equipa vão aparecer aqui.",
+  "feed.adminTopicEmpty": "Os anúncios da equipa vão aparecer aqui.",
   "feed.empty": "Ainda não há publicações por aqui. Partilha a primeira.",
   "feed.loadMore": "Carregar mais",
   "feed.newPosts.one": "{count} publicação nova",

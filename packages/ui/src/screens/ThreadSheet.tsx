@@ -663,7 +663,7 @@ export function ThreadSheet({
   );
 }
 
-/** One comment row: avatar, name/handle/official badge/timestamp, clamped
+/** One comment row: avatar, name/handle/admin badge/timestamp, clamped
  * body with an inline "View more" (reuses `CommunityPost`'s `post.viewMore`
  * catalog key), and a
  * menu button. Ported from the mold's inline comment row in `CommunityThread`. */
@@ -737,7 +737,7 @@ function CommentRow({
           url={comment.authorAvatarUrl}
           size={depth === 1 ? 24 : 30}
           placement="comment"
-          official={comment.authorOfficial}
+          admin={comment.authorAdmin}
           handle={comment.authorHandle}
           badges={comment.authorBadges}
         />
@@ -745,13 +745,13 @@ function CommentRow({
       <View style={styles.commentBody}>
         <Pressable onPress={handleAuthor} hitSlop={4} style={styles.nameRow}>
           <Text
-            style={[styles.cName, comment.authorOfficial && { color: theme.colors.officialName }]}
+            style={[styles.cName, comment.authorAdmin && { color: theme.colors.adminName }]}
             numberOfLines={1}
           >
             {comment.authorName}
           </Text>
-          {comment.authorOfficial && (
-            <icons.officialSeal size={13} color={theme.colors.official} weight="fill" />
+          {comment.authorAdmin && (
+            <icons.adminSeal size={13} color={theme.colors.admin} weight="fill" />
           )}
           {comment.authorHandle != null && (
             <Text style={styles.handle} numberOfLines={1}>

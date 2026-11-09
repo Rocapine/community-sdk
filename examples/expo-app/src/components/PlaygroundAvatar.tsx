@@ -1,6 +1,6 @@
-// The example's own `renderAvatar`: the photo or initial, with a ring on official
+// The example's own `renderAvatar`: the photo or initial, with a ring on admin
 // accounts when the Config tab asks for one. Shows how a host reads the avatar's
-// context (`official`, `placement`, `badges`…).
+// context (`admin`, `placement`, `badges`…).
 import type { AvatarRenderProps } from "@rocapine/community-ui";
 import { Image } from "expo-image";
 import { Text, View } from "react-native";
@@ -9,11 +9,11 @@ export function PlaygroundAvatar({
   name,
   url,
   size,
-  official,
+  admin,
   ring,
   accent,
 }: AvatarRenderProps & { ring: boolean; accent: string }) {
-  const showRing = ring && official;
+  const showRing = ring && admin;
   const inner = showRing ? size - 6 : size;
   const round = { width: inner, height: inner, borderRadius: inner / 2 };
   const face = url ? (

@@ -1,7 +1,7 @@
 // The one place the SDK draws a user's avatar (feed rows, comments, the reply
 // bar, profiles, the edit preview, the header profile button, the composer).
 // A host restyles every one of them at once through `CommunityUIProvider`'s
-// `renderAvatar` (e.g. a gradient per member, a ring on official accounts), told
+// `renderAvatar` (e.g. a gradient per member, a ring on admin accounts), told
 // whose avatar it is and where; the default stays dependency-free: the photo, else
 // the initial on a flat colour.
 import { useMyUid, useProfile, type MemberBadges } from "@rocapine/community-core";
@@ -24,8 +24,8 @@ export type AvatarRenderProps = {
   name: string;
   url: string | null;
   size: number;
-  /** An official (house) account. */
-  official: boolean;
+  /** An admin (house) account. */
+  admin: boolean;
   /** The member's public handle; null when unknown. */
   handle: string | null;
   placement: AvatarPlacement;
@@ -33,19 +33,19 @@ export type AvatarRenderProps = {
   badges: MemberBadges;
 };
 
-type AvatarProps = Omit<AvatarRenderProps, "official" | "handle" | "badges"> &
-  Partial<Pick<AvatarRenderProps, "official" | "handle" | "badges">>;
+type AvatarProps = Omit<AvatarRenderProps, "admin" | "handle" | "badges"> &
+  Partial<Pick<AvatarRenderProps, "admin" | "handle" | "badges">>;
 
 const NO_BADGES: MemberBadges = {};
 
 export function Avatar({
-  official = false,
+  admin = false,
   handle = null,
   badges = NO_BADGES,
   ...rest
 }: AvatarProps): ReactElement {
   const render = useAvatarRenderer();
-  const props: AvatarRenderProps = { ...rest, official, handle, badges };
+  const props: AvatarRenderProps = { ...rest, admin, handle, badges };
   if (render) return <>{render(props)}</>;
   return <DefaultAvatar {...props} />;
 }
@@ -68,7 +68,7 @@ export function MyAvatar({
       url={me?.avatarUrl ?? null}
       size={size}
       placement={placement}
-      official={me?.official ?? false}
+      admin={me?.admin ?? false}
       handle={me?.handle ?? null}
       badges={me?.badges}
     />

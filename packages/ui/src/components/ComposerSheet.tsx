@@ -20,6 +20,7 @@ import {
   useCommunityConfig,
   useCreatePost,
   useMyUid,
+  useProfile,
   type LocalImage,
   type PostAttachment,
 } from "@rocapine/community-core";
@@ -109,7 +110,9 @@ export function ComposerSheet({
   const myUid = useMyUid();
   const myAuthorName = useMyAuthorName();
 
-  const topics = cfg.composeTopics();
+  // Admins also post in the `adminOnly` topics.
+  const admin = useProfile(myUid).data?.admin ?? false;
+  const topics = cfg.composeTopics(admin);
   const fallbackTopic = defaultTopic ?? topics[0]?.id ?? "general";
   const [topic, setTopic] = useState<string>(fallbackTopic);
   const [topicMenuOpen, setTopicMenuOpen] = useState(false);

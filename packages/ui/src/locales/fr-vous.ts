@@ -31,7 +31,7 @@ export const frVous: Record<string, string> = {
     "La communauté est injoignable pour le moment. Tirez vers le bas pour réessayer.",
   "feed.unreachable": "La communauté est injoignable pour le moment.",
   "feed.noSearchResults": "Aucune publication ne correspond à votre recherche.",
-  "feed.newsEmpty": "Les annonces de l'équipe apparaîtront ici.",
+  "feed.adminTopicEmpty": "Les annonces de l'équipe apparaîtront ici.",
   "feed.empty": "Aucune publication pour l'instant. Lancez la conversation.",
   "feed.loadMore": "Charger plus",
   "feed.newPosts.one": "{count} nouvelle publication",

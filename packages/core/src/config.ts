@@ -1,7 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { POST_MAX_LENGTH, type BadgePlacement, type FeedPost, type MemberBadges } from "./models";
 
-export type CommunityTopicDef = { id: string; officialOnly?: boolean };
+/** A feed topic. `adminOnly`: everyone reads it, only admin accounts post in it
+ * (applied by the UI: members get no `+` on its tab and never see it in the composer). */
+export type CommunityTopicDef = { id: string; adminOnly?: boolean };
 
 export type CommunityModules = {
   polls: boolean;
@@ -25,7 +27,7 @@ export type CommunityModules = {
   badges?: Record<string, { placements: BadgePlacement[] }> | false;
   /** Attachments module: a post may carry one reference to the app's content
    * (`{ type, id }`), drawn and opened by the app. `types`: the app's attachable
-   * types. `membersCanAttach`: false ⇒ only official accounts attach (enforced in
+   * types. `membersCanAttach`: false ⇒ only admin accounts attach (enforced in
    * the UI). Absent or false ⇒ nothing changes. */
   attachments?: { types: string[]; membersCanAttach: boolean } | false;
 };
@@ -130,8 +132,10 @@ export type ResolvedCommunityConfig = CommunityConfig & {
   /** `defaultName.label` resolved against `host.getLocale()`: the name shown for a
    * profile that has none yet (one that has not relaunched since defaults existed). */
   authorFallback(): string;
-  composeTopics(): CommunityTopicDef[];
-  isOfficialTopic(id: string): boolean;
+  /** The topics this author may post in: all of them for an admin, the others
+   * without the `adminOnly` ones. */
+  composeTopics(admin?: boolean): CommunityTopicDef[];
+  isAdminTopic(id: string): boolean;
 };
 
 export const DEFAULT_POST_MAX_LENGTH = 500;
@@ -182,20 +186,20 @@ export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig 
       const label = resolved.defaultName.label;
       return typeof label === "function" ? label(host.getLocale()) : label;
     },
-    composeTopics(): CommunityTopicDef[] {
-      return resolved.topics.filter((topic) => !topic.officialOnly);
+    composeTopics(admin = false): CommunityTopicDef[] {
+      return resolved.topics.filter((topic) => admin || !topic.adminOnly);
     },
-    isOfficialTopic(id: string): boolean {
-      return resolved.topics.some((topic) => topic.id === id && topic.officialOnly === true);
+    isAdminTopic(id: string): boolean {
+      return resolved.topics.some((topic) => topic.id === id && topic.adminOnly === true);
     },
   };
 
   return Object.freeze(resolved);
 }
 
-/** Whether this author may attach app content to a post: official accounts always,
+/** Whether this author may attach app content to a post: admin accounts always,
  * members when the app allows it. */
-export function canAttach(cfg: ResolvedCommunityConfig, official: boolean): boolean {
+export function canAttach(cfg: ResolvedCommunityConfig, admin: boolean): boolean {
   if (!cfg.modules.attachments) return false;
-  return official || cfg.modules.attachments.membersCanAttach;
+  return admin || cfg.modules.attachments.membersCanAttach;
 }

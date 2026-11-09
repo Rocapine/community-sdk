@@ -21,12 +21,12 @@ const verse = { type: "verse", id: "43.3.16" };
 afterEach(() => vi.restoreAllMocks());
 
 describe("allowedAttachment", () => {
-  it("keeps it for members when the app allows them, and for officials", () => {
+  it("keeps it for members when the app allows them, and for admins", () => {
     expect(allowedAttachment(cfg(true), false, verse)).toEqual(verse);
     expect(allowedAttachment(cfg(false), true, verse)).toEqual(verse);
   });
 
-  it("drops it, with one warning, for a member when only officials attach", () => {
+  it("drops it, with one warning, for a member when only admins attach", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(allowedAttachment(cfg(false), false, verse)).toBeNull();
     expect(warn).toHaveBeenCalledTimes(1);
