@@ -51,8 +51,8 @@ import {
   createPost,
   deleteOwnComment,
   deleteOwnPost,
+  requestPostBroadcast,
   setPostPinned,
-  broadcastPost,
   fetchFeedPage,
   fetchNotificationPreferences,
   fetchPost,
@@ -436,7 +436,8 @@ export type CreatePostVariables = {
   attachment?: PostAttachment;
   /** Admins only: pin the post once it is created. */
   pin?: boolean;
-  /** Admins only: push the post to every member once it is published. */
+  /** Admins only: push the post to every member once it is published (also when
+   * moderation publishes it later). */
   notifyAll?: boolean;
 };
 
@@ -510,9 +511,10 @@ export function createPostMutationOptions(
       // The post exists by now: a failed pin or push must not undo it.
       if (pin && verdict.status !== "rejected")
         await setPostPinned(cfg, id, true).catch((e) => console.warn("[community] pin failed", e));
-      // Not awaited: the push waits for the post's translations.
-      if (notifyAll && verdict.status === "published")
-        broadcastPost(cfg, id).catch((e) => console.warn("[community] broadcast failed", e));
+      if (notifyAll && verdict.status !== "rejected")
+        await requestPostBroadcast(cfg, id).catch((e) =>
+          console.warn("[community] notify everyone failed", e),
+        );
       return { id, verdict };
     },
     onSuccess: ({ id, verdict }, { topic, text, pollOptions, image, pin }, { tempId }) => {

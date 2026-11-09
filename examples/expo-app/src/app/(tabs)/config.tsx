@@ -187,6 +187,12 @@ export default function ConfigTab() {
             onValueChange={(ring) => update({ admin: { ...settings.admin, ring } })}
           />
         </Row>
+        <Row label="Every post notifies everyone">
+          <Switch
+            value={settings.admin.notifyAll}
+            onValueChange={(notifyAll) => update({ admin: { ...settings.admin, notifyAll } })}
+          />
+        </Row>
         <Text style={styles.hint}>Name colour</Text>
         <Chips
           options={["default", "#C49B00", "#D14343", "#2E9E5B"]}

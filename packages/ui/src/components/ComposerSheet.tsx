@@ -263,7 +263,7 @@ export function ComposerSheet({
       image: image ?? undefined,
       attachment: attachment ?? undefined,
       pin: admin && pin,
-      notifyAll: admin && notifyAll && cfg.modules.push,
+      notifyAll: admin && cfg.modules.push && (cfg.adminPostsNotifyAll || notifyAll),
     };
     haptic("medium");
     Keyboard.dismiss();
@@ -465,7 +465,8 @@ export function ComposerSheet({
                 on={pin}
                 onPress={togglePin}
               />
-              {cfg.modules.push && (
+              {/* With adminPostsNotifyAll every admin post notifies: nothing to pick. */}
+              {cfg.modules.push && !cfg.adminPostsNotifyAll && (
                 <OptionPill
                   icon={icons.bell}
                   label={t("composer.notifyAll")}

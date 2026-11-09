@@ -775,12 +775,15 @@ export async function countPinnedPosts(
   return count ?? 0;
 }
 
-/** Pushes the admin's own published post to every member (the push module's
- * `broadcast-post`; it refuses anyone else). */
-export async function broadcastPost(cfg: ResolvedCommunityConfig, postId: string): Promise<void> {
+/** Asks for the admin's own post to be pushed to every member: the push module
+ * sends it once the post is visible, and the inbox then lists it. Admins only. */
+export async function requestPostBroadcast(
+  cfg: ResolvedCommunityConfig,
+  postId: string,
+): Promise<void> {
   const client = cfg.requireClient();
   await requireUid(cfg);
-  const { error } = await client.functions.invoke("broadcast-post", { body: { post_id: postId } });
+  const { error } = await client.rpc("request_post_broadcast", { p_post_id: postId });
   if (error) throw error;
 }
 

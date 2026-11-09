@@ -1,10 +1,13 @@
-// Broadcast push for an admin post. Two callers: a dashboard with the
-// service-role key, or an admin's app pushing their own post ("Notify
-// everyone" in the composer). Sends an Expo push to every registered token
-// (batches of 100). The public anon key passes the platform's verify_jwt but
-// must NOT be able to trigger a broadcast, nor may a member.
+// Broadcast push for an admin post. Two callers: the push module's trigger once a
+// post an admin asked to send to everyone is visible (push/005_broadcast_trigger.sql,
+// with the public anon key), or a dashboard with the service-role key. The anon key
+// passes the platform's verify_jwt, so the body is untrusted: only `post_id` is
+// read, and an anon call sends nothing unless the post's admin author asked for it
+// (core/013_post_broadcasts.sql). `broadcast_at` is claimed before sending, so a
+// post goes out once and the inbox lists exactly the posts that were sent.
+// Sends an Expo push to every registered token (batches of 100) but the author's.
 
-import { adminClient, callerUserId, fetchAllRows, isServiceCaller } from "../_shared/client.ts";
+import { adminClient, fetchAllRows, isServiceCaller } from "../_shared/client.ts";
 import { excerptOrPhoto, pushCopy } from "../_shared/copy.ts";
 import { sendExpoPushBatch } from "../_shared/push.ts";
 import { BROADCAST_FALLBACK_TITLE } from "../_shared/config.ts";
@@ -14,17 +17,12 @@ const supabase = adminClient();
 
 Deno.serve(async (req) => {
   const service = isServiceCaller(req);
-  const callerId = service ? null : await callerUserId(req);
-  if (!service && !callerId) {
-    return new Response("unauthorized", { status: 401 });
-  }
-
-  const { post_id } = (await req.json()) as { post_id?: string };
+  const { post_id } = (await req.json().catch(() => ({}))) as { post_id?: string };
   if (!post_id) return new Response("missing post_id", { status: 400 });
 
   const { data: post } = await supabase
     .from("posts")
-    .select("id, author_id, content, status")
+    .select("id, author_id, content, status, broadcast_requested")
     .eq("id", post_id)
     .single();
   if (!post || post.status !== "visible") return new Response("skip: post not visible");
@@ -34,9 +32,16 @@ Deno.serve(async (req) => {
     .select("username, is_admin")
     .eq("id", post.author_id)
     .single();
-  if (!service && (post.author_id !== callerId || !author?.is_admin)) {
+  if (!service && !(post.broadcast_requested && author?.is_admin)) {
     return new Response("forbidden", { status: 403 });
   }
+  const { data: claimed } = await supabase
+    .from("posts")
+    .update({ broadcast_at: new Date().toISOString() })
+    .eq("id", post.id)
+    .is("broadcast_at", null)
+    .select("id");
+  if (!claimed?.length) return new Response("skip: already sent");
   const title = author?.username?.trim() || BROADCAST_FALLBACK_TITLE;
 
   // waitMs: when translate-one holds the claim (it fires on the same insert),
@@ -66,7 +71,10 @@ Deno.serve(async (req) => {
       .order("user_id")
       .range(from, to),
   );
-  const seen = new Set<string>();
+  // The author's own devices: their center never lists their own post.
+  const seen = new Set<string>(
+    rows.filter((r) => r.user_id === post.author_id).map((r) => r.expo_push_token as string),
+  );
   const messages = rows
     .map((r) => {
       const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;

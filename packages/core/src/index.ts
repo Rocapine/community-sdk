@@ -105,7 +105,7 @@ export {
   deleteOwnPost,
   setPostPinned,
   countPinnedPosts,
-  broadcastPost,
+  requestPostBroadcast,
   deleteOwnComment,
   updateProfile,
   fetchNotificationPreferences,

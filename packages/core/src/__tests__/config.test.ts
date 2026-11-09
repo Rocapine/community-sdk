@@ -99,6 +99,11 @@ it("maxPinnedPerTopic defaults to 1", () => {
   expect(resolveConfig({ ...base, maxPinnedPerTopic: 3 }).maxPinnedPerTopic).toBe(3);
 });
 
+it("adminPostsNotifyAll defaults to false", () => {
+  expect(resolveConfig({ ...base }).adminPostsNotifyAll).toBe(false);
+  expect(resolveConfig({ ...base, adminPostsNotifyAll: true }).adminPostsNotifyAll).toBe(true);
+});
+
 describe("event topics", () => {
   const cfg = resolveConfig({
     ...base,

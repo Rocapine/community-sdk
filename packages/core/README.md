@@ -72,6 +72,9 @@ const config: CommunityConfig = {
   // Optional. Pinned posts a topic may hold at once (default 1): an admin
   // pinning one more is warned instead.
   maxPinnedPerTopic: 2,
+  // Optional, push module. Every admin post is pushed to every member, and so listed
+  // in their notification center (default false: the admin picks per post).
+  adminPostsNotifyAll: true,
 
   // Host adapters — every field optional, no-op defaults.
   host: {
@@ -227,7 +230,13 @@ runs in production and is silent in degraded mode.
   available), and hooks `useNotificationInbox`, `useUnreadNotificationCount`,
   `useMarkInboxSeen`, `useMarkInboxItemRead`, `useMarkPostNotificationsRead`
   (reads a post's unread items, e.g. when a push about it is tapped: pass the
-  push's `postId` and `kind`).
+  push's `postId` and `kind`). The center is the history of the community's pushes:
+  every push has its item (likes and reactions are one item each, where the push
+  groups them), and an admin post is listed only once it was sent to everyone. Push
+  settings and a missing permission only silence the phone. With the app open, your
+  notification handler should hide a community push's banner (`data.route ===
+"/community"`) and refetch the inbox: the item and its unread badge then show in
+  the app instead.
 - **`timeAgo(iso, nowMs)`** — hardcoded-English relative-time formatting, kept for
   back-compat. **`timeAgoParts(iso, nowMs)`** — the language-free unit+value
   decomposition the UI package actually localizes through its own catalog

@@ -21,7 +21,7 @@ vi.mock("../service", async (importOriginal) => ({
   createComment: vi.fn(),
   moderateOne: vi.fn(),
   setPostPinned: vi.fn(),
-  broadcastPost: vi.fn(),
+  requestPostBroadcast: vi.fn(),
 }));
 
 describe("optimistic rows", () => {
@@ -142,14 +142,23 @@ describe("create mutations with an image", () => {
   it("pins and notifies everyone once the post is published", async () => {
     seedFeed();
     vi.mocked(service.setPostPinned).mockResolvedValue();
-    vi.mocked(service.broadcastPost).mockResolvedValue();
+    vi.mocked(service.requestPostBroadcast).mockResolvedValue();
     await run(createPostMutationOptions(cfg, qc, null), {
       ...postVars,
       pin: true,
       notifyAll: true,
     });
     expect(service.setPostPinned).toHaveBeenCalledWith(cfg, "p1", true);
-    expect(service.broadcastPost).toHaveBeenCalledWith(cfg, "p1");
+    expect(service.requestPostBroadcast).toHaveBeenCalledWith(cfg, "p1");
+  });
+
+  it("asks to notify everyone for a post moderation holds, sent once it is published", async () => {
+    seedFeed();
+    vi.mocked(service.moderateOne).mockResolvedValueOnce({
+      status: "pending",
+    } as service.ModerationVerdict);
+    await run(createPostMutationOptions(cfg, qc, null), { ...postVars, notifyAll: true });
+    expect(service.requestPostBroadcast).toHaveBeenCalledWith(cfg, "p1");
   });
 
   it("neither pins nor notifies a rejected post, nor a post that didn't ask", async () => {
@@ -164,7 +173,7 @@ describe("create mutations with an image", () => {
     });
     await run(createPostMutationOptions(cfg, qc, null), postVars);
     expect(service.setPostPinned).not.toHaveBeenCalled();
-    expect(service.broadcastPost).not.toHaveBeenCalled();
+    expect(service.requestPostBroadcast).not.toHaveBeenCalled();
   });
 
   it("reports hasImage on postPublished", async () => {

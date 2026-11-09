@@ -373,7 +373,9 @@ a full-screen page sheet: Cancel / Post on top, the topic pill under the
 user's name, a toolbar on the keyboard with the photo and poll buttons and a
 character ring. An admin also gets two options above the toolbar: "Pin" (the post
 is pinned once created, within `maxPinnedPerTopic`) and, with the push module,
-"Notify everyone" (the post is pushed to every member once published). Before it opens, the `+` asks for the community rules (first
+"Notify everyone" (the post is pushed to every member once published, even later by
+moderation, and then appears in their notification center). With `adminPostsNotifyAll`
+every admin post does that, and the option is not shown. Before it opens, the `+` asks for the community rules (first
 time) and then awaits your `beforeCompose` (see Gating submissions). Posting
 closes the sheet and publishes optimistically; a failed publish puts the draft
 back for the next `+`, and Cancel on a draft asks to discard it.
