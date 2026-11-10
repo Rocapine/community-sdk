@@ -136,6 +136,17 @@ Set by the team on 2026-11-10; every brick follows them.
 | 18  | **Member badges view.** See and reset a member's badges.                                                                                                                                                                                                 | S      | no         | todo   |
 | 19  | **Other apps.** Eve's Rhythm and Nightward once their backends run the SDK schema; their Rocactopus extras (articles, stories, callouts) stay out of this dashboard.                                                                                     | S each | no         | todo   |
 
+## SDK improvements for the dashboard
+
+Proposed while building the dashboard; each is an SDK change for the SDK owner to accept or not.
+
+| Proposal | Why it helps the dashboard | Size | Status |
+| --- | --- | --- | --- |
+| Indexes on `posts(author_id)`, `comments(author_id)`, `reports(reported_user_id)`, `blocks(blocked_id)` | `admin_user_stats` counts become index lookups, so the member list can filter and sort on them | S | proposed |
+| Allow `make_admin` / `remove_admin` in `moderation_actions.action` | Admin changes appear in the audit log | S | proposed |
+| One RPC per moderation action (status + reports + log in one transaction) | No half-applied action if a call fails midway | M | proposed |
+| Restoring hidden content runs the publish side effects (inbox, push to the post author, translation) | A restored comment reaches its post author like a normal one | M | proposed |
+
 ## SDK coverage
 
 What each SDK feature gives the dashboard to manage. Update a row when the SDK changes.
