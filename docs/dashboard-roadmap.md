@@ -105,14 +105,13 @@ Set by the team on 2026-11-10; every brick follows them.
 - **Fewer clicks, scrolls and page changes.** Use the whole screen, its width first: side panels,
   sheets, off-canvas drawers, dialogs, list + detail side by side.
 
-
 ### V1 — first useful version
 
 | #   | Brick                                                                                                                                                                                                                                                                                                                                                                             | Size | SDK change | Status |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---------- | ------ |
-| 1   | **Shell.** Repo, Worker + SPA, shadcn, Access + JWT check, auto deploy, the community registry (Worker secrets), the app/environment switcher, an empty home. Starts with Unchaind sandbox and production.                                                                                                                                                                        | M    | no         | done |
-| 2   | **Review queue.** One list of what needs a human: open reports (grouped per post or comment, most reported first) and AI-hidden content not yet reviewed. Actions: hide, restore, keep hidden, reject the report, ban the author. Every action written to `moderation_actions` with the actor's email. Undo on the last action.                                                   | M    | no         | done |
-| 3   | **Members.** Find a member by name, handle or id; member card (posts, comments, reports received, hidden count, ban state, Amplitude and RevenueCat ids); ban / unban; **make admin / remove admin** (`is_admin`). Since SDK 0.15, an admin posts in admin-only topics, pins and notifies everyone from the app itself, so this alone covers "publish as an admin" until brick 4. | S    | no         | done |
+| 1   | **Shell.** Repo, Worker + SPA, shadcn, Access + JWT check, auto deploy, the community registry (Worker secrets), the app/environment switcher, an empty home. Starts with Unchaind sandbox and production.                                                                                                                                                                        | M    | no         | done   |
+| 2   | **Review queue.** One list of what needs a human: open reports (grouped per post or comment, most reported first) and AI-hidden content not yet reviewed. Actions: hide, restore, keep hidden, reject the report, ban the author. Every action written to `moderation_actions` with the actor's email. Undo on the last action.                                                   | M    | no         | done   |
+| 3   | **Members.** Find a member by name, handle or id; member card (posts, comments, reports received, hidden count, ban state, Amplitude and RevenueCat ids); ban / unban; **make admin / remove admin** (`is_admin`). Since SDK 0.15, an admin posts in admin-only topics, pins and notifies everyone from the app itself, so this alone covers "publish as an admin" until brick 4. | S    | no         | done   |
 
 ### Next
 
@@ -144,12 +143,12 @@ Set by the team on 2026-11-10; every brick follows them.
 
 Proposed while building the dashboard; each is an SDK change for the SDK owner to accept or not.
 
-| Proposal | Why it helps the dashboard | Size | Status |
-| --- | --- | --- | --- |
-| Indexes on `posts(author_id)`, `comments(author_id)`, `reports(reported_user_id)`, `blocks(blocked_id)` | `admin_user_stats` counts become index lookups, so the member list can filter and sort on them | S | proposed |
-| Allow `make_admin` / `remove_admin` in `moderation_actions.action` | Admin changes appear in the audit log | S | proposed |
-| One RPC per moderation action (status + reports + log in one transaction) | No half-applied action if a call fails midway | M | proposed |
-| Restoring hidden content runs the publish side effects (inbox, push to the post author, translation) | A restored comment reaches its post author like a normal one | M | proposed |
+| Proposal                                                                                                | Why it helps the dashboard                                                                     | Size | Status   |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---- | -------- |
+| Indexes on `posts(author_id)`, `comments(author_id)`, `reports(reported_user_id)`, `blocks(blocked_id)` | `admin_user_stats` counts become index lookups, so the member list can filter and sort on them | S    | proposed |
+| Allow `make_admin` / `remove_admin` in `moderation_actions.action`                                      | Admin changes appear in the audit log                                                          | S    | proposed |
+| One RPC per moderation action (status + reports + log in one transaction)                               | No half-applied action if a call fails midway                                                  | M    | proposed |
+| Restoring hidden content runs the publish side effects (inbox, push to the post author, translation)    | A restored comment reaches its post author like a normal one                                   | M    | proposed |
 
 ## SDK coverage
 
