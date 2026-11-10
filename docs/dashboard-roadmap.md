@@ -17,7 +17,7 @@ iteration.
 Status: `todo` · `in progress` · `done` · `dropped`. Size: **S** one session · **M** a few
 sessions · **L** a project with its own design doc, usually with an SDK release.
 
-Last reviewed: 2026-11-10, SDK 0.15.0.
+Last reviewed: 2026-11-10, SDK 0.15.0. V1 (bricks 1–3) live at https://community.rocapi.ne.
 
 ## Needs it serves
 
@@ -38,7 +38,7 @@ From the team (2026-11-04):
 - **2026-11-10 — V1 scope:** Unchaind only, sandbox and production. Eve's Rhythm and Nightward
   wait for brick 19.
 - **2026-11-10 — Where:** the Rocapine Cloudflare account (where `unchaind-dashboard` runs too),
-  at `community.rocapine.com`, in the repo `Rocapine/community-dashboard`.
+  at `community.rocapi.ne`, in the repo [`Rocapine/community-dashboard`](https://github.com/Rocapine/community-dashboard).
 - **2026-11-10 — Managed accounts, three kinds:** _brand_ (e.g. "Unchaind" with the app icon,
   for app news), _persona_ (a real first name and photo, a person posting for the app) and
   _seed_ (looks like any member, to liven up the community). Brand and persona carry the admin
@@ -67,6 +67,10 @@ From the team (2026-11-04):
   community profiles its own way. The dashboard only flags when another profile with the same
   RevenueCat or Amplitude id is banned.
 - **2026-11-10 — V1 design:** [2026-11-10-community-dashboard-v1-design.md](superpowers/specs/2026-11-10-community-dashboard-v1-design.md).
+- **2026-11-10 — PR previews:** every pull request gets a Workers Builds preview on
+  `*.workers.dev`, behind the same Access policy. Previews run unmerged code with the production
+  code, so a preview gets its own config (`previews` block): the sandbox community and its key
+  only; the production key never reaches a preview.
 - **2026-11-10 — Independent project:** the dashboard is the team's own project, meant to
   replace Rocactopus; it does not follow Rocactopus's choices.
 - **2026-11-04 — Hosting:** a Cloudflare Worker, deployed automatically on merge to `main`
@@ -106,9 +110,9 @@ Set by the team on 2026-11-10; every brick follows them.
 
 | #   | Brick                                                                                                                                                                                                                                                                                                                                                                             | Size | SDK change | Status |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---------- | ------ |
-| 1   | **Shell.** Repo, Worker + SPA, shadcn, Access + JWT check, auto deploy, the community registry (Worker secrets), the app/environment switcher, an empty home. Starts with Unchaind sandbox and production.                                                                                                                                                                        | M    | no         | todo   |
-| 2   | **Review queue.** One list of what needs a human: open reports (grouped per post or comment, most reported first) and AI-hidden content not yet reviewed. Actions: hide, restore, keep hidden, reject the report, ban the author. Every action written to `moderation_actions` with the actor's email. Undo on the last action.                                                   | M    | no         | todo   |
-| 3   | **Members.** Find a member by name, handle or id; member card (posts, comments, reports received, hidden count, ban state, Amplitude and RevenueCat ids); ban / unban; **make admin / remove admin** (`is_admin`). Since SDK 0.15, an admin posts in admin-only topics, pins and notifies everyone from the app itself, so this alone covers "publish as an admin" until brick 4. | S    | no         | todo   |
+| 1   | **Shell.** Repo, Worker + SPA, shadcn, Access + JWT check, auto deploy, the community registry (Worker secrets), the app/environment switcher, an empty home. Starts with Unchaind sandbox and production.                                                                                                                                                                        | M    | no         | done |
+| 2   | **Review queue.** One list of what needs a human: open reports (grouped per post or comment, most reported first) and AI-hidden content not yet reviewed. Actions: hide, restore, keep hidden, reject the report, ban the author. Every action written to `moderation_actions` with the actor's email. Undo on the last action.                                                   | M    | no         | done |
+| 3   | **Members.** Find a member by name, handle or id; member card (posts, comments, reports received, hidden count, ban state, Amplitude and RevenueCat ids); ban / unban; **make admin / remove admin** (`is_admin`). Since SDK 0.15, an admin posts in admin-only topics, pins and notifies everyone from the app itself, so this alone covers "publish as an admin" until brick 4. | S    | no         | done |
 
 ### Next
 

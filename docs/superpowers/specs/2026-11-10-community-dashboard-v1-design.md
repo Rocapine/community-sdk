@@ -39,7 +39,7 @@ make admin). Making a team account an admin is enough to publish as an admin fro
 
 ## Constraints
 
-- **Hosting:** a Cloudflare Worker on the **Rocapine** account, at `community.rocapine.com`,
+- **Hosting:** a Cloudflare Worker on the **Rocapine** account, at `community.rocapi.ne`,
   deployed by Workers Builds on every merge to `main`. Repo `Rocapine/community-dashboard`
   (local: `~/Developer/community-dashboard`).
 - **Access:** Cloudflare Access (team `rocapine.cloudflareaccess.com`) with the rule "emails
@@ -127,7 +127,7 @@ the page, which goes through Access again.
 ### Deploy
 
 Workers Builds connected to `Rocapine/community-dashboard`, deploying `main`. Custom domain
-`community.rocapine.com` (check that the `rocapine.com` zone is on the Rocapine account; if not,
+`community.rocapi.ne` (check that the `rocapi.ne` zone is on the Rocapine account; if not,
 stop and ask). An Access application on that hostname with the `@rocapine.com` rule.
 
 The "Rocapine" Cloudflare account is the one `unchaind-dashboard` runs on: the account
@@ -277,7 +277,7 @@ The builder may reshape these; what matters is that the browser never talks to S
   PostgREST).
 - End to end against **Unchaind sandbox** only: create reports and AI-hidden items there, run
   every action, check the rows and the log. Never test writes on production.
-- Before saying a brick is done: deployed on `community.rocapine.com`, Access works from a
+- Before saying a brick is done: deployed on `community.rocapi.ne`, Access works from a
   `@rocapine.com` account and refuses another one.
 
 ## What needs the team (outside code)

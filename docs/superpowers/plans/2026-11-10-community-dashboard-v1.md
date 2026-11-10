@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A dashboard at `community.rocapine.com` to review reported and AI-hidden content and manage members of the Unchaind community, in sandbox and production.
+**Goal:** A dashboard at `community.rocapi.ne` to review reported and AI-hidden content and manage members of the Unchaind community, in sandbox and production.
 
 **Architecture:** A new repo `~/Developer/community-dashboard` modeled on `~/Developer/unchaind-dashboard`: a Vite + React SPA served as Worker static assets, and a hand-written Worker answering `/api/*`. The Worker checks the Cloudflare Access JWT, picks the community from the URL, and talks to that community's Supabase project with its secret key; the browser never talks to Supabase. Pure "planner" functions decide every write, so the rules are unit-tested without a database.
 
@@ -117,7 +117,7 @@ expect(nextThemeAction("light", "dark")).toBe(null);
 - Produces (`src/worker/router.ts`): `handleApi(req: Request, env: Env): Promise<Response>`; `json(data: unknown, status = 200): Response` (adds `no-store`); routes from spec "API sketch", all community routes under `/api/c/:app/:env/`; unknown community → 404 `{ error: "unknown_community" }`; no email → 401 `{ error: "unauthorized" }`.
 - Produces (`src/shared/types.ts`): `PublicCommunity { app; env; name; hasAmplitude: boolean; hasRevenuecat: boolean }` and the API types of Tasks 3–5 (declared there, all in this file).
 
-`wrangler.jsonc`: `name: "community-dashboard"`, assets as in unchaind-dashboard (`run_worker_first: ["/api/*"]`, SPA fallback), `routes: [{ pattern: "community.rocapine.com", custom_domain: true }]`, `observability.enabled`, vars `ACCESS_TEAM_DOMAIN: "rocapine.cloudflareaccess.com"`, `ACCESS_AUD` (filled in Task 9), `COMMUNITIES` as a JSON string with the two Unchaind entries of the spec (`keySecret` `SUPABASE_KEY_UNCHAIND_PROD` / `SUPABASE_KEY_UNCHAIND_SANDBOX`).
+`wrangler.jsonc`: `name: "community-dashboard"`, assets as in unchaind-dashboard (`run_worker_first: ["/api/*"]`, SPA fallback), `routes: [{ pattern: "community.rocapi.ne", custom_domain: true }]`, `observability.enabled`, vars `ACCESS_TEAM_DOMAIN: "rocapine.cloudflareaccess.com"`, `ACCESS_AUD` (filled in Task 9), `COMMUNITIES` as a JSON string with the two Unchaind entries of the spec (`keySecret` `SUPABASE_KEY_UNCHAIND_PROD` / `SUPABASE_KEY_UNCHAIND_SANDBOX`).
 
 - [ ] **Step 1: Write `test/access.test.ts`** with a key pair from `crypto.subtle.generateKey` (RSASSA-PKCS1-v1_5, SHA-256) and `fetch` stubbed to serve its JWK:
   - `valid token → "a@rocapine.com"`
@@ -357,10 +357,10 @@ Each outward step is announced to Guillaume and done only after his go.
 
 - [ ] **Step 1:** Create `Rocapine/community-dashboard` (private) with `gh repo create`, push `main`.
 - [ ] **Step 2:** In each Unchaind Supabase project (sandbox, then production), create a secret key named `community-dashboard`; set them with `npx wrangler secret put SUPABASE_KEY_UNCHAIND_SANDBOX` / `…_PROD`. Never print the values.
-- [ ] **Step 3:** Check with `npx wrangler whoami` that the "Rocapine" account (`cd3f38fcaf8dca226a6c08ebc2616089`) is reachable and holds the `rocapine.com` zone. If not, stop and ask.
-- [ ] **Step 4:** Create the Access application for `community.rocapine.com` (rule: emails ending in `@rocapine.com`), put its AUD in `ACCESS_AUD`. If the credentials lack the rights, give Guillaume the exact dashboard steps and wait.
+- [ ] **Step 3:** Check with `npx wrangler whoami` that the "Rocapine" account (`cd3f38fcaf8dca226a6c08ebc2616089`) is reachable and holds the `rocapi.ne` zone. If not, stop and ask.
+- [ ] **Step 4:** Create the Access application for `community.rocapi.ne` (rule: emails ending in `@rocapine.com`), put its AUD in `ACCESS_AUD`. If the credentials lack the rights, give Guillaume the exact dashboard steps and wait.
 - [ ] **Step 5:** Connect Workers Builds to the repo (deploy on `main`), deploy once.
 - [ ] **Step 6:** Fill `amplitudeUserUrl` and `revenuecatCustomerUrl` with Unchaind's Amplitude project and RevenueCat project (ask Guillaume for the ids if not found in the Unchaind repo).
-- [ ] **Step 7: End-to-end check:** from a `@rocapine.com` account, `community.rocapine.com` opens; from another account, Access refuses. On sandbox: one full pass of hide, undo, restore, reject, ban, unban, admin. On production: read-only look at the queue and members.
+- [ ] **Step 7: End-to-end check:** from a `@rocapine.com` account, `community.rocapi.ne` opens; from another account, Access refuses. On sandbox: one full pass of hide, undo, restore, reject, ban, unban, admin. On production: read-only look at the queue and members.
 - [ ] **Step 8:** Update `community-sdk/docs/dashboard-roadmap.md`: bricks 1–3 _done_ with the dashboard repo's commit or PR links; "Last reviewed" date. Commit on the `docs/community-dashboard-roadmap` branch.
 - [ ] **Step 9:** Commit the dashboard changes `chore: deploy config`, push.
