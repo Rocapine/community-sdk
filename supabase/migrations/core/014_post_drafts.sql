@@ -52,12 +52,11 @@ declare
 begin
   select * into d from post_drafts where id = p_draft_id for update;
   if not found then raise exception 'draft_not_found'; end if;
-  if d.version <> p_version then raise exception 'draft_changed'; end if;
+  if d.version is distinct from p_version then raise exception 'draft_changed'; end if;
 
   select * into author from profiles where id = d.author_id;
   if not found or not author.is_house then raise exception 'not_a_team_account'; end if;
-  -- 'news' is the legacy admin-only topic (core/011_admins.sql).
-  if (d.pin or d.notify or d.topic = 'news') and not author.is_admin then raise exception 'not_admin'; end if;
+  if (d.pin or d.notify) and not author.is_admin then raise exception 'not_admin'; end if;
 
   -- Like posts_content_check: text is optional when there is an image.
   if char_length(d.content) > 2000 or (char_length(d.content) = 0 and d.image_path is null)

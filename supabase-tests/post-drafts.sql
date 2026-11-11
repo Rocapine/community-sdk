@@ -13,6 +13,7 @@ declare
   n int;
   idxs smallint[];
   img text;
+  labels text[];
 begin
   select id into pid from public.profiles where not is_banned limit 1;
   update public.profiles set is_house = true, is_admin = true where id = pid;
@@ -48,6 +49,8 @@ begin
   post := public.publish_post_draft(d, 1, 't@x');
   select array_agg(idx order by idx) into idxs from public.poll_options where post_id = post;
   assert idxs = '{0,1,2}'::smallint[], 'three options, idx 0..2';
+  select array_agg(label order by idx) into labels from public.poll_options where post_id = post;
+  assert labels = '{a,b,c}'::text[], 'option labels copied in order';
   select * into p from public.posts where id = post;
   assert p.pinned_at is null and not p.broadcast_requested, 'no pin, no notify by default';
 
@@ -82,6 +85,12 @@ begin
   end;
 
   begin
+    perform public.publish_post_draft(d, null, 't@x');
+    assert false, 'a null version publishes';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'draft_changed', sqlerrm;
+  end;
+
+  begin
     perform public.publish_post_draft(gen_random_uuid(), 1, 't@x');
     assert false, 'unknown draft publishes';
   exception when sqlstate 'P0001' then assert sqlerrm = 'draft_not_found', sqlerrm;
@@ -95,11 +104,11 @@ begin
     assert false, 'a non-admin pins';
   exception when sqlstate 'P0001' then assert sqlerrm = 'not_admin', sqlerrm;
   end;
-  insert into public.post_drafts (author_id, topic, content, created_by, updated_by)
-    values (pid, 'news', 'x', 't@x', 't@x') returning id into d;
+  insert into public.post_drafts (author_id, content, notify, created_by, updated_by)
+    values (pid, 'x', true, 't@x', 't@x') returning id into d;
   begin
     perform public.publish_post_draft(d, 1, 't@x');
-    assert false, 'a non-admin posts in news';
+    assert false, 'a non-admin notifies everyone';
   exception when sqlstate 'P0001' then assert sqlerrm = 'not_admin', sqlerrm;
   end;
   update public.profiles set is_admin = true where id = pid;
