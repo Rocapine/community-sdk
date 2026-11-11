@@ -12,6 +12,7 @@ declare
   p record;
   n int;
   idxs smallint[];
+  img text;
 begin
   select id into pid from public.profiles where not is_banned limit 1;
   update public.profiles set is_house = true, is_admin = true where id = pid;
@@ -144,6 +145,18 @@ begin
     assert false, 'poll and attachment publish together';
   exception when sqlstate 'P0001' then assert sqlerrm = 'one_extra_only', sqlerrm;
   end;
+
+  -- The nightly sweep keeps the image of a draft (images/002_draft_images.sql).
+  insert into storage.objects (bucket_id, name, created_at)
+    values ('post-images', gen_random_uuid()::text || '/x.jpg', now() - interval '2 days')
+    returning name into img;
+  insert into public.post_drafts (author_id, content, image_path, image_width, image_height, created_by, updated_by)
+    values (pid, 'x', img, 640, 480, 't@x', 't@x') returning id into d;
+  assert not exists (select 1 from public.post_images_unreferenced(1000) u where u = img),
+    'the sweep keeps a draft image';
+  delete from public.post_drafts where id = d;
+  assert exists (select 1 from public.post_images_unreferenced(1000) u where u = img),
+    'the sweep takes the image once the draft is gone';
 
   raise exception 'POST_DRAFTS_TESTS_PASSED';
 end $$;
