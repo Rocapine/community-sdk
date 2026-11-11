@@ -56,9 +56,11 @@ begin
 
   select * into author from profiles where id = d.author_id;
   if not found or not author.is_house then raise exception 'not_a_team_account'; end if;
-  if (d.pin or d.notify) and not author.is_admin then raise exception 'not_admin'; end if;
+  -- 'news' is the legacy admin-only topic (core/011_admins.sql).
+  if (d.pin or d.notify or d.topic = 'news') and not author.is_admin then raise exception 'not_admin'; end if;
 
-  if char_length(d.content) not between 1 and 2000
+  -- Like posts_content_check: text is optional when there is an image.
+  if char_length(d.content) > 2000 or (char_length(d.content) = 0 and d.image_path is null)
     -- The image lives in the author's storage folder; the dashboard moves it when the author changes.
     or (d.image_path is not null and split_part(d.image_path, '/', 1) <> d.author_id::text) then
     raise exception 'invalid_content';
@@ -72,12 +74,17 @@ begin
     raise exception 'one_extra_only';
   end if;
 
-  insert into posts (author_id, topic, content, status, moderated_at, broadcast_requested, pinned_at)
-    values (d.author_id, d.topic, d.content, 'visible', now(), d.notify, case when d.pin then now() end)
-    returning id into new_id;
+  -- The image goes in the insert itself: an image-only post needs it to pass posts_content_check.
   if d.image_path is not null then
-    update posts set image_path = d.image_path, image_width = d.image_width, image_height = d.image_height
-    where id = new_id;
+    insert into posts (author_id, topic, content, status, moderated_at, broadcast_requested, pinned_at,
+                       image_path, image_width, image_height)
+      values (d.author_id, d.topic, d.content, 'visible', now(), d.notify, case when d.pin then now() end,
+              d.image_path, d.image_width, d.image_height)
+      returning id into new_id;
+  else
+    insert into posts (author_id, topic, content, status, moderated_at, broadcast_requested, pinned_at)
+      values (d.author_id, d.topic, d.content, 'visible', now(), d.notify, case when d.pin then now() end)
+      returning id into new_id;
   end if;
   if d.attachment is not null then
     update posts set attachment = d.attachment where id = new_id;

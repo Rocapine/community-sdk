@@ -64,6 +64,13 @@ begin
   select * into p from public.posts where id = post;
   assert p.image_path = pid::text || '/pic.jpg' and p.image_width = 640 and p.image_height = 480, 'image copied';
 
+  -- An image-only draft (no text).
+  insert into public.post_drafts (author_id, topic, content, image_path, image_width, image_height, created_by, updated_by)
+    values (pid, 'general', '', pid::text || '/only.jpg', 640, 480, 't@x', 't@x') returning id into d;
+  post := public.publish_post_draft(d, 1, 't@x');
+  select * into p from public.posts where id = post;
+  assert p.content = '' and p.image_path = pid::text || '/only.jpg', 'image-only publishes';
+
   -- Refusals: each case expects one error code.
   insert into public.post_drafts (author_id, content, version, created_by, updated_by)
     values (pid, 'x', 2, 't@x', 't@x') returning id into d;
@@ -87,6 +94,13 @@ begin
     assert false, 'a non-admin pins';
   exception when sqlstate 'P0001' then assert sqlerrm = 'not_admin', sqlerrm;
   end;
+  insert into public.post_drafts (author_id, topic, content, created_by, updated_by)
+    values (pid, 'news', 'x', 't@x', 't@x') returning id into d;
+  begin
+    perform public.publish_post_draft(d, 1, 't@x');
+    assert false, 'a non-admin posts in news';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'not_admin', sqlerrm;
+  end;
   update public.profiles set is_admin = true where id = pid;
 
   update public.profiles set is_house = false where id = pid;
@@ -103,7 +117,7 @@ begin
     values (pid, '', 't@x', 't@x') returning id into d;
   begin
     perform public.publish_post_draft(d, 1, 't@x');
-    assert false, 'empty content publishes';
+    assert false, 'empty content without an image publishes';
   exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_content', sqlerrm;
   end;
 
