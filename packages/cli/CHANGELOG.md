@@ -1,5 +1,38 @@
 # @rocapine/community
 
+## 0.16.0
+
+### Minor Changes
+
+- ca73e9e: **Post drafts for the community dashboard.** Two new migration templates, used by the
+  dashboard to keep posts as drafts shared by the whole team and to publish them as a team
+  account. Nothing changes in the app.
+
+  - `core/014_post_drafts.sql`: a `post_drafts` table and `publish_post_draft`, which publishes
+    a draft as its author. Service role only: no RLS policy, so the app never sees a draft.
+    Pinning and notifying everyone need an admin author, enforced in `publish_post_draft`.
+    Image-only drafts may have empty text, as posts do in the app.
+  - `images/002_draft_images.sql`: the images module keeps the images of drafts, and the
+    nightly sweep no longer deletes them.
+
+  Migration: no app change needed. Run `npx @rocapine/community upgrade`, then
+  `supabase db push`, to get the tables if the community dashboard manages this community.
+
+- 9506493: **Scheduled posts for the community dashboard.** One new migration template, used by the
+  dashboard to publish team drafts at a chosen time. Nothing changes in the app.
+
+  - `core/015_scheduled_posts.sql`: a pg_cron job publishes due drafts every minute through
+    `publish_post_draft`, as the draft's team account; the moderation log names whoever
+    scheduled it. `schedule_post_draft` lets the dashboard plan a time on a draft (not yet armed,
+    the post need not be complete), arm it (the whole post is validated, only armed drafts are
+    published) or clear it. A draft more than 30 minutes late is not published and is marked `missed`.
+    A transient database error (deadlock, serialization failure, lock timeout) is retried on the
+    next run. Event topics can carry a date window (`topic_from`, `topic_until`): a draft
+    scheduled outside it is refused with `topic_closed`.
+
+  Migration: no app change needed. Run `npx @rocapine/community upgrade`, then
+  `supabase db push`, to get the job if the community dashboard manages this community.
+
 ## 0.15.0
 
 ### Minor Changes
