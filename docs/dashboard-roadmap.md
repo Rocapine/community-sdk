@@ -17,7 +17,7 @@ iteration.
 Status: `todo` · `in progress` · `done` · `dropped`. Size: **S** one session · **M** a few
 sessions · **L** a project with its own design doc, usually with an SDK release.
 
-Last reviewed: 2026-11-11, SDK 0.16.0. V1 (bricks 1–3) live at https://community.rocapi.ne.
+Last reviewed: 2026-11-12, SDK 0.16.0. Bricks 1–4 live at https://community.rocapi.ne (brick 4 needs SDK 0.16 on the community).
 
 ## Needs it serves
 
@@ -123,7 +123,7 @@ Set by the team on 2026-11-10; every brick follows them.
 
 | #   | Brick                                                                                                                                                                                                                                                                                                                                                  | Size | SDK change | Status      |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- | ---------- | ----------- |
-| 4   | **Team accounts and composer.** Create and edit the team's accounts (photo, name, bio, Admin switch; an admin account chooses its handle), in Members. A composer that floats over every screen: write a post as any team account (topic, text, image, poll, Bible verse), notify everyone, pin, publish now; several drafts kept, shared by the team. | M    | yes        | in progress |
+| 4   | **Team accounts and composer.** Create and edit the team's accounts (photo, name, bio, Admin switch; an admin account chooses its handle), in Members. A composer that floats over every screen: write a post as any team account (topic, text, image, poll, Bible verse), notify everyone, pin, publish now; several drafts kept, shared by the team. Shipped: [dashboard#3](https://github.com/Rocapine/community-dashboard/pull/3), [sdk#78](https://github.com/Rocapine/community-sdk/pull/78) (SDK 0.16). | M    | yes        | done        |
 | 5   | **Activity.** 7 / 30 / 90-day charts from `admin_daily_metrics`: posts, comments, new posters, reply rate within 24 h, posts per topic. House accounts excluded.                                                                                                                                                                                       | S    | no         | todo        |
 | 6   | **Feed explorer.** Every post by topic and status, search on text and author, the thread with its comments, hide / pin from the list, "no answer yet" filter, comment and reply as a team account.                                                                                                                                                     | M    | no         | todo        |
 | 7   | **Scheduled posts.** Plan a post (brick 4's composer + a date) as a team account; list and calendar; edit or cancel before it goes out. Builds on `post_drafts.publish_at` and `publish_post_draft` (brick 4); the SDK adds the cron in core.                                                                                                          | M    | yes        | todo        |
