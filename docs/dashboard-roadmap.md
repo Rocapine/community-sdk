@@ -17,7 +17,7 @@ iteration.
 Status: `todo` · `in progress` · `done` · `dropped`. Size: **S** one session · **M** a few
 sessions · **L** a project with its own design doc, usually with an SDK release.
 
-Last reviewed: 2026-11-10, SDK 0.15.0. V1 (bricks 1–3) live at https://community.rocapi.ne.
+Last reviewed: 2026-11-11, SDK 0.16.0. V1 (bricks 1–3) live at https://community.rocapi.ne.
 
 ## Needs it serves
 
@@ -39,11 +39,17 @@ From the team (2026-11-04):
   wait for brick 19.
 - **2026-11-10 — Where:** the Rocapine Cloudflare account (where `unchaind-dashboard` runs too),
   at `community.rocapi.ne`, in the repo [`Rocapine/community-dashboard`](https://github.com/Rocapine/community-dashboard).
-- **2026-11-10 — Managed accounts, three kinds:** _brand_ (e.g. "Unchaind" with the app icon,
-  for app news), _persona_ (a real first name and photo, a person posting for the app) and
-  _seed_ (looks like any member, to liven up the community). Brand and persona carry the admin
-  seal (`is_admin`); seed does not. All three are house accounts (`is_house`), kept out of the
-  stats; the app cannot read `is_house`, so members never see it.
+- **2026-11-11 — Team accounts, all equal:** every account the team manages is a house account
+  (`is_house`, kept out of the stats; the app cannot read it) and the only difference is the Admin
+  switch (`is_admin`): the admin seal and the admin powers (admin-only topics, pin, notify
+  everyone). An admin account chooses its handle; the 8 accounts made on phones at launch are team
+  accounts like any other. This replaces the 2026-11-10 "three kinds" (brand, persona, seed).
+- **2026-11-11 — Shared drafts:** drafts live in the community database (`post_drafts`, service
+  role only), so the whole team sees them on any device. Publishing goes through
+  `publish_post_draft`, which requires an admin author for pin and notify everyone. An image-only
+  post may have empty text, as in the app; which topics are admin-only comes from the dashboard's
+  topic config, not from the database. Design:
+  [2026-11-11-community-dashboard-brick4-design.md](superpowers/specs/2026-11-11-community-dashboard-brick4-design.md).
 - **2026-11-10 — Octopus:** only users on old app versions are still there, and Octopus moderates
   its own community. The dashboard ignores it.
 - **2026-11-10 — Shell (brick 1):** an app and sandbox/production switcher kept in the URL;
@@ -115,13 +121,13 @@ Set by the team on 2026-11-10; every brick follows them.
 
 ### Next
 
-| #   | Brick                                                                                                                                                                                                                                                                                                   | Size | SDK change | Status |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---------- | ------ |
-| 4   | **Managed profiles and composer.** Create and list the team's profiles, of the three kinds in [Decided](#decided): brand, persona, seed (name, handle, avatar). Write a post as one of them: topic, text, image, poll, attachment; publish now; notify everyone; pin. Comment and reply as one of them. | M    | no         | todo   |
-| 5   | **Activity.** 7 / 30 / 90-day charts from `admin_daily_metrics`: posts, comments, new posters, reply rate within 24 h, posts per topic. House accounts excluded.                                                                                                                                        | S    | no         | todo   |
-| 6   | **Feed explorer.** Every post by topic and status, search on text and author, the thread with its comments, hide / pin from the list, "no answer yet" filter.                                                                                                                                           | M    | no         | todo   |
-| 7   | **Scheduled posts.** Plan a post (brick 4's composer + a date) as a managed profile; list and calendar; edit or cancel before it goes out. The SDK publishes them (a `scheduled_posts` table and a cron in core).                                                                                       | M    | yes        | todo   |
-| 8   | **Community info (read-only).** What each community runs: installed modules (probed from the schema), schema version, cron jobs and their last runs, Edge Functions, which secrets are set (names only, via the Management API). Catches a half-migrated sandbox.                                       | S    | no         | todo   |
+| #   | Brick                                                                                                                                                                                                                                                                                                                                                  | Size | SDK change | Status      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- | ---------- | ----------- |
+| 4   | **Team accounts and composer.** Create and edit the team's accounts (photo, name, bio, Admin switch; an admin account chooses its handle), in Members. A composer that floats over every screen: write a post as any team account (topic, text, image, poll, Bible verse), notify everyone, pin, publish now; several drafts kept, shared by the team. | M    | yes        | in progress |
+| 5   | **Activity.** 7 / 30 / 90-day charts from `admin_daily_metrics`: posts, comments, new posters, reply rate within 24 h, posts per topic. House accounts excluded.                                                                                                                                                                                       | S    | no         | todo        |
+| 6   | **Feed explorer.** Every post by topic and status, search on text and author, the thread with its comments, hide / pin from the list, "no answer yet" filter, comment and reply as a team account.                                                                                                                                                     | M    | no         | todo        |
+| 7   | **Scheduled posts.** Plan a post (brick 4's composer + a date) as a team account; list and calendar; edit or cancel before it goes out. Builds on `post_drafts.publish_at` and `publish_post_draft` (brick 4); the SDK adds the cron in core.                                                                                                          | M    | yes        | todo        |
+| 8   | **Community info (read-only).** What each community runs: installed modules (probed from the schema), schema version, cron jobs and their last runs, Edge Functions, which secrets are set (names only, via the Management API). Catches a half-migrated sandbox.                                                                                      | S    | no         | todo        |
 
 ### Later
 
@@ -173,6 +179,8 @@ What each SDK feature gives the dashboard to manage. Update a row when the SDK c
 | Translation (translation)                                              | 0.3               | Show the original and translations; locales in secrets | 6, 12   |
 | Images (images)                                                        | 0.11              | Images in the composer and the review queue            | 2, 4    |
 | Attachments (attachments)                                              | 0.15              | Attach app content in the composer                     | 4       |
+| Post drafts, `publish_post_draft` (core `014_post_drafts`)             | 0.16              | Shared drafts; publish as a team account               | 4, 7    |
+| Draft images (images `002_draft_images`)                               | 0.16              | Images in drafts, kept by the nightly sweep            | 4       |
 | Member badges (badges; replaces streaks)                               | 0.15              | Badges on the member card                              | 3, 18   |
 
 ## Open questions
