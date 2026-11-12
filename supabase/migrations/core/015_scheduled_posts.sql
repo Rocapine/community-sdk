@@ -151,3 +151,51 @@ $$;
 
 revoke execute on function public.schedule_post_draft(uuid, int, timestamptz, text, text) from public, anon, authenticated;
 grant execute on function public.schedule_post_draft(uuid, int, timestamptz, text, text) to service_role;
+
+-- Publishes the drafts whose time has come and returns how many went out. A draft more than
+-- 30 minutes late is marked 'missed' instead; a draft that fails keeps its publish_at and
+-- stores the error (the code for a P0001 error, else the message cut to 200 characters),
+-- so the next run skips it until the team reschedules it. Run by pg_cron every minute.
+create or replace function public.publish_due_post_drafts()
+returns int
+language plpgsql security definer set search_path = public
+as $$
+declare
+  r record;
+  n int := 0;
+begin
+  for r in
+    select id, version, scheduled_by, publish_at from post_drafts
+    where publish_at <= now() and publish_error is null
+    order by publish_at for update skip locked
+  loop
+    if r.publish_at < now() - interval '30 minutes' then
+      update post_drafts set publish_error = 'missed', failed_at = now() where id = r.id;
+    else
+      begin
+        perform publish_post_draft(r.id, r.version, r.scheduled_by);
+        n := n + 1;
+      exception when others then
+        update post_drafts set failed_at = now(),
+          publish_error = case when sqlstate = 'P0001' then sqlerrm else left(sqlerrm, 200) end
+          where id = r.id;
+      end;
+    end if;
+  end loop;
+  return n;
+end;
+$$;
+
+revoke execute on function public.publish_due_post_drafts() from public, anon, authenticated;
+
+do $$
+begin
+  perform cron.schedule('post-drafts-publish', '* * * * *', $cron$ select public.publish_due_post_drafts(); $cron$);
+exception when others then
+  if sqlerrm like '%already exists%' then
+    raise notice 'cron job post-drafts-publish already scheduled, skipping';
+  else
+    raise;
+  end if;
+end;
+$$;
