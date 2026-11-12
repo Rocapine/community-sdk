@@ -116,7 +116,12 @@ export const ko: Record<string, string> = {
   "menu.block": "차단",
   "menu.blockUser": "{name}님 차단",
   "menu.blockUserConfirmTitle": "{name}님을 차단할까요?",
-  "menu.blockUserConfirmBody": "이 사람의 게시글과 댓글을 더 이상 볼 수 없어요.",
+  "menu.blockUserConfirmBody":
+    "서로의 게시글, 댓글, 프로필을 더 이상 볼 수 없어요. 나중에 차단을 해제할 수 있어요.",
+  "menu.unblock": "차단 해제",
+  "menu.unblockUserConfirmTitle": "{name}님의 차단을 해제할까요?",
+  "menu.unblockUserConfirmBody": "서로의 게시글과 댓글을 다시 볼 수 있어요.",
+  "menu.notNow": "나중에",
 
   "report.title": "이 콘텐츠 신고",
   "report.reasons.spam": "스팸",
@@ -128,6 +133,7 @@ export const ko: Record<string, string> = {
   "report.send": "신고 보내기",
   "report.sentTitle": "감사해요",
   "report.sentBody": "신고가 접수됐어요. 모든 신고를 팀에서 검토해요.",
+  "report.blockOfferBody": "신고가 접수됐어요. 모든 신고를 팀에서 검토해요. {name}님도 차단할까요?",
   "report.errorTitle": "신고를 보내지 못했어요",
   "report.errorBody": "연결 상태를 확인하고 다시 시도해 주세요.",
 
@@ -135,6 +141,10 @@ export const ko: Record<string, string> = {
   "profile.editProfile": "프로필 편집",
   "profile.emptyOwn": "아직 나눈 게시글이 없어요.",
   "profile.emptyOther": "아직 보여 줄 게시글이 없어요.",
+  "profile.unavailable": "이 프로필을 볼 수 없어요.",
+  "profile.blockedByYou": "내가 차단한 멤버예요.",
+  "blocked.title": "차단한 멤버",
+  "blocked.empty": "차단한 사람이 없어요.",
   "profile.changePhoto": "사진 변경",
   "profile.bioLabel": "소개",
   "profile.bioPlaceholder": "커뮤니티에 나를 간단히 소개해 보세요",

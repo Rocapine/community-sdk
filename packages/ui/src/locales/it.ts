@@ -125,7 +125,12 @@ export const it: Record<string, string> = {
   "menu.block": "Blocca",
   "menu.blockUser": "Blocca {name}",
   "menu.blockUserConfirmTitle": "Bloccare {name}?",
-  "menu.blockUserConfirmBody": "Non vedrai più i suoi post né i suoi commenti.",
+  "menu.blockUserConfirmBody":
+    "Non vedrete più i post, i commenti e il profilo l'uno dell'altro. Potrai sbloccare questa persona in seguito.",
+  "menu.unblock": "Sblocca",
+  "menu.unblockUserConfirmTitle": "Sbloccare {name}?",
+  "menu.unblockUserConfirmBody": "Tornerete a vedere i post e i commenti l'uno dell'altro.",
+  "menu.notNow": "Non ora",
 
   "report.title": "Segnala questo contenuto",
   "report.reasons.spam": "Spam",
@@ -138,6 +143,8 @@ export const it: Record<string, string> = {
   "report.sentTitle": "Grazie",
   "report.sentBody":
     "La tua segnalazione è stata inviata. Il nostro team esamina ogni segnalazione.",
+  "report.blockOfferBody":
+    "Segnalazione inviata. Il nostro team esamina ogni segnalazione. Vuoi bloccare anche {name}?",
   "report.errorTitle": "Impossibile inviare la segnalazione",
   "report.errorBody": "Controlla la connessione e riprova.",
 
@@ -145,6 +152,10 @@ export const it: Record<string, string> = {
   "profile.editProfile": "Modifica profilo",
   "profile.emptyOwn": "Non hai ancora condiviso nulla.",
   "profile.emptyOther": "Ancora nessun post da mostrare.",
+  "profile.unavailable": "Questo profilo non è disponibile.",
+  "profile.blockedByYou": "Hai bloccato questo membro.",
+  "blocked.title": "Membri bloccati",
+  "blocked.empty": "Non hai bloccato nessuno.",
   "profile.changePhoto": "Cambia foto",
   "profile.bioLabel": "Bio",
   "profile.bioPlaceholder": "Racconta alla comunità qualcosa di te",

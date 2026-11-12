@@ -126,7 +126,12 @@ export const esES: Record<string, string> = {
   "menu.block": "Bloquear",
   "menu.blockUser": "Bloquear a {name}",
   "menu.blockUserConfirmTitle": "¿Bloquear a {name}?",
-  "menu.blockUserConfirmBody": "No volverás a ver sus publicaciones ni sus comentarios.",
+  "menu.blockUserConfirmBody":
+    "Ya no veréis las publicaciones, los comentarios ni el perfil del otro. Puedes desbloquear a esta persona más adelante.",
+  "menu.unblock": "Desbloquear",
+  "menu.unblockUserConfirmTitle": "¿Desbloquear a {name}?",
+  "menu.unblockUserConfirmBody": "Volveréis a ver las publicaciones y los comentarios del otro.",
+  "menu.notNow": "Ahora no",
 
   "report.title": "Denunciar este contenido",
   "report.reasons.spam": "Spam",
@@ -138,6 +143,8 @@ export const esES: Record<string, string> = {
   "report.send": "Enviar denuncia",
   "report.sentTitle": "Gracias",
   "report.sentBody": "Tu denuncia se ha enviado. Nuestro equipo revisa todas las denuncias.",
+  "report.blockOfferBody":
+    "Tu denuncia se ha enviado. Nuestro equipo revisa todas las denuncias. ¿Quieres bloquear también a {name}?",
   "report.errorTitle": "No se ha podido enviar la denuncia",
   "report.errorBody": "Comprueba tu conexión y vuelve a intentarlo.",
 
@@ -145,6 +152,10 @@ export const esES: Record<string, string> = {
   "profile.editProfile": "Editar perfil",
   "profile.emptyOwn": "Todavía no has compartido nada.",
   "profile.emptyOther": "Aún no hay publicaciones que mostrar.",
+  "profile.unavailable": "Este perfil no está disponible.",
+  "profile.blockedByYou": "Has bloqueado a este miembro.",
+  "blocked.title": "Miembros bloqueados",
+  "blocked.empty": "No has bloqueado a nadie.",
   "profile.changePhoto": "Cambiar foto",
   "profile.bioLabel": "Bio",
   "profile.bioPlaceholder": "Cuéntale a la comunidad un poco sobre ti",

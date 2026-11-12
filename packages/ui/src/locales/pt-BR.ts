@@ -123,7 +123,12 @@ export const ptBR: Record<string, string> = {
   "menu.blockUser": "Bloquear {name}",
   "menu.blockUserConfirmTitle": "Bloquear {name}?",
   "menu.blockUserConfirmBody":
-    "Você nunca mais vai ver as publicações nem os comentários dessa pessoa.",
+    "Vocês não vão mais ver as publicações, os comentários nem o perfil um do outro. Você pode desbloquear essa pessoa depois.",
+  "menu.unblock": "Desbloquear",
+  "menu.unblockUserConfirmTitle": "Desbloquear {name}?",
+  "menu.unblockUserConfirmBody":
+    "Vocês vão voltar a ver as publicações e os comentários um do outro.",
+  "menu.notNow": "Agora não",
 
   "report.title": "Denunciar este conteúdo",
   "report.reasons.spam": "Spam",
@@ -135,6 +140,8 @@ export const ptBR: Record<string, string> = {
   "report.send": "Enviar denúncia",
   "report.sentTitle": "Agradecemos",
   "report.sentBody": "Sua denúncia foi enviada. Nossa equipe analisa cada denúncia.",
+  "report.blockOfferBody":
+    "Sua denúncia foi enviada. Nossa equipe analisa cada denúncia. Quer bloquear {name} também?",
   "report.errorTitle": "Não deu para enviar a denúncia",
   "report.errorBody": "Verifique sua conexão e tente de novo.",
 
@@ -142,6 +149,10 @@ export const ptBR: Record<string, string> = {
   "profile.editProfile": "Editar perfil",
   "profile.emptyOwn": "Você ainda não compartilhou nada.",
   "profile.emptyOther": "Ainda não tem publicações para mostrar.",
+  "profile.unavailable": "Este perfil não está disponível.",
+  "profile.blockedByYou": "Você bloqueou este membro.",
+  "blocked.title": "Membros bloqueados",
+  "blocked.empty": "Você não bloqueou ninguém.",
   "profile.changePhoto": "Trocar foto",
   "profile.bioLabel": "Bio",
   "profile.bioPlaceholder": "Conte um pouco de você para a comunidade",

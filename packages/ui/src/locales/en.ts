@@ -136,7 +136,12 @@ export const en: Record<string, string> = {
   "menu.block": "Block",
   "menu.blockUser": "Block {name}",
   "menu.blockUserConfirmTitle": "Block {name}?",
-  "menu.blockUserConfirmBody": "You will never see their posts or comments again.",
+  "menu.blockUserConfirmBody":
+    "You won't see each other's posts, comments or profiles any more. You can unblock them later.",
+  "menu.unblock": "Unblock",
+  "menu.unblockUserConfirmTitle": "Unblock {name}?",
+  "menu.unblockUserConfirmBody": "You will see each other's posts and comments again.",
+  "menu.notNow": "Not now",
 
   "report.title": "Report this content",
   "report.reasons.spam": "Spam",
@@ -148,6 +153,8 @@ export const en: Record<string, string> = {
   "report.send": "Send report",
   "report.sentTitle": "Thank you",
   "report.sentBody": "Your report was sent. Our team reviews every report.",
+  "report.blockOfferBody":
+    "Your report was sent. Our team reviews every report. Do you also want to block {name}?",
   "report.errorTitle": "Couldn't send report",
   "report.errorBody": "Please check your connection and try again.",
 
@@ -155,6 +162,10 @@ export const en: Record<string, string> = {
   "profile.editProfile": "Edit profile",
   "profile.emptyOwn": "You have not shared anything yet.",
   "profile.emptyOther": "No posts to show yet.",
+  "profile.unavailable": "This profile isn't available.",
+  "profile.blockedByYou": "You blocked this member.",
+  "blocked.title": "Blocked members",
+  "blocked.empty": "You haven't blocked anyone.",
   "profile.changePhoto": "Change photo",
   "profile.bioLabel": "Bio",
   "profile.bioPlaceholder": "Tell the community a little about you",

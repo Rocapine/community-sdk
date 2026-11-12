@@ -125,7 +125,12 @@ export const es419: Record<string, string> = {
   "menu.block": "Bloquear",
   "menu.blockUser": "Bloquear a {name}",
   "menu.blockUserConfirmTitle": "¿Bloquear a {name}?",
-  "menu.blockUserConfirmBody": "No vas a volver a ver sus publicaciones ni sus comentarios.",
+  "menu.blockUserConfirmBody":
+    "Ya no van a ver las publicaciones, los comentarios ni el perfil del otro. Puedes desbloquear a esta persona más tarde.",
+  "menu.unblock": "Desbloquear",
+  "menu.unblockUserConfirmTitle": "¿Desbloquear a {name}?",
+  "menu.unblockUserConfirmBody": "Van a volver a ver las publicaciones y los comentarios del otro.",
+  "menu.notNow": "Ahora no",
 
   "report.title": "Reportar este contenido",
   "report.reasons.spam": "Spam",
@@ -137,6 +142,8 @@ export const es419: Record<string, string> = {
   "report.send": "Enviar reporte",
   "report.sentTitle": "Gracias",
   "report.sentBody": "Tu reporte fue enviado. Nuestro equipo revisa cada reporte.",
+  "report.blockOfferBody":
+    "Tu reporte fue enviado. Nuestro equipo revisa cada reporte. ¿También quieres bloquear a {name}?",
   "report.errorTitle": "No se pudo enviar el reporte",
   "report.errorBody": "Revisa tu conexión y vuelve a intentar.",
 
@@ -144,6 +151,10 @@ export const es419: Record<string, string> = {
   "profile.editProfile": "Editar perfil",
   "profile.emptyOwn": "Todavía no compartiste nada.",
   "profile.emptyOther": "Todavía no hay publicaciones para mostrar.",
+  "profile.unavailable": "Este perfil no está disponible.",
+  "profile.blockedByYou": "Bloqueaste a este miembro.",
+  "blocked.title": "Miembros bloqueados",
+  "blocked.empty": "No bloqueaste a nadie.",
   "profile.changePhoto": "Cambiar foto",
   "profile.bioLabel": "Bio",
   "profile.bioPlaceholder": "Cuéntale a la comunidad un poquito de ti",
