@@ -61,6 +61,38 @@ begin
   select count(*) into n from public.moderation_actions
     where action = 'schedule_post' and target_user_id = pid and actor_email = 'a@x.co';
   assert n = 2, 'unschedule is logged';
+  select count(*) into n from public.moderation_actions where action = 'schedule_post' and note = 'draft ' || d || ' unscheduled';
+  assert n = 1, 'unschedule note names the draft';
+  select count(*) into n from public.moderation_actions where action = 'schedule_post' and note = 'draft ' || d || ' at ' || t;
+  assert n = 1, 'schedule note names the draft and the time';
+
+  -- Unscheduling a draft with no time and no error is a no-op.
+  assert public.schedule_post_draft(d, 3, null, null, 'a@x.co') = 3, 'no-op unschedule returns the current version';
+  select * into r from public.post_drafts where id = d;
+  assert r.version = 3, 'no-op unschedule keeps the version';
+  select count(*) into n from public.moderation_actions
+    where action = 'schedule_post' and target_user_id = pid and actor_email = 'a@x.co';
+  assert n = 2, 'no-op unschedule is not logged';
+
+  -- With a time, the zone must be a known one; without, it is ignored.
+  begin
+    perform public.schedule_post_draft(d, 3, t, null, 'a@x.co');
+    assert false, 'a null zone schedules';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_time', sqlerrm;
+  end;
+  begin
+    perform public.schedule_post_draft(d, 3, t, 'Mars/Olympus', 'a@x.co');
+    assert false, 'an unknown zone schedules';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_time', sqlerrm;
+  end;
+
+  -- Unscheduling a failed draft clears the error.
+  update public.post_drafts set publish_at = now() - interval '1 minute', publish_error = 'missed', failed_at = now()
+    where id = d;
+  v := public.schedule_post_draft(d, 3, null, 'Mars/Olympus', 'a@x.co');
+  assert v = 4, 'unscheduling a failed draft bumps the version';
+  select * into r from public.post_drafts where id = d;
+  assert r.publish_at is null and r.publish_error is null and r.failed_at is null, 'unscheduling clears the error';
 
   -- Invalid drafts use the publish codes.
   insert into public.post_drafts (author_id, content, created_by, updated_by)
@@ -151,6 +183,10 @@ begin
     'the invalid draft keeps its time and records the error';
   assert public.publish_due_post_drafts() = 0, 'a failed draft is skipped';
   select * into r from public.post_drafts where id = d;
+  assert r.publish_error = 'not_admin' and r.publish_at is not null, 'a failed draft keeps its error and time';
+  select count(*) into n from public.posts where author_id = pid and content = 'middle';
+  assert n = 0, 'a failed draft gets no post on the next run';
+  select * into r from public.post_drafts where id = d;
   assert r.publish_error = 'not_admin', 'a failed draft is unchanged by the next run';
   update public.profiles set is_admin = true where id = pid;
 
@@ -188,7 +224,19 @@ begin
     values (pid, 'errored', now() - interval '1 minute', 'cron@x.co', 'invalid_poll', now(), 't@x', 't@x');
   assert public.publish_due_post_drafts() = 0, 'an errored draft is skipped';
 
-  -- Not callable by clients; the job exists.
+  -- A non-P0001 error is stored cut to 200 characters (a trigger on posts provokes it).
+  delete from public.post_drafts where publish_at is not null;
+  create function public.t_boom() returns trigger language plpgsql as
+    $f$ begin raise exception using errcode = '23514', message = repeat('x', 300); end $f$;
+  create trigger t_boom before insert on public.posts for each row execute function public.t_boom();
+  insert into public.post_drafts (author_id, topic, content, publish_at, scheduled_by, created_by, updated_by)
+    values (pid, 'general', 'boom', now() - interval '1 minute', 'cron@x.co', 't@x', 't@x') returning id into d;
+  assert public.publish_due_post_drafts() = 0, 'a draft whose insert fails is not counted';
+  select * into r from public.post_drafts where id = d;
+  assert r.publish_error = repeat('x', 200), 'a non-P0001 error is stored cut to 200 characters';
+  drop trigger t_boom on public.posts;
+
+  -- Not callable by clients or service_role; the job exists and runs the function every minute.
   set local role authenticated;
   begin
     perform public.publish_due_post_drafts();
@@ -196,7 +244,10 @@ begin
   exception when insufficient_privilege then null;
   end;
   reset role;
-  assert exists (select 1 from cron.job where jobname = 'post-drafts-publish'), 'the cron job exists';
+  assert not has_function_privilege('service_role', 'public.publish_due_post_drafts()', 'execute'),
+    'service_role cannot run the cron function';
+  assert exists (select 1 from cron.job where jobname = 'post-drafts-publish' and schedule = '* * * * *'
+    and command like '%publish_due_post_drafts()%'), 'the cron job runs publish_due_post_drafts every minute';
 
   raise exception 'SCHEDULED_POSTS_TESTS_PASSED';
 end $$;

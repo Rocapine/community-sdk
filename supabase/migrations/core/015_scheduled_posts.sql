@@ -66,7 +66,8 @@ $$;
 
 revoke execute on function public.check_post_draft(post_drafts) from public, anon, authenticated;
 
--- Same checks, same order and same codes as 014; the validation now lives in check_post_draft.
+-- Same checks and codes as 014 (the validation now lives in check_post_draft, which also raises
+-- invalid_topic: a draft needs a topic to go out).
 create or replace function public.publish_post_draft(p_draft_id uuid, p_version int, p_actor text)
 returns uuid
 language plpgsql security definer set search_path = public
@@ -114,7 +115,8 @@ revoke execute on function public.publish_post_draft(uuid, int, text) from publi
 grant execute on function public.publish_post_draft(uuid, int, text) to service_role;
 
 -- Sets (or, with a null p_publish_at, clears) the schedule of a draft and returns its new version.
--- Errors: draft_not_found, draft_changed, invalid_time, plus the check_post_draft codes.
+-- Errors: draft_not_found, draft_changed, invalid_time (also a missing or unknown p_tz), plus the
+-- check_post_draft codes. Unscheduling a draft with no time and no error does nothing.
 create or replace function public.schedule_post_draft(
   p_draft_id uuid, p_version int, p_publish_at timestamptz, p_tz text, p_actor text)
 returns int
@@ -132,6 +134,15 @@ begin
     if p_publish_at <= now() or p_publish_at > now() + interval '1 year 1 day' then
       raise exception 'invalid_time';
     end if;
+    -- The zone is for display only, but it must be one Postgres knows.
+    if p_tz is null then raise exception 'invalid_time'; end if;
+    begin
+      perform now() at time zone p_tz;
+    exception when others then
+      raise exception 'invalid_time';
+    end;
+  elsif d.publish_at is null and d.publish_error is null then
+    return d.version; -- nothing to clear
   end if;
 
   update post_drafts set
@@ -145,8 +156,9 @@ begin
     updated_at = now()
   where id = d.id;
 
-  insert into moderation_actions (actor_email, action, target_user_id)
-    values (p_actor, 'schedule_post', d.author_id);
+  insert into moderation_actions (actor_email, action, target_user_id, note)
+    values (p_actor, 'schedule_post', d.author_id,
+            'draft ' || d.id || case when p_publish_at is not null then ' at ' || p_publish_at else ' unscheduled' end);
   return d.version + 1;
 end;
 $$;
@@ -156,7 +168,7 @@ grant execute on function public.schedule_post_draft(uuid, int, timestamptz, tex
 
 -- Publishes the drafts whose time has come and returns how many went out. A draft more than
 -- 30 minutes late is marked 'missed' instead; a draft that fails keeps its publish_at and
--- stores the error (the code for a P0001 error, else the message cut to 200 characters),
+-- stores the error (the code for a P0001 error, else the message; cut to 200 characters),
 -- so the next run skips it until the team reschedules it. Run by pg_cron every minute.
 create or replace function public.publish_due_post_drafts()
 returns int
@@ -179,7 +191,7 @@ begin
         n := n + 1;
       exception when others then
         update post_drafts set failed_at = now(),
-          publish_error = case when sqlstate = 'P0001' then sqlerrm else left(sqlerrm, 200) end
+          publish_error = left(sqlerrm, 200)
           where id = r.id;
       end;
     end if;
@@ -188,7 +200,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.publish_due_post_drafts() from public, anon, authenticated;
+revoke execute on function public.publish_due_post_drafts() from public, anon, authenticated, service_role;
 
 do $$
 begin
