@@ -461,6 +461,24 @@ begin
   assert v = 2 and r.scheduled_by is null and r.publish_error is null and r.failed_at is null and r.publish_at < now(),
     'unscheduling a missed draft keeps the time and clears the error';
 
+  -- Keep path polish: a stale caller, a millisecond-rounded time, a repeated unschedule, the old signature.
+  insert into public.post_drafts (author_id, topic, content, publish_at, publish_tz, scheduled_by, created_by, updated_by)
+    values (pid, 'general', 'keep-armed', now() + interval '1 day' + interval '123456 microseconds', 'UTC', 'k@x.co', 't@x', 't@x') returning id into d;
+  select * into r from public.post_drafts where id = d;
+  begin
+    perform public.schedule_post_draft(d, 99, r.publish_at, 'UTC', 'k@x.co', false);
+    assert false, 'a stale unschedule';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'draft_changed', sqlerrm;
+  end;
+  v := public.schedule_post_draft(d, 1, date_trunc('milliseconds', r.publish_at), 'UTC', 'k@x.co', false);
+  assert v = 2, 'a millisecond-rounded time still unschedules';
+  select * into r from public.post_drafts where id = d;
+  assert r.scheduled_by is null and r.publish_at is not null, 'disarmed, time kept';
+  assert public.schedule_post_draft(d, 2, r.publish_at, 'UTC', 'k@x.co', false) = 2, 'repeating the same planned time is a no-op';
+  select * into r from public.post_drafts where id = d;
+  assert r.version = 2, 'the no-op keeps the version';
+  assert to_regprocedure('public.schedule_post_draft(uuid,int,timestamptz,text,text)') is null, 'the 5-argument function is gone';
+
   -- Not callable by clients or service_role; the job exists and runs the function every minute.
   set local role authenticated;
   begin
