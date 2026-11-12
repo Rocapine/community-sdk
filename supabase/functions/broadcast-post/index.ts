@@ -5,11 +5,12 @@
 // read, and an anon call sends nothing unless the post's admin author asked for it
 // (core/013_post_broadcasts.sql). `broadcast_at` is claimed before sending, so a
 // post goes out once and the inbox lists exactly the posts that were sent.
-// Sends an Expo push to every registered token (batches of 100) but the author's.
+// Sends an Expo push to every registered token (batches of 100) but the author's,
+// each with its member's own unread count as the icon badge.
 
 import { adminClient, fetchAllRows, isServiceCaller } from "../_shared/client.ts";
 import { excerptOrPhoto, pushCopy } from "../_shared/copy.ts";
-import { sendExpoPushBatch } from "../_shared/push.ts";
+import { sendExpoPushBatch, unreadBadges } from "../_shared/push.ts";
 import { BROADCAST_FALLBACK_TITLE } from "../_shared/config.ts";
 import { ensureTranslations, resolveTargetLocale, TARGET_LOCALES } from "../_shared/translation.ts";
 
@@ -75,10 +76,11 @@ Deno.serve(async (req) => {
   const seen = new Set<string>(
     rows.filter((r) => r.user_id === post.author_id).map((r) => r.expo_push_token as string),
   );
-  const messages = rows
+  const recipients = rows
     .map((r) => {
       const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
       return {
+        uid: r.user_id as string,
         to: r.expo_push_token as string,
         profileLocale: (profile?.locale ?? null) as string | null,
         locale: resolveTargetLocale(profile?.locale ?? null),
@@ -89,14 +91,18 @@ Deno.serve(async (req) => {
       if (!m.to || seen.has(m.to)) return false;
       seen.add(m.to);
       return true;
-    })
-    .map(({ to, locale, profileLocale }) => ({
-      to,
-      title,
-      body: excerptFor(locale, profileLocale),
-      data: { route: "/community", kind: "community_admin_post", postId: post.id },
-      badge: 1,
-    }));
+    });
+  const badges = await unreadBadges(
+    supabase,
+    recipients.map((m) => m.uid),
+  );
+  const messages = recipients.map(({ uid, to, locale, profileLocale }) => ({
+    to,
+    title,
+    body: excerptFor(locale, profileLocale),
+    data: { route: "/community", kind: "community_admin_post", postId: post.id },
+    badge: badges.get(uid) ?? 1,
+  }));
   await sendExpoPushBatch(messages);
 
   return new Response(JSON.stringify({ sent: messages.length }), {
