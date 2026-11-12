@@ -1,6 +1,6 @@
 # Community dashboard, brick 7: scheduled posts
 
-Status: draft, 2026-11-12. Mockups: `.superpowers/brainstorm/53205-1794425101/content/brick7-scheduling.html`.
+Status: approved 2026-11-12 (Guillaume). Mockups: `.superpowers/brainstorm/53205-1794425101/content/brick7-scheduling.html`.
 
 ## Why
 
