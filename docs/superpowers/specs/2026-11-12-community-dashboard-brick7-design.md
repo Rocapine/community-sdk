@@ -185,3 +185,12 @@ structure.
   `topic_closed` when the local publish date falls outside them, and `schedule_post_draft` checks
   the new time before writing it. The cron marks a due draft whose window closed `topic_closed`.
 - Quick picks are removed. A later settings brick may offer preferred publishing times per app.
+- A planned time is not a schedule. A draft can carry a planned time (`publish_at` + `publish_tz`)
+  before the post is complete; it is armed only by the separate, final "Schedule" step, which
+  validates the whole post (`check_post_draft`). Armed means `scheduled_by` is not null; the cron
+  publishes armed drafts only (the `missed` rule and the retries too) and leaves an unarmed draft
+  alone when its planned time passes. `schedule_post_draft` takes `p_arm` (default true):
+  `false` plans the time, checking only the zone, the time window and the event window
+  (`topic_closed`), and "Unschedule" is `p_arm = false` with the current time (the draft keeps
+  its planned time, disarmed). A null time clears the time and disarms. `schedule_post` is logged
+  only when the armed state changes or an armed draft's time changes.

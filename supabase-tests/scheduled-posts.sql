@@ -330,6 +330,115 @@ begin
   select * into r from public.post_drafts where id = d;
   assert r.publish_error = 'topic_closed' and r.failed_at is not null, 'a draft whose window closed records topic_closed';
 
+  -- Planned time vs armed (p_arm). A planned time needs no complete post and is not armed.
+  delete from public.post_drafts where publish_at is not null;
+  insert into public.post_drafts (author_id, content, created_by, updated_by)
+    values (pid, '', 't@x', 't@x') returning id into d; -- no topic, no text
+  t := now() + interval '2 hours';
+  v := public.schedule_post_draft(d, 1, t, 'Europe/Paris', 'p@x.co', false);
+  assert v = 2, 'planning bumps the version';
+  select * into r from public.post_drafts where id = d;
+  assert r.publish_at = t and r.publish_tz = 'Europe/Paris' and r.scheduled_by is null, 'a planned time is not armed';
+  select count(*) into n from public.moderation_actions where action = 'schedule_post' and actor_email = 'p@x.co';
+  assert n = 0, 'planning an unarmed draft is not logged';
+  v := public.schedule_post_draft(d, 2, t + interval '1 hour', 'UTC', 'p@x.co', false);
+  assert v = 3, 'changing a planned time works';
+  select count(*) into n from public.moderation_actions where action = 'schedule_post' and actor_email = 'p@x.co';
+  assert n = 0, 'changing a planned time is not logged';
+  -- The cron ignores a due unarmed draft, whatever its age.
+  update public.post_drafts set publish_at = now() - interval '1 minute' where id = d;
+  insert into public.post_drafts (author_id, topic, content, publish_at, created_by, updated_by)
+    values (pid, 'general', 'unarmed-due', now() - interval '1 hour', 't@x', 't@x');
+  assert public.publish_due_post_drafts() = 0, 'the cron ignores unarmed drafts';
+  select * into r from public.post_drafts where id = d;
+  assert r.publish_error is null and r.failed_at is null and r.publish_at is not null, 'an unarmed draft is left alone';
+  select count(*) into n from public.post_drafts where content = 'unarmed-due' and publish_error is null;
+  assert n = 1, 'an unarmed draft past 30 minutes is not marked missed';
+  update public.post_drafts set publish_at = t + interval '1 hour', publish_tz = 'UTC' where id = d;
+  -- Arming an incomplete draft fails with its code and changes nothing.
+  begin
+    perform public.schedule_post_draft(d, 3, t, 'Europe/Paris', 'p@x.co');
+    assert false, 'an incomplete draft is armed';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_content', sqlerrm;
+  end;
+  begin
+    perform public.schedule_post_draft(d, 3, t, 'Europe/Paris', 'p@x.co', true);
+    assert false, 'an incomplete draft is armed (explicit)';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_content', sqlerrm;
+  end;
+  -- Complete it, arm it (logged), then disarm keeping the time (logged), then clear.
+  update public.post_drafts set topic = 'general', content = 'planned' where id = d;
+  v := public.schedule_post_draft(d, 3, t, 'Europe/Paris', 'p@x.co');
+  assert v = 4, 'arming a complete draft works';
+  select * into r from public.post_drafts where id = d;
+  assert r.publish_at = t and r.scheduled_by = 'p@x.co', 'armed: time kept and scheduled_by set';
+  select count(*) into n from public.moderation_actions where action = 'schedule_post' and actor_email = 'p@x.co'
+    and note = 'draft ' || d || ' at ' || to_char(t at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
+  assert n = 1, 'arming is logged';
+  v := public.schedule_post_draft(d, 4, t + interval '1 hour', 'Europe/Paris', 'p@x.co');
+  assert v = 5, 'an armed time change works';
+  select count(*) into n from public.moderation_actions where action = 'schedule_post' and actor_email = 'p@x.co';
+  assert n = 2, 'an armed time change is logged';
+  v := public.schedule_post_draft(d, 5, t + interval '1 hour', 'Europe/Paris', 'p@x.co', false);
+  assert v = 6, 'disarming works';
+  select * into r from public.post_drafts where id = d;
+  assert r.publish_at = t + interval '1 hour' and r.publish_tz = 'Europe/Paris' and r.scheduled_by is null, 'disarm keeps the planned time';
+  select count(*) into n from public.moderation_actions where action = 'schedule_post' and actor_email = 'p@x.co'
+    and note = 'draft ' || d || ' unscheduled';
+  assert n = 1, 'disarming is logged';
+  -- Disarming an invalid draft is fine too: planning checks no content.
+  update public.post_drafts set content = '' where id = d;
+  assert public.schedule_post_draft(d, 6, t, 'Europe/Paris', 'p@x.co', false) = 7, 'planning ignores the content';
+  v := public.schedule_post_draft(d, 7, null, null, 'p@x.co', false);
+  assert v = 8, 'clearing a planned time bumps the version';
+  select * into r from public.post_drafts where id = d;
+  assert r.publish_at is null and r.publish_tz is null and r.scheduled_by is null, 'clear removes the time';
+  assert public.schedule_post_draft(d, 8, null, null, 'p@x.co', false) = 8, 'clearing a clear draft is a no-op';
+  -- Clearing an armed draft disarms and logs.
+  update public.post_drafts set content = 'again' where id = d;
+  v := public.schedule_post_draft(d, 8, t, 'UTC', 'p@x.co');
+  v := public.schedule_post_draft(d, v, null, null, 'p@x.co');
+  select * into r from public.post_drafts where id = d;
+  assert r.publish_at is null and r.scheduled_by is null, 'clearing an armed draft disarms it';
+  select count(*) into n from public.moderation_actions where action = 'schedule_post' and actor_email = 'p@x.co'
+    and note = 'draft ' || d || ' unscheduled';
+  assert n = 2, 'clearing an armed draft is logged';
+  -- Bad zone or time: invalid_time in both modes.
+  begin
+    perform public.schedule_post_draft(d, v, t, 'Mars/Olympus', 'p@x.co', false);
+    assert false, 'planning with a bad zone';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_time', sqlerrm;
+  end;
+  begin
+    perform public.schedule_post_draft(d, v, t, null, 'p@x.co', false);
+    assert false, 'planning with a null zone';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_time', sqlerrm;
+  end;
+  begin
+    perform public.schedule_post_draft(d, v, now() - interval '1 minute', 'UTC', 'p@x.co', false);
+    assert false, 'planning a past time';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_time', sqlerrm;
+  end;
+  begin
+    perform public.schedule_post_draft(d, v, now() + interval '2 years', 'UTC', 'p@x.co', false);
+    assert false, 'planning two years ahead';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_time', sqlerrm;
+  end;
+  begin
+    perform public.schedule_post_draft(d, v, now() + interval '2 years', 'UTC', 'p@x.co', true);
+    assert false, 'arming two years ahead';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_time', sqlerrm;
+  end;
+  -- The event window applies to a planned time.
+  update public.post_drafts set topic_from = current_date + 10, topic_until = current_date + 20 where id = d;
+  begin
+    perform public.schedule_post_draft(d, v, (current_date + 5)::timestamp at time zone 'UTC' + interval '12 hours', 'UTC', 'p@x.co', false);
+    assert false, 'planning before the window';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'topic_closed', sqlerrm;
+  end;
+  assert public.schedule_post_draft(d, v, (current_date + 15)::timestamp at time zone 'UTC' + interval '12 hours', 'UTC', 'p@x.co', false) = v + 1,
+    'planning inside the window works';
+
   -- Not callable by clients or service_role; the job exists and runs the function every minute.
   set local role authenticated;
   begin
@@ -338,6 +447,10 @@ begin
   exception when insufficient_privilege then null;
   end;
   reset role;
+  assert has_function_privilege('service_role', 'public.schedule_post_draft(uuid,int,timestamptz,text,text,boolean)', 'execute'),
+    'service_role can schedule';
+  assert not has_function_privilege('authenticated', 'public.schedule_post_draft(uuid,int,timestamptz,text,text,boolean)', 'execute'),
+    'clients cannot schedule';
   assert not has_function_privilege('service_role', 'public.publish_due_post_drafts()', 'execute'),
     'service_role cannot run the cron function';
   assert has_function_privilege((select username from cron.job where jobname = 'post-drafts-publish'),

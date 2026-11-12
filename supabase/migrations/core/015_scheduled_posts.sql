@@ -1,8 +1,11 @@
 -- community-sdk core/015_scheduled_posts.sql (schema v1)
 -- Scheduled posts for the community dashboard (service role only): a draft gets a
 -- publish_at instant (publish_tz is the zone the team picked, for display only) and
--- schedule_post_draft sets or clears it. check_post_draft holds the validation that
--- publish_post_draft and the scheduler share. Requires core/014. Fully idempotent.
+-- schedule_post_draft sets or clears it. A draft can carry a planned time without being armed:
+-- armed means scheduled_by is not null, and only armed drafts are published by the cron.
+-- Planning a time checks the time and the event window; arming validates the whole post.
+-- check_post_draft holds the validation that publish_post_draft and the scheduler share.
+-- Requires core/014. Fully idempotent.
 -- topic_from / topic_until (nullable dates, until exclusive) hold the date window of an event
 -- topic, which lives in the dashboard's config; the dashboard writes them with the topic.
 
@@ -13,13 +16,33 @@ alter table public.post_drafts add column if not exists failed_at timestamptz;
 alter table public.post_drafts add column if not exists topic_from date;
 alter table public.post_drafts add column if not exists topic_until date;
 
-create index if not exists post_drafts_due_idx on public.post_drafts (publish_at)
-  where publish_at is not null and publish_error is null;
+-- Only armed drafts are due; the predicate changed in the planned-time revision, so recreate it.
+drop index if exists public.post_drafts_due_idx;
+create index post_drafts_due_idx on public.post_drafts (publish_at)
+  where publish_at is not null and publish_error is null and scheduled_by is not null;
 
 alter table public.moderation_actions drop constraint if exists moderation_actions_action_check;
 alter table public.moderation_actions add constraint moderation_actions_action_check check (action in
   ('hide','restore','confirm_hide','reject_report','ban','unban',
    'publish_post','create_team_account','update_team_account','schedule_post'));
+
+-- The event-window part of the check, alone (it needs d.publish_tz): the local date the post goes
+-- out in the draft's zone must fall in [topic_from, topic_until). A draft without a zone is guarded
+-- by the dashboard only. Raises topic_closed.
+create or replace function public.check_post_draft_window(d post_drafts, p_at timestamptz default null)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if d.publish_tz is not null and (d.topic_from is not null or d.topic_until is not null)
+    and ((coalesce(p_at, now()) at time zone d.publish_tz)::date < d.topic_from
+      or (coalesce(p_at, now()) at time zone d.publish_tz)::date >= d.topic_until) then
+    raise exception 'topic_closed';
+  end if;
+end;
+$$;
+
+revoke execute on function public.check_post_draft_window(post_drafts, timestamptz) from public, anon, authenticated;
 
 -- Raises the publish error codes (errcode P0001, code as message): not_a_team_account,
 -- author_banned, not_admin, invalid_content, invalid_image, invalid_poll,
@@ -68,13 +91,7 @@ begin
   end if;
   -- Topic rules live in the dashboard; here a draft only needs one, so the cron never posts without it.
   if d.topic is null then raise exception 'invalid_topic'; end if;
-  -- Event topics: the local date the post goes out (in the draft's zone) must fall in
-  -- [topic_from, topic_until). Unscheduled drafts (no zone) are guarded by the dashboard only.
-  if d.publish_tz is not null and (d.topic_from is not null or d.topic_until is not null)
-    and ((coalesce(p_at, now()) at time zone d.publish_tz)::date < d.topic_from
-      or (coalesce(p_at, now()) at time zone d.publish_tz)::date >= d.topic_until) then
-    raise exception 'topic_closed';
-  end if;
+  perform check_post_draft_window(d, p_at);
 end;
 $$;
 
@@ -128,20 +145,30 @@ $$;
 revoke execute on function public.publish_post_draft(uuid, int, text) from public, anon, authenticated;
 grant execute on function public.publish_post_draft(uuid, int, text) to service_role;
 
--- Sets (or, with a null p_publish_at, clears) the schedule of a draft and returns its new version.
+-- Plans, arms or clears the schedule of a draft and returns its new version. p_arm = false (with a
+-- time) only plans it: the time, the zone and the event window are checked, not the post, and the
+-- draft stays unarmed (scheduled_by null), so the cron leaves it alone; with the current time it
+-- disarms a draft and keeps its time. p_arm = true also validates the whole post (check_post_draft)
+-- and arms it. A null p_publish_at clears the time and disarms. Logged (schedule_post) only when the
+-- armed state changes or an armed draft's time changes.
 -- Errors: draft_not_found, draft_changed, invalid_time (also a missing or unknown p_tz), plus the
--- check_post_draft codes (topic_closed for a time outside the event window). Unscheduling a draft with no time and no error does nothing.
+-- check_post_draft codes (topic_closed for a time outside the event window). Clearing a draft with
+-- no time, no error and no arming does nothing.
+drop function if exists public.schedule_post_draft(uuid, int, timestamptz, text, text);
 create or replace function public.schedule_post_draft(
-  p_draft_id uuid, p_version int, p_publish_at timestamptz, p_tz text, p_actor text)
+  p_draft_id uuid, p_version int, p_publish_at timestamptz, p_tz text, p_actor text, p_arm boolean default true)
 returns int
 language plpgsql security definer set search_path = public
 as $$
 declare
   d post_drafts;
+  was_armed boolean;
+  now_armed boolean := p_publish_at is not null and coalesce(p_arm, true);
 begin
   select * into d from post_drafts where id = p_draft_id for update;
   if not found then raise exception 'draft_not_found'; end if;
   if d.version is distinct from p_version then raise exception 'draft_changed'; end if;
+  was_armed := d.scheduled_by is not null;
 
   if p_publish_at is not null then
     if p_publish_at <= now() or p_publish_at > now() + interval '1 year 1 day' then
@@ -149,17 +176,20 @@ begin
     end if;
     -- The zone is for display only, but it must be an IANA name (not a POSIX string the dashboard can't show).
     if p_tz is null or p_tz not in (select name from pg_timezone_names) then raise exception 'invalid_time'; end if;
-    -- check_post_draft also guards the event window, for the time being set.
     d.publish_tz := p_tz;
-    perform check_post_draft(d, p_publish_at);
-  elsif d.publish_at is null and d.publish_error is null then
+    if now_armed then
+      perform check_post_draft(d, p_publish_at); -- the whole post, event window included
+    else
+      perform check_post_draft_window(d, p_publish_at);
+    end if;
+  elsif d.publish_at is null and d.publish_error is null and not was_armed then
     return d.version; -- nothing to clear
   end if;
 
   update post_drafts set
     publish_at = p_publish_at,
     publish_tz = case when p_publish_at is not null then p_tz end,
-    scheduled_by = case when p_publish_at is not null then p_actor end,
+    scheduled_by = case when now_armed then p_actor end,
     publish_error = null,
     failed_at = null,
     version = version + 1,
@@ -167,18 +197,20 @@ begin
     updated_at = now()
   where id = d.id;
 
-  insert into moderation_actions (actor_email, action, target_user_id, note)
-    values (p_actor, 'schedule_post', d.author_id,
-            'draft ' || d.id || case when p_publish_at is not null
-              then ' at ' || to_char(p_publish_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') else ' unscheduled' end);
+  if was_armed <> now_armed or (now_armed and d.publish_at is distinct from p_publish_at) then
+    insert into moderation_actions (actor_email, action, target_user_id, note)
+      values (p_actor, 'schedule_post', d.author_id,
+              'draft ' || d.id || case when now_armed
+                then ' at ' || to_char(p_publish_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') else ' unscheduled' end);
+  end if;
   return d.version + 1;
 end;
 $$;
 
-revoke execute on function public.schedule_post_draft(uuid, int, timestamptz, text, text) from public, anon, authenticated;
-grant execute on function public.schedule_post_draft(uuid, int, timestamptz, text, text) to service_role;
+revoke execute on function public.schedule_post_draft(uuid, int, timestamptz, text, text, boolean) from public, anon, authenticated;
+grant execute on function public.schedule_post_draft(uuid, int, timestamptz, text, text, boolean) to service_role;
 
--- Publishes the drafts whose time has come and returns how many went out. A draft more than
+-- Publishes the armed drafts (scheduled_by set) whose time has come and returns how many went out. A draft more than
 -- 30 minutes late is marked 'missed' instead; a draft that fails keeps its publish_at and
 -- stores the error (the code for a P0001 error, else the message; cut to 200 characters),
 -- so the next run skips it until the team reschedules it. A transient error (serialization
@@ -194,7 +226,7 @@ declare
 begin
   for r in
     select id, version, scheduled_by, publish_at from post_drafts
-    where publish_at <= now() and publish_error is null
+    where publish_at <= now() and publish_error is null and scheduled_by is not null
     order by publish_at for update skip locked
   loop
     if r.publish_at < now() - interval '30 minutes' then
