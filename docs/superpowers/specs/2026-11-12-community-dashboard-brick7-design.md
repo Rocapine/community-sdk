@@ -172,3 +172,16 @@ drafts/:id/schedule {version, publishAt | null}` → `schedule_post_draft`. A 40
 
 How the shared draft check is factored. Whether Home's week data is one route or two. The exact
 quick picks, as long as there are at most three. Component structure.
+
+## Revisions 2026-11-12 (Guillaume)
+
+- Transient database errors (serialization failure, deadlock, lock not available) are retried:
+  the cron leaves the draft untouched and the next minute's run tries again. The 30-minute
+  `missed` rule still bounds the retries. Every other error is recorded as before.
+- Event topics can be scheduled ahead, before they open, within their dates. The UI restricts the
+  dates to the topic's window and warns when a topic change puts the chosen time outside it.
+- The window lives in the dashboard's config, so the dashboard writes `topic_from` and
+  `topic_until` (dates, `until` exclusive) on the draft with the topic. `check_post_draft` raises
+  `topic_closed` when the local publish date falls outside them, and `schedule_post_draft` checks
+  the new time before writing it. The cron marks a due draft whose window closed `topic_closed`.
+- Quick picks are removed. A later settings brick may offer preferred publishing times per app.
