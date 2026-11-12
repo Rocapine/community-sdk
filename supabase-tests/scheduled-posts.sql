@@ -439,6 +439,28 @@ begin
   assert public.schedule_post_draft(d, v, (current_date + 15)::timestamp at time zone 'UTC' + interval '12 hours', 'UTC', 'p@x.co', false) = v + 1,
     'planning inside the window works';
 
+  -- Unschedule keeps the time without re-checking it: armed and past, and missed.
+  delete from public.post_drafts where publish_at is not null;
+  insert into public.post_drafts (author_id, topic, content, publish_at, publish_tz, scheduled_by, created_by, updated_by)
+    values (pid, 'general', 'past-armed', now() - interval '2 days', 'Europe/Paris', 'u@x.co', 't@x', 't@x') returning id into d;
+  v := public.schedule_post_draft(d, 1, (select publish_at from public.post_drafts where id = d), 'Europe/Paris', 'u@x.co', false);
+  assert v = 2, 'unscheduling a past armed draft works';
+  select * into r from public.post_drafts where id = d;
+  assert r.scheduled_by is null and r.publish_at < now() and r.publish_tz = 'Europe/Paris', 'the past time is kept, disarmed';
+  select count(*) into n from public.moderation_actions where action = 'schedule_post' and note = 'draft ' || d || ' unscheduled';
+  assert n = 1, 'unscheduling is logged';
+  begin
+    perform public.schedule_post_draft(d, 2, now() - interval '1 hour', 'Europe/Paris', 'u@x.co', false);
+    assert false, 'a new past planned time';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_time', sqlerrm;
+  end;
+  insert into public.post_drafts (author_id, topic, content, publish_at, publish_tz, scheduled_by, publish_error, failed_at, created_by, updated_by)
+    values (pid, 'general', 'missed-one', now() - interval '3 hours', 'UTC', 'u@x.co', 'missed', now(), 't@x', 't@x') returning id into d;
+  v := public.schedule_post_draft(d, 1, (select publish_at from public.post_drafts where id = d), 'UTC', 'u@x.co', false);
+  select * into r from public.post_drafts where id = d;
+  assert v = 2 and r.scheduled_by is null and r.publish_error is null and r.failed_at is null and r.publish_at < now(),
+    'unscheduling a missed draft keeps the time and clears the error';
+
   -- Not callable by clients or service_role; the job exists and runs the function every minute.
   set local role authenticated;
   begin

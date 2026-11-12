@@ -148,7 +148,7 @@ grant execute on function public.publish_post_draft(uuid, int, text) to service_
 -- Plans, arms or clears the schedule of a draft and returns its new version. p_arm = false (with a
 -- time) only plans it: the time, the zone and the event window are checked, not the post, and the
 -- draft stays unarmed (scheduled_by null), so the cron leaves it alone; with the current time it
--- disarms a draft and keeps its time. p_arm = true also validates the whole post (check_post_draft)
+-- disarms a draft and keeps its time, with no check (the time may have passed). p_arm = true also validates the whole post (check_post_draft)
 -- and arms it. A null p_publish_at clears the time and disarms. Logged (schedule_post) only when the
 -- armed state changes or an armed draft's time changes.
 -- Errors: draft_not_found, draft_changed, invalid_time (also a missing or unknown p_tz), plus the
@@ -164,13 +164,18 @@ declare
   d post_drafts;
   was_armed boolean;
   now_armed boolean := p_publish_at is not null and coalesce(p_arm, true);
+  keep boolean; -- unschedule: disarm and keep the current time, which may be past, so nothing is re-checked
 begin
   select * into d from post_drafts where id = p_draft_id for update;
   if not found then raise exception 'draft_not_found'; end if;
   if d.version is distinct from p_version then raise exception 'draft_changed'; end if;
   was_armed := d.scheduled_by is not null;
+  keep := p_publish_at is not null and not coalesce(p_arm, true)
+    and p_publish_at = d.publish_at and p_tz is not distinct from d.publish_tz;
 
-  if p_publish_at is not null then
+  if keep then
+    null;
+  elsif p_publish_at is not null then
     if p_publish_at <= now() or p_publish_at > now() + interval '1 year 1 day' then
       raise exception 'invalid_time';
     end if;
