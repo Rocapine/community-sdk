@@ -70,6 +70,13 @@ begin
     assert false, 'an empty draft schedules';
   exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_content', sqlerrm;
   end;
+  insert into public.post_drafts (author_id, content, created_by, updated_by)
+    values (pid, 'no topic', 't@x', 't@x') returning id into d;
+  begin
+    perform public.schedule_post_draft(d, 1, t, 'Europe/Paris', 'a@x.co');
+    assert false, 'a draft without a topic schedules';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_topic', sqlerrm;
+  end;
 
   update public.profiles set is_admin = false where id = pid;
   insert into public.post_drafts (author_id, content, pin, created_by, updated_by)
@@ -130,12 +137,12 @@ begin
   -- Three due drafts, the middle one invalid: two post, one keeps its time and gets the error.
   delete from public.post_drafts where publish_at is not null;
   update public.profiles set is_admin = false where id = pid;
-  insert into public.post_drafts (author_id, content, publish_at, scheduled_by, created_by, updated_by)
-    values (pid, 'first', now() - interval '3 minutes', 'cron@x.co', 't@x', 't@x');
+  insert into public.post_drafts (author_id, topic, content, publish_at, scheduled_by, created_by, updated_by)
+    values (pid, 'general', 'first', now() - interval '3 minutes', 'cron@x.co', 't@x', 't@x');
   insert into public.post_drafts (author_id, content, pin, publish_at, scheduled_by, created_by, updated_by)
     values (pid, 'middle', true, now() - interval '2 minutes', 'cron@x.co', 't@x', 't@x') returning id into d;
-  insert into public.post_drafts (author_id, content, publish_at, scheduled_by, created_by, updated_by)
-    values (pid, 'last', now() - interval '1 minute', 'cron@x.co', 't@x', 't@x');
+  insert into public.post_drafts (author_id, topic, content, publish_at, scheduled_by, created_by, updated_by)
+    values (pid, 'general', 'last', now() - interval '1 minute', 'cron@x.co', 't@x', 't@x');
   assert public.publish_due_post_drafts() = 2, 'two of three publish';
   select count(*) into n from public.posts where author_id = pid and content in ('first', 'last');
   assert n = 2, 'the valid drafts became posts';
@@ -151,8 +158,8 @@ begin
   delete from public.post_drafts where publish_at is not null;
   insert into public.post_drafts (author_id, content, publish_at, scheduled_by, created_by, updated_by)
     values (pid, 'too-late', now() - interval '31 minutes', 'cron@x.co', 't@x', 't@x') returning id into d;
-  insert into public.post_drafts (author_id, content, publish_at, scheduled_by, created_by, updated_by)
-    values (pid, 'just-in-time', now() - interval '29 minutes', 'cron@x.co', 't@x', 't@x');
+  insert into public.post_drafts (author_id, topic, content, publish_at, scheduled_by, created_by, updated_by)
+    values (pid, 'general', 'just-in-time', now() - interval '29 minutes', 'cron@x.co', 't@x', 't@x');
   assert public.publish_due_post_drafts() = 1, 'only the 29-minute draft publishes';
   select * into r from public.post_drafts where id = d;
   assert r.publish_error = 'missed' and r.failed_at is not null, 'the 31-minute draft is missed';
@@ -160,6 +167,20 @@ begin
   assert n = 0, 'a missed draft makes no post';
   select count(*) into n from public.posts where author_id = pid and content = 'just-in-time';
   assert n = 1, 'a draft 29 minutes late publishes';
+
+  -- A due draft without a topic does not go out; the next one does.
+  delete from public.post_drafts where publish_at is not null;
+  insert into public.post_drafts (author_id, content, publish_at, scheduled_by, created_by, updated_by)
+    values (pid, 'no-topic', now() - interval '2 minutes', 'cron@x.co', 't@x', 't@x') returning id into d;
+  insert into public.post_drafts (author_id, topic, content, publish_at, scheduled_by, created_by, updated_by)
+    values (pid, 'general', 'after-no-topic', now() - interval '1 minute', 'cron@x.co', 't@x', 't@x');
+  assert public.publish_due_post_drafts() = 1, 'only the draft with a topic publishes';
+  select * into r from public.post_drafts where id = d;
+  assert r.publish_error = 'invalid_topic' and r.failed_at is not null, 'the draft without a topic records invalid_topic';
+  select count(*) into n from public.posts where author_id = pid and content = 'no-topic';
+  assert n = 0, 'a draft without a topic makes no post';
+  select count(*) into n from public.posts where author_id = pid and content = 'after-no-topic';
+  assert n = 1, 'the next due draft still publishes';
 
   -- A due draft with an error already set is skipped.
   delete from public.post_drafts where publish_at is not null;

@@ -19,7 +19,7 @@ alter table public.moderation_actions add constraint moderation_actions_action_c
 
 -- Raises the publish error codes (errcode P0001, code as message): not_a_team_account,
 -- author_banned, not_admin, invalid_content, invalid_image, invalid_poll,
--- invalid_attachment, one_extra_only. Callers are security definer; nobody else may run it.
+-- invalid_attachment, one_extra_only, invalid_topic. Callers are security definer; nobody else may run it.
 create or replace function public.check_post_draft(d post_drafts)
 returns void
 language plpgsql security definer set search_path = public
@@ -59,6 +59,8 @@ begin
   if (d.image_path is not null)::int + (d.poll_options is not null)::int + (d.attachment is not null)::int > 1 then
     raise exception 'one_extra_only';
   end if;
+  -- Topic rules live in the dashboard; here a draft only needs one, so the cron never posts without it.
+  if d.topic is null then raise exception 'invalid_topic'; end if;
 end;
 $$;
 
