@@ -3,11 +3,15 @@
 -- publish_at instant (publish_tz is the zone the team picked, for display only) and
 -- schedule_post_draft sets or clears it. check_post_draft holds the validation that
 -- publish_post_draft and the scheduler share. Requires core/014. Fully idempotent.
+-- topic_from / topic_until (nullable dates, until exclusive) hold the date window of an event
+-- topic, which lives in the dashboard's config; the dashboard writes them with the topic.
 
 alter table public.post_drafts add column if not exists scheduled_by text;
 alter table public.post_drafts add column if not exists publish_tz text;
 alter table public.post_drafts add column if not exists publish_error text;
 alter table public.post_drafts add column if not exists failed_at timestamptz;
+alter table public.post_drafts add column if not exists topic_from date;
+alter table public.post_drafts add column if not exists topic_until date;
 
 create index if not exists post_drafts_due_idx on public.post_drafts (publish_at)
   where publish_at is not null and publish_error is null;
@@ -19,7 +23,7 @@ alter table public.moderation_actions add constraint moderation_actions_action_c
 
 -- Raises the publish error codes (errcode P0001, code as message): not_a_team_account,
 -- author_banned, not_admin, invalid_content, invalid_image, invalid_poll,
--- invalid_attachment, one_extra_only, invalid_topic. Callers are security definer; nobody else may run it.
+-- invalid_attachment, one_extra_only, invalid_topic, topic_closed. Callers are security definer; nobody else may run it.
 create or replace function public.check_post_draft(d post_drafts)
 returns void
 language plpgsql security definer set search_path = public
@@ -61,6 +65,12 @@ begin
   end if;
   -- Topic rules live in the dashboard; here a draft only needs one, so the cron never posts without it.
   if d.topic is null then raise exception 'invalid_topic'; end if;
+  -- Event topics: a scheduled draft's local publish date must fall in [topic_from, topic_until).
+  if d.publish_at is not null and d.publish_tz is not null
+    and ((d.publish_at at time zone d.publish_tz)::date < d.topic_from
+      or (d.publish_at at time zone d.publish_tz)::date >= d.topic_until) then
+    raise exception 'topic_closed';
+  end if;
 end;
 $$;
 
@@ -116,7 +126,7 @@ grant execute on function public.publish_post_draft(uuid, int, text) to service_
 
 -- Sets (or, with a null p_publish_at, clears) the schedule of a draft and returns its new version.
 -- Errors: draft_not_found, draft_changed, invalid_time (also a missing or unknown p_tz), plus the
--- check_post_draft codes. Unscheduling a draft with no time and no error does nothing.
+-- check_post_draft codes (topic_closed for a time outside the event window). Unscheduling a draft with no time and no error does nothing.
 create or replace function public.schedule_post_draft(
   p_draft_id uuid, p_version int, p_publish_at timestamptz, p_tz text, p_actor text)
 returns int
@@ -130,12 +140,15 @@ begin
   if d.version is distinct from p_version then raise exception 'draft_changed'; end if;
 
   if p_publish_at is not null then
-    perform check_post_draft(d);
     if p_publish_at <= now() or p_publish_at > now() + interval '1 year 1 day' then
       raise exception 'invalid_time';
     end if;
     -- The zone is for display only, but it must be an IANA name (not a POSIX string the dashboard can't show).
     if p_tz is null or p_tz not in (select name from pg_timezone_names) then raise exception 'invalid_time'; end if;
+    -- check_post_draft also guards the event window, for the time being set.
+    d.publish_at := p_publish_at;
+    d.publish_tz := p_tz;
+    perform check_post_draft(d);
   elsif d.publish_at is null and d.publish_error is null then
     return d.version; -- nothing to clear
   end if;
@@ -165,7 +178,9 @@ grant execute on function public.schedule_post_draft(uuid, int, timestamptz, tex
 -- Publishes the drafts whose time has come and returns how many went out. A draft more than
 -- 30 minutes late is marked 'missed' instead; a draft that fails keeps its publish_at and
 -- stores the error (the code for a P0001 error, else the message; cut to 200 characters),
--- so the next run skips it until the team reschedules it. Run by pg_cron every minute.
+-- so the next run skips it until the team reschedules it. A transient error (serialization
+-- failure, deadlock, lock not available) leaves the draft untouched to be retried next run;
+-- the 30-minute rule bounds the retries. Run by pg_cron every minute.
 create or replace function public.publish_due_post_drafts()
 returns int
 language plpgsql security definer set search_path = public
@@ -185,7 +200,9 @@ begin
       begin
         perform publish_post_draft(r.id, r.version, r.scheduled_by);
         n := n + 1;
-      exception when others then
+      exception
+        when serialization_failure or deadlock_detected or lock_not_available then null;
+        when others then
         update post_drafts set failed_at = now(),
           publish_error = left(sqlerrm, 200)
           where id = r.id;

@@ -240,6 +240,72 @@ begin
   drop trigger t_boom on public.posts;
   drop function public.t_boom();
 
+  -- A transient error (deadlock here) leaves the draft untouched for the next run; the rest still go out.
+  delete from public.post_drafts where publish_at is not null;
+  create function public.t_transient() returns trigger language plpgsql as
+    $f$ begin if new.content = 'transient' then raise exception using errcode = '40P01', message = 'deadlock detected'; end if; return new; end $f$;
+  create trigger t_transient before insert on public.posts for each row execute function public.t_transient();
+  insert into public.post_drafts (author_id, topic, content, publish_at, scheduled_by, created_by, updated_by)
+    values (pid, 'general', 'transient', now() - interval '2 minutes', 'cron@x.co', 't@x', 't@x') returning id into d;
+  insert into public.post_drafts (author_id, topic, content, publish_at, scheduled_by, created_by, updated_by)
+    values (pid, 'general', 'beside-transient', now() - interval '1 minute', 'cron@x.co', 't@x', 't@x');
+  assert public.publish_due_post_drafts() = 1, 'only the draft that did not deadlock publishes';
+  select * into r from public.post_drafts where id = d;
+  assert r.publish_error is null and r.failed_at is null and r.publish_at is not null, 'a transient error leaves the draft untouched';
+  select count(*) into n from public.posts where author_id = pid and content = 'transient';
+  assert n = 0, 'a transient error makes no post';
+  select count(*) into n from public.posts where author_id = pid and content = 'beside-transient';
+  assert n = 1, 'the next draft in the same run still publishes';
+  drop trigger t_transient on public.posts;
+  drop function public.t_transient();
+  assert public.publish_due_post_drafts() = 1, 'the next run publishes the retried draft';
+  select count(*) into n from public.posts where author_id = pid and content = 'transient';
+  assert n = 1, 'the retried draft became a post';
+
+  -- Event window: topic_from / topic_until bound the local publish date, [from, until).
+  delete from public.post_drafts where publish_at is not null;
+  insert into public.post_drafts (author_id, topic, content, topic_from, topic_until, created_by, updated_by)
+    values (pid, 'general', 'event', current_date + 10, current_date + 20, 't@x', 't@x') returning id into d;
+  t := (current_date + 15)::timestamp at time zone 'UTC' + interval '12 hours';
+  v := public.schedule_post_draft(d, 1, t, 'UTC', 'a@x.co');
+  assert v = 2, 'a time inside the window schedules';
+  begin
+    perform public.schedule_post_draft(d, 2, (current_date + 5)::timestamp at time zone 'UTC' + interval '12 hours', 'UTC', 'a@x.co');
+    assert false, 'a time before the window schedules';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'topic_closed', sqlerrm;
+  end;
+  begin
+    perform public.schedule_post_draft(d, 2, (current_date + 20)::timestamp at time zone 'UTC' + interval '12 hours', 'UTC', 'a@x.co');
+    assert false, 'the until date schedules';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'topic_closed', sqlerrm;
+  end;
+  v := public.schedule_post_draft(d, 2, (current_date + 10)::timestamp at time zone 'UTC' + interval '1 minute', 'UTC', 'a@x.co');
+  assert v = 3, 'the from date itself is inside the window';
+  -- The date is the one in the draft's zone: 23:30 UTC on the last day is already the until date in Tokyo.
+  begin
+    perform public.schedule_post_draft(d, 3, (current_date + 19)::timestamp at time zone 'UTC' + interval '23 hours 30 minutes', 'Asia/Tokyo', 'a@x.co');
+    assert false, 'a Tokyo time past the until date schedules';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'topic_closed', sqlerrm;
+  end;
+  v := public.schedule_post_draft(d, 3, (current_date + 19)::timestamp at time zone 'UTC' + interval '23 hours 30 minutes', 'UTC', 'a@x.co');
+  assert v = 4, 'the same instant in UTC is the last day of the window';
+  -- Only a lower or an upper bound works too; null bounds behave as before (covered above).
+  update public.post_drafts set topic_from = null, topic_until = current_date + 1 where id = d;
+  begin
+    perform public.schedule_post_draft(d, 4, (current_date + 15)::timestamp at time zone 'UTC' + interval '12 hours', 'UTC', 'a@x.co');
+    assert false, 'a time past an upper-only bound schedules';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'topic_closed', sqlerrm;
+  end;
+  -- The cron marks a due draft whose window closed.
+  delete from public.post_drafts where publish_at is not null;
+  insert into public.post_drafts (author_id, topic, content, publish_at, publish_tz, scheduled_by, topic_until, created_by, updated_by)
+    values (pid, 'general', 'closed', now() - interval '1 minute', 'UTC', 'cron@x.co', current_date - 5, 't@x', 't@x') returning id into d;
+  insert into public.post_drafts (author_id, topic, content, publish_at, publish_tz, scheduled_by, topic_from, topic_until, created_by, updated_by)
+    values (pid, 'general', 'open', now() - interval '1 minute', 'UTC', 'cron@x.co', current_date - 5, current_date + 5, 't@x', 't@x');
+  assert public.publish_due_post_drafts() = 1, 'only the draft inside its window publishes';
+  select * into r from public.post_drafts where id = d;
+  assert r.publish_error = 'topic_closed' and r.failed_at is not null, 'a draft whose window closed records topic_closed';
+
   -- Not callable by clients or service_role; the job exists and runs the function every minute.
   set local role authenticated;
   begin
