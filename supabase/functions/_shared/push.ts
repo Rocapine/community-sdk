@@ -1,6 +1,7 @@
 // Shared Expo push sender. Used by notify-comment, notify-like,
 // notify-reaction and broadcast-post (push module).
 
+import { blockedWith } from "./blocks.ts";
 import { runPool } from "./translation.ts";
 
 export interface ExpoPushMessage {
@@ -14,9 +15,9 @@ export interface ExpoPushMessage {
 }
 
 /** Unread inbox items for `uid`, counted like the app's `unreadCount`: notification
- * rows and admin posts sent to everyone, newer than the seen marker and not read
- * one by one. Capped at 200, at least 1 since a push
- * is being sent. Falls back to 1 when the inbox module is not installed. */
+ * rows (minus those from a member blocked either way) and admin posts sent to
+ * everyone, newer than the seen marker and not read one by one. Capped at 200, at
+ * least 1 since a push is being sent. Falls back to 1 when the inbox module is not installed. */
 export async function unreadBadge(
   supabase: { from: (table: string) => any },
   uid: string,
@@ -27,7 +28,7 @@ export async function unreadBadge(
       .select("seen_at")
       .eq("user_id", uid)
       .maybeSingle();
-    let query = supabase.from("notifications").select("id").eq("user_id", uid).limit(200);
+    let query = supabase.from("notifications").select("id, actor_id").eq("user_id", uid).limit(200);
     if (seen?.seen_at) query = query.gt("created_at", seen.seen_at);
     const { data: rows, error } = await query;
     if (error) return 1;
@@ -44,7 +45,12 @@ export async function unreadBadge(
       .neq("author_id", uid)
       .gt("broadcast_at", new Date(since).toISOString())
       .limit(200);
-    const ids = [...(rows ?? []), ...(official ?? [])]
+    // Notification rows follow the same block rule as list_notifications
+    // (inbox/004_mutual_blocks.sql); admins are never hidden by a block.
+    const hidden = await blockedWith(supabase, uid);
+    const own = ((rows ?? []) as { id: string; actor_id: string | null }[])
+      .filter((r) => !r.actor_id || !hidden.has(r.actor_id));
+    const ids = [...own, ...(official ?? [])]
       .map((r: { id: string }) => r.id)
       .slice(0, 200);
     if (ids.length === 0) return 1;

@@ -11,6 +11,7 @@
 // notifications early.
 
 import { adminClient } from "../_shared/client.ts";
+import { blockedWith } from "../_shared/blocks.ts";
 import { sendExpoPush, unreadBadge } from "../_shared/push.ts";
 import { pushCopy } from "../_shared/copy.ts";
 
@@ -48,12 +49,8 @@ async function flushPost(postId: string) {
 
   if (!pref?.expo_push_token || !pref.notify_likes) return;
 
-  // Contributors = likers who are not the author and not blocked by the author.
-  const { data: blocks } = await supabase
-    .from("blocks")
-    .select("blocked_id")
-    .eq("blocker_id", post.author_id);
-  const blockedSet = new Set((blocks ?? []).map((b) => b.blocked_id as string));
+  // Contributors = likers who are not the author and not blocked either way.
+  const blockedSet = await blockedWith(supabase, post.author_id);
   const contributors = unnotified.filter(
     (l) => l.user_id !== post.author_id && !blockedSet.has(l.user_id as string),
   );

@@ -36,6 +36,7 @@ import {
   applyPollVote,
   applyReaction,
   FEED_PAGE_SIZE,
+  type BlockedMember,
   type CommunityProfile,
   type FeedPost,
   type LocalImage,
@@ -46,6 +47,9 @@ import type { ResolvedCommunityConfig } from "./config";
 import { useCommunityConfig } from "./provider";
 import {
   blockUser,
+  unblockUser,
+  fetchBlockedMembers,
+  isProfileUnavailable,
   countNewPosts,
   createComment,
   createPost,
@@ -299,7 +303,8 @@ export function useProfile(userId: string | null) {
     queryFn: () => fetchProfile(cfg, userId!),
     enabled: cfg.supabase !== null && !!userId,
     staleTime: 1000 * 30,
-    retry: 1,
+    // No row = blocked either way, or gone: retrying won't change that.
+    retry: (count, error) => !isProfileUnavailable(error) && count < 1,
   });
 }
 
@@ -323,6 +328,7 @@ export function useUserPosts(userId: string | null) {
 
 /** Our own stable community uid, resolved once and cached for the app session. */
 const NOTIFICATION_PREFS_KEY = ["community", "notificationPreferences"] as const;
+const BLOCKED_MEMBERS_KEY = ["community", "blockedMembers"] as const;
 
 /** The caller's push preferences (push module). `preferences` is `null` until the
  * device has a push row; `setPreference` updates one flag optimistically. */
@@ -780,6 +786,29 @@ export function useBlockUser() {
       emitEvent(cfg, COMMUNITY_EVENTS.userBlocked);
       queryClient.invalidateQueries({ queryKey: ["community"] });
     },
+  });
+}
+
+/** Unblocking brings everything back the same way. */
+export function useUnblockUser() {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId }: { userId: string }) => unblockUser(cfg, userId),
+    onSuccess: () => {
+      emitEvent(cfg, COMMUNITY_EVENTS.userUnblocked);
+      queryClient.invalidateQueries({ queryKey: ["community"] });
+    },
+  });
+}
+
+/** Whom I blocked, newest first. */
+export function useBlockedMembers(opts: { enabled?: boolean } = {}) {
+  const cfg = useCommunityConfig();
+  return useQuery<BlockedMember[]>({
+    queryKey: BLOCKED_MEMBERS_KEY,
+    queryFn: () => fetchBlockedMembers(cfg),
+    enabled: cfg.supabase !== null && (opts.enabled ?? true),
   });
 }
 

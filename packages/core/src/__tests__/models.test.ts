@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  mapBlockedMemberRow,
   applyPollVote,
   applyReaction,
   buildPoll,
@@ -570,5 +571,28 @@ describe("images", () => {
     );
     expect(post.image).toEqual(want);
     expect(mapCommentRow(commentRow(row), "u1", "x", base).image).toEqual(want);
+  });
+});
+
+describe("mapBlockedMemberRow", () => {
+  it("maps a list_blocked_members row, falling back on an unnamed member", () => {
+    expect(
+      mapBlockedMemberRow(
+        {
+          id: "u1",
+          username: null,
+          handle: "marie-4821",
+          avatar_url: null,
+          blocked_at: "2026-11-12T10:00:00Z",
+        },
+        "Member",
+      ),
+    ).toEqual({
+      id: "u1",
+      name: "marie-4821",
+      handle: "marie-4821",
+      avatarUrl: null,
+      blockedAt: "2026-11-12T10:00:00Z",
+    });
   });
 });

@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveConfig } from "../config";
-import { buildFeedSelect, threadSelect, withTranslationFilters } from "../service";
+import {
+  buildFeedSelect,
+  isProfileUnavailable,
+  threadSelect,
+  withTranslationFilters,
+} from "../service";
 
 // buildFeedSelect is the pure, mockable piece of the feed.extraPostColumns
 // extension point (see config.ts) — the network-hitting fetch* functions just
@@ -151,5 +156,14 @@ describe("images module selects", () => {
   it("threadSelect adds the image columns only when images is on", () => {
     expect(threadSelect(cfgFor({ translation: false, images: true }))).toContain("image_path");
     expect(threadSelect(cfgFor({ translation: false }))).not.toContain("image_path");
+  });
+});
+
+describe("isProfileUnavailable", () => {
+  it("is true only for PostgREST's no-row error", () => {
+    expect(isProfileUnavailable({ code: "PGRST116" })).toBe(true);
+    expect(isProfileUnavailable({ code: "42501" })).toBe(false);
+    expect(isProfileUnavailable(new Error("offline"))).toBe(false);
+    expect(isProfileUnavailable(null)).toBe(false);
   });
 });

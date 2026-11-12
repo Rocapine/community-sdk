@@ -298,6 +298,34 @@ export interface CommunityProfile {
   hiddenBadges: string[];
 }
 
+/** One member the caller blocked, for the "Blocked members" list. */
+export interface BlockedMember {
+  id: string;
+  name: string;
+  handle: string | null;
+  avatarUrl: string | null;
+  blockedAt: string;
+}
+
+/** Raw shape returned by the `list_blocked_members` RPC. */
+export interface BlockedMemberRow {
+  id: string;
+  username: string | null;
+  handle: string | null;
+  avatar_url: string | null;
+  blocked_at: string;
+}
+
+export function mapBlockedMemberRow(row: BlockedMemberRow, fallback: string): BlockedMember {
+  return {
+    id: row.id,
+    name: displayName(row, fallback),
+    handle: row.handle ?? null,
+    avatarUrl: row.avatar_url ?? null,
+    blockedAt: row.blocked_at,
+  };
+}
+
 export function mapProfileRow(row: ProfileRow, fallback: string): CommunityProfile {
   return {
     id: row.id,

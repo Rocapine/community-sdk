@@ -165,7 +165,7 @@ import { COMMUNITY_EVENTS, type CommunityEventName } from "@rocapine/community-c
 `COMMUNITY_EVENTS` is a frozen map of stable event-name strings — `opened`,
 `rulesAccepted`, `postPublished`, `pollVoted`, `threadOpened`, `postLiked`,
 `commentPublished`, `profileOpened`, `profileUpdated`, `reactionAdded`,
-`userReported`, `userBlocked`, `contentDeleted`, `inboxOpened`,
+`userReported`, `userBlocked`, `userUnblocked`, `contentDeleted`, `inboxOpened`,
 `translationToggled` (`community_translation_toggled`, props `{ postId | commentId, to: "original" | "translation" }`) — forwarded to
 `host.onEvent` by the exported `emitEvent(cfg, name, props)` helper. `postPublished` and `commentPublished` carry
 `hasImage: boolean` (alongside `hasPoll`). Route or
@@ -209,7 +209,10 @@ runs in production and is silent in degraded mode.
 - **Queries** (`service.ts`): `fetchFeedPage`, `countNewPosts`, `fetchProfile`,
   `fetchUserPosts`, `searchPosts`, `fetchThread`, `createPost`, `votePoll`,
   `createComment`, `moderateOne`, `setLike`, `setReaction`,
-  `fetchReactionSummaries`, `reportContent`, `blockUser`, `deleteOwnPost`,
+  `fetchReactionSummaries`, `reportContent`, `blockUser`, `unblockUser`,
+  `fetchBlockedMembers` (whom I blocked; a block hides both members from each
+  other, so this list is the way back), `isProfileUnavailable(error)` (a profile
+  fetch found no row: blocked either way, or gone), `deleteOwnPost`,
   `deleteOwnComment`, `updateProfile`, `uploadAvatar`, `uploadPostImage`
   (re-encoded JPEG → the public `post-images` bucket, `POST_IMAGES_BUCKET`,
   under the caller's own folder; `createPost` / `createComment` take its
@@ -223,7 +226,8 @@ runs in production and is silent in degraded mode.
   caller's `notify_*` flags), `useUpdateProfile`, `useCreatePost`,
   `useCreateComment` (takes `parentId` to reply to a comment),
   `useToggleLike`, `useToggleCommentLike`, `useVotePoll`, `useReactToPost`,
-  `useReport`, `useBlockUser`, `useDeleteContent`.
+  `useReport`, `useBlockUser`, `useUnblockUser`, `useBlockedMembers`,
+  `useDeleteContent`.
 - **Inbox** (opt-in via `modules.inbox`): `fetchInbox`, `markInboxSeen`,
   `markInboxItemRead`, `isUnread`, `unreadCount`, `localizeExcerpts` (swaps a
   notification's excerpt for its reader-locale translation when one is

@@ -67,6 +67,24 @@ Deno.test("sendExpoPushBatch: a rejected send is logged, not swallowed", async (
   assertEquals(seen[1].includes("DeviceNotRegistered"), true);
 });
 
+Deno.test("unreadBadge: rows from a member blocked either way do not count", async () => {
+  const supabase = fakeSupabase({
+    notification_seen: null,
+    notifications: [
+      { id: "a", actor_id: "friend" },
+      { id: "b", actor_id: "blocked" },
+      { id: "c", actor_id: "blocker" },
+      { id: "d", actor_id: null },
+    ],
+    notification_reads: [],
+    blocks: [
+      { blocker_id: "u1", blocked_id: "blocked" },
+      { blocker_id: "blocker", blocked_id: "u1" },
+    ],
+  });
+  assertEquals(await unreadBadge(supabase, "u1"), 2);
+});
+
 // A tiny chainable stand-in for the supabase-js query builder: each table
 // resolves to fixed rows, or to a function of its `eq` filters.
 type Rows = unknown | ((eq: Record<string, unknown>) => unknown);
@@ -79,7 +97,7 @@ function fakeSupabase(tables: Record<string, Rows>) {
         return { data: (typeof t === "function" ? t(eq) : t) ?? null, error: null };
       };
       const chain: Record<string, unknown> = {};
-      for (const m of ["select", "neq", "gt", "in", "limit"]) chain[m] = () => chain;
+      for (const m of ["select", "neq", "gt", "in", "limit", "or"]) chain[m] = () => chain;
       chain.eq = (column: string, value: unknown) => {
         eq[column] = value;
         return chain;

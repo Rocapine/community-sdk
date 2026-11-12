@@ -1,7 +1,7 @@
 // Real-time comment notification: a pg_net trigger fires here when a comment
 // becomes visible (published). We push to the post author, or for a reply to
 // the author of the comment it answers only (unless self, opted out, no token,
-// or the recipient has blocked the commenter).
+// or the recipient and the commenter are blocked either way).
 //
 // Security: this function is reachable with the public anon key (the trigger
 // calls it that way), so the body is UNTRUSTED. Only `record.id` is used; the
@@ -9,6 +9,7 @@
 // push comes from the request itself.
 
 import { adminClient } from "../_shared/client.ts";
+import { blockedWith } from "../_shared/blocks.ts";
 import { sendExpoPush, unreadBadge } from "../_shared/push.ts";
 import { excerptOrPhoto, pushCopy } from "../_shared/copy.ts";
 import { ensureTranslations, resolveTargetLocale, languageOf } from "../_shared/translation.ts";
@@ -75,13 +76,7 @@ Deno.serve(async (req) => {
       .single();
     if (!pref?.expo_push_token || !pref.notify_comments) return;
 
-    const { data: blocked } = await supabase
-      .from("blocks")
-      .select("blocker_id")
-      .eq("blocker_id", target.uid)
-      .eq("blocked_id", comment!.author_id)
-      .maybeSingle();
-    if (blocked) return;
+    if ((await blockedWith(supabase, target.uid)).has(comment!.author_id)) return;
 
     const { data: recipient } = await supabase
       .from("profiles")
