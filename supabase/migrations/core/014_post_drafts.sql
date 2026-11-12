@@ -35,8 +35,8 @@ alter table public.moderation_actions add constraint moderation_actions_action_c
    'publish_post','create_team_account','update_team_account'));
 
 -- Errors are raised with the code as the message (errcode P0001): draft_not_found,
--- draft_changed, not_a_team_account, not_admin, invalid_content, invalid_poll,
--- one_extra_only. Columns of optional modules (images, attachments) are only
+-- draft_changed, not_a_team_account, author_banned, not_admin, invalid_content,
+-- invalid_image, invalid_poll, invalid_attachment, one_extra_only. Columns of optional modules (images, attachments) are only
 -- named when the draft uses them, so a backend without those modules still
 -- publishes plain and poll drafts.
 create or replace function public.publish_post_draft(p_draft_id uuid, p_version int, p_actor text)
@@ -56,18 +56,31 @@ begin
 
   select * into author from profiles where id = d.author_id;
   if not found or not author.is_house then raise exception 'not_a_team_account'; end if;
+  if author.is_banned then raise exception 'author_banned'; end if;
   if (d.pin or d.notify) and not author.is_admin then raise exception 'not_admin'; end if;
 
   -- Like posts_content_check: text is optional when there is an image.
-  if char_length(d.content) > 2000 or (char_length(d.content) = 0 and d.image_path is null)
-    -- The image lives in the author's storage folder; the dashboard moves it when the author changes.
-    or (d.image_path is not null and split_part(d.image_path, '/', 1) <> d.author_id::text) then
+  if char_length(d.content) > 2000 or (char_length(d.content) = 0 and d.image_path is null) then
     raise exception 'invalid_content';
+  end if;
+  -- Mirrors posts_image_check and posts_image_path_format (images/001). The image lives
+  -- in the author's storage folder; the dashboard moves it when the author changes.
+  if d.image_path is not null and (coalesce(d.image_width, 0) <= 0 or coalesce(d.image_height, 0) <= 0
+    or d.image_path !~ '^[0-9a-f-]{36}/[A-Za-z0-9_-]+\.jpg$'
+    or split_part(d.image_path, '/', 1) <> d.author_id::text) then
+    raise exception 'invalid_image';
   end if;
   n := coalesce(array_length(d.poll_options, 1), 0);
   if d.poll_options is not null and (n not between 2 and 4
     or exists (select 1 from unnest(d.poll_options) l where coalesce(char_length(l), 0) not between 1 and 60)) then
     raise exception 'invalid_poll';
+  end if;
+  -- Mirrors posts_attachment_check (attachments/001); coalesce because a null check result would pass.
+  if d.attachment is not null and not coalesce(jsonb_typeof(d.attachment) = 'object'
+    and d.attachment ? 'type' and d.attachment ? 'id'
+    and jsonb_typeof(d.attachment -> 'type') = 'string' and jsonb_typeof(d.attachment -> 'id') = 'string'
+    and octet_length(d.attachment::text) <= 512, false) then
+    raise exception 'invalid_attachment';
   end if;
   if (d.image_path is not null)::int + (d.poll_options is not null)::int + (d.attachment is not null)::int > 1 then
     raise exception 'one_extra_only';

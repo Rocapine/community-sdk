@@ -111,6 +111,7 @@ begin
     assert false, 'a non-admin notifies everyone';
   exception when sqlstate 'P0001' then assert sqlerrm = 'not_admin', sqlerrm;
   end;
+  -- notify-only by a non-admin is covered above; pin-only too.
   update public.profiles set is_admin = true where id = pid;
 
   update public.profiles set is_house = false where id = pid;
@@ -136,8 +137,56 @@ begin
   begin
     perform public.publish_post_draft(d, 1, 't@x');
     assert false, 'an image outside the author folder publishes';
-  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_content', sqlerrm;
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_image', sqlerrm;
   end;
+
+  insert into public.post_drafts (author_id, content, image_path, created_by, updated_by)
+    values (pid, 'x', pid::text || '/pic.jpg', 't@x', 't@x') returning id into d;
+  begin
+    perform public.publish_post_draft(d, 1, 't@x');
+    assert false, 'an image without dimensions publishes';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_image', sqlerrm;
+  end;
+
+  insert into public.post_drafts (author_id, content, attachment, created_by, updated_by)
+    values (pid, 'x', '{"type":"verse"}', 't@x', 't@x') returning id into d;
+  begin
+    perform public.publish_post_draft(d, 1, 't@x');
+    assert false, 'a malformed attachment publishes';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_attachment', sqlerrm;
+  end;
+  insert into public.post_drafts (author_id, content, attachment, created_by, updated_by)
+    values (pid, 'x', '"verse"', 't@x', 't@x') returning id into d;
+  begin
+    perform public.publish_post_draft(d, 1, 't@x');
+    assert false, 'a scalar attachment publishes';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_attachment', sqlerrm;
+  end;
+
+  insert into public.post_drafts (author_id, content, poll_options, created_by, updated_by)
+    values (pid, 'x', array['a', ''], 't@x', 't@x') returning id into d;
+  begin
+    perform public.publish_post_draft(d, 1, 't@x');
+    assert false, 'an empty poll label publishes';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_poll', sqlerrm;
+  end;
+  insert into public.post_drafts (author_id, content, poll_options, created_by, updated_by)
+    values (pid, 'x', array['a', repeat('b', 61)], 't@x', 't@x') returning id into d;
+  begin
+    perform public.publish_post_draft(d, 1, 't@x');
+    assert false, 'a 61-character poll label publishes';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_poll', sqlerrm;
+  end;
+
+  update public.profiles set is_banned = true where id = pid;
+  insert into public.post_drafts (author_id, content, created_by, updated_by)
+    values (pid, 'x', 't@x', 't@x') returning id into d;
+  begin
+    perform public.publish_post_draft(d, 1, 't@x');
+    assert false, 'a banned author publishes';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'author_banned', sqlerrm;
+  end;
+  update public.profiles set is_banned = false where id = pid;
 
   insert into public.post_drafts (author_id, content, poll_options, created_by, updated_by)
     values (pid, 'x', '{a}', 't@x', 't@x') returning id into d;
