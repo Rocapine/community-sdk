@@ -305,6 +305,14 @@ read — do not re-run the broadcast to cover the rest, that would double-send
 to everyone already pushed. Messages go to Expo 4 requests × 100 tokens at a
 time, each request aborted after 10 s. The author's own devices are skipped.
 
+Each push carries the member's own unread count as the icon badge (`unreadBadges` in
+`_shared/push.ts`, the same count as the likes, comments and reactions pushes: inbox rows and
+admin posts sent to everyone, past the seen marker, minus the items read one by one). It costs 4
+small queries per member, 20 members at a time, before the first push goes out (estimated at a
+few seconds per thousand members, not measured). A `broadcast-post` deployed before this change
+sends a badge of 1 to everyone; redeploy `broadcast-post`, `notify-comment`, `notify-like` and
+`notify-reaction` to pick it up.
+
 The notification center lists an admin post only once `broadcast_at` is set
 (`inbox/003_pushed_admin_posts.sql`): the center shows what was pushed. To send an admin
 post from a dashboard, call `broadcast-post` with the service role; to have the app send
