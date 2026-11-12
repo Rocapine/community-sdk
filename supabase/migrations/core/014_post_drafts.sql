@@ -36,9 +36,9 @@ alter table public.moderation_actions add constraint moderation_actions_action_c
 
 -- Errors are raised with the code as the message (errcode P0001): draft_not_found,
 -- draft_changed, not_a_team_account, author_banned, not_admin, invalid_content,
--- invalid_image, invalid_poll, invalid_attachment, one_extra_only. Columns of optional modules (images, attachments) are only
--- named when the draft uses them, so a backend without those modules still
--- publishes plain and poll drafts.
+-- invalid_image, invalid_poll, invalid_attachment, one_extra_only. Columns of
+-- optional modules (images, attachments) are only named when the draft uses
+-- them, so a backend without those modules still publishes plain and poll drafts.
 create or replace function public.publish_post_draft(p_draft_id uuid, p_version int, p_actor text)
 returns uuid
 language plpgsql security definer set search_path = public
