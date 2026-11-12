@@ -17,9 +17,12 @@ import {
   EMPTY_POLL_DATA,
   EMPTY_REACTION_DATA,
   FEED_PAGE_SIZE,
+  mapBlockedMemberRow,
   mapCommentRow,
   mapPostRow,
   mapProfileRow,
+  type BlockedMember,
+  type BlockedMemberRow,
   type CommentRow,
   type CommunityProfile,
   type FeedPost,
@@ -696,11 +699,40 @@ export async function reportContent(
   if (error) throw error;
 }
 
+/** Blocks work both ways (core/016_mutual_blocks.sql): neither member sees the
+ * other's posts, comments, likes or profile any more. Admins can't be blocked
+ * (the insert is refused). */
 export async function blockUser(cfg: ResolvedCommunityConfig, blockedId: string): Promise<void> {
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
   const { error } = await client.from("blocks").insert({ blocker_id: uid, blocked_id: blockedId });
   if (error && error.code !== "23505") throw error; // already blocked is fine
+}
+
+export async function unblockUser(cfg: ResolvedCommunityConfig, blockedId: string): Promise<void> {
+  const client = cfg.requireClient();
+  const uid = await requireUid(cfg);
+  const { error } = await client
+    .from("blocks")
+    .delete()
+    .match({ blocker_id: uid, blocked_id: blockedId });
+  if (error) throw error;
+}
+
+/** Whom the caller blocked, newest first (`list_blocked_members`). */
+export async function fetchBlockedMembers(cfg: ResolvedCommunityConfig): Promise<BlockedMember[]> {
+  const client = cfg.requireClient();
+  await requireUid(cfg);
+  const { data, error } = await client.rpc("list_blocked_members");
+  if (error) throw error;
+  return ((data ?? []) as BlockedMemberRow[]).map((row) =>
+    mapBlockedMemberRow(row, cfg.authorFallback()),
+  );
+}
+
+/** A profile fetch that found no row: the member is blocked either way, or gone. */
+export function isProfileUnavailable(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === "PGRST116";
 }
 
 export const NOTIFICATION_PREFERENCE_KEYS = [

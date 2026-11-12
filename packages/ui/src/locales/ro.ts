@@ -127,7 +127,12 @@ export const ro: Record<string, string> = {
   "menu.block": "Blochează",
   "menu.blockUser": "Blochează {name}",
   "menu.blockUserConfirmTitle": "Blochezi {name}?",
-  "menu.blockUserConfirmBody": "Nu îi vei mai vedea niciodată postările sau comentariile.",
+  "menu.blockUserConfirmBody":
+    "Nu veți mai vedea unul altuia postările, comentariile sau profilul. Poți debloca persoana mai târziu.",
+  "menu.unblock": "Deblochează",
+  "menu.unblockUserConfirmTitle": "Deblochezi {name}?",
+  "menu.unblockUserConfirmBody": "Veți vedea din nou unul altuia postările și comentariile.",
+  "menu.notNow": "Nu acum",
 
   "report.title": "Raportează acest conținut",
   "report.reasons.spam": "Spam",
@@ -139,6 +144,8 @@ export const ro: Record<string, string> = {
   "report.send": "Trimite raportarea",
   "report.sentTitle": "Mulțumim",
   "report.sentBody": "Raportarea ta a fost trimisă. Echipa noastră analizează fiecare raportare.",
+  "report.blockOfferBody":
+    "Raportarea ta a fost trimisă. Echipa noastră analizează fiecare raportare. Vrei să blochezi și persoana {name}?",
   "report.errorTitle": "Raportarea nu a putut fi trimisă",
   "report.errorBody": "Verifică conexiunea și încearcă din nou.",
 
@@ -146,6 +153,10 @@ export const ro: Record<string, string> = {
   "profile.editProfile": "Editează profilul",
   "profile.emptyOwn": "Nu ai împărtășit nimic încă.",
   "profile.emptyOther": "Nicio postare de afișat încă.",
+  "profile.unavailable": "Acest profil nu este disponibil.",
+  "profile.blockedByYou": "Ai blocat acest membru.",
+  "blocked.title": "Membri blocați",
+  "blocked.empty": "Nu ai blocat pe nimeni.",
   "profile.changePhoto": "Schimbă fotografia",
   "profile.bioLabel": "Despre mine",
   "profile.bioPlaceholder": "Spune-i comunității câte ceva despre tine",

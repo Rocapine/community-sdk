@@ -149,12 +149,12 @@ Set by the team on 2026-11-10; every brick follows them.
 
 Proposed while building the dashboard; each is an SDK change for the SDK owner to accept or not.
 
-| Proposal                                                                                                | Why it helps the dashboard                                                                     | Size | Status   |
-| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---- | -------- |
-| Indexes on `posts(author_id)`, `comments(author_id)`, `reports(reported_user_id)`, `blocks(blocked_id)` | `admin_user_stats` counts become index lookups, so the member list can filter and sort on them | S    | proposed |
-| Allow `make_admin` / `remove_admin` in `moderation_actions.action`                                      | Admin changes appear in the audit log                                                          | S    | proposed |
-| One RPC per moderation action (status + reports + log in one transaction)                               | No half-applied action if a call fails midway                                                  | M    | proposed |
-| Restoring hidden content runs the publish side effects (inbox, push to the post author, translation)    | A restored comment reaches its post author like a normal one                                   | M    | proposed |
+| Proposal                                                                                                                       | Why it helps the dashboard                                                                     | Size | Status   |
+| ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ---- | -------- |
+| Indexes on `posts(author_id)`, `comments(author_id)`, `reports(reported_user_id)` (`blocks(blocked_id)` shipped in core `016`) | `admin_user_stats` counts become index lookups, so the member list can filter and sort on them | S    | proposed |
+| Allow `make_admin` / `remove_admin` in `moderation_actions.action`                                                             | Admin changes appear in the audit log                                                          | S    | proposed |
+| One RPC per moderation action (status + reports + log in one transaction)                                                      | No half-applied action if a call fails midway                                                  | M    | proposed |
+| Restoring hidden content runs the publish side effects (inbox, push to the post author, translation)                           | A restored comment reaches its post author like a normal one                                   | M    | proposed |
 
 ## SDK coverage
 
@@ -164,7 +164,7 @@ What each SDK feature gives the dashboard to manage. Update a row when the SDK c
 | ---------------------------------------------------------------------- | ----------------- | ------------------------------------------------------ | ------- |
 | Posts, comments, replies, likes (core)                                 | 0.1, replies 0.13 | Read, hide, restore, pin                               | 2, 6    |
 | AI moderation before publish (core)                                    | 0.1               | Review AI-hidden content                               | 2       |
-| Reports and blocks (core)                                              | 0.1               | Review queue                                           | 2       |
+| Reports and blocks (core); mutual blocks, unblock (core `016`)         | 0.1, mutual 0.17  | Review queue; blocked-by count on the member card      | 2, 3    |
 | Bans (core)                                                            | 0.1               | Ban / unban                                            | 2, 3    |
 | Moderation audit log, `admin_user_stats`, `admin_daily_metrics` (core) | 0.1               | Audit, member card, activity                           | 2, 3, 5 |
 | Default names, editable name and handle (core)                         | 0.12              | Member search and card                                 | 3       |

@@ -21,7 +21,7 @@
 // (rather than deriving visibility from `target !== null` like the mold) so
 // a host can hold `target` steady while `visible` animates closed.
 
-import { useReport, type ReportReason } from "@rocapine/community-core";
+import { useBlockUser, useReport, type ReportReason } from "@rocapine/community-core";
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
@@ -36,7 +36,14 @@ const REASONS: ReportReason[] = ["spam", "harassment", "hate", "inappropriate", 
 /** Exported so callers building a report target (`CommunityFeedScreen`,
  * `ThreadSheet`, …) share one type instead of each redeclaring an identical
  * inline shape. */
-export type ReportTarget = { kind: "post" | "comment"; id: string; authorId: string };
+export type ReportTarget = {
+  kind: "post" | "comment";
+  id: string;
+  authorId: string;
+  /** With a name, a harassment report offers to block the author too (never an admin). */
+  authorName?: string;
+  authorAdmin?: boolean;
+};
 
 export function ReportSheet({
   visible,
@@ -51,6 +58,7 @@ export function ReportSheet({
   const t = useT();
   const styles = useThemedStyles(makeStyles);
   const report = useReport();
+  const blockUser = useBlockUser();
 
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [details, setDetails] = useState("");
@@ -70,6 +78,8 @@ export function ReportSheet({
 
   const submit = () => {
     if (!target || !reason || report.isPending) return;
+    const reported = target;
+    const offerBlock = reason === "harassment" && !!reported.authorName && !reported.authorAdmin;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     report.mutate(
       {
@@ -82,7 +92,19 @@ export function ReportSheet({
       {
         onSuccess: () => {
           close();
-          Alert.alert(t("report.sentTitle"), t("report.sentBody"));
+          if (!offerBlock) return Alert.alert(t("report.sentTitle"), t("report.sentBody"));
+          Alert.alert(
+            t("report.sentTitle"),
+            t("report.blockOfferBody", { name: reported.authorName! }),
+            [
+              { text: t("menu.notNow"), style: "cancel" },
+              {
+                text: t("menu.block"),
+                style: "destructive",
+                onPress: () => blockUser.mutate({ userId: reported.authorId }),
+              },
+            ],
+          );
         },
         onError: () => Alert.alert(t("report.errorTitle"), t("report.errorBody")),
       },

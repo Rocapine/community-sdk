@@ -17,6 +17,7 @@ export const COMMUNITY_EVENTS = {
   reactionAdded: "community_reaction_added",
   userReported: "user_reported",
   userBlocked: "user_blocked",
+  userUnblocked: "user_unblocked",
   contentDeleted: "content_deleted",
   inboxOpened: "notification_center_opened",
   translationToggled: "community_translation_toggled",

@@ -481,25 +481,36 @@ export function CommunityFeedScreen({
         ...pinMenu(post),
         {
           text: t("menu.reportPost"),
-          onPress: () => setReportTarget({ kind: "post", id: post.id, authorId: post.authorId }),
-        },
-        {
-          text: t("menu.blockUser", { name: post.authorName }),
-          style: "destructive",
           onPress: () =>
-            Alert.alert(
-              t("menu.blockUserConfirmTitle", { name: post.authorName }),
-              t("menu.blockUserConfirmBody"),
-              [
-                { text: t("menu.cancel"), style: "cancel" },
-                {
-                  text: t("menu.block"),
-                  style: "destructive",
-                  onPress: () => blockUser.mutate({ userId: post.authorId }),
-                },
-              ],
-            ),
+            setReportTarget({
+              kind: "post",
+              id: post.id,
+              authorId: post.authorId,
+              authorName: post.authorName,
+              authorAdmin: post.authorAdmin,
+            }),
         },
+        ...(post.authorAdmin
+          ? []
+          : [
+              {
+                text: t("menu.blockUser", { name: post.authorName }),
+                style: "destructive" as const,
+                onPress: () =>
+                  Alert.alert(
+                    t("menu.blockUserConfirmTitle", { name: post.authorName }),
+                    t("menu.blockUserConfirmBody"),
+                    [
+                      { text: t("menu.cancel"), style: "cancel" },
+                      {
+                        text: t("menu.block"),
+                        style: "destructive",
+                        onPress: () => blockUser.mutate({ userId: post.authorId }),
+                      },
+                    ],
+                  ),
+              },
+            ]),
         { text: t("menu.cancel"), style: "cancel" },
       ]);
     },

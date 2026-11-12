@@ -43,7 +43,10 @@
 import {
   COMMUNITY_EVENTS,
   emitEvent,
+  isProfileUnavailable,
+  useBlockedMembers,
   useBlockUser,
+  useUnblockUser,
   useCommunityConfig,
   type MemberBadges,
   useDeleteContent,
@@ -121,6 +124,12 @@ export function ProfileScreen({
   const userPosts = useUserPosts(userId);
 
   const blockUser = useBlockUser();
+  const unblockUser = useUnblockUser();
+  // A block hides the profile both ways; the one who blocked can unblock here.
+  const unavailable = isProfileUnavailable(profile.error);
+  const blockedByMe = useBlockedMembers({ enabled: unavailable }).data?.find(
+    (m) => m.id === userId,
+  );
   const deleteContent = useDeleteContent();
   const pinMenu = usePinMenu();
 
@@ -174,25 +183,36 @@ export function ProfileScreen({
       ...pinMenu(post),
       {
         text: t("menu.reportPost"),
-        onPress: () => setReportTarget({ kind: "post", id: post.id, authorId: post.authorId }),
-      },
-      {
-        text: t("menu.blockUser", { name: post.authorName }),
-        style: "destructive",
         onPress: () =>
-          Alert.alert(
-            t("menu.blockUserConfirmTitle", { name: post.authorName }),
-            t("menu.blockUserConfirmBody"),
-            [
-              { text: t("menu.cancel"), style: "cancel" },
-              {
-                text: t("menu.block"),
-                style: "destructive",
-                onPress: () => blockUser.mutate({ userId: post.authorId }),
-              },
-            ],
-          ),
+          setReportTarget({
+            kind: "post",
+            id: post.id,
+            authorId: post.authorId,
+            authorName: post.authorName,
+            authorAdmin: post.authorAdmin,
+          }),
       },
+      ...(post.authorAdmin
+        ? []
+        : [
+            {
+              text: t("menu.blockUser", { name: post.authorName }),
+              style: "destructive" as const,
+              onPress: () =>
+                Alert.alert(
+                  t("menu.blockUserConfirmTitle", { name: post.authorName }),
+                  t("menu.blockUserConfirmBody"),
+                  [
+                    { text: t("menu.cancel"), style: "cancel" },
+                    {
+                      text: t("menu.block"),
+                      style: "destructive",
+                      onPress: () => blockUser.mutate({ userId: post.authorId }),
+                    },
+                  ],
+                ),
+            },
+          ]),
       { text: t("menu.cancel"), style: "cancel" },
     ]);
   };
@@ -221,6 +241,12 @@ export function ProfileScreen({
       { text: t("menu.cancel"), style: "cancel" },
     ]);
   };
+
+  const askUnblock = (name: string) =>
+    Alert.alert(t("menu.unblockUserConfirmTitle", { name }), t("menu.unblockUserConfirmBody"), [
+      { text: t("menu.cancel"), style: "cancel" },
+      { text: t("menu.unblock"), onPress: () => unblockUser.mutate({ userId }) },
+    ]);
 
   return (
     <ImageViewerHost>
@@ -259,7 +285,7 @@ export function ProfileScreen({
               <View style={styles.topRowSpacer} />
             )}
             <View style={styles.topRowSpacer} />
-            {myUid != null && !isMe && (
+            {myUid != null && !isMe && !unavailable && profile.data && !profile.data.admin && (
               <Pressable
                 onPress={openHeaderMenu}
                 style={styles.dotsBtn}
@@ -273,6 +299,20 @@ export function ProfileScreen({
 
           {isQueryLoading(profile) ? (
             <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
+          ) : unavailable ? (
+            <View style={styles.unavailable}>
+              <Text style={styles.stateText}>
+                {blockedByMe ? t("profile.blockedByYou") : t("profile.unavailable")}
+              </Text>
+              {blockedByMe && (
+                <PressableScale
+                  onPress={() => askUnblock(blockedByMe.name)}
+                  style={styles.editPill}
+                >
+                  <Text style={styles.editPillLabel}>{t("menu.unblock")}</Text>
+                </PressableScale>
+              )}
+            </View>
           ) : profile.isError || !profile.data ? (
             <Text style={styles.stateText}>{t("feed.unreachable")}</Text>
           ) : (
@@ -393,6 +433,7 @@ function makeStyles(theme: CommunityTheme) {
       marginRight: -11,
     },
     spinner: { marginTop: theme.spacing(8) },
+    unavailable: { alignItems: "center" },
     spinnerSmall: { marginTop: theme.spacing(3) },
     header: { alignItems: "center", marginTop: theme.spacing(2), marginBottom: theme.spacing(7) },
     avatar: { marginBottom: theme.spacing(3.5) },

@@ -93,6 +93,12 @@ export default function ConfigTab() {
         </Pressable>
       </Section>
 
+      <Section title="Blocks">
+        <Pressable onPress={() => router.push("/blocked")}>
+          <Text style={styles.link}>Blocked members ›</Text>
+        </Pressable>
+      </Section>
+
       <Section title="Locale">
         <Chips
           options={LOCALES}

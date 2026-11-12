@@ -154,7 +154,12 @@ export const pl: Record<string, string> = {
   "menu.block": "Zablokuj",
   "menu.blockUser": "Zablokuj {name}",
   "menu.blockUserConfirmTitle": "Zablokować {name}?",
-  "menu.blockUserConfirmBody": "Nigdy więcej nie zobaczysz postów ani komentarzy tej osoby.",
+  "menu.blockUserConfirmBody":
+    "Nie będziecie już widzieć nawzajem swoich postów, komentarzy ani profili. Możesz później odblokować tę osobę.",
+  "menu.unblock": "Odblokuj",
+  "menu.unblockUserConfirmTitle": "Odblokować {name}?",
+  "menu.unblockUserConfirmBody": "Znów będziecie widzieć nawzajem swoje posty i komentarze.",
+  "menu.notNow": "Nie teraz",
 
   "report.title": "Zgłoś tę treść",
   "report.reasons.spam": "Spam",
@@ -166,6 +171,8 @@ export const pl: Record<string, string> = {
   "report.send": "Wyślij zgłoszenie",
   "report.sentTitle": "Dziękujemy",
   "report.sentBody": "Twoje zgłoszenie zostało wysłane. Nasz zespół sprawdza każde zgłoszenie.",
+  "report.blockOfferBody":
+    "Twoje zgłoszenie zostało wysłane. Nasz zespół sprawdza każde zgłoszenie. Czy chcesz też zablokować {name}?",
   "report.errorTitle": "Nie udało się wysłać zgłoszenia",
   "report.errorBody": "Sprawdź połączenie i spróbuj ponownie.",
 
@@ -173,6 +180,10 @@ export const pl: Record<string, string> = {
   "profile.editProfile": "Edytuj profil",
   "profile.emptyOwn": "Nie masz tu jeszcze żadnych postów.",
   "profile.emptyOther": "Nie ma jeszcze postów do pokazania.",
+  "profile.unavailable": "Ten profil jest niedostępny.",
+  "profile.blockedByYou": "Ta osoba jest zablokowana.",
+  "blocked.title": "Zablokowane osoby",
+  "blocked.empty": "Nikogo nie blokujesz.",
   "profile.changePhoto": "Zmień zdjęcie",
   "profile.bioLabel": "O mnie",
   "profile.bioPlaceholder": "Powiedz wspólnocie coś o sobie",

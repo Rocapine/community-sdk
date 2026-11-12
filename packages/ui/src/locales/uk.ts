@@ -128,7 +128,12 @@ export const uk: Record<string, string> = {
   "menu.block": "Заблокувати",
   "menu.blockUser": "Заблокувати {name}",
   "menu.blockUserConfirmTitle": "Заблокувати {name}?",
-  "menu.blockUserConfirmBody": "Ти більше ніколи не побачиш дописів чи коментарів цієї людини.",
+  "menu.blockUserConfirmBody":
+    "Ви більше не бачитимете дописів, коментарів і профілів одне одного. Ти можеш розблокувати цю людину пізніше.",
+  "menu.unblock": "Розблокувати",
+  "menu.unblockUserConfirmTitle": "Розблокувати {name}?",
+  "menu.unblockUserConfirmBody": "Ви знову бачитимете дописи й коментарі одне одного.",
+  "menu.notNow": "Не зараз",
 
   "report.title": "Поскаржитися на цей контент",
   "report.reasons.spam": "Спам",
@@ -140,6 +145,8 @@ export const uk: Record<string, string> = {
   "report.send": "Надіслати скаргу",
   "report.sentTitle": "Дякуємо",
   "report.sentBody": "Твою скаргу надіслано. Наша команда розглядає кожну скаргу.",
+  "report.blockOfferBody":
+    "Твою скаргу надіслано. Наша команда розглядає кожну скаргу. Заблокувати також {name}?",
   "report.errorTitle": "Не вдалося надіслати скаргу",
   "report.errorBody": "Перевір з'єднання та спробуй ще раз.",
 
@@ -147,6 +154,10 @@ export const uk: Record<string, string> = {
   "profile.editProfile": "Редагувати профіль",
   "profile.emptyOwn": "У тебе тут ще немає дописів.",
   "profile.emptyOther": "Поки що немає дописів.",
+  "profile.unavailable": "Цей профіль недоступний.",
+  "profile.blockedByYou": "Цю людину заблоковано.",
+  "blocked.title": "Заблоковані учасники",
+  "blocked.empty": "Заблокованих людей немає.",
   "profile.changePhoto": "Змінити фото",
   "profile.bioLabel": "Про мене",
   "profile.bioPlaceholder": "Розкажи спільноті трохи про себе",

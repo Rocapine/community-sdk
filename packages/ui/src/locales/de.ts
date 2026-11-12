@@ -11,9 +11,9 @@
 // most sentences need no special handling. The real pitfall is 3rd-person
 // possessive pronouns ("sein"/"ihr" for "his"/"her") when referring to an
 // unknown-gender {name} or post author:
-//  - `menu.blockUserConfirmBody` restructures around a noun instead of a
-//    gendered possessive: "die Beiträge und Kommentare dieser Person" (not
-//    "seine/ihre Beiträge und Kommentare").
+//  - `menu.blockUserConfirmBody` / `menu.unblockUserConfirmBody` speak to both
+//    members ("Ihr seht gegenseitig …") instead of a gendered possessive
+//    ("seine/ihre Beiträge").
 //  - `rules.report` uses "die Person, die es gepostet hat" for the same
 //    reason.
 // "Be the first to ..." imperatives use a neutral direct-object
@@ -146,7 +146,11 @@ export const de: Record<string, string> = {
   "menu.blockUser": "{name} blockieren",
   "menu.blockUserConfirmTitle": "{name} blockieren?",
   "menu.blockUserConfirmBody":
-    "Du wirst die Beiträge und Kommentare dieser Person nie wieder sehen.",
+    "Ihr seht gegenseitig keine Beiträge, Kommentare oder Profile mehr. Du kannst die Blockierung später aufheben.",
+  "menu.unblock": "Blockierung aufheben",
+  "menu.unblockUserConfirmTitle": "Blockierung von {name} aufheben?",
+  "menu.unblockUserConfirmBody": "Ihr seht eure Beiträge und Kommentare wieder gegenseitig.",
+  "menu.notNow": "Nicht jetzt",
 
   "report.title": "Diesen Inhalt melden",
   "report.reasons.spam": "Spam",
@@ -158,6 +162,8 @@ export const de: Record<string, string> = {
   "report.send": "Meldung senden",
   "report.sentTitle": "Danke",
   "report.sentBody": "Deine Meldung wurde gesendet. Unser Team prüft jede Meldung.",
+  "report.blockOfferBody":
+    "Deine Meldung wurde gesendet. Unser Team prüft jede Meldung. Möchtest du {name} auch blockieren?",
   "report.errorTitle": "Meldung konnte nicht gesendet werden",
   "report.errorBody": "Bitte überprüfe deine Verbindung und versuche es erneut.",
 
@@ -165,6 +171,10 @@ export const de: Record<string, string> = {
   "profile.editProfile": "Profil bearbeiten",
   "profile.emptyOwn": "Du hast noch nichts geteilt.",
   "profile.emptyOther": "Noch keine Beiträge zum Anzeigen.",
+  "profile.unavailable": "Dieses Profil ist nicht verfügbar.",
+  "profile.blockedByYou": "Du hast dieses Mitglied blockiert.",
+  "blocked.title": "Blockierte Mitglieder",
+  "blocked.empty": "Du hast niemanden blockiert.",
   "profile.changePhoto": "Foto ändern",
   "profile.bioLabel": "Bio",
   "profile.bioPlaceholder": "Erzähl der Gemeinschaft ein wenig über dich",

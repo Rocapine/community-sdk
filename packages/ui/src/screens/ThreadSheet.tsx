@@ -440,28 +440,39 @@ export function ThreadSheet({
       ...pinMenu(p),
       {
         text: t("menu.reportPost"),
-        onPress: () => closeThenReport({ kind: "post", id: p.id, authorId: p.authorId }),
-      },
-      {
-        text: t("menu.blockUser", { name: p.authorName }),
-        style: "destructive",
         onPress: () =>
-          Alert.alert(
-            t("menu.blockUserConfirmTitle", { name: p.authorName }),
-            t("menu.blockUserConfirmBody"),
-            [
-              { text: t("menu.cancel"), style: "cancel" },
-              {
-                text: t("menu.block"),
-                style: "destructive",
-                onPress: () => {
-                  onClose();
-                  blockUser.mutate({ userId: p.authorId });
-                },
-              },
-            ],
-          ),
+          closeThenReport({
+            kind: "post",
+            id: p.id,
+            authorId: p.authorId,
+            authorName: p.authorName,
+            authorAdmin: p.authorAdmin,
+          }),
       },
+      ...(p.authorAdmin
+        ? []
+        : [
+            {
+              text: t("menu.blockUser", { name: p.authorName }),
+              style: "destructive" as const,
+              onPress: () =>
+                Alert.alert(
+                  t("menu.blockUserConfirmTitle", { name: p.authorName }),
+                  t("menu.blockUserConfirmBody"),
+                  [
+                    { text: t("menu.cancel"), style: "cancel" },
+                    {
+                      text: t("menu.block"),
+                      style: "destructive",
+                      onPress: () => {
+                        onClose();
+                        blockUser.mutate({ userId: p.authorId });
+                      },
+                    },
+                  ],
+                ),
+            },
+          ]),
       { text: t("menu.cancel"), style: "cancel" },
     ]);
   };
@@ -481,28 +492,39 @@ export function ThreadSheet({
     Alert.alert(c.authorName, undefined, [
       {
         text: t("menu.reportComment"),
-        onPress: () => closeThenReport({ kind: "comment", id: c.id, authorId: c.authorId }),
-      },
-      {
-        text: t("menu.blockUser", { name: c.authorName }),
-        style: "destructive",
         onPress: () =>
-          Alert.alert(
-            t("menu.blockUserConfirmTitle", { name: c.authorName }),
-            t("menu.blockUserConfirmBody"),
-            [
-              { text: t("menu.cancel"), style: "cancel" },
-              {
-                text: t("menu.block"),
-                style: "destructive",
-                onPress: () => {
-                  onClose();
-                  blockUser.mutate({ userId: c.authorId });
-                },
-              },
-            ],
-          ),
+          closeThenReport({
+            kind: "comment",
+            id: c.id,
+            authorId: c.authorId,
+            authorName: c.authorName,
+            authorAdmin: c.authorAdmin,
+          }),
       },
+      ...(c.authorAdmin
+        ? []
+        : [
+            {
+              text: t("menu.blockUser", { name: c.authorName }),
+              style: "destructive" as const,
+              onPress: () =>
+                Alert.alert(
+                  t("menu.blockUserConfirmTitle", { name: c.authorName }),
+                  t("menu.blockUserConfirmBody"),
+                  [
+                    { text: t("menu.cancel"), style: "cancel" },
+                    {
+                      text: t("menu.block"),
+                      style: "destructive",
+                      onPress: () => {
+                        onClose();
+                        blockUser.mutate({ userId: c.authorId });
+                      },
+                    },
+                  ],
+                ),
+            },
+          ]),
       { text: t("menu.cancel"), style: "cancel" },
     ]);
   };
