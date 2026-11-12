@@ -304,6 +304,22 @@ begin
   end;
   assert public.schedule_post_draft(d, 4, (current_date + 10)::timestamp at time zone 'UTC' + interval '1 minute', 'UTC', 'a@x.co') = 5,
     'the from date passes a lower-only bound';
+  -- Publishing checks the window now, not the stored date: a scheduled draft whose stored date is
+  -- outside the window goes out manually while the topic is open today.
+  delete from public.post_drafts where publish_at is not null;
+  insert into public.post_drafts (author_id, topic, content, publish_at, publish_tz, scheduled_by, topic_from, topic_until, created_by, updated_by)
+    values (pid, 'general', 'stale-date', now() + interval '100 days', 'UTC', 'a@x.co', current_date - 1, current_date + 2, 't@x', 't@x') returning id into d;
+  assert public.publish_post_draft(d, 1, 'a@x.co') is not null, 'a manual publish checks the window now';
+  insert into public.post_drafts (author_id, topic, content, publish_at, publish_tz, scheduled_by, publish_error, failed_at, topic_from, topic_until, created_by, updated_by)
+    values (pid, 'general', 'was-closed', now() - interval '2 days', 'UTC', 'a@x.co', 'topic_closed', now(), current_date - 1, current_date + 2, 't@x', 't@x') returning id into d;
+  assert public.publish_post_draft(d, 1, 'a@x.co') is not null, 'a draft that failed topic_closed publishes once the topic is open';
+  insert into public.post_drafts (author_id, topic, content, publish_at, publish_tz, scheduled_by, topic_until, created_by, updated_by)
+    values (pid, 'general', 'now-closed', now() + interval '1 day', 'UTC', 'a@x.co', (now() at time zone 'UTC')::date, 't@x', 't@x') returning id into d;
+  begin
+    perform public.publish_post_draft(d, 1, 'a@x.co');
+    assert false, 'a manual publish after the window ended';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'topic_closed', sqlerrm;
+  end;
   -- The cron marks a due draft whose window closed.
   delete from public.post_drafts where publish_at is not null;
   insert into public.post_drafts (author_id, topic, content, publish_at, publish_tz, scheduled_by, topic_until, created_by, updated_by)

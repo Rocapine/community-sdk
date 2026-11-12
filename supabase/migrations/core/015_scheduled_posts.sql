@@ -24,7 +24,10 @@ alter table public.moderation_actions add constraint moderation_actions_action_c
 -- Raises the publish error codes (errcode P0001, code as message): not_a_team_account,
 -- author_banned, not_admin, invalid_content, invalid_image, invalid_poll,
 -- invalid_attachment, one_extra_only, invalid_topic, topic_closed. Callers are security definer; nobody else may run it.
-create or replace function public.check_post_draft(d post_drafts)
+-- Takes the instant the post goes out (default now) for the event window: publishing checks it at
+-- that moment, scheduling checks the chosen time. Replaces the one-argument version of earlier runs.
+drop function if exists public.check_post_draft(post_drafts);
+create or replace function public.check_post_draft(d post_drafts, p_at timestamptz default null)
 returns void
 language plpgsql security definer set search_path = public
 as $$
@@ -65,17 +68,17 @@ begin
   end if;
   -- Topic rules live in the dashboard; here a draft only needs one, so the cron never posts without it.
   if d.topic is null then raise exception 'invalid_topic'; end if;
-  -- Event topics: a scheduled draft's local publish date must fall in [topic_from, topic_until).
-  if d.publish_at is not null and d.publish_tz is not null
-    and (d.topic_from is not null or d.topic_until is not null)
-    and ((d.publish_at at time zone d.publish_tz)::date < d.topic_from
-      or (d.publish_at at time zone d.publish_tz)::date >= d.topic_until) then
+  -- Event topics: the local date the post goes out (in the draft's zone) must fall in
+  -- [topic_from, topic_until). Unscheduled drafts (no zone) are guarded by the dashboard only.
+  if d.publish_tz is not null and (d.topic_from is not null or d.topic_until is not null)
+    and ((coalesce(p_at, now()) at time zone d.publish_tz)::date < d.topic_from
+      or (coalesce(p_at, now()) at time zone d.publish_tz)::date >= d.topic_until) then
     raise exception 'topic_closed';
   end if;
 end;
 $$;
 
-revoke execute on function public.check_post_draft(post_drafts) from public, anon, authenticated;
+revoke execute on function public.check_post_draft(post_drafts, timestamptz) from public, anon, authenticated;
 
 -- Same checks and codes as 014 (the validation now lives in check_post_draft, which also raises
 -- invalid_topic: a draft needs a topic to go out).
@@ -147,9 +150,8 @@ begin
     -- The zone is for display only, but it must be an IANA name (not a POSIX string the dashboard can't show).
     if p_tz is null or p_tz not in (select name from pg_timezone_names) then raise exception 'invalid_time'; end if;
     -- check_post_draft also guards the event window, for the time being set.
-    d.publish_at := p_publish_at;
     d.publish_tz := p_tz;
-    perform check_post_draft(d);
+    perform check_post_draft(d, p_publish_at);
   elsif d.publish_at is null and d.publish_error is null then
     return d.version; -- nothing to clear
   end if;
