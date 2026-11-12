@@ -48,11 +48,10 @@ export async function unreadBadge(
     // Notification rows follow the same block rule as list_notifications
     // (inbox/004_mutual_blocks.sql); admins are never hidden by a block.
     const hidden = await blockedWith(supabase, uid);
-    const own = ((rows ?? []) as { id: string; actor_id: string | null }[])
-      .filter((r) => !r.actor_id || !hidden.has(r.actor_id));
-    const ids = [...own, ...(official ?? [])]
-      .map((r: { id: string }) => r.id)
-      .slice(0, 200);
+    const own = ((rows ?? []) as { id: string; actor_id: string | null }[]).filter(
+      (r) => !r.actor_id || !hidden.has(r.actor_id),
+    );
+    const ids = [...own, ...(official ?? [])].map((r: { id: string }) => r.id).slice(0, 200);
     if (ids.length === 0) return 1;
     // Items marked read one by one (inbox/002_replies_and_reads.sql); a project
     // without that table just counts every row past the watermark.
