@@ -134,13 +134,8 @@ begin
     if p_publish_at <= now() or p_publish_at > now() + interval '1 year 1 day' then
       raise exception 'invalid_time';
     end if;
-    -- The zone is for display only, but it must be one Postgres knows.
-    if p_tz is null then raise exception 'invalid_time'; end if;
-    begin
-      perform now() at time zone p_tz;
-    exception when others then
-      raise exception 'invalid_time';
-    end;
+    -- The zone is for display only, but it must be an IANA name (not a POSIX string the dashboard can't show).
+    if p_tz is null or p_tz not in (select name from pg_timezone_names) then raise exception 'invalid_time'; end if;
   elsif d.publish_at is null and d.publish_error is null then
     return d.version; -- nothing to clear
   end if;
@@ -158,7 +153,8 @@ begin
 
   insert into moderation_actions (actor_email, action, target_user_id, note)
     values (p_actor, 'schedule_post', d.author_id,
-            'draft ' || d.id || case when p_publish_at is not null then ' at ' || p_publish_at else ' unscheduled' end);
+            'draft ' || d.id || case when p_publish_at is not null
+              then ' at ' || to_char(p_publish_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') else ' unscheduled' end);
   return d.version + 1;
 end;
 $$;

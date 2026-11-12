@@ -63,7 +63,7 @@ begin
   assert n = 2, 'unschedule is logged';
   select count(*) into n from public.moderation_actions where action = 'schedule_post' and note = 'draft ' || d || ' unscheduled';
   assert n = 1, 'unschedule note names the draft';
-  select count(*) into n from public.moderation_actions where action = 'schedule_post' and note = 'draft ' || d || ' at ' || t;
+  select count(*) into n from public.moderation_actions where action = 'schedule_post' and note = 'draft ' || d || ' at ' || to_char(t at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
   assert n = 1, 'schedule note names the draft and the time';
 
   -- Unscheduling a draft with no time and no error is a no-op.
@@ -83,6 +83,11 @@ begin
   begin
     perform public.schedule_post_draft(d, 3, t, 'Mars/Olympus', 'a@x.co');
     assert false, 'an unknown zone schedules';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_time', sqlerrm;
+  end;
+  begin
+    perform public.schedule_post_draft(d, 3, t, 'ABC-3', 'a@x.co');
+    assert false, 'a POSIX zone schedules';
   exception when sqlstate 'P0001' then assert sqlerrm = 'invalid_time', sqlerrm;
   end;
 
@@ -186,8 +191,6 @@ begin
   assert r.publish_error = 'not_admin' and r.publish_at is not null, 'a failed draft keeps its error and time';
   select count(*) into n from public.posts where author_id = pid and content = 'middle';
   assert n = 0, 'a failed draft gets no post on the next run';
-  select * into r from public.post_drafts where id = d;
-  assert r.publish_error = 'not_admin', 'a failed draft is unchanged by the next run';
   update public.profiles set is_admin = true where id = pid;
 
   -- Late rule: 31 minutes past is missed, 29 minutes past still goes out.
@@ -235,6 +238,7 @@ begin
   select * into r from public.post_drafts where id = d;
   assert r.publish_error = repeat('x', 200), 'a non-P0001 error is stored cut to 200 characters';
   drop trigger t_boom on public.posts;
+  drop function public.t_boom();
 
   -- Not callable by clients or service_role; the job exists and runs the function every minute.
   set local role authenticated;
@@ -246,6 +250,8 @@ begin
   reset role;
   assert not has_function_privilege('service_role', 'public.publish_due_post_drafts()', 'execute'),
     'service_role cannot run the cron function';
+  assert has_function_privilege((select username from cron.job where jobname = 'post-drafts-publish'),
+    'public.publish_due_post_drafts()', 'execute'), 'the cron job user can run the cron function';
   assert exists (select 1 from cron.job where jobname = 'post-drafts-publish' and schedule = '* * * * *'
     and command like '%publish_due_post_drafts()%'), 'the cron job runs publish_due_post_drafts every minute';
 
