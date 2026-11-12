@@ -296,6 +296,14 @@ begin
     assert false, 'a time past an upper-only bound schedules';
   exception when sqlstate 'P0001' then assert sqlerrm = 'topic_closed', sqlerrm;
   end;
+  update public.post_drafts set topic_from = current_date + 10, topic_until = null where id = d;
+  begin
+    perform public.schedule_post_draft(d, 4, (current_date + 9)::timestamp at time zone 'UTC' + interval '12 hours', 'UTC', 'a@x.co');
+    assert false, 'a time before a lower-only bound schedules';
+  exception when sqlstate 'P0001' then assert sqlerrm = 'topic_closed', sqlerrm;
+  end;
+  assert public.schedule_post_draft(d, 4, (current_date + 10)::timestamp at time zone 'UTC' + interval '1 minute', 'UTC', 'a@x.co') = 5,
+    'the from date passes a lower-only bound';
   -- The cron marks a due draft whose window closed.
   delete from public.post_drafts where publish_at is not null;
   insert into public.post_drafts (author_id, topic, content, publish_at, publish_tz, scheduled_by, topic_until, created_by, updated_by)

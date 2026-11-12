@@ -67,6 +67,7 @@ begin
   if d.topic is null then raise exception 'invalid_topic'; end if;
   -- Event topics: a scheduled draft's local publish date must fall in [topic_from, topic_until).
   if d.publish_at is not null and d.publish_tz is not null
+    and (d.topic_from is not null or d.topic_until is not null)
     and ((d.publish_at at time zone d.publish_tz)::date < d.topic_from
       or (d.publish_at at time zone d.publish_tz)::date >= d.topic_until) then
     raise exception 'topic_closed';
@@ -201,7 +202,8 @@ begin
         perform publish_post_draft(r.id, r.version, r.scheduled_by);
         n := n + 1;
       exception
-        when serialization_failure or deadlock_detected or lock_not_available then null;
+        when serialization_failure or deadlock_detected or lock_not_available then
+          raise log 'publish_due_post_drafts: transient % on draft %', sqlstate, r.id;
         when others then
         update post_drafts set failed_at = now(),
           publish_error = left(sqlerrm, 200)

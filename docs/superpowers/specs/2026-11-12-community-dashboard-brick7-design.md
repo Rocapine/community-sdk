@@ -170,8 +170,8 @@ drafts/:id/schedule {version, publishAt | null}` → `schedule_post_draft`. A 40
 
 ## Left to the builder
 
-How the shared draft check is factored. Whether Home's week data is one route or two. The exact
-quick picks, as long as there are at most three. Component structure.
+How the shared draft check is factored. Whether Home's week data is one route or two. Component
+structure.
 
 ## Revisions 2026-11-12 (Guillaume)
 
