@@ -285,7 +285,7 @@ export function ProfileScreen({
               <View style={styles.topRowSpacer} />
             )}
             <View style={styles.topRowSpacer} />
-            {myUid != null && !isMe && profile.data && !profile.data.admin && (
+            {myUid != null && !isMe && !unavailable && profile.data && !profile.data.admin && (
               <Pressable
                 onPress={openHeaderMenu}
                 style={styles.dotsBtn}
