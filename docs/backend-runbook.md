@@ -308,9 +308,9 @@ time, each request aborted after 10 s. The author's own devices are skipped.
 Each push carries the member's own unread count as the icon badge (`unreadBadges` in
 `_shared/push.ts`, the same count as the likes, comments and reactions pushes: inbox rows and
 admin posts sent to everyone, past the seen marker, minus the items read one by one). It costs 4
-small queries per member, 20 members at a time, before the first push goes out (estimated at a few seconds per thousand
-members, not measured). A project still running a `broadcast-post` deployed before this change sends a
-badge of 1 to everyone; redeploy `broadcast-post`, `notify-comment`, `notify-like` and
+small queries per member, 20 members at a time, before the first push goes out (estimated at a
+few seconds per thousand members, not measured). A `broadcast-post` deployed before this change
+sends a badge of 1 to everyone; redeploy `broadcast-post`, `notify-comment`, `notify-like` and
 `notify-reaction` to pick it up.
 
 The notification center lists an admin post only once `broadcast_at` is set
