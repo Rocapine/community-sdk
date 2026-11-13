@@ -69,17 +69,17 @@ begin
 
   with
   days as (select generate_series(from_date, to_date, interval '1 day')::date as day),
+  -- first_reply_min: minutes to the first non-deleted comment by someone other than the author.
   m_posts as (
-    select p.author_id, p.topic, (p.created_at at time zone tz)::date as day,
-      p.created_at <= now() - interval '24 hours' as eligible,
-      exists (select 1 from comments c where c.post_id = p.id and c.status <> 'deleted'
-        and c.author_id <> p.author_id and c.created_at <= p.created_at + interval '24 hours') as replied,
-      exists (select 1 from comments c where c.post_id = p.id and c.status <> 'deleted'
-        and c.author_id <> p.author_id) as answered,
-      (select extract(epoch from min(c.created_at) - p.created_at) / 60 from comments c
-        where c.post_id = p.id and c.status <> 'deleted' and c.author_id <> p.author_id) as first_reply_min
-    from posts p join profiles a on a.id = p.author_id and not a.is_house
-    where p.status <> 'deleted' and p.created_at >= t0 and p.created_at < t1),
+    select author_id, topic, day, eligible, coalesce(first_reply_min <= 1440, false) as replied,
+      first_reply_min is not null as answered, first_reply_min
+    from (
+      select p.author_id, p.topic, (p.created_at at time zone tz)::date as day,
+        p.created_at <= now() - interval '24 hours' as eligible,
+        (select extract(epoch from min(c.created_at) - p.created_at) / 60 from comments c
+          where c.post_id = p.id and c.status <> 'deleted' and c.author_id <> p.author_id) as first_reply_min
+      from posts p join profiles a on a.id = p.author_id and not a.is_house
+      where p.status <> 'deleted' and p.created_at >= t0 and p.created_at < t1) q),
   m_comments as (
     select c.author_id, (c.created_at at time zone tz)::date as day
     from comments c join profiles a on a.id = c.author_id and not a.is_house

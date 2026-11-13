@@ -24,6 +24,8 @@ begin
   update public.profiles set created_at = case id when m2 then '2001-03-01 08:00Z'::timestamptz
     when m1 then '2001-03-02 08:00Z' when m3 then '2001-03-03 08:00Z' else '2001-03-02 09:00Z' end
     where id = any(ids);
+  -- Every other profile signed up after the windows, so member counts do not depend on the backend.
+  update public.profiles set created_at = '2001-06-01Z' where id <> all(ids);
 
   -- m1: 3 posts + comments in the window. m2: 1 (its first post and its comment are deleted).
   -- m3: only likes. h: a house account, in no count.
@@ -59,11 +61,13 @@ begin
   if has_polls then
     insert into public.poll_options (post_id, idx, label) values (p3, 0, 'a') returning id into opt;
     insert into public.poll_votes (post_id, option_id, user_id, created_at) values
-      (p3, opt, m1, '2001-03-04 13:00Z'), (p3, opt, h, '2001-03-04 13:30Z');
+      (p3, opt, m1, '2001-03-04 13:00Z'), (p3, opt, h, '2001-03-04 13:30Z'),
+      (p3, opt, m3, '2001-03-05 12:00Z');
   end if;
   if has_reactions then
     insert into public.post_reactions (post_id, user_id, created_at) values
-      (p1, m2, '2001-03-02 16:00Z'), (p1, h, '2001-03-02 16:30Z');
+      (p1, m2, '2001-03-02 16:00Z'), (p1, h, '2001-03-02 16:30Z'),
+      (p1, m3, '2001-03-05 12:30Z');
   end if;
 
   -- Window 2001-03-01..08, two arguments (UTC).
@@ -103,15 +107,15 @@ begin
 
   if has_polls then
     assert (j->'daily'->3->>'poll_votes')::int = 1
-      and (select sum((e->>'poll_votes')::int) from jsonb_array_elements(j->'daily') e) = 1,
-      'one member poll vote: ' || (j->'daily');
+      and (select sum((e->>'poll_votes')::int) from jsonb_array_elements(j->'daily') e) = 2,
+      'two member poll votes: ' || (j->'daily');
   else
     assert j->'daily'->3->'poll_votes' = 'null'::jsonb, 'no polls module, no poll votes';
   end if;
   if has_reactions then
     assert (j->'daily'->1->>'reactions')::int = 1
-      and (select sum((e->>'reactions')::int) from jsonb_array_elements(j->'daily') e) = 1,
-      'one member reaction: ' || (j->'daily');
+      and (select sum((e->>'reactions')::int) from jsonb_array_elements(j->'daily') e) = 2,
+      'two member reactions: ' || (j->'daily');
   else
     assert j->'daily'->1->'reactions' = 'null'::jsonb, 'no reaction module, no reactions';
   end if;
@@ -125,7 +129,6 @@ begin
   assert j->'contribution_buckets' = '{"1": 1, "2-3": 1, "4-7": 0, "8+": 0}'::jsonb,
     'm2 wrote 1, m1 wrote 3: ' || (j->'contribution_buckets');
 
-
   -- Members: sign-ups (house out), active members (any event kind, house out), total.
   assert (select array_agg((e->>'new_members')::int order by e->>'day') from jsonb_array_elements(j->'daily') e)
     = array[1,1,1,0,0,0,0,0], 'one new member on each of the first three days: ' || (j->'daily');
@@ -134,6 +137,9 @@ begin
   assert (j->'daily'->0->>'active_members')::int = 0, 'a deleted post makes nobody active: ' || (j->'daily'->0);
   assert (j->'daily'->2->>'active_members')::int = 2, 'm1 posted, m3 liked a comment, the team is out: ' || (j->'daily'->2);
   assert (j->'daily'->3->>'active_members')::int = 2, 'm2 posted, m1 liked: ' || (j->'daily'->3);
+  -- 5 March: m3's only activity is a poll vote and a reaction.
+  assert (j->'daily'->4->>'active_members')::int = (has_polls or has_reactions)::int,
+    'a voter or reactor is active: ' || (j->'daily'->4);
   assert (j->>'active_members')::int = 3, 'm1, m2 and m3 over the period, once each: ' || (j->>'active_members');
   -- members_total counts everyone signed up before the end of the window.
   assert (public.admin_daily_metrics('2001-03-01', '2001-03-01')->>'members_total')::int = 1, 'only m2 by the 1st';
@@ -149,6 +155,9 @@ begin
     select id, m1, 'self', 'visible', created_at + interval '1 minute' from public.posts where content = 'q4' and author_id = m1;
   insert into public.comments (post_id, author_id, content, status, created_at)
     select id, m2, 'gone', 'deleted', created_at + interval '2 minutes' from public.posts where content = 'q4' and author_id = m1;
+  -- A later reply (after 24 h) on q1 is not its first one.
+  insert into public.comments (post_id, author_id, content, status, created_at)
+    select id, m3, 'later', 'visible', created_at + interval '3000 minutes' from public.posts where content = 'q1' and author_id = m1;
   j := public.admin_daily_metrics('2001-04-01', '2001-04-05');
   assert (j->>'median_first_reply_minutes')::numeric = 30, 'median of 10, 30, 90: ' || coalesce(j->>'median_first_reply_minutes', 'null');
   j := public.admin_daily_metrics('2001-04-04', '2001-04-04');
@@ -209,6 +218,7 @@ begin
   j := public.admin_daily_metrics('2001-03-01', '2001-03-08');
   assert (j->>'active_members')::int = 3 and j->'daily'->3->'poll_votes' = 'null'::jsonb
     and j->'daily'->1->'reactions' = 'null'::jsonb, 'modules dropped: ' || j;
+  assert (j->'daily'->4->>'active_members')::int = 0, 'without the modules the voter is not seen: ' || (j->'daily'->4);
 
   raise exception 'ACTIVITY_METRICS_TESTS_PASSED';
 end $$;
