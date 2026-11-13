@@ -198,7 +198,9 @@ export function CommunityPost({
       </Pressable>
       {topicId && (
         <>
-          <Text style={styles.meta}>›</Text>
+          <Text style={styles.meta} accessibilityElementsHidden importantForAccessibility="no">
+            ›
+          </Text>
           <Pressable
             onPress={onPressTopic ? () => onPressTopic(topicId) : undefined}
             disabled={!onPressTopic}
@@ -390,11 +392,14 @@ export function CommunityPost({
   );
 
   return onOpenThread ? (
-    // Not one screen-reader element: VoiceOver would read the whole post in one
-    // go and never reach its buttons. The comment button opens the thread.
+    // Hidden from screen readers, its content not: as one element, VoiceOver
+    // read the whole post in one go and never reached its buttons, and TalkBack
+    // stopped on it too. The comment button opens the thread.
     <PressableScale
       scale="surface"
       accessible={false}
+      accessibilityRole="none"
+      importantForAccessibility="no"
       onPress={() => onOpenThread(post.id)}
       style={[styles.row, overBackground && styles.rowOverBackground]}
     >
