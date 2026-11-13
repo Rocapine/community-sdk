@@ -228,4 +228,11 @@ export const frVous: Record<string, string> = {
   "badge.streak.toggle": "Afficher ma série",
   "badge.bestStreak.toggle": "Afficher ma meilleure série",
   "profile.badgesHelper": "Les autres ne voient que les badges que vous activez.",
+  "presence.count.one": "{count} en ligne",
+  "presence.count.other": "{count} en ligne",
+  "a11y.onlineCount.one": "{count} personne en ligne",
+  "a11y.onlineCount.other": "{count} personnes en ligne",
+  "a11y.online": "En ligne",
+  "profile.activityStatus": "Statut d'activité",
+  "profile.showOnline": "Montrer quand je suis en ligne",
 };

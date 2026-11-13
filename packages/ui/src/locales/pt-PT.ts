@@ -224,4 +224,11 @@ export const ptPT: Record<string, string> = {
   "badge.streak.toggle": "Mostrar a minha sequência",
   "badge.bestStreak.toggle": "Mostrar a minha melhor sequência",
   "profile.badgesHelper": "Os outros só veem os distintivos que ativares.",
+  "presence.count.one": "{count} online",
+  "presence.count.other": "{count} online",
+  "a11y.onlineCount.one": "{count} pessoa online",
+  "a11y.onlineCount.other": "{count} pessoas online",
+  "a11y.online": "Online",
+  "profile.activityStatus": "Estado de atividade",
+  "profile.showOnline": "Mostrar quando estou online",
 };

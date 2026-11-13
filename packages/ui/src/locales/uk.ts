@@ -230,4 +230,13 @@ export const uk: Record<string, string> = {
   "badge.streak.toggle": "Показувати мою серію",
   "badge.bestStreak.toggle": "Показувати мою найкращу серію",
   "profile.badgesHelper": "Іншим видно лише значки, які ти ввімкнеш.",
+  "presence.count.one": "{count} онлайн",
+  "presence.count.few": "{count} онлайн",
+  "presence.count.other": "{count} онлайн",
+  "a11y.onlineCount.one": "{count} людина онлайн",
+  "a11y.onlineCount.few": "{count} людини онлайн",
+  "a11y.onlineCount.other": "{count} людей онлайн",
+  "a11y.online": "Онлайн",
+  "profile.activityStatus": "Статус активності",
+  "profile.showOnline": "Показувати, коли я онлайн",
 };

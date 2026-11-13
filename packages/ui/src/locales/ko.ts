@@ -217,4 +217,11 @@ export const ko: Record<string, string> = {
   "badge.streak.toggle": "내 연속 기록 표시",
   "badge.bestStreak.toggle": "내 최고 기록 표시",
   "profile.badgesHelper": "다른 사람에게는 켜 둔 배지만 보여요.",
+  "presence.count.one": "{count}명 온라인",
+  "presence.count.other": "{count}명 온라인",
+  "a11y.onlineCount.one": "{count}명 온라인",
+  "a11y.onlineCount.other": "{count}명 온라인",
+  "a11y.online": "온라인",
+  "profile.activityStatus": "활동 상태",
+  "profile.showOnline": "온라인일 때 표시",
 };
