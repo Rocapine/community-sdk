@@ -11,6 +11,12 @@
 -- created before the window's end) and median_first_reply_minutes (median minutes to the first
 -- non-deleted reply by someone else, over posts at least 24 h old; null when none was replied).
 -- created_at indexes keep the window scans cheap. Replaces the two-argument version of core/004.
+-- Also admin_activity_breakdown(from_date, to_date, tz): the Activity page's breakdowns in one
+-- call (service role only): a 7 x 24 heatmap (Monday first, hours in tz) of member posts and
+-- comments, those by author language (profiles.locale, from the push module; null when the
+-- column is absent), moderation counts (reports, AI-hidden items not yet reviewed, team
+-- actions) against the previous period of the same length, how many of the previous period's
+-- contributors came back, and the five top posts. Same zone check and window as above.
 -- Requires core/004. Fully idempotent.
 
 create index if not exists posts_created_at_idx on public.posts (created_at);
@@ -179,3 +185,80 @@ end;
 $$;
 
 revoke execute on function public.admin_daily_metrics(date, date, text) from public, anon, authenticated;
+
+create or replace function public.admin_activity_breakdown(from_date date, to_date date, tz text default 'UTC')
+returns jsonb
+language plpgsql
+stable
+set search_path = public
+as $$
+declare
+  t0 timestamptz;
+  t1 timestamptz;
+  pt0 timestamptz;  -- the previous period: as many days, right before from_date
+  result jsonb;
+begin
+  if tz is null or tz not in (select name from pg_timezone_names) then
+    raise exception 'invalid_time_zone' using errcode = '22023';
+  end if;
+  t0 := from_date::timestamp at time zone tz;
+  t1 := (to_date + 1)::timestamp at time zone tz;
+  pt0 := (from_date - greatest(to_date - from_date + 1, 0))::timestamp at time zone tz;
+
+  with
+  -- Member posts and comments (not deleted) of both periods; locale is read through to_jsonb
+  -- so the function also compiles where the push module's column does not exist.
+  writes as (
+    select p.author_id, p.created_at, to_jsonb(a)->>'locale' as locale
+    from posts p join profiles a on a.id = p.author_id and not a.is_house
+    where p.status <> 'deleted' and p.created_at >= pt0 and p.created_at < t1
+    union all
+    select c.author_id, c.created_at, to_jsonb(a)->>'locale'
+    from comments c join profiles a on a.id = c.author_id and not a.is_house
+    where c.status <> 'deleted' and c.created_at >= pt0 and c.created_at < t1),
+  cur as (select * from writes where created_at >= t0),
+  heat as (
+    select extract(isodow from created_at at time zone tz)::int - 1 as dow,
+      extract(hour from created_at at time zone tz)::int as hr, count(*) as n
+    from cur group by 1, 2),
+  mod as (
+    select w.k,
+      (select count(*) from reports r where r.created_at >= w.a and r.created_at < w.b) as reports,
+      (select count(*) from (
+          select 1 from posts p join profiles a on a.id = p.author_id and not a.is_house
+          where p.status = 'hidden' and p.reviewed_at is null and p.moderated_at >= w.a and p.moderated_at < w.b
+          union all
+          select 1 from comments c join profiles a on a.id = c.author_id and not a.is_house
+          where c.status = 'hidden' and c.reviewed_at is null and c.moderated_at >= w.a and c.moderated_at < w.b) q) as ai_hidden,
+      (select count(*) from moderation_actions m where m.created_at >= w.a and m.created_at < w.b) as team_actions
+    from (values ('cur', t0, t1), ('prev', pt0, t0)) w(k, a, b)),
+  top as (select * from (
+    select p.id, left(p.content, 140) as excerpt, p.topic, p.author_id, a.username as author_name, p.created_at,
+      (select count(*) from likes l join profiles u on u.id = l.user_id and not u.is_house where l.post_id = p.id) as likes,
+      (select count(*) from comments c join profiles u on u.id = c.author_id and not u.is_house
+        where c.post_id = p.id and c.status <> 'deleted') as comments
+    from posts p join profiles a on a.id = p.author_id and not a.is_house
+    where p.status <> 'deleted' and p.created_at >= t0 and p.created_at < t1) q
+    order by likes + comments desc, created_at desc limit 5)
+  select jsonb_build_object(
+    'tz', tz,
+    'heatmap', (select jsonb_agg((select jsonb_agg(coalesce((select n from heat where heat.dow = d and heat.hr = hh), 0) order by hh)
+        from generate_series(0, 23) hh) order by d) from generate_series(0, 6) d),
+    'languages', (select coalesce(jsonb_agg(jsonb_build_object('locale', locale, 'count', n) order by n desc, locale), '[]')
+      from (select locale, count(*) as n from cur group by locale) l),
+    'moderation', (select jsonb_build_object('reports', c.reports, 'ai_hidden', c.ai_hidden, 'team_actions', c.team_actions,
+        'previous', jsonb_build_object('reports', v.reports, 'ai_hidden', v.ai_hidden, 'team_actions', v.team_actions))
+      from mod c, mod v where c.k = 'cur' and v.k = 'prev'),
+    'returning', jsonb_build_object(
+      'previous_contributors', (select count(distinct author_id) from writes where created_at < t0),
+      'returned', (select count(distinct author_id) from cur
+        where author_id in (select author_id from writes where created_at < t0))),
+    'top_posts', (select coalesce(jsonb_agg(jsonb_build_object('id', id, 'excerpt', excerpt, 'topic', topic,
+        'author_id', author_id, 'author_name', author_name, 'likes', likes, 'comments', comments,
+        'created_at', created_at) order by likes + comments desc, created_at desc), '[]') from top))
+  into result;
+  return result;
+end;
+$$;
+
+revoke execute on function public.admin_activity_breakdown(date, date, text) from public, anon, authenticated;
