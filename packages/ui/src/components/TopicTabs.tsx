@@ -174,6 +174,11 @@ function Tab({
 
 const TAB_PADDING = 12;
 
+/** Where the first tab's label starts, from the screen's edge. */
+export function firstTabLabelInset(theme: CommunityTheme): number {
+  return theme.spacing(1.5) + TAB_PADDING;
+}
+
 function makeStyles(theme: CommunityTheme) {
   return StyleSheet.create({
     row: { paddingHorizontal: theme.spacing(1.5), height: TABS_ROW_HEIGHT },

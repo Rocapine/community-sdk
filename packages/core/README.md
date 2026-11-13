@@ -62,7 +62,7 @@ const config: CommunityConfig = {
     images: true,
     // Online dots and count. Needs the backend `presence` module and a heartbeat
     // run by the host: `startPresenceHeartbeat(cfg, AppState)`. All fields optional:
-    // minCount (0), collapseAfterMs (3000, or false).
+    // minCount (0), collapseAfterMs (3000, or false), appearance ("pill" or "text").
     presence: {},
   },
 

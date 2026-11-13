@@ -146,7 +146,7 @@ e.g. `lib/community-config.ts`.
    against a backend without them the feed fails to load. If the app builds `FeedPost` or
    `ThreadComment` objects by hand (tests, fixtures), add `image: null`; a host
    that types a complete `CommunityIconSet` adds the new `image` role.
-   **Presence.** `presence: {}` (or `{ minCount?, collapseAfterMs? }`)
+   **Presence.** `presence: {}` (or `{ minCount?, collapseAfterMs?, appearance? }`, `appearance: "text"` for plain text instead of the collapsing pill)
    turns on the dots and the `"online"` feed header item (e.g.
    `header={{ left: ["profile", "online"], … }}`; it is dropped when the module is
    off). The app must run the heartbeat itself, once, with the resolved config:

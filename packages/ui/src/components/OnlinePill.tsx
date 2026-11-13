@@ -1,10 +1,12 @@
-// The feed header's "online" item: a green dot and the live count, expanding to
-// "N online" on the app's first launch (per JS runtime) and after a tap, then
-// collapsing to dot + number. Presence is only ever shown, never its absence: it
-// renders nothing while the count is unknown or under the module's `minCount`.
+// The feed header's "online" item: a green dot and the live count. As a pill
+// (default) it expands to "N online" on the app's first launch (per JS runtime) and
+// after a tap, then collapses to dot + number; as text it is always "● N online", the
+// dot pulsing once on the first arrival. Presence is only ever shown, never its
+// absence: it renders nothing while the count is unknown or under the module's
+// `minCount`.
 import { presenceSettings, useCommunityConfig, useOnlineCount } from "@rocapine/community-core";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import Animated, {
   Easing,
   cancelAnimation,
@@ -37,20 +39,78 @@ const PULSE_MS = 1600;
 // 32pt pill + this on each side = the 44pt target of the sibling header buttons.
 const HIT_SLOP = { top: 6, bottom: 6 } as const;
 
-export function OnlinePill(): ReactElement | null {
+export function OnlinePill({ style }: { style?: StyleProp<ViewStyle> }): ReactElement | null {
   const cfg = useCommunityConfig();
   const count = useOnlineCount();
   const settings = presenceSettings(cfg);
   if (!settings || count === null || count < settings.minCount) return null;
-  return <Pill count={count} collapseAfterMs={settings.collapseAfterMs} />;
+  if (settings.appearance === "text") return <OnlineText count={count} style={style} />;
+  return <Pill count={count} collapseAfterMs={settings.collapseAfterMs} style={style} />;
+}
+
+/** The count's visible parts: the number apart (tabular figures) and the label,
+ * with no gap when the locale glues them ("12명 온라인"). */
+function useCountLabel(count: number) {
+  const t = useT();
+  const text = t("presence.count", { count });
+  return { label: withoutCount(text, count), glued: countGluedToLabel(text, count) };
+}
+
+/** `appearance: "text"`: "● N online" in full, no background, the dot pulsing once
+ * on the first arrival (per JS runtime). Not a button: there is nothing to open. */
+function OnlineText({
+  count,
+  style,
+}: {
+  count: number;
+  style?: StyleProp<ViewStyle>;
+}): ReactElement {
+  const t = useT();
+  const styles = useThemedStyles(makeStyles);
+  const reduceMotion = useReducedMotion();
+  // Read without side effects (StrictMode renders twice); claimed on mount below.
+  const [firstArrival] = useState(coldStartExpansionPending);
+  const pulse = useSharedValue(0);
+  useEffect(() => {
+    claimColdStartExpansion();
+  }, []);
+  useEffect(() => {
+    if (!firstArrival || reduceMotion) return;
+    pulse.value = withTiming(1, { duration: PULSE_MS, easing: Easing.out(Easing.quad) });
+    return () => cancelAnimation(pulse);
+  }, [firstArrival, reduceMotion, pulse]);
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: pulse.value > 0 ? 0.55 * (1 - pulse.value) : 0,
+    transform: [{ scale: 1 + 2 * pulse.value }],
+  }));
+  const { label, glued } = useCountLabel(count);
+  return (
+    <View
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={t("a11y.onlineCount", { count })}
+      style={[styles.text, style]}
+    >
+      <View style={styles.dotSlot}>
+        <Animated.View style={[styles.dot, haloStyle]} />
+        <View style={styles.dot} />
+      </View>
+      <Text style={styles.count}>{count}</Text>
+      <Text style={glued ? [styles.label, styles.labelGlued] : styles.label} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
 }
 
 function Pill({
   count,
   collapseAfterMs,
+  style,
 }: {
   count: number;
   collapseAfterMs: number | false;
+  style?: StyleProp<ViewStyle>;
 }): ReactElement {
   const t = useT();
   const styles = useThemedStyles(makeStyles);
@@ -128,9 +188,7 @@ function Pill({
     opacity: fade.value,
   }));
 
-  const text = t("presence.count", { count });
-  const label = withoutCount(text, count);
-  const glued = countGluedToLabel(text, count);
+  const { label, glued } = useCountLabel(count);
   const labelStyles = glued ? [styles.label, styles.labelGlued] : styles.label;
   const onPress = useCallback(() => {
     setExpanded(true);
@@ -152,7 +210,7 @@ function Pill({
       accessibilityState={{ expanded }}
       accessibilityLabel={t("a11y.onlineCount", { count })}
       hitSlop={HIT_SLOP}
-      style={styles.pill}
+      style={[styles.pill, style]}
     >
       <View pointerEvents="none" style={styles.bg} />
       <View style={styles.dotSlot} importantForAccessibility="no-hide-descendants">
@@ -203,6 +261,7 @@ const makeStyles = (theme: CommunityTheme) =>
       overflow: "hidden",
       ...noFocusRing,
     },
+    text: { height: 32, flexDirection: "row", alignItems: "center" },
     bg: { ...StyleSheet.absoluteFill, backgroundColor: theme.colors.success, opacity: 0.14 },
     dotSlot: { width: DOT, height: DOT, marginRight: theme.spacing(1.5) },
     dot: {

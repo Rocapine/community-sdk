@@ -71,8 +71,10 @@ describe("presenceSettings", () => {
     expect(presenceSettings(cfgWith({}))).toEqual({
       minCount: 0,
       collapseAfterMs: 3000,
+      appearance: "pill",
     });
     expect(presenceSettings(cfgWith({ collapseAfterMs: false }))!.collapseAfterMs).toBe(false);
+    expect(presenceSettings(cfgWith({ appearance: "text" }))!.appearance).toBe("text");
   });
 });
 
