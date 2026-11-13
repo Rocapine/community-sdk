@@ -1,0 +1,139 @@
+-- community-sdk core/017_activity_metrics.sql (schema v1)
+-- admin_daily_metrics, fixed for the dashboard's Activity section (service role only):
+-- days in the team's zone (tz, an IANA name; two arguments mean UTC), house accounts out of
+-- every count, posts and comments of any status but deleted, the reply rate per day (a reply is
+-- a comment not deleted by someone other than the author within 24 h; posts under 24 h old are
+-- left out), new posters on their first post that isn't deleted, and likes, poll votes,
+-- reactions, unanswered posts, contributors and reactors. Poll votes and reactions are null
+-- when the polls / reaction module is not installed. Replaces the two-argument version of core/004.
+-- Requires core/004. Fully idempotent. If #82 lands after this, renumber.
+
+drop function if exists public.admin_daily_metrics(date, date);
+
+create or replace function public.admin_daily_metrics(from_date date, to_date date, tz text default 'UTC')
+returns jsonb
+language plpgsql
+stable
+set search_path = public
+as $$
+declare
+  t0 timestamptz;
+  t1 timestamptz;
+  -- Member rows of an optional module in the window: per-day counts and who.
+  extra text := $q$
+    with r as (
+      select x.user_id, (x.created_at at time zone $3)::date as day
+      from %I x join profiles a on a.id = x.user_id and not a.is_house
+      where x.created_at >= $1 and x.created_at < $2)
+    select coalesce((select jsonb_object_agg(day, n) from (select day, count(*) as n from r group by day) s), '{}'),
+           coalesce((select array_agg(distinct user_id) from r), '{}')$q$;
+  vote_days jsonb;
+  vote_users uuid[] := '{}';
+  reaction_days jsonb;
+  reaction_users uuid[] := '{}';
+  result jsonb;
+begin
+  if tz is null or tz not in (select name from pg_timezone_names) then
+    raise exception 'invalid_time_zone' using errcode = '22023';
+  end if;
+  t0 := from_date::timestamp at time zone tz;
+  t1 := (to_date + 1)::timestamp at time zone tz;
+
+  if to_regclass('public.poll_votes') is not null then
+    execute format(extra, 'poll_votes') into vote_days, vote_users using t0, t1, tz;
+  end if;
+  if to_regclass('public.post_reactions') is not null then
+    execute format(extra, 'post_reactions') into reaction_days, reaction_users using t0, t1, tz;
+  end if;
+
+  with
+  days as (select generate_series(from_date, to_date, interval '1 day')::date as day),
+  m_posts as (
+    select p.author_id, p.topic, (p.created_at at time zone tz)::date as day,
+      p.created_at <= now() - interval '24 hours' as eligible,
+      exists (select 1 from comments c where c.post_id = p.id and c.status <> 'deleted'
+        and c.author_id <> p.author_id and c.created_at <= p.created_at + interval '24 hours') as replied,
+      exists (select 1 from comments c where c.post_id = p.id and c.status <> 'deleted'
+        and c.author_id <> p.author_id) as answered
+    from posts p join profiles a on a.id = p.author_id and not a.is_house
+    where p.status <> 'deleted' and p.created_at >= t0 and p.created_at < t1),
+  m_comments as (
+    select c.author_id, (c.created_at at time zone tz)::date as day
+    from comments c join profiles a on a.id = c.author_id and not a.is_house
+    where c.status <> 'deleted' and c.created_at >= t0 and c.created_at < t1),
+  m_likes as (
+    select l.user_id, (l.created_at at time zone tz)::date as day
+    from likes l join profiles a on a.id = l.user_id and not a.is_house
+    where l.created_at >= t0 and l.created_at < t1
+    union all
+    select l.user_id, (l.created_at at time zone tz)::date
+    from comment_likes l join profiles a on a.id = l.user_id and not a.is_house
+    where l.created_at >= t0 and l.created_at < t1),
+  writes as (select author_id, day from m_posts union all select author_id, day from m_comments),
+  -- A new poster has a post in the window, so only those authors are looked up.
+  new_posters as (
+    select (min(p.created_at) at time zone tz)::date as day
+    from posts p
+    where p.status <> 'deleted' and p.author_id in (select author_id from m_posts)
+    group by p.author_id
+    having min(p.created_at) >= t0),
+  hidden as (
+    select (p.moderated_at at time zone tz)::date as day
+    from posts p join profiles a on a.id = p.author_id and not a.is_house
+    where p.status = 'hidden' and p.moderated_at >= t0 and p.moderated_at < t1),
+  contributions as (select author_id, count(*) as n from writes group by author_id),
+  -- One pass per day: every row tagged with its kind, then counted by kind.
+  events as (
+    select day, 'post' as kind, author_id as who, eligible, eligible and replied as replied from m_posts
+    union all select day, 'comment', author_id, false, false from m_comments
+    union all select day, 'like', user_id, false, false from m_likes
+    union all select day, 'new_poster', null, false, false from new_posters
+    union all select day, 'hidden', null, false, false from hidden),
+  per_day as (
+    select day,
+      count(*) filter (where kind = 'post') as posts,
+      count(*) filter (where kind = 'comment') as comments,
+      count(*) filter (where kind = 'new_poster') as new_posters,
+      count(*) filter (where kind = 'hidden') as hidden,
+      count(*) filter (where kind = 'like') as likes,
+      count(*) filter (where replied) as replied,
+      count(*) filter (where eligible) as eligible,
+      count(distinct who) filter (where kind in ('post', 'comment')) as contributors
+    from events group by day)
+  select jsonb_build_object(
+    'tz', tz,
+    'daily', (select jsonb_agg(jsonb_build_object(
+        'day', d.day,
+        'posts', coalesce(x.posts, 0),
+        'comments', coalesce(x.comments, 0),
+        'new_posters', coalesce(x.new_posters, 0),
+        'hidden', coalesce(x.hidden, 0),
+        'likes', coalesce(x.likes, 0),
+        'poll_votes', case when vote_days is not null then coalesce((vote_days->>d.day::text)::int, 0) end,
+        'reactions', case when reaction_days is not null then coalesce((reaction_days->>d.day::text)::int, 0) end,
+        'replied_24h', coalesce(x.replied, 0),
+        'reply_eligible', coalesce(x.eligible, 0),
+        'contributors', coalesce(x.contributors, 0)
+      ) order by d.day) from days d left join per_day x on x.day = d.day),
+    'topics', (select coalesce(jsonb_agg(jsonb_build_object('topic', topic, 'count', n) order by n desc, topic), '[]')
+      from (select coalesce(topic, '(sans)') as topic, count(*) as n from m_posts group by 1) t),
+    'reply_rate', (select coalesce(count(*) filter (where replied)::float / nullif(count(*), 0), 0)
+      from m_posts where eligible),
+    'unanswered', (select count(*) from m_posts where eligible and not answered),
+    'contributors', (select count(*) from contributions),
+    'reactors', (select count(distinct u) from (
+        select user_id as u from m_likes
+        union all select unnest(vote_users)
+        union all select unnest(reaction_users)) r
+      where u not in (select author_id from contributions)),
+    'contribution_buckets', (select jsonb_build_object(
+        '1', count(*) filter (where n = 1),
+        '2-3', count(*) filter (where n between 2 and 3),
+        '4-7', count(*) filter (where n between 4 and 7),
+        '8+', count(*) filter (where n >= 8)) from contributions))
+  into result;
+  return result;
+end;
+$$;
+
+revoke execute on function public.admin_daily_metrics(date, date, text) from public, anon, authenticated;
