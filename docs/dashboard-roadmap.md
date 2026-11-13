@@ -144,6 +144,7 @@ Set by the team on 2026-11-10; every brick follows them.
 | 17  | **Support handoff.** Send a post to Roca Support, ready-made replies for moderators.                                                                                                                                                                     | M      | maybe      | todo   |
 | 18  | **Member badges view.** See and reset a member's badges.                                                                                                                                                                                                 | S      | no         | todo   |
 | 19  | **Other apps.** Eve's Rhythm and Nightward once their backends run the SDK schema; their Rocactopus extras (articles, stories, callouts) stay out of this dashboard.                                                                                     | S each | no         | todo   |
+| 20  | **Online now.** The current online count on the dashboard home, from the `presence` module.                                                                                                                                                              | S      | no         | todo   |
 
 ## SDK improvements for the dashboard
 
@@ -183,7 +184,7 @@ What each SDK feature gives the dashboard to manage. Update a row when the SDK c
 | Draft images (images `002_draft_images`)                               | 0.16              | Images in drafts, kept by the nightly sweep            | 4       |
 | Scheduled posts (core `015`)                                           | 0.16              | Composer, Home                                         | 7       |
 | Member badges (badges; replaces streaks)                               | 0.15              | Badges on the member card                              | 3, 18   |
-| Online presence (presence)                                           | next      | Nothing yet (the app reads it)                          | —       |
+| Online presence (presence)                                             | 0.18              | Online count on the home                               | 20      |
 
 ## Open questions
 

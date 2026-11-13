@@ -313,6 +313,7 @@ the sides hold; a zone left out is empty. A `header` that sets no zone at all (o
 | `"profile"`                                      | the user's avatar, opening their own profile through `onOpenProfile(myUid)`; drawn by `renderAvatar` with `placement: "header"` |
 | `"search"`                                       | the search toggle                                                                                                               |
 | `"inbox"`                                        | the notification bell, only with `modules.inbox` on and `onOpenInbox` given                                                     |
+| `"online"`                                       | the live online count, only with `modules.presence` on (dropped otherwise)                                                      |
 
 The default, `DEFAULT_FEED_HEADER`, is `{ left: ["profile"], center: ["title"], right: ["search", "inbox"] }`.
 
@@ -423,6 +424,13 @@ owner's profile sheet gets a `badge.<id>.toggle` switch per badge. Without a
 renderer, `STREAK_BADGES` (`streak: { since }`, `bestStreak: { days }`) draw as the
 built-in pills (`defaultMemberBadge`): the flame and label on a tint of
 `streakBronze` / `streakSilver` / `streakGold`, nothing under one day.
+
+**Online presence** (presence module). With `modules.presence` on, post, comment and
+profile avatars carry a green dot while the member is online, the `"online"` header item
+shows the count (collapsing to a dot after `collapseAfterMs`), and the profile edit sheet
+gets an "Activity status" switch ("Show when I'm online"). A custom `renderAvatar` gets
+`online: boolean` and draws its own dot. The host runs `startPresenceHeartbeat`, see the
+core README.
 
 ## Attachments
 

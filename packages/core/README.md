@@ -60,6 +60,10 @@ const config: CommunityConfig = {
     // and, in the UI package, expo-image-manipulator. Absent or `false` ⇒
     // every query and screen behaves as before.
     images: true,
+    // Online dots and count. Needs the backend `presence` module and a heartbeat
+    // run by the host: `startPresenceHeartbeat(cfg, AppState)`. All fields optional:
+    // graceMinutes (5), minCount (0), collapseAfterMs (3000, or false).
+    presence: {},
   },
 
   // Optional. Characters a post may hold (composer cap and ring): defaults to
@@ -114,6 +118,18 @@ All optional, all default to a no-op:
 | `onContentPublished` | `() => void`                                             | Fired after a post/comment is successfully published (e.g. to arm a review-gate)                                                                                                                                                                                                                                    |
 | `getBadges`          | `() => MemberBadges \| null`                             | Badges module: this member's badges, keyed by the ids in `modules.badges` (e.g. `streakBadgeData({ startedAt, bestDays })`), mirrored to the profile by `syncProfileFromHost` (call it again on app foreground). Synchronous — read an already-warmed cache. `null`: nothing to mirror                              |
 | `getLocale`          | `() => string`                                           | The app's language. Resolved against `modules.translation.locales` to choose the language content is read in (`readerLocale`), and mirrored to `profiles.locale` by `syncProfileFromHost` so pushes arrive in each recipient's language. Distinct from the UI package's `translations.locale` prop (interface copy) |
+
+### Presence (`modules.presence`)
+
+Online = in the foreground within `graceMinutes`. The host runs the heartbeat once,
+with the resolved config: `useEffect(() => startPresenceHeartbeat(cfg, AppState), [cfg])`
+(`AppState` from `react-native`). It beats in the foreground, once more on background,
+and never signs in anonymously: no session, no beat. `presenceSettings(cfg)` returns the
+resolved settings, or `null` with the module off. Hooks: `useOnlineCount()`,
+`useIsOnline(userId)`, `usePresenceVisible()` and `useSetPresenceVisible()` (the member's
+"show when I'm online" switch; event `community_presence_visibility_changed`,
+props `{ visible }`). RPCs never return a timestamp; blocked members never see each
+other's dot; hidden members still count.
 
 ### Feed row extension point (`CommunityConfig.feed`)
 

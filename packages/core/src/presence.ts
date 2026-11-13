@@ -5,7 +5,7 @@ export const PRESENCE_HEARTBEAT_MS = 60_000;
 
 /** React Native's `AppState` shape; core does not import `react-native`. */
 export type AppStateLike = {
-  currentState: string;
+  currentState?: string | null;
   addEventListener(type: "change", listener: (state: string) => void): { remove(): void };
 };
 
