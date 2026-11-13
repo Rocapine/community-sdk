@@ -71,14 +71,22 @@ export type CommunityModules = {
    * setting (default 5 minutes, `presence_set_grace_minutes`), not a client
    * option. `minCount`: the online count shows from this many members (default
    * 0). `collapseAfterMs`: the count's label collapses to the dot after this
-   * delay, `false` keeps it open (default 3000). Absent or false ⇒ nothing
-   * changes. */
-  presence?: { minCount?: number; collapseAfterMs?: number | false } | false;
+   * delay, `false` keeps it open (default 3000). `appearance`: `"pill"` (default)
+   * is a green-tinted pill that opens and collapses; `"text"` is the dot and the full
+   * "N online" as plain text, always shown, the dot pulsing once on the first
+   * arrival (`collapseAfterMs` doesn't apply). Absent or false ⇒ nothing changes. */
+  presence?:
+    | { minCount?: number; collapseAfterMs?: number | false; appearance?: OnlineCountAppearance }
+    | false;
 };
+
+/** How the header's online count looks: a collapsing pill, or plain text. */
+export type OnlineCountAppearance = "pill" | "text";
 
 export type PresenceSettings = {
   minCount: number;
   collapseAfterMs: number | false;
+  appearance: OnlineCountAppearance;
 };
 
 /** The presence module's settings with defaults, or null when it is off. */
@@ -88,6 +96,7 @@ export function presenceSettings(cfg: { modules: CommunityModules }): PresenceSe
   return {
     minCount: p.minCount ?? 0,
     collapseAfterMs: p.collapseAfterMs ?? 3000,
+    appearance: p.appearance ?? "pill",
   };
 }
 

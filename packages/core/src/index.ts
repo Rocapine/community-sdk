@@ -19,7 +19,7 @@ export {
   STREAK_BADGES,
   presenceSettings,
 } from "./config";
-export type { PresenceSettings } from "./config";
+export type { OnlineCountAppearance, PresenceSettings } from "./config";
 
 export {
   PRESENCE_HEARTBEAT_MS,

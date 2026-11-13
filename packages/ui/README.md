@@ -427,7 +427,9 @@ built-in pills (`defaultMemberBadge`): the flame and label on a tint of
 
 **Online presence** (presence module). With `modules.presence` on, post, comment and
 profile avatars carry a green dot while the member is online, the `"online"` header item
-shows the count (collapsing to a dot after `collapseAfterMs`), and the profile edit sheet
+shows the count (a pill collapsing to a dot after `collapseAfterMs`, or with
+`appearance: "text"` the dot and "N online" as plain text, always in full, the dot pulsing
+once on the first arrival), and the profile edit sheet
 gets an "Activity status" switch ("Show when I'm online"). A custom `renderAvatar` also receives `online: boolean`; the SDK draws the dot around it, so don't draw another. The host runs `startPresenceHeartbeat`, see the core README.
 
 ## Attachments
