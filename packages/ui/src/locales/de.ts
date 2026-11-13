@@ -233,6 +233,7 @@ export const de: Record<string, string> = {
   "a11y.closeSearch": "Suche schließen",
   "a11y.clearSearch": "Suche löschen",
   "a11y.myProfile": "Mein Profil",
+  "a11y.react": "Reagieren",
   "composer.addImage": "Bild hinzufügen",
   "composer.removeImage": "Bild entfernen",
   "composer.removeAttachment": "Anhang entfernen",

@@ -215,6 +215,7 @@ export const ro: Record<string, string> = {
   "a11y.closeSearch": "Închide căutarea",
   "a11y.clearSearch": "Șterge căutarea",
   "a11y.myProfile": "Profilul meu",
+  "a11y.react": "Reacționează",
   "composer.addImage": "Adaugă o imagine",
   "composer.removeImage": "Elimină imaginea",
   "composer.removeAttachment": "Elimină atașamentul",

@@ -240,6 +240,7 @@ export const pl: Record<string, string> = {
   "a11y.closeSearch": "Zamknij wyszukiwanie",
   "a11y.clearSearch": "Wyczyść wyszukiwanie",
   "a11y.myProfile": "Mój profil",
+  "a11y.react": "Zareaguj",
   "composer.addImage": "Dodaj obraz",
   "composer.removeImage": "Usuń obraz",
   "composer.removeAttachment": "Usuń załącznik",

@@ -40,6 +40,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
+  Platform,
+  processColor,
   StyleSheet,
   Switch,
   Text,
@@ -498,15 +500,35 @@ function BadgeToggle({
           onChange(next).catch(() => setOn(!next));
         }}
         // Off on a muted track, the white thumb vanished on a light sheet; on, a
-        // white thumb vanishes on a light accent (dark themes): the ground's
-        // color always stands out from the accent.
-        trackColor={{ true: theme.colors.accent, false: theme.colors.textFaint }}
+        // white thumb vanishes on a light accent (dark themes). iOS: the ground's
+        // color stands out from the accent. Android, where a transparent ground
+        // left no thumb at all: the Material look, an accent thumb on a faded
+        // accent track.
+        trackColor={{
+          true: Platform.OS === "android" ? fade(theme.colors.accent, 0.45) : theme.colors.accent,
+          false: theme.colors.textFaint,
+        }}
         ios_backgroundColor={theme.colors.textFaint}
-        thumbColor={on ? theme.colors.background : undefined}
+        thumbColor={
+          on
+            ? Platform.OS === "android"
+              ? theme.colors.accent
+              : theme.colors.background
+            : undefined
+        }
         accessibilityLabel={label}
       />
     </View>
   );
+}
+
+/** `color` at `alpha` of its opacity, for any color React Native parses. */
+function fade(color: string, alpha: number): string {
+  const argb = processColor(color);
+  if (typeof argb !== "number") return color;
+  const v = argb >>> 0; // 0xAARRGGBB, signed on Android
+  const a = ((v >>> 24) / 255) * alpha;
+  return `rgba(${(v >> 16) & 255}, ${(v >> 8) & 255}, ${v & 255}, ${a.toFixed(3)})`;
 }
 
 function makeStyles(theme: CommunityTheme) {

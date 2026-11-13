@@ -214,6 +214,7 @@ export const frVous: Record<string, string> = {
   "a11y.closeSearch": "Fermer la recherche",
   "a11y.clearSearch": "Effacer la recherche",
   "a11y.myProfile": "Mon profil",
+  "a11y.react": "Réagir",
   "composer.addImage": "Ajouter une image",
   "composer.removeImage": "Retirer l'image",
   "composer.removeAttachment": "Retirer la pièce jointe",

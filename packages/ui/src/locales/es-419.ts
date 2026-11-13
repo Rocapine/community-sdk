@@ -212,6 +212,7 @@ export const es419: Record<string, string> = {
   "a11y.closeSearch": "Cerrar búsqueda",
   "a11y.clearSearch": "Borrar búsqueda",
   "a11y.myProfile": "Mi perfil",
+  "a11y.react": "Reaccionar",
   "composer.addImage": "Agregar una imagen",
   "composer.removeImage": "Quitar la imagen",
   "composer.removeAttachment": "Quitar el adjunto",

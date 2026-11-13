@@ -209,6 +209,7 @@ export const ptBR: Record<string, string> = {
   "a11y.closeSearch": "Fechar pesquisa",
   "a11y.clearSearch": "Limpar pesquisa",
   "a11y.myProfile": "Meu perfil",
+  "a11y.react": "Reagir",
   "composer.addImage": "Adicionar uma imagem",
   "composer.removeImage": "Remover imagem",
   "composer.removeAttachment": "Remover anexo",

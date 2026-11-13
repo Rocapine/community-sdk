@@ -2,7 +2,8 @@
 // chips, cards): a barely-there scale-down while held, on the UI thread
 // (Reanimated) — no opacity change, no spring. The feed header's icon buttons
 // use it too; other icon buttons and text links use a plain `Pressable`: their
-// state change (or the screen they open) is the feedback.
+// state change (or the screen they open) is the feedback. It is announced as
+// a button unless the call site says otherwise.
 import * as Haptics from "expo-haptics";
 import {
   Pressable,
@@ -50,6 +51,7 @@ export function PressableScale({
   onPressIn,
   onPressOut,
   style,
+  accessibilityRole = "button",
   ...rest
 }: Omit<PressableProps, "style"> & {
   style?: StyleProp<ViewStyle>;
@@ -65,6 +67,7 @@ export function PressableScale({
   return (
     <AnimatedPressable
       {...rest}
+      accessibilityRole={accessibilityRole}
       onPressIn={(e: GestureResponderEvent) => {
         pressed.value = withTiming(1, { duration: 80, easing: EASE_OUT });
         onPressIn?.(e);
