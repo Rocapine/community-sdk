@@ -1,0 +1,160 @@
+// The feed header's "online" item: a green dot and the live count, expanding to
+// "N online" on the app's first launch (per JS runtime) and after a tap, then
+// collapsing to dot + number. Presence is only ever shown, never its absence: it
+// renders nothing while the count is unknown or under the module's `minCount`.
+import { presenceSettings, useCommunityConfig, useOnlineCount } from "@rocapine/community-core";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  Easing,
+  cancelAnimation,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
+import { useT, useThemedStyles } from "../ThemeProvider";
+import type { CommunityTheme } from "../theme";
+import { claimColdStartExpansion, withoutCount } from "../utils/onlinePill";
+
+const DOT = 8;
+const SLIDE_MS = 350;
+
+export function OnlinePill(): ReactElement | null {
+  const cfg = useCommunityConfig();
+  const count = useOnlineCount();
+  const settings = presenceSettings(cfg);
+  if (!settings || count === null || count < settings.minCount) return null;
+  return <Pill count={count} collapseAfterMs={settings.collapseAfterMs} />;
+}
+
+function Pill({
+  count,
+  collapseAfterMs,
+}: {
+  count: number;
+  collapseAfterMs: number | false;
+}): ReactElement {
+  const t = useT();
+  const styles = useThemedStyles(makeStyles);
+  const reduceMotion = useReducedMotion();
+  const [expanded, setExpanded] = useState(() => claimColdStartExpansion());
+  const [labelWidth, setLabelWidth] = useState(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const open = useSharedValue(expanded ? 1 : 0);
+  const pulse = useSharedValue(0);
+
+  const clearTimer = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+
+  // (Re)start the collapse timer whenever the pill is expanded; none when it stays open.
+  useEffect(() => {
+    clearTimer();
+    if (expanded && collapseAfterMs !== false) {
+      timer.current = setTimeout(() => setExpanded(false), collapseAfterMs);
+    }
+    return clearTimer;
+  }, [expanded, collapseAfterMs]);
+
+  useEffect(() => {
+    const target = expanded ? 1 : 0;
+    open.value = reduceMotion
+      ? target
+      : withTiming(target, { duration: SLIDE_MS, easing: Easing.out(Easing.cubic) });
+  }, [expanded, reduceMotion, open]);
+
+  // The dot's halo loops only while expanded, and never under Reduce Motion.
+  const pulsing = expanded && !reduceMotion;
+  useEffect(() => {
+    if (!pulsing) {
+      cancelAnimation(pulse);
+      pulse.value = 0;
+      return;
+    }
+    pulse.value = 0;
+    pulse.value = withRepeat(
+      withTiming(1, { duration: 2000, easing: Easing.out(Easing.quad) }),
+      -1,
+    );
+    return () => cancelAnimation(pulse);
+  }, [pulsing, pulse]);
+
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: 0.7 * (1 - pulse.value),
+    transform: [{ scale: 0.6 + (1.8 - 0.6) * pulse.value }],
+  }));
+  const labelStyle = useAnimatedStyle(() => ({
+    width: labelWidth * open.value,
+    opacity: open.value,
+  }));
+
+  const label = withoutCount(t("presence.count", { count }), count);
+  const onPress = useCallback(() => setExpanded(true), []);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={t("a11y.onlineCount", { count })}
+      style={styles.pill}
+    >
+      <View pointerEvents="none" style={styles.bg} />
+      <View style={styles.dotSlot} importantForAccessibility="no-hide-descendants">
+        <Animated.View style={[styles.dot, haloStyle]} />
+        <View style={styles.dot} />
+      </View>
+      <Text style={styles.count} accessible={false} importantForAccessibility="no">
+        {count}
+      </Text>
+      <Animated.View
+        style={[styles.labelClip, labelStyle]}
+        importantForAccessibility="no-hide-descendants"
+      >
+        {/* Unclipped, so onLayout reports the label's natural width. */}
+        <Text
+          style={styles.label}
+          numberOfLines={1}
+          accessible={false}
+          onLayout={(e) => setLabelWidth(Math.ceil(e.nativeEvent.layout.width))}
+        >
+          {label}
+        </Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+const makeStyles = (theme: CommunityTheme) =>
+  StyleSheet.create({
+    pill: {
+      height: 32,
+      minWidth: 32,
+      paddingHorizontal: theme.spacing(2.5),
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      overflow: "hidden",
+    },
+    bg: { ...StyleSheet.absoluteFill, backgroundColor: theme.colors.success, opacity: 0.14 },
+    dotSlot: { width: DOT, height: DOT, marginRight: theme.spacing(1.5) },
+    dot: {
+      ...StyleSheet.absoluteFill,
+      borderRadius: DOT / 2,
+      backgroundColor: theme.colors.success,
+    },
+    count: {
+      ...theme.typography.caption,
+      color: theme.colors.headerText,
+      fontVariant: ["tabular-nums"],
+    },
+    labelClip: { overflow: "hidden", flexDirection: "row" },
+    label: {
+      ...theme.typography.caption,
+      color: theme.colors.headerText,
+      paddingLeft: theme.spacing(1),
+      flexShrink: 0,
+    },
+  });
