@@ -103,6 +103,7 @@ const config: CommunityConfig = {
     translation: { locales: ["en", "es-419"] },
     images: true, // needs expo-image-manipulator (native module)
     badges: STREAK_BADGES, // or your own ids and placements; needs host.getBadges
+    presence: {}, // online dots and count; the app runs startPresenceHeartbeat
   },
   host: {
     onEvent: (name, props) => myAnalytics.track(name, props),
@@ -165,9 +166,10 @@ backend (`--modules` at `init` time / `community-sdk.json`).
 | images      | `modules.images: boolean`                             | one photo per post and per comment (text optional; not combined with a poll), re-encoded on device, moderated before anyone else sees it, full-screen viewer; **needs `expo-image-manipulator`** (native module ⇒ new build)                                                                                                                                                  | `supabase/migrations/images/*`, the `post-images` bucket                                                               |
 | attachments | `modules.attachments: { types, membersCanAttach }`    | one reference to the app's own content per post (`{ type, id }`, never a URL), drawn by `renderAttachment` from the app's data and opened by `onOpenAttachment`; shared from the app through `CommunityFeedScreen`'s `composeRequest`; admin accounts can always attach, members when `membersCanAttach`                                                                      | `supabase/migrations/attachments/*`                                                                                    |
 | badges      | `modules.badges: Record<id, { placements }>`          | the app's badges on each profile (a streak, a pregnancy month, a rank…), computed by the app (`host.getBadges`) and drawn by `renderMemberBadge`: next to the author on posts and comments, as stats on the profile, one visibility toggle each in the owner's profile sheet; a hidden badge never leaves the database. `STREAK_BADGES` is the streak preset (built-in pills) | `supabase/migrations/badges/*` (+ `streaks/*` to move an existing streak install over)                                 |
+| presence    | `modules.presence: { minCount?, collapseAfterMs? }`   | a green dot on avatars of members in the app, and an "online" count in the feed header; the app runs `startPresenceHeartbeat(cfg, AppState)`; each member can hide their dot; hidden members still count                                                                                                                                                                      | `supabase/migrations/presence/*`                                                                                       |
 
 **Ordering note:** the CLI installs modules `core → push → polls → reaction →
-inbox → translation → images → attachments → badges → streaks` regardless of the order you pass to `--modules`, because inbox's
+inbox → translation → images → attachments → badges → presence → streaks` regardless of the order you pass to `--modules`, because inbox's
 reaction trigger is guarded at install time and needs the reaction module's
 table to already exist. You never need to think about this — just don't
 enable `inbox` without `reaction` if you want reaction pushes to show up in

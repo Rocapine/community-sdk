@@ -230,4 +230,13 @@ export const ro: Record<string, string> = {
   "badge.streak.toggle": "Arată seria mea",
   "badge.bestStreak.toggle": "Arată cea mai bună serie a mea",
   "profile.badgesHelper": "Ceilalți văd doar insignele pe care le activezi.",
+  "presence.count.one": "{count} online",
+  "presence.count.few": "{count} online",
+  "presence.count.other": "{count} online",
+  "a11y.onlineCount.one": "{count} persoană online",
+  "a11y.onlineCount.few": "{count} persoane online",
+  "a11y.onlineCount.other": "{count} de persoane online",
+  "a11y.online": "Online",
+  "profile.activityStatus": "Stare activitate",
+  "profile.showOnline": "Arată când sunt online",
 };

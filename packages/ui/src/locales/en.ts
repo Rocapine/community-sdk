@@ -237,4 +237,11 @@ export const en: Record<string, string> = {
   "badge.streak.toggle": "Show my streak",
   "badge.bestStreak.toggle": "Show my best streak",
   "profile.badgesHelper": "Others only see the badges you turn on.",
+  "presence.count.one": "{count} online",
+  "presence.count.other": "{count} online",
+  "a11y.onlineCount.one": "{count} person online",
+  "a11y.onlineCount.other": "{count} people online",
+  "a11y.online": "Online",
+  "profile.activityStatus": "Activity status",
+  "profile.showOnline": "Show when I'm online",
 };

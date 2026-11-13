@@ -7,12 +7,14 @@ import type { ImageProps } from "expo-image";
  *  - `profile`: the user's avatar, opening their own profile
  *  - `search`: opens the search bar
  *  - `inbox`: the notification bell (only with the inbox module and `onOpenInbox`)
+ *  - `online`: the live online count (presence module)
  *  - `{ logo }`: an image, e.g. the app's logo (pass the source matching your theme) */
 export type FeedHeaderItem =
   | "title"
   | "profile"
   | "search"
   | "inbox"
+  | "online"
   | {
       logo: ImageProps["source"];
       /** Defaults to 32. */
@@ -56,11 +58,11 @@ export const DEFAULT_FEED_HEADER: FeedHeaderConfig = {
 
 export function resolveHeaderZones(
   config: FeedHeaderConfig,
-  opts: { inbox: boolean },
+  opts: { inbox: boolean; online: boolean },
 ): { left: FeedHeaderItem[]; center: FeedHeaderItem[]; right: FeedHeaderItem[]; visible: boolean } {
   if (!config.left && !config.center && !config.right) config = { ...DEFAULT_FEED_HEADER };
   const keep = (items: FeedHeaderItem[] = []) =>
-    items.filter((item) => item !== "inbox" || opts.inbox);
+    items.filter((item) => (item !== "inbox" || opts.inbox) && (item !== "online" || opts.online));
   const left = keep(config.left);
   const center = keep(config.center);
   const right = keep(config.right);

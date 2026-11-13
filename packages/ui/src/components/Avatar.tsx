@@ -4,19 +4,21 @@
 // `renderAvatar` (e.g. a gradient per member, a ring on admin accounts), told
 // whose avatar it is and where; the default stays dependency-free: the photo, else
 // the initial on a flat colour.
-import { useMyUid, useProfile, type MemberBadges } from "@rocapine/community-core";
+import { useIsOnline, useMyUid, useProfile, type MemberBadges } from "@rocapine/community-core";
 import { Image } from "expo-image";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useAvatarRenderer, useCommunityTheme } from "../ThemeProvider";
 import { initialOf } from "../utils/initial";
 import { useMyAuthorName } from "../utils/myName";
+import { onlineLookupId } from "../utils/onlineDot";
+import { OnlineDot } from "./OnlineDot";
 
 /** Where an avatar is drawn: a post's author, a comment's, a profile's header, the
  * feed header's profile button, the composer, the thread's reply bar, the profile
- * edit sheet's preview. */
+ * edit sheet's preview, a row of the blocked-members list. */
 export type AvatarPlacement =
-  "post" | "comment" | "profile" | "header" | "composer" | "reply" | "edit";
+  "post" | "comment" | "profile" | "header" | "composer" | "reply" | "edit" | "blocked";
 
 export type AvatarRenderProps = {
   /** The member's community id; null when unknown (e.g. the viewer before sign-in). */
@@ -31,10 +33,17 @@ export type AvatarRenderProps = {
   placement: AvatarPlacement;
   /** The member's visible badges (badges module); `{}` when none or unknown. */
   badges: MemberBadges;
+  /** The member is online now (presence module). The SDK draws the green dot
+   * itself, around whatever `renderAvatar` returns; this is for hosts that want
+   * to react to it too. */
+  online: boolean;
 };
 
-type AvatarProps = Omit<AvatarRenderProps, "admin" | "handle" | "badges"> &
-  Partial<Pick<AvatarRenderProps, "admin" | "handle" | "badges">>;
+type AvatarProps = Omit<AvatarRenderProps, "admin" | "handle" | "badges" | "online"> &
+  Partial<Pick<AvatarRenderProps, "admin" | "handle" | "badges">> & {
+    /** The surface behind the avatar, for the dot's ring; defaults to the page background. */
+    ringColor?: string;
+  };
 
 const NO_BADGES: MemberBadges = {};
 
@@ -42,12 +51,21 @@ export function Avatar({
   admin = false,
   handle = null,
   badges = NO_BADGES,
+  ringColor,
   ...rest
 }: AvatarProps): ReactElement {
   const render = useAvatarRenderer();
-  const props: AvatarRenderProps = { ...rest, admin, handle, badges };
-  if (render) return <>{render(props)}</>;
-  return <DefaultAvatar {...props} />;
+  const theme = useCommunityTheme();
+  const online = useIsOnline(onlineLookupId(rest.placement, rest.userId));
+  const props: AvatarRenderProps = { ...rest, admin, handle, badges, online };
+  return (
+    <View style={{ width: rest.size, height: rest.size }}>
+      {render ? render(props) : <DefaultAvatar {...props} />}
+      {online ? (
+        <OnlineDot size={rest.size} ringColor={ringColor ?? theme.colors.background} />
+      ) : null}
+    </View>
+  );
 }
 
 /** The viewer's own avatar (feed header, composer, reply bar). */

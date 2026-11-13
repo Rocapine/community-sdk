@@ -20,6 +20,8 @@ export type PlaygroundSettings = {
     reaction: boolean;
     translation: boolean;
     images: boolean;
+    /** Online dots and the header's online count (`modules.presence`). */
+    presence: boolean;
     /** Off by default: a simulator gets no push token. On shows an admin's
      * "Notify everyone" option. */
     push: boolean;
@@ -63,15 +65,15 @@ export type BackgroundId = keyof typeof BACKGROUNDS;
 
 export const HEADER_ZONES = ["left", "center", "right"] as const;
 export type HeaderZone = (typeof HEADER_ZONES)[number];
-export const HEADER_ITEMS = ["title", "logo", "profile", "search", "inbox"] as const;
+export const HEADER_ITEMS = ["title", "logo", "profile", "search", "inbox", "online"] as const;
 export type HeaderItemId = (typeof HEADER_ITEMS)[number];
 
 /** The showcase's header layouts. */
 export const HEADER_PRESETS: Record<string, PlaygroundSettings["header"]> = {
-  Default: { left: ["profile"], center: ["title"], right: ["search", "inbox"] },
-  Eve: { left: ["logo"], center: ["title"], right: ["search"] },
+  Default: { left: ["profile", "online"], center: ["title"], right: ["search", "inbox"] },
+  Eve: { left: ["logo", "online"], center: ["title"], right: ["search"] },
   Harmony: { left: ["profile"], center: ["logo", "title"], right: ["inbox"] },
-  "Left title": { left: ["title"], center: [], right: ["search", "inbox", "profile"] },
+  "Left title": { left: ["title", "online"], center: [], right: ["search", "inbox", "profile"] },
 };
 
 export const DEFAULT_SETTINGS: PlaygroundSettings = {
@@ -82,6 +84,7 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
     reaction: true,
     translation: true,
     images: true,
+    presence: true,
     push: false,
   },
   badges: "streak",
@@ -195,6 +198,7 @@ export function buildConfig(settings: PlaygroundSettings): CommunityConfig {
       // Must match the scratch backend's COMMUNITY_TRANSLATION_LOCALES.
       translation: m.translation ? { locales: ["en", "es-419", "pt-BR"] } : false,
       images: m.images,
+      presence: m.presence ? {} : false,
       badges: BADGE_PRESETS[settings.badges].declared,
       attachments: settings.attachments.enabled
         ? { types: ["recipe", "session"], membersCanAttach: settings.attachments.membersCanAttach }

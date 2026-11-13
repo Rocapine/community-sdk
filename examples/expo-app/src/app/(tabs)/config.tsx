@@ -17,7 +17,15 @@ import {
 } from "@/playground";
 
 type ModuleName = keyof PlaygroundSettings["modules"];
-const MODULE_NAMES: ModuleName[] = ["polls", "inbox", "reaction", "translation", "images", "push"];
+const MODULE_NAMES: ModuleName[] = [
+  "polls",
+  "inbox",
+  "reaction",
+  "translation",
+  "images",
+  "presence",
+  "push",
+];
 
 export default function ConfigTab() {
   const insets = useSafeAreaInsets();

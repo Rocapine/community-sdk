@@ -227,4 +227,11 @@ export const esES: Record<string, string> = {
   "badge.streak.toggle": "Mostrar mi racha",
   "badge.bestStreak.toggle": "Mostrar mi mejor racha",
   "profile.badgesHelper": "Los demás solo ven las insignias que activas.",
+  "presence.count.one": "{count} en línea",
+  "presence.count.other": "{count} en línea",
+  "a11y.onlineCount.one": "{count} persona en línea",
+  "a11y.onlineCount.other": "{count} personas en línea",
+  "a11y.online": "En línea",
+  "profile.activityStatus": "Estado de actividad",
+  "profile.showOnline": "Mostrar cuándo estoy en línea",
 };

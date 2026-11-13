@@ -60,6 +60,7 @@ import {
   type FeedPost,
   type PostAttachment,
   useUnreadNotificationCount,
+  presenceSettings,
 } from "@rocapine/community-core";
 import {
   useCallback,
@@ -114,6 +115,7 @@ import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
 import { MyAvatar } from "../components/Avatar";
 import { TABS_ROW_HEIGHT, TopicTabs } from "../components/TopicTabs";
+import { OnlinePill } from "../components/OnlinePill";
 import { PressableScale } from "../components/PressableScale";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
@@ -537,7 +539,10 @@ export function CommunityFeedScreen({
     [openThread, openThreadToComment, onOpenProfile, openPostMenu, selectTopic, slots],
   );
 
-  const zones = resolveHeaderZones(header, { inbox: !!cfg.modules.inbox && !!onOpenInbox });
+  const zones = resolveHeaderZones(header, {
+    inbox: !!cfg.modules.inbox && !!onOpenInbox,
+    online: !!presenceSettings(cfg),
+  });
   const renderHeaderItem = (item: FeedHeaderItem, index: number) => {
     if (typeof item === "object") {
       const height = item.height ?? LOGO_HEIGHT;
@@ -575,6 +580,8 @@ export function CommunityFeedScreen({
         );
       case "inbox":
         return <InboxBell key={index} onPress={onOpenInbox!} />;
+      case "online":
+        return <OnlinePill key={index} />;
       case "search":
         return (
           <PressableScale

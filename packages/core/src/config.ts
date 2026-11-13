@@ -65,7 +65,31 @@ export type CommunityModules = {
    * types. `membersCanAttach`: false ⇒ only admin accounts attach (enforced in
    * the UI). Absent or false ⇒ nothing changes. */
   attachments?: { types: string[]; membersCanAttach: boolean } | false;
+  /** Presence module: a green dot on online members, a live online count and a
+   * "hide my status" switch (table and RPCs added by the presence migration).
+   * How long after its last heartbeat a member counts as online is a backend
+   * setting (default 5 minutes, `presence_set_grace_minutes`), not a client
+   * option. `minCount`: the online count shows from this many members (default
+   * 0). `collapseAfterMs`: the count's label collapses to the dot after this
+   * delay, `false` keeps it open (default 3000). Absent or false ⇒ nothing
+   * changes. */
+  presence?: { minCount?: number; collapseAfterMs?: number | false } | false;
 };
+
+export type PresenceSettings = {
+  minCount: number;
+  collapseAfterMs: number | false;
+};
+
+/** The presence module's settings with defaults, or null when it is off. */
+export function presenceSettings(cfg: { modules: CommunityModules }): PresenceSettings | null {
+  const p = cfg.modules.presence;
+  if (!p) return null;
+  return {
+    minCount: p.minCount ?? 0,
+    collapseAfterMs: p.collapseAfterMs ?? 3000,
+  };
+}
 
 /** The streak as a streak app counts it. `startedAt`: when the current streak
  * began (ISO), null when there is none; `bestDays`: the longest one. Turn it into

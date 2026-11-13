@@ -247,4 +247,11 @@ export const de: Record<string, string> = {
   "badge.streak.toggle": "Meine Serie zeigen",
   "badge.bestStreak.toggle": "Meine beste Serie zeigen",
   "profile.badgesHelper": "Andere sehen nur die Abzeichen, die du einschaltest.",
+  "presence.count.one": "{count} online",
+  "presence.count.other": "{count} online",
+  "a11y.onlineCount.one": "{count} Person online",
+  "a11y.onlineCount.other": "{count} Personen online",
+  "a11y.online": "Online",
+  "profile.activityStatus": "Aktivitätsstatus",
+  "profile.showOnline": "Zeig, wann ich online bin",
 };

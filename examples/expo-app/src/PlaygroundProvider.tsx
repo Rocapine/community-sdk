@@ -1,11 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   CommunityProvider,
+  startPresenceHeartbeat,
   syncProfileFromHost,
   useCommunityConfig,
 } from "@rocapine/community-core";
 import { CommunityUIProvider } from "@rocapine/community-ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AppState } from "react-native";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { PlaygroundAvatar } from "./components/PlaygroundAvatar";
 import { renderPlaygroundBadge } from "./components/PlaygroundBadge";
@@ -131,11 +133,13 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** What a host does at launch: mirror its name, locale and badges onto the profile. */
+/** What a host does at launch: mirror its name, locale and badges onto the profile,
+ * and keep the presence heartbeat going (a no-op with the module off). */
 function SyncFromHost() {
   const cfg = useCommunityConfig();
   useEffect(() => {
     syncProfileFromHost(cfg).catch(() => {});
   }, [cfg]);
+  useEffect(() => startPresenceHeartbeat(cfg, AppState), [cfg]);
   return null;
 }
