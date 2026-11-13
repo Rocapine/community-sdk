@@ -5,8 +5,29 @@
 -- a comment not deleted by someone other than the author within 24 h; posts under 24 h old are
 -- left out), new posters on their first post that isn't deleted, and likes, poll votes,
 -- reactions, unanswered posts, contributors and reactors. Poll votes and reactions are null
--- when the polls / reaction module is not installed. Replaces the two-argument version of core/004.
+-- when the polls / reaction module is not installed. Also: new members (profiles created in the
+-- window, per day and in all), active members (distinct members with any post, comment, like,
+-- comment like, poll vote or reaction, per day and over the period), members_total (profiles
+-- created before the window's end) and median_first_reply_minutes (median minutes to the first
+-- non-deleted reply by someone else, over posts at least 24 h old; null when none was replied).
+-- created_at indexes keep the window scans cheap. Replaces the two-argument version of core/004.
 -- Requires core/004. Fully idempotent.
+
+create index if not exists posts_created_at_idx on public.posts (created_at);
+create index if not exists comments_created_at_idx on public.comments (created_at);
+create index if not exists likes_created_at_idx on public.likes (created_at);
+create index if not exists comment_likes_created_at_idx on public.comment_likes (created_at);
+create index if not exists profiles_created_at_idx on public.profiles (created_at);
+create index if not exists reports_created_at_idx on public.reports (created_at);
+do $$
+begin
+  if to_regclass('public.poll_votes') is not null then
+    create index if not exists poll_votes_created_at_idx on public.poll_votes (created_at);
+  end if;
+  if to_regclass('public.post_reactions') is not null then
+    create index if not exists post_reactions_created_at_idx on public.post_reactions (created_at);
+  end if;
+end $$;
 
 drop function if exists public.admin_daily_metrics(date, date);
 
@@ -19,18 +40,18 @@ as $$
 declare
   t0 timestamptz;
   t1 timestamptz;
-  -- Member rows of an optional module in the window: per-day counts and who.
+  -- Member rows of an optional module in the window: per-day counts and the distinct [user, day] pairs.
   extra text := $q$
     with r as (
       select x.user_id, (x.created_at at time zone $3)::date as day
       from %I x join profiles a on a.id = x.user_id and not a.is_house
       where x.created_at >= $1 and x.created_at < $2)
     select coalesce((select jsonb_object_agg(day, n) from (select day, count(*) as n from r group by day) s), '{}'),
-           coalesce((select array_agg(distinct user_id) from r), '{}')$q$;
+           coalesce((select jsonb_agg(distinct jsonb_build_array(user_id, day)) from r), '[]')$q$;
   vote_days jsonb;
-  vote_users uuid[] := '{}';
+  vote_pairs jsonb := '[]';
   reaction_days jsonb;
-  reaction_users uuid[] := '{}';
+  reaction_pairs jsonb := '[]';
   result jsonb;
 begin
   if tz is null or tz not in (select name from pg_timezone_names) then
@@ -40,10 +61,10 @@ begin
   t1 := (to_date + 1)::timestamp at time zone tz;
 
   if to_regclass('public.poll_votes') is not null then
-    execute format(extra, 'poll_votes') into vote_days, vote_users using t0, t1, tz;
+    execute format(extra, 'poll_votes') into vote_days, vote_pairs using t0, t1, tz;
   end if;
   if to_regclass('public.post_reactions') is not null then
-    execute format(extra, 'post_reactions') into reaction_days, reaction_users using t0, t1, tz;
+    execute format(extra, 'post_reactions') into reaction_days, reaction_pairs using t0, t1, tz;
   end if;
 
   with
@@ -54,7 +75,9 @@ begin
       exists (select 1 from comments c where c.post_id = p.id and c.status <> 'deleted'
         and c.author_id <> p.author_id and c.created_at <= p.created_at + interval '24 hours') as replied,
       exists (select 1 from comments c where c.post_id = p.id and c.status <> 'deleted'
-        and c.author_id <> p.author_id) as answered
+        and c.author_id <> p.author_id) as answered,
+      (select extract(epoch from min(c.created_at) - p.created_at) / 60 from comments c
+        where c.post_id = p.id and c.status <> 'deleted' and c.author_id <> p.author_id) as first_reply_min
     from posts p join profiles a on a.id = p.author_id and not a.is_house
     where p.status <> 'deleted' and p.created_at >= t0 and p.created_at < t1),
   m_comments as (
@@ -70,6 +93,17 @@ begin
     from comment_likes l join profiles a on a.id = l.user_id and not a.is_house
     where l.created_at >= t0 and l.created_at < t1),
   writes as (select author_id, day from m_posts union all select author_id, day from m_comments),
+  extra_pairs as (
+    select (e->>0)::uuid as who, (e->>1)::date as day
+    from jsonb_array_elements(vote_pairs || reaction_pairs) e),
+  activity as (
+    select author_id as who, day from writes
+    union all select user_id, day from m_likes
+    union all select who, day from extra_pairs),
+  active_by_day as (select day, count(distinct who) as n from activity group by day),
+  new_by_day as (
+    select (created_at at time zone tz)::date as day, count(*) as n
+    from profiles where not is_house and created_at >= t0 and created_at < t1 group by 1),
   -- A new poster has a post in the window, so only those authors are looked up.
   new_posters as (
     select (min(p.created_at) at time zone tz)::date as day
@@ -113,18 +147,26 @@ begin
         'reactions', case when reaction_days is not null then coalesce((reaction_days->>d.day::text)::int, 0) end,
         'replied_24h', coalesce(x.replied, 0),
         'reply_eligible', coalesce(x.eligible, 0),
-        'contributors', coalesce(x.contributors, 0)
-      ) order by d.day), '[]'::jsonb) from days d left join per_day x on x.day = d.day),
+        'contributors', coalesce(x.contributors, 0),
+        'new_members', coalesce(nm.n, 0),
+        'active_members', coalesce(am.n, 0)
+      ) order by d.day), '[]'::jsonb) from days d left join per_day x on x.day = d.day
+        left join new_by_day nm on nm.day = d.day left join active_by_day am on am.day = d.day),
     'topics', (select coalesce(jsonb_agg(jsonb_build_object('topic', topic, 'count', n) order by n desc, topic), '[]')
       from (select coalesce(topic, '(sans)') as topic, count(*) as n from m_posts group by 1) t),
     'reply_rate', (select coalesce(count(*) filter (where replied)::float / nullif(count(*), 0), 0)
       from m_posts where eligible),
     'unanswered', (select count(*) from m_posts where eligible and not answered),
     'contributors', (select count(*) from contributions),
+    'new_members', (select coalesce(sum(n), 0) from new_by_day),
+    'active_members', (select count(distinct who) from activity),
+    'members_total', (select count(*) from profiles where not is_house and created_at < t1),
+    'median_first_reply_minutes', (select percentile_cont(0.5) within group (order by first_reply_min)
+      from m_posts where eligible and first_reply_min is not null),
     'reactors', (select count(distinct u) from (
         select user_id as u from m_likes
-        union all select unnest(vote_users)
-        union all select unnest(reaction_users)) r
+        union all select (e->>0)::uuid from jsonb_array_elements(vote_pairs) e
+        union all select (e->>0)::uuid from jsonb_array_elements(reaction_pairs) e) r
       where u not in (select author_id from contributions)),
     'contribution_buckets', (select jsonb_build_object(
         '1', count(*) filter (where n = 1),

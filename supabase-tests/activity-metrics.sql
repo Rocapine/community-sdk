@@ -20,6 +20,10 @@ begin
   assert cardinality(ids) = 4, 'the backend needs four profiles';
   m1 := ids[1]; m2 := ids[2]; m3 := ids[3]; h := ids[4];
   update public.profiles set is_house = (id = h) where id = any(ids);
+  -- Sign-up dates in the window (the house account too: it is not a new member).
+  update public.profiles set created_at = case id when m2 then '2001-03-01 08:00Z'::timestamptz
+    when m1 then '2001-03-02 08:00Z' when m3 then '2001-03-03 08:00Z' else '2001-03-02 09:00Z' end
+    where id = any(ids);
 
   -- m1: 3 posts + comments in the window. m2: 1 (its first post and its comment are deleted).
   -- m3: only likes. h: a house account, in no count.
@@ -65,13 +69,14 @@ begin
   -- Window 2001-03-01..08, two arguments (UTC).
   j := public.admin_daily_metrics('2001-03-01', '2001-03-08');
   assert (select array_agg(k order by k) from jsonb_object_keys(j) k)
-    = array['contribution_buckets','contributors','daily','reactors','reply_rate','topics','tz','unanswered'],
+    = array['active_members','contribution_buckets','contributors','daily','median_first_reply_minutes','members_total',
+            'new_members','reactors','reply_rate','topics','tz','unanswered'],
     'top-level keys: ' || (select string_agg(k, ',') from jsonb_object_keys(j) k);
   assert j->>'tz' = 'UTC', 'two arguments mean UTC';
   assert jsonb_array_length(j->'daily') = 8, 'one row per day, both ends included';
   assert (select array_agg(k order by k) from jsonb_object_keys(j->'daily'->0) k)
-    = array['comments','contributors','day','hidden','likes','new_posters','poll_votes','posts',
-            'reactions','replied_24h','reply_eligible'],
+    = array['active_members','comments','contributors','day','hidden','likes','new_members','new_posters',
+            'poll_votes','posts','reactions','replied_24h','reply_eligible'],
     'daily keys: ' || (select string_agg(k, ',') from jsonb_object_keys(j->'daily'->0) k);
 
   d := j->'daily'->0;
@@ -119,6 +124,35 @@ begin
   assert (j->>'reactors')::int = 1, 'm3 only liked: ' || (j->>'reactors');
   assert j->'contribution_buckets' = '{"1": 1, "2-3": 1, "4-7": 0, "8+": 0}'::jsonb,
     'm2 wrote 1, m1 wrote 3: ' || (j->'contribution_buckets');
+
+
+  -- Members: sign-ups (house out), active members (any event kind, house out), total.
+  assert (select array_agg((e->>'new_members')::int order by e->>'day') from jsonb_array_elements(j->'daily') e)
+    = array[1,1,1,0,0,0,0,0], 'one new member on each of the first three days: ' || (j->'daily');
+  assert (j->>'new_members')::int = 3 and (j->>'members_total')::int = 3,
+    'three members signed up, the house account is not one: ' || (j->>'new_members') || '/' || (j->>'members_total');
+  assert (j->'daily'->0->>'active_members')::int = 0, 'a deleted post makes nobody active: ' || (j->'daily'->0);
+  assert (j->'daily'->2->>'active_members')::int = 2, 'm1 posted, m3 liked a comment, the team is out: ' || (j->'daily'->2);
+  assert (j->'daily'->3->>'active_members')::int = 2, 'm2 posted, m1 liked: ' || (j->'daily'->3);
+  assert (j->>'active_members')::int = 3, 'm1, m2 and m3 over the period, once each: ' || (j->>'active_members');
+  -- members_total counts everyone signed up before the end of the window.
+  assert (public.admin_daily_metrics('2001-03-01', '2001-03-01')->>'members_total')::int = 1, 'only m2 by the 1st';
+
+  -- Median first reply: 10, 30 and 90 minutes; a self-reply and a deleted reply are ignored.
+  insert into public.posts (author_id, content, status, created_at) values
+    (m1, 'q1', 'visible', '2001-04-01 10:00Z'), (m1, 'q2', 'visible', '2001-04-02 10:00Z'),
+    (m1, 'q3', 'visible', '2001-04-03 10:00Z'), (m1, 'q4', 'visible', '2001-04-04 10:00Z');
+  insert into public.comments (post_id, author_id, content, status, created_at)
+    select id, m2, 'r', 'visible', created_at + (case content when 'q1' then 10 when 'q2' then 30 else 90 end) * interval '1 minute'
+    from public.posts where content in ('q1','q2','q3') and author_id = m1;
+  insert into public.comments (post_id, author_id, content, status, created_at)
+    select id, m1, 'self', 'visible', created_at + interval '1 minute' from public.posts where content = 'q4' and author_id = m1;
+  insert into public.comments (post_id, author_id, content, status, created_at)
+    select id, m2, 'gone', 'deleted', created_at + interval '2 minutes' from public.posts where content = 'q4' and author_id = m1;
+  j := public.admin_daily_metrics('2001-04-01', '2001-04-05');
+  assert (j->>'median_first_reply_minutes')::numeric = 30, 'median of 10, 30, 90: ' || coalesce(j->>'median_first_reply_minutes', 'null');
+  j := public.admin_daily_metrics('2001-04-04', '2001-04-04');
+  assert j->'median_first_reply_minutes' = 'null'::jsonb, 'no qualifying reply gives null: ' || j;
 
   -- A window with no content.
   j := public.admin_daily_metrics('2001-02-01', '2001-02-02');
@@ -168,6 +202,13 @@ begin
     'clients cannot read the metrics';
   assert not exists (select 1 from pg_proc where proname = 'admin_daily_metrics' and pronargs = 2),
     'the two-argument version is gone';
+
+  -- Without the optional modules the call still works and active members are the posters, commenters and likers.
+  if has_polls then drop table public.poll_votes cascade; end if;
+  if has_reactions then drop table public.post_reactions cascade; end if;
+  j := public.admin_daily_metrics('2001-03-01', '2001-03-08');
+  assert (j->>'active_members')::int = 3 and j->'daily'->3->'poll_votes' = 'null'::jsonb
+    and j->'daily'->1->'reactions' = 'null'::jsonb, 'modules dropped: ' || j;
 
   raise exception 'ACTIVITY_METRICS_TESTS_PASSED';
 end $$;
