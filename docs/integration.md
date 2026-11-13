@@ -150,7 +150,7 @@ e.g. `lib/community-config.ts`.
    turns on the dots and the `"online"` feed header item (e.g.
    `header={{ left: ["profile", "online"], … }}`; it is dropped when the module is
    off). The app must run the heartbeat itself, once, with the resolved config:
-   `useEffect(() => startPresenceHeartbeat(cfg, AppState), [cfg])`, `AppState` from
+   `useEffect(() => startPresenceHeartbeat(cfg, AppState), [cfg])` (the config from `useCommunityConfig()` is stable; a config rebuilt on every render would restart the heartbeat), `AppState` from
    `react-native`. It beats only in the foreground and never signs in anonymously
    (no session, no beat). Online means in the foreground within the grace window
    (5 minutes by default).

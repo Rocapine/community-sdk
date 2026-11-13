@@ -123,7 +123,7 @@ All optional, all default to a no-op:
 
 Online = in the foreground within `graceMinutes`. The host runs the heartbeat once,
 with the resolved config: `useEffect(() => startPresenceHeartbeat(cfg, AppState), [cfg])`
-(`AppState` from `react-native`). It beats in the foreground, once more on background,
+(`AppState` from `react-native`; the config from `useCommunityConfig()` is stable, a config rebuilt on every render would restart the heartbeat). It beats in the foreground, once more on background,
 and never signs in anonymously: no session, no beat. `presenceSettings(cfg)` returns the
 resolved settings, or `null` with the module off. Hooks: `useOnlineCount()`,
 `useIsOnline(userId)`, `usePresenceVisible()` and `useSetPresenceVisible()` (the member's

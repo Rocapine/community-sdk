@@ -15,5 +15,5 @@ presence`). Online means in the foreground within the grace window; RPCs never r
   `touchPresence`, `presenceSettings`, hooks `useOnlineCount`, `useIsOnline`,
   `usePresenceVisible`, `useSetPresenceVisible`, event `community_presence_visibility_changed`.
 - UI: the `"online"` feed header item (dropped when the module is off), the dot on post,
-  comment and profile avatars (`AvatarRenderProps.online` for a custom `renderAvatar`), and an
+  comment and profile avatars (drawn around a custom `renderAvatar` too, which also receives `AvatarRenderProps.online`), and an
   "Activity status" switch in the profile edit sheet.
