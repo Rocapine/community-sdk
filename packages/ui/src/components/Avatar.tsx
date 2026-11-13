@@ -10,14 +10,15 @@ import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useAvatarRenderer, useCommunityTheme } from "../ThemeProvider";
 import { initialOf } from "../utils/initial";
-import { OnlineDot } from "./OnlineDot";
 import { useMyAuthorName } from "../utils/myName";
+import { onlineLookupId } from "../utils/onlineDot";
+import { OnlineDot } from "./OnlineDot";
 
 /** Where an avatar is drawn: a post's author, a comment's, a profile's header, the
  * feed header's profile button, the composer, the thread's reply bar, the profile
- * edit sheet's preview. */
+ * edit sheet's preview, a row of the blocked-members list. */
 export type AvatarPlacement =
-  "post" | "comment" | "profile" | "header" | "composer" | "reply" | "edit";
+  "post" | "comment" | "profile" | "header" | "composer" | "reply" | "edit" | "blocked";
 
 export type AvatarRenderProps = {
   /** The member's community id; null when unknown (e.g. the viewer before sign-in). */
@@ -44,10 +45,6 @@ type AvatarProps = Omit<AvatarRenderProps, "admin" | "handle" | "badges" | "onli
     ringColor?: string;
   };
 
-/** Only members shown in content get a presence lookup (and a dot): not the
- * header, composer, reply bar or edit preview. */
-const ONLINE_PLACEMENTS: AvatarPlacement[] = ["post", "comment", "profile"];
-
 const NO_BADGES: MemberBadges = {};
 
 export function Avatar({
@@ -59,17 +56,13 @@ export function Avatar({
 }: AvatarProps): ReactElement {
   const render = useAvatarRenderer();
   const theme = useCommunityTheme();
-  const online = useIsOnline(ONLINE_PLACEMENTS.includes(rest.placement) ? rest.userId : null);
+  const online = useIsOnline(onlineLookupId(rest.placement, rest.userId));
   const props: AvatarRenderProps = { ...rest, admin, handle, badges, online };
   return (
     <View style={{ width: rest.size, height: rest.size }}>
       {render ? render(props) : <DefaultAvatar {...props} />}
       {online ? (
-        <OnlineDot
-          size={rest.size}
-          ringColor={ringColor ?? theme.colors.background}
-          pulseOnce={rest.placement === "profile"}
-        />
+        <OnlineDot size={rest.size} ringColor={ringColor ?? theme.colors.background} />
       ) : null}
     </View>
   );

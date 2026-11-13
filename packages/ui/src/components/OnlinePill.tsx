@@ -16,7 +16,13 @@ import Animated, {
 } from "react-native-reanimated";
 import { useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
-import { claimColdStartExpansion, withoutCount } from "../utils/onlinePill";
+import { noFocusRing } from "../utils/noFocusRing";
+import {
+  claimColdStartExpansion,
+  coldStartExpansionPending,
+  countGluedToLabel,
+  withoutCount,
+} from "../utils/onlinePill";
 
 const DOT = 8;
 const SLIDE_MS = 350;
@@ -41,7 +47,8 @@ function Pill({
   const t = useT();
   const styles = useThemedStyles(makeStyles);
   const reduceMotion = useReducedMotion();
-  const [expanded, setExpanded] = useState(() => claimColdStartExpansion());
+  // Read without side effects (StrictMode renders twice); claimed on mount below.
+  const [expanded, setExpanded] = useState(coldStartExpansionPending);
   const [labelWidth, setLabelWidth] = useState(0);
   const [taps, setTaps] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,6 +59,10 @@ function Pill({
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
   };
+
+  useEffect(() => {
+    claimColdStartExpansion();
+  }, []);
 
   // (Re)start the collapse timer whenever the pill is expanded; none when it stays open.
   useEffect(() => {
@@ -94,7 +105,10 @@ function Pill({
     opacity: open.value,
   }));
 
-  const label = withoutCount(t("presence.count", { count }), count);
+  const text = t("presence.count", { count });
+  const label = withoutCount(text, count);
+  const glued = countGluedToLabel(text, count);
+  const labelStyles = glued ? [styles.label, styles.labelGlued] : styles.label;
   const onPress = useCallback(() => {
     setExpanded(true);
     setTaps((n) => n + 1); // a tap while open restarts the collapse countdown
@@ -112,6 +126,7 @@ function Pill({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityState={{ expanded }}
       accessibilityLabel={t("a11y.onlineCount", { count })}
       hitSlop={HIT_SLOP}
       style={styles.pill}
@@ -126,7 +141,7 @@ function Pill({
       </Text>
       {/* Invisible copy, only there to read the label's natural width. */}
       <Text
-        style={[styles.label, styles.measure]}
+        style={[labelStyles, styles.measure]}
         numberOfLines={1}
         accessible={false}
         importantForAccessibility="no"
@@ -139,7 +154,7 @@ function Pill({
         style={[styles.labelClip, labelClipStyle]}
         importantForAccessibility="no-hide-descendants"
       >
-        <Text style={styles.label} numberOfLines={1} accessible={false}>
+        <Text style={labelStyles} numberOfLines={1} accessible={false}>
           {label}
         </Text>
       </Animated.View>
@@ -157,6 +172,7 @@ const makeStyles = (theme: CommunityTheme) =>
       flexDirection: "row",
       alignItems: "center",
       overflow: "hidden",
+      ...noFocusRing,
     },
     bg: { ...StyleSheet.absoluteFill, backgroundColor: theme.colors.success, opacity: 0.14 },
     dotSlot: { width: DOT, height: DOT, marginRight: theme.spacing(1.5) },
@@ -180,4 +196,5 @@ const makeStyles = (theme: CommunityTheme) =>
       paddingLeft: theme.spacing(1),
       flexShrink: 0,
     },
+    labelGlued: { paddingLeft: 0 },
   });

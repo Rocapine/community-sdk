@@ -77,7 +77,7 @@ export function BlockedMembersScreen({ onBack }: { onBack?: () => void }) {
                   name={member.name}
                   url={member.avatarUrl}
                   size={40}
-                  placement="comment"
+                  placement="blocked"
                   handle={member.handle}
                 />
                 <View style={styles.rowBody}>
