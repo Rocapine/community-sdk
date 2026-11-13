@@ -127,6 +127,19 @@ describe("heartbeat", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(client.rpc).toHaveBeenCalledTimes(1);
   });
+  it("treats an unknown starting state (null/undefined) as active and beats at start", async () => {
+    for (const state of [undefined, null]) {
+      const client = fakeClient();
+      const app = fakeAppState("x");
+      app.currentState = state;
+      const stop = startPresenceHeartbeat(cfgWith({}, client), app, 60_000);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(client.rpc).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(client.rpc).toHaveBeenCalledTimes(2);
+      stop();
+    }
+  });
   it("returns a no-op stop when the module is off", () => {
     const app = fakeAppState("active");
     const addSpy = vi.spyOn(app, "addEventListener");
@@ -149,13 +162,27 @@ describe("batcher", () => {
     expect(results[11]).toBe(false);
     expect(results[250]).toBe(true);
   });
-  it("resolves false when the fetch fails", async () => {
+  it("rejects every waiter of a failed batch (no false that would erase dots)", async () => {
     const load = createOnlineBatcher(async () => {
       throw new Error("x");
     });
-    const p = load("u1");
+    const [a, b] = [load("u1"), load("u2")];
+    const settled = Promise.allSettled([a, b]);
     await vi.advanceTimersByTimeAsync(30);
-    await expect(p).resolves.toBe(false);
+    const results = await settled;
+    expect(results.map((r) => r.status)).toEqual(["rejected", "rejected"]);
+  });
+  it("a fetch that throws synchronously rejects instead of hanging", async () => {
+    const load = createOnlineBatcher(() => {
+      throw new Error("sync");
+    });
+    const p = load("u1");
+    const settled = p.then(
+      () => "resolved",
+      (e: Error) => e.message,
+    );
+    await vi.advanceTimersByTimeAsync(30);
+    await expect(settled).resolves.toBe("sync");
   });
 });
 

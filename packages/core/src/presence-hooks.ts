@@ -27,7 +27,12 @@ const STALE_MS = 30_000;
 // Time to the next wall-clock minute: every observer polls at the same instant,
 // so the batcher sends one online_member_ids per minute, not one per mount group.
 // TanStack recomputes a function refetchInterval after each fetch.
-const untilNextPoll = () => PRESENCE_POLL_MS - (Date.now() % PRESENCE_POLL_MS);
+// A fetch that ends within a second of a boundary waits for the next one, not a
+// near-0 ms extra poll.
+export const untilNextPoll = () => {
+  const left = PRESENCE_POLL_MS - (Date.now() % PRESENCE_POLL_MS);
+  return left < 1000 ? left + PRESENCE_POLL_MS : left;
+};
 
 const presenceEnabled = (cfg: ResolvedCommunityConfig) =>
   presenceSettings(cfg) !== null && cfg.supabase !== null;
@@ -78,24 +83,28 @@ export function useOnlineCount(): number | null {
   return presenceValue(opts.enabled, useQuery(opts).data, null);
 }
 
-/** Whether a member is online; false when presence is off or loading. */
+/** Whether a member is online; false when presence is off, loading, or never answered
+ * (a failed lookup keeps the previous answer). */
 export function useIsOnline(userId: string | null): boolean {
   const cfg = useCommunityConfig();
   const opts = isOnlineQueryOptions(cfg, userId);
   return presenceValue(opts.enabled, useQuery(opts).data, false);
 }
 
+export function presenceVisibleQueryOptions(cfg: ResolvedCommunityConfig) {
+  return {
+    queryKey: [...PRESENCE_KEY, "visible"] as const,
+    queryFn: () => fetchMyPresenceVisible(cfg),
+    enabled: presenceEnabled(cfg),
+    retry: 1,
+  };
+}
+
 /** Whether the owner shows as online to others; null until loaded. */
 export function usePresenceVisible(): boolean | null {
   const cfg = useCommunityConfig();
-  const enabled = presenceEnabled(cfg);
-  const { data } = useQuery({
-    queryKey: [...PRESENCE_KEY, "visible"] as const,
-    queryFn: () => fetchMyPresenceVisible(cfg),
-    enabled,
-    retry: 1,
-  });
-  return presenceValue(enabled, data, null);
+  const opts = presenceVisibleQueryOptions(cfg);
+  return presenceValue(opts.enabled, useQuery(opts).data, null);
 }
 
 export function presenceVisibilityMutationOptions(

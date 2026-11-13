@@ -23,24 +23,25 @@ export type { PresenceSettings } from "./config";
 
 export {
   PRESENCE_HEARTBEAT_MS,
-  touchPresence,
-  startPresenceHeartbeat,
-  fetchOnlineCount,
-  fetchOnlineIds,
   createOnlineBatcher,
   fetchMyPresenceVisible,
+  fetchOnlineCount,
+  fetchOnlineIds,
   setPresenceVisible,
+  startPresenceHeartbeat,
+  touchPresence,
 } from "./presence";
 export type { AppStateLike } from "./presence";
 
 export {
   PRESENCE_KEY,
   PRESENCE_POLL_MS,
-  onlineCountQueryOptions,
   isOnlineQueryOptions,
+  onlineCountQueryOptions,
   presenceVisibilityMutationOptions,
-  useOnlineCount,
+  presenceVisibleQueryOptions,
   useIsOnline,
+  useOnlineCount,
   usePresenceVisible,
   useSetPresenceVisible,
 } from "./presence-hooks";

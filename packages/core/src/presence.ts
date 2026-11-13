@@ -42,7 +42,8 @@ export function startPresenceHeartbeat(
 ): () => void {
   if (!presenceSettings(cfg)) return () => {};
   let timer: ReturnType<typeof setInterval> | null = null;
-  let active = appState.currentState === "active";
+  // An unknown state at start (null/undefined) counts as active: the app is open.
+  let active = appState.currentState == null || appState.currentState === "active";
   const beat = () => void touchPresence(cfg);
   const startTimer = () => {
     timer ??= setInterval(beat, intervalMs);
@@ -94,14 +95,16 @@ export async function fetchOnlineIds(
 
 /**
  * Coalesces single-id lookups made within `windowMs` into deduped batches of at
- * most `chunkSize`. A failed batch resolves its ids to false (offline).
+ * most `chunkSize`. A failed batch rejects its ids' lookups, so a query cache
+ * keeps the previous answer instead of reading "offline".
  */
 export function createOnlineBatcher(
   fetch: (ids: string[]) => Promise<string[]>,
   windowMs = 30,
   chunkSize = 200,
 ): (id: string) => Promise<boolean> {
-  let pending = new Map<string, Array<(online: boolean) => void>>();
+  type Waiter = { resolve: (online: boolean) => void; reject: (error: unknown) => void };
+  let pending = new Map<string, Waiter[]>();
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   const flush = () => {
@@ -111,23 +114,26 @@ export function createOnlineBatcher(
     const ids = [...batch.keys()];
     for (let i = 0; i < ids.length; i += chunkSize) {
       const chunk = ids.slice(i, i + chunkSize);
-      fetch(chunk).then(
-        (online) => {
-          const set = new Set(online);
-          for (const id of chunk) batch.get(id)!.forEach((r) => r(set.has(id)));
-        },
-        () => {
-          for (const id of chunk) batch.get(id)!.forEach((r) => r(false));
-        },
-      );
+      // Promise.resolve().then also catches a fetch that throws synchronously.
+      Promise.resolve()
+        .then(() => fetch(chunk))
+        .then(
+          (online) => {
+            const set = new Set(online);
+            for (const id of chunk) batch.get(id)!.forEach((w) => w.resolve(set.has(id)));
+          },
+          (error) => {
+            for (const id of chunk) batch.get(id)!.forEach((w) => w.reject(error));
+          },
+        );
     }
   };
 
   return (id) =>
-    new Promise<boolean>((resolve) => {
+    new Promise<boolean>((resolve, reject) => {
       const waiters = pending.get(id);
-      if (waiters) waiters.push(resolve);
-      else pending.set(id, [resolve]);
+      if (waiters) waiters.push({ resolve, reject });
+      else pending.set(id, [{ resolve, reject }]);
       timer ??= setTimeout(flush, windowMs);
     });
 }
