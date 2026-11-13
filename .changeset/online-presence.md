@@ -17,5 +17,5 @@ presence`). Online means in the foreground within the grace window, a per-projec
   `touchPresence`, `presenceSettings`, hooks `useOnlineCount`, `useIsOnline`,
   `usePresenceVisible`, `useSetPresenceVisible`, event `community_presence_visibility_changed`.
 - UI: the `"online"` feed header item (dropped when the module is off), the dot on post,
-  comment and profile avatars (drawn around a custom `renderAvatar` too, which also receives `AvatarRenderProps.online`), and an
+  comment and profile avatars (drawn around a custom `renderAvatar` too, which also receives `AvatarRenderProps.online`; the new `"blocked"` placement is the blocked-members list, with no dot), and an
   "Activity status" switch in the profile edit sheet.

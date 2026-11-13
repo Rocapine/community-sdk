@@ -126,7 +126,7 @@ backend setting, not a client option, so members can't vary it to probe when som
 last active. Change it from the SQL editor (service role):
 `select public.presence_set_grace_minutes(10);` (1 to 60). The caller always counts as online unless banned (hidden callers are counted, never listed). The host runs the heartbeat once,
 with the resolved config: `useEffect(() => startPresenceHeartbeat(cfg, AppState), [cfg])`
-(`AppState` from `react-native`; the config from `useCommunityConfig()` is stable, a config rebuilt on every render would restart the heartbeat). It beats in the foreground, once more on background,
+(`AppState` from `react-native`; the config passed to `CommunityProvider` must be stable, i.e. memoized: a config rebuilt on every render restarts the heartbeat every render). It beats in the foreground, once more on background,
 and never signs in anonymously: no session, no beat. `presenceSettings(cfg)` returns the
 resolved settings, or `null` with the module off. Hooks: `useOnlineCount()`,
 `useIsOnline(userId)`, `usePresenceVisible()` and `useSetPresenceVisible()` (the member's

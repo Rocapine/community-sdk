@@ -37,7 +37,7 @@
 1. **Module off, or a backend without the migration.** Every presence query is disabled, no RPC runs, and nothing renders: no dot, no pill, no switch. → tests in Task 3 (`enabled: false`) and Task 5 (`resolveHeaderZones` drops `"online"`).
 2. **iOS spamming `inactive`/`active` events** (Control Center, notification shade). The heartbeat must never stack two intervals, and must send at most one beat per real transition. → `startPresenceHeartbeat` test in Task 2.
 3. **No session yet** (Unchaind before onboarding and the paywall). `touchPresence` must neither call `signInAnonymously` nor run an RPC. → Task 2 test.
-4. **A busy screen:** the same author on many posts, or more than 200 distinct avatars. The batcher must deduplicate ids and split them into chunks of 200, and an RPC failure must resolve to `false` (no dot) instead of an error state. → Task 2 batcher tests.
+4. **A busy screen:** the same author on many posts, or more than 200 distinct avatars. The batcher must deduplicate ids and split them into chunks of 200, and an RPC failure must reject, so the query keeps its previous answer (with none, the hook returns `false`: no dot). → Task 2 batcher tests.
 5. **A failed visibility write.** The switch must go back to its previous position and no analytics event may be sent. → Task 3 mutation test. `BadgeToggle` already reverts on rejection.
 
 ---
@@ -170,11 +170,11 @@ it("batcher dedups within the window and chunks by 200", async () => {
   expect(results[10]).toBe(true);
   expect(results[11]).toBe(false);
 });
-it("batcher resolves false when the fetch fails", async () => {
+it("batcher rejects when the fetch fails", async () => {
   const load = createOnlineBatcher(async () => {
     throw new Error("x");
   });
-  await expect(load("u1")).resolves.toBe(false);
+  await expect(load("u1")).rejects.toThrow("x");
 });
 it("fetchOnlineIds passes the grace", async () => {
   await fetchOnlineIds(cfgWith({ graceMinutes: 7 }, client), ["a"]);
@@ -263,7 +263,7 @@ it("a successful write emits community_presence_visibility_changed", async () =>
   - `AvatarRenderProps.online: boolean`, passed to a host's `renderAvatar`.
   - `Avatar` gains an optional `ringColor?: string`, which defaults to `theme.colors.background`.
   - `export function onlineDotMetrics(size: number): { dot: number; ring: number }`: `dot = max(8, round(size * 0.26))`, and `ring = size >= 48 ? 3 : 2`.
-  - `OnlineDot({ size, ringColor, pulseOnce }: { size: number; ringColor: string; pulseOnce?: boolean })`. The ringed dot is absolutely positioned with `right: 0, bottom: 0`, its outer diameter is `dot + 2 * ring`, and it uses `theme.colors.success`. It sets `accessible` and `accessibilityLabel={t("a11y.online")}`. With `pulseOnce`, one expanding ring fades out (about 1.1 s, scale 0.7 → 2.6, opacity 0.8 → 0, as in the validated mockup), skipped under Reduce Motion.
+  - `OnlineDot({ size, ringColor }: { size: number; ringColor: string })`. The ringed dot is absolutely positioned with `right: 0, bottom: 0`, its outer diameter is `dot + 2 * ring`, and it uses `theme.colors.success`. It sets `accessible` and `accessibilityLabel={t("a11y.online")}`. The dot is static.
   - Locale keys, used by Tasks 4–6. Copy for en and fr is below; translate the other locales in the same register as their `profile.*` keys. `fr-vous` gets the same strings as `fr`.
 
 | key                                                                          | en                                                | fr                                                         |
@@ -297,7 +297,7 @@ expect(makeT("fr")("a11y.onlineCount", { count: 1 })).toBe("1 personne en ligne"
 The existing parity tests cover the other locales.
 
 - [ ] **Step 2: Run** `npm test -w @rocapine/community-ui -- onlineDot i18n` and expect a FAIL.
-- [ ] **Step 3: Implement.** `Avatar` calls `useIsOnline` only for placements `"post" | "comment" | "profile"` and passes `null` otherwise, so the header, composer, reply bar and edit preview get no dot and no lookup. It wraps the rendered avatar (host or default) in a `View` sized `size × size`, then the `OnlineDot` when online, with `pulseOnce` when `placement === "profile"`. `ThreadSheet` passes its sheet's own background colour as `ringColor` on comment and reply avatars, using the token its container style already uses. Add the locale keys.
+- [ ] **Step 3: Implement.** `Avatar` calls `useIsOnline` only for placements `"post" | "comment" | "profile"` and passes `null` otherwise, so the header, composer, reply bar and edit preview get no dot and no lookup. It wraps the rendered avatar (host or default) in a `View` sized `size × size`, then the `OnlineDot` when online. `ThreadSheet` passes its sheet's own background colour as `ringColor` on comment and reply avatars, using the token its container style already uses. Add the locale keys.
 - [ ] **Step 4: Run** `npm test -w @rocapine/community-ui && npm run typecheck -w @rocapine/community-ui` and expect a PASS.
 - [ ] **Step 5: Commit** `feat(ui): green online dot on member avatars`.
 
@@ -398,7 +398,7 @@ Also update the existing `resolveHeaderZones` call sites in that test file to pa
   - The pill opens expanded on a cold start and collapses to "● N" after 3 s.
   - Switching tabs or returning from the background does not expand it again; a tap expands it for 3 s.
   - The dot pulses only while the pill is expanded.
-  - The own avatar has a dot in the feed, in the thread (comments and replies) and on the profile, where it pulses once.
+  - The own avatar has a dot in the feed, in the thread (comments and replies) and on the profile.
   - Turning "Show when I'm online" off removes the own dot within one refetch, while the count stays the same.
   - With the module switched off in the config tab, there is no pill, no dot and no switch.
   - Both light and dark themes look right.
@@ -421,5 +421,5 @@ Also update the existing `resolveHeaderZones` call sites in that test file to pa
 - [ ] **Step 1:** Work on a branch per `docs/WORKFLOW.md`. Make the changes above. Copy `.env.local` from the main repo into the worktree. Run `npm run typecheck && npm run lint && npm test` and expect them to pass.
 - [ ] **Step 2:** Push the migration to the sandbox Supabase project; the refs are in the memory note `unchaind-community-sdk-migration.md`. Verify it with `supabase-tests/presence.sql` from the SDK, which must end with `PRESENCE_TESTS_PASSED`.
 - [ ] **Step 3:** Run the Task 8 Step 2 checklist on the Unchaind dev build on the simulator, in both themes. Use Metro on 8082, because 8081 is Guillaume's session.
-- [ ] **Step 4:** Record the walkthrough: the pill expanding and collapsing, the dots in the feed and the thread, the profile pulse, and the switch. Then open the PR with the video, following the PR-video rule.
+- [ ] **Step 4:** Record the walkthrough: the pill expanding and collapsing, the dots in the feed and the thread, the profile, and the switch. Then open the PR with the video, following the PR-video rule.
 - [ ] **Step 5:** Ask Guillaume in chat before pushing the migration to production. The app release ships it with no flag.

@@ -79,8 +79,7 @@ here gets a green dot; someone who isn't gets nothing — no grey dot, no "Inact
   the avatar (WhatsApp/Messenger convention). The name line is untouched.
 - Everywhere the SDK draws a member avatar: feed posts, the thread's post, comments, replies,
   the profile header, and the profile's post list.
-- On the profile header the dot is alone (no "Active" text) and **pulses once** when the
-  profile opens. It doesn't pulse elsewhere.
+- On the profile header the dot is alone (no "Active" text). The dot is static everywhere.
 - Green = the theme's `success` colour (Unchaind: `#22C55E`).
 - Accessibility: the avatar's label includes "online" when the dot shows.
 
@@ -102,7 +101,8 @@ here gets a green dot; someone who isn't gets nothing — no grey dot, no "Inact
 Validated mockups (Unchaind theme, light and dark):
 `unchaind/.superpowers/brainstorm/35310-1794483398/content/` — `header-counter-collapse-v2.html`
 (header pill, interactive), `active-dot.html` (option 1B), `profile-and-setting.html` (profile
-pulse + option 2A).
+
+- option 2A).
 
 ## SDK surface (decided)
 
@@ -164,7 +164,7 @@ few thousand concurrent members.
 - Check both themes; the community is shared by both design systems' entry points.
 - Migrations: sandbox Supabase first, prod after Guillaume's OK.
 - The Unchaind PR carries a screen recording (walkthrough: header pill expand/collapse, dots
-  in feed and thread, profile pulse, the switch).
+  in feed and thread, profile, the switch).
 
 ## Left to the builder
 
