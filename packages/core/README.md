@@ -121,10 +121,10 @@ All optional, all default to a no-op:
 
 ### Presence (`modules.presence`)
 
-Online = in the foreground within the grace window (the caller always counts as online): 5 minutes by default, a per-project
+Online = in the foreground within the grace window: 5 minutes by default, a per-project
 backend setting, not a client option, so members can't vary it to probe when someone was
 last active. Change it from the SQL editor (service role):
-`select public.presence_set_grace_minutes(10);` (1 to 60). The host runs the heartbeat once,
+`select public.presence_set_grace_minutes(10);` (1 to 60). The caller always counts as online unless banned (hidden callers are counted, never listed). The host runs the heartbeat once,
 with the resolved config: `useEffect(() => startPresenceHeartbeat(cfg, AppState), [cfg])`
 (`AppState` from `react-native`; the config from `useCommunityConfig()` is stable, a config rebuilt on every render would restart the heartbeat). It beats in the foreground, once more on background,
 and never signs in anonymously: no session, no beat. `presenceSettings(cfg)` returns the

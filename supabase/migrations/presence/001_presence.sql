@@ -7,8 +7,9 @@
 -- The timestamp is never readable by clients (only user_id and visible are, and
 -- only for the member's own row): readers get a boolean through online_member_ids()
 -- or a number through online_member_count(). Both skip banned and (for the ids)
--- hidden and mutually blocked members. The caller always counts as online (whoever
--- calls the readers has the app open), even before their first touch lands.
+-- hidden and mutually blocked members. The caller counts as online (whoever calls the
+-- readers has the app open) even before their first touch lands, unless banned;
+-- a hidden caller is counted but never listed.
 -- Fully idempotent.
 
 create table if not exists public.member_presence (
