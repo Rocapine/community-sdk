@@ -183,6 +183,7 @@ What each SDK feature gives the dashboard to manage. Update a row when the SDK c
 | Draft images (images `002_draft_images`)                               | 0.16              | Images in drafts, kept by the nightly sweep            | 4       |
 | Scheduled posts (core `015`)                                           | 0.16              | Composer, Home                                         | 7       |
 | Member badges (badges; replaces streaks)                               | 0.15              | Badges on the member card                              | 3, 18   |
+| Online presence (presence)                                           | next      | Nothing yet (the app reads it)                          | —       |
 
 ## Open questions
 
