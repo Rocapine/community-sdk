@@ -20,6 +20,8 @@ import { claimColdStartExpansion, withoutCount } from "../utils/onlinePill";
 
 const DOT = 8;
 const SLIDE_MS = 350;
+// 32pt pill + this on each side = the 44pt target of the sibling header buttons.
+const HIT_SLOP = { top: 6, bottom: 6 } as const;
 
 export function OnlinePill(): ReactElement | null {
   const cfg = useCommunityConfig();
@@ -41,6 +43,7 @@ function Pill({
   const reduceMotion = useReducedMotion();
   const [expanded, setExpanded] = useState(() => claimColdStartExpansion());
   const [labelWidth, setLabelWidth] = useState(0);
+  const [taps, setTaps] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const open = useSharedValue(expanded ? 1 : 0);
   const pulse = useSharedValue(0);
@@ -57,7 +60,7 @@ function Pill({
       timer.current = setTimeout(() => setExpanded(false), collapseAfterMs);
     }
     return clearTimer;
-  }, [expanded, collapseAfterMs]);
+  }, [expanded, taps, collapseAfterMs]);
 
   useEffect(() => {
     const target = expanded ? 1 : 0;
@@ -92,13 +95,25 @@ function Pill({
   }));
 
   const label = withoutCount(t("presence.count", { count }), count);
-  const onPress = useCallback(() => setExpanded(true), []);
+  const onPress = useCallback(() => {
+    setExpanded(true);
+    setTaps((n) => n + 1); // a tap while open restarts the collapse countdown
+  }, []);
+  // Until the label is measured, an expanded pill lays it out at natural width but
+  // keeps it invisible, so the first paint never snaps; collapsed, it takes no room.
+  const measured = labelWidth > 0;
+  const labelClipStyle = measured
+    ? labelStyle
+    : expanded
+      ? styles.unmeasuredOpen
+      : styles.unmeasuredClosed;
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={t("a11y.onlineCount", { count })}
+      hitSlop={HIT_SLOP}
       style={styles.pill}
     >
       <View pointerEvents="none" style={styles.bg} />
@@ -109,17 +124,22 @@ function Pill({
       <Text style={styles.count} accessible={false} importantForAccessibility="no">
         {count}
       </Text>
+      {/* Invisible copy, only there to read the label's natural width. */}
+      <Text
+        style={[styles.label, styles.measure]}
+        numberOfLines={1}
+        accessible={false}
+        importantForAccessibility="no"
+        pointerEvents="none"
+        onLayout={(e) => setLabelWidth(Math.ceil(e.nativeEvent.layout.width))}
+      >
+        {label}
+      </Text>
       <Animated.View
-        style={[styles.labelClip, labelStyle]}
+        style={[styles.labelClip, labelClipStyle]}
         importantForAccessibility="no-hide-descendants"
       >
-        {/* Unclipped, so onLayout reports the label's natural width. */}
-        <Text
-          style={styles.label}
-          numberOfLines={1}
-          accessible={false}
-          onLayout={(e) => setLabelWidth(Math.ceil(e.nativeEvent.layout.width))}
-        >
+        <Text style={styles.label} numberOfLines={1} accessible={false}>
           {label}
         </Text>
       </Animated.View>
@@ -150,6 +170,9 @@ const makeStyles = (theme: CommunityTheme) =>
       color: theme.colors.headerText,
       fontVariant: ["tabular-nums"],
     },
+    measure: { position: "absolute", left: 0, opacity: 0 },
+    unmeasuredOpen: { opacity: 0 },
+    unmeasuredClosed: { width: 0, opacity: 0 },
     labelClip: { overflow: "hidden", flexDirection: "row" },
     label: {
       ...theme.typography.caption,
