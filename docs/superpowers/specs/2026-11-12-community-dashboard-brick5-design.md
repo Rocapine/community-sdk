@@ -58,7 +58,7 @@ data. Below, how each one lands. Everything else in this spec stands.
    their count and share (Octopus "Engagement", without readers, which we can't count).
 3. **Contributions** table (today's), 6 columns; **Posts per topic**, 6 columns, now a Bklit
    horizontal `BarChart`: the topic label and its count both sit in the category axis label
-   ("Quitting porn  439"), so a short bar never hides its number; one colour (slot 1).
+   ("Quitting porn 439"), so a short bar never hides its number; one colour (slot 1).
 4. **When members are active**: Bklit `heatmap-chart`, days of the week by hour, posts and
    comments in the browser's zone, one hue on the blue ramp with a legend. Answers "when should
    we schedule a post", which brick 7 needs. 8 columns; beside it **Contributors by
