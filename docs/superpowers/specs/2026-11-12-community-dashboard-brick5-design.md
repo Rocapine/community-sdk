@@ -68,9 +68,13 @@ data. Below, how each one lands. Everything else in this spec stands.
 - **Returning contributors**: contributors of the previous period who also contributed in this
   one, over the previous period's contributors. No comparison line (it is already a
   comparison).
-- **Moderation**: reports by `reports.created_at`; AI-hidden = posts and comments with
-  `status = 'hidden'` and no team review, by `moderated_at`; team actions = rows of
-  `moderation_actions` by `created_at`.
+- **Moderation**: reports filed by members (house accounts out) by `reports.created_at`;
+  AI-hidden = members' posts and comments the AI hid (`moderation_reason` set, which only the
+  AI does), by `moderated_at`, whatever the team did with them afterwards, so both periods are
+  measured the same way; team actions = the moderation rows of `moderation_actions` (hide,
+  restore, confirm hide, reject report, ban, unban; not publishing or team accounts), by
+  `created_at`. Median first reply has no comparison line: recent posts can't have a late reply
+  yet, so the current period would always look better (ruled after the final review).
 - **Heatmap and languages** count posts + comments, like Contributors by contributions.
 
 ### The SDK
