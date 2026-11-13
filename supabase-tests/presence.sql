@@ -102,11 +102,11 @@ begin
   assert public.online_member_ids(array[b]) = '{}', 'hidden b is not in their own ids';
   reset role;
 
-  -- A banned caller is not counted and not listed.
+  -- A banned caller is not counted, not listed, and sees no one.
   perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
   set local role authenticated;
-  assert public.online_member_count() = 4, 'banned c is not counted';
-  assert public.online_member_ids(array[c]) = '{}', 'banned c is not listed';
+  assert public.online_member_count() = 0, 'a banned caller gets 0, whoever is online';
+  assert public.online_member_ids(array[c,v,a,e]) = '{}', 'a banned caller gets no ids';
   reset role;
 
   -- anon cannot call anything.
@@ -126,6 +126,65 @@ begin
     raise exception 'anon touched presence';
   exception when insufficient_privilege then null;
   end;
+  reset role;
+
+  -- touch_presence upserts: two calls leave one row, and the timestamp moves.
+  delete from public.member_presence where user_id = a;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.touch_presence();
+  perform public.touch_presence();
+  reset role;
+  assert (select count(*) from public.member_presence where user_id = a) = 1, 'two touches, one row';
+  assert (select last_active_at from public.member_presence where user_id = a) >= now(), 'a touch stamps now';
+  perform set_config('request.jwt.claims', json_build_object('sub', s, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.touch_presence();
+  reset role;
+  assert (select last_active_at from public.member_presence where user_id = s) >= now(),
+    'a touch moves a stale timestamp to now';
+
+  -- A first set_presence_visible must not make anyone online: only touch_presence does.
+  delete from public.member_presence where user_id = a;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.set_presence_visible(true);
+  reset role;
+  assert (select last_active_at from public.member_presence where user_id = a) < now() - interval '1 day',
+    'a first visibility write inserts an old timestamp';
+  perform set_config('request.jwt.claims', json_build_object('sub', v, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not (a = any (public.online_member_ids(array[a]))), 'a is not online until a touch';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.touch_presence();
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', v, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert a = any (public.online_member_ids(array[a])), 'a is online after a touch';
+  reset role;
+
+  -- online_member_ids only reads the first 200 ids: the 200th is listed, the 201st is not.
+  perform set_config('request.jwt.claims', json_build_object('sub', v, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert a = any (public.online_member_ids(
+    (select array_agg(gen_random_uuid()) from generate_series(1, 199)) || array[a, v])),
+    'the 200th id is read';
+  assert not (v = any (public.online_member_ids(
+    (select array_agg(gen_random_uuid()) from generate_series(1, 199)) || array[a, v]))),
+    'the 201st id is ignored, even for the caller';
+  reset role;
+
+  -- Admins count and show like anyone.
+  update public.profiles set is_admin = true where id = a;
+  set local role authenticated;
+  assert a = any (public.online_member_ids(array[a])), 'an online admin is listed';
+  assert public.online_member_count() = 5, 'v, a (admin), b, e, s count';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.online_member_count() = 5, 'an admin caller counts once';
   reset role;
 
   raise exception 'PRESENCE_TESTS_PASSED';

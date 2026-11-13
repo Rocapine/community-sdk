@@ -46,8 +46,9 @@ create or replace function public.set_presence_visible(p_visible boolean)
 returns void
 language sql security definer set search_path = public
 as $$
-  insert into member_presence (user_id, visible)
-  select auth.uid(), p_visible
+  -- A first row starts long idle: only touch_presence makes someone online.
+  insert into member_presence (user_id, last_active_at, visible)
+  select auth.uid(), 'epoch', p_visible
   where auth.uid() is not null
   on conflict (user_id) do update set visible = excluded.visible;
 $$;
@@ -78,7 +79,8 @@ drop function if exists public.online_member_count(int);
 drop function if exists public.online_member_ids(uuid[], int);
 
 -- Members online within the grace window, hidden members included: a count
--- reveals no one. The caller counts even without a fresh row (union dedups).
+-- reveals no one. The caller counts even without a fresh row (union dedups). A banned
+-- caller gets 0.
 create or replace function public.online_member_count()
 returns int
 language sql stable security definer set search_path = public
@@ -92,12 +94,13 @@ as $$
         mins => coalesce((select grace_minutes from presence_settings), 5))
     union
     select p.id from profiles p where p.id = auth.uid() and not p.is_banned
-  ) online;
+  ) online
+  where not exists (select 1 from profiles b where b.id = auth.uid() and b.is_banned);
 $$;
 
 -- Which of the first 200 of p_ids are online, visible, not banned and not
 -- blocked either way with the caller. The caller is online when asking, unless
--- they hid themselves (a missing row means visible).
+-- they hid themselves (a missing row means visible). A banned caller gets '{}'.
 create or replace function public.online_member_ids(p_ids uuid[])
 returns uuid[]
 language sql stable security definer set search_path = public
@@ -120,7 +123,8 @@ as $$
       and p.id = any (p_ids[1:200])
       and not p.is_banned
       and coalesce(mp.visible, true)
-  ) online;
+  ) online
+  where not exists (select 1 from profiles b where b.id = auth.uid() and b.is_banned);
 $$;
 
 revoke execute on function public.touch_presence() from public, anon;
