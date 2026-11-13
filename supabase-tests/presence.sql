@@ -80,6 +80,35 @@ begin
   assert not (v = any (public.online_member_ids(array[v,a,e]))), 'v is not in e''s list';
   reset role;
 
+  -- The caller always counts as online, even without a fresh row.
+  delete from public.member_presence where user_id = a;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.online_member_count() = 4, 'a has no row but counts: v, a, b, e';
+  assert a = any (public.online_member_ids(array[a])), 'a with no row is in their own ids';
+  reset role;
+  insert into public.member_presence (user_id, last_active_at, visible) values (a, now(), true);
+
+  -- A stale caller counts too.
+  perform set_config('request.jwt.claims', json_build_object('sub', s, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.online_member_count() = 5, 'stale s counts as the caller';
+  reset role;
+
+  -- A hidden caller counts but is not in their own ids.
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.online_member_count() = 4, 'hidden b counts, once';
+  assert public.online_member_ids(array[b]) = '{}', 'hidden b is not in their own ids';
+  reset role;
+
+  -- A banned caller is not counted and not listed.
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.online_member_count() = 4, 'banned c is not counted';
+  assert public.online_member_ids(array[c]) = '{}', 'banned c is not listed';
+  reset role;
+
   -- anon cannot call anything.
   set local role anon;
   begin

@@ -121,7 +121,7 @@ All optional, all default to a no-op:
 
 ### Presence (`modules.presence`)
 
-Online = in the foreground within the grace window: 5 minutes by default, a per-project
+Online = in the foreground within the grace window (the caller always counts as online): 5 minutes by default, a per-project
 backend setting, not a client option, so members can't vary it to probe when someone was
 last active. Change it from the SQL editor (service role):
 `select public.presence_set_grace_minutes(10);` (1 to 60). The host runs the heartbeat once,

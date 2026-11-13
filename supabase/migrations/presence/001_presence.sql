@@ -7,7 +7,9 @@
 -- The timestamp is never readable by clients (only user_id and visible are, and
 -- only for the member's own row): readers get a boolean through online_member_ids()
 -- or a number through online_member_count(). Both skip banned and (for the ids)
--- hidden and mutually blocked members. Fully idempotent.
+-- hidden and mutually blocked members. The caller always counts as online (whoever
+-- calls the readers has the app open), even before their first touch lands.
+-- Fully idempotent.
 
 create table if not exists public.member_presence (
   user_id uuid primary key references public.profiles(id) on delete cascade,
@@ -75,34 +77,49 @@ drop function if exists public.online_member_count(int);
 drop function if exists public.online_member_ids(uuid[], int);
 
 -- Members online within the grace window, hidden members included: a count
--- reveals no one.
+-- reveals no one. The caller counts even without a fresh row (union dedups).
 create or replace function public.online_member_count()
 returns int
 language sql stable security definer set search_path = public
 as $$
-  select count(*)::int
-  from member_presence mp
-  join profiles p on p.id = mp.user_id
-  where not p.is_banned
-    and mp.last_active_at > now() - make_interval(
-      mins => coalesce((select grace_minutes from presence_settings), 5));
+  select count(*)::int from (
+    select mp.user_id
+    from member_presence mp
+    join profiles p on p.id = mp.user_id
+    where not p.is_banned
+      and mp.last_active_at > now() - make_interval(
+        mins => coalesce((select grace_minutes from presence_settings), 5))
+    union
+    select p.id from profiles p where p.id = auth.uid() and not p.is_banned
+  ) online;
 $$;
 
 -- Which of the first 200 of p_ids are online, visible, not banned and not
--- blocked either way with the caller.
+-- blocked either way with the caller. The caller is online when asking, unless
+-- they hid themselves (a missing row means visible).
 create or replace function public.online_member_ids(p_ids uuid[])
 returns uuid[]
 language sql stable security definer set search_path = public
 as $$
-  select coalesce(array_agg(mp.user_id), '{}')
-  from member_presence mp
-  join profiles p on p.id = mp.user_id
-  where mp.user_id = any (p_ids[1:200])
-    and mp.visible
-    and not p.is_banned
-    and mp.last_active_at > now() - make_interval(
-      mins => coalesce((select grace_minutes from presence_settings), 5))
-    and not (mp.user_id = any ((select public.blocked_member_ids())::uuid[]));
+  select coalesce(array_agg(id), '{}') from (
+    select mp.user_id as id
+    from member_presence mp
+    join profiles p on p.id = mp.user_id
+    where mp.user_id = any (p_ids[1:200])
+      and mp.visible
+      and not p.is_banned
+      and mp.last_active_at > now() - make_interval(
+        mins => coalesce((select grace_minutes from presence_settings), 5))
+      and not (mp.user_id = any ((select public.blocked_member_ids())::uuid[]))
+    union
+    select p.id
+    from profiles p
+    left join member_presence mp on mp.user_id = p.id
+    where p.id = auth.uid()
+      and p.id = any (p_ids[1:200])
+      and not p.is_banned
+      and coalesce(mp.visible, true)
+  ) online;
 $$;
 
 revoke execute on function public.touch_presence() from public, anon;
