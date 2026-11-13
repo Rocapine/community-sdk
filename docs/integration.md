@@ -246,8 +246,9 @@ On a dev client, against the real project or a scratch one:
 8. **Report and block.** A report sends a Slack alert if the webhook is set; a
    harassment report offers to block the author too. A block hides both members from
    each other (posts, comments, likes, profile), and neither can comment under the
-   other's posts. Admins can't be blocked. Mount `BlockedMembersScreen` in your
-   settings so members can unblock.
+   other's posts. Admins can't be blocked. Mount `BlockedMembersScreen` and pass
+   `onOpenBlockedMembers` to `ProfileScreen` (it opens from the "…" menu of your own
+   profile), or link it from your settings, so members can unblock.
 9. **Push and inbox.** Actions from a second account arrive as pushes, and
    tapping one routes to the community screen. The inbox shows the events and
    clears the badge.
