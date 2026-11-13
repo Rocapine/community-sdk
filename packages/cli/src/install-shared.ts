@@ -24,6 +24,7 @@ export const MODULE_ORDER = [
   "images",
   "attachments",
   "badges",
+  "presence",
   // Deprecated: kept to move existing streaks onto badges (streaks/002). Implies badges.
   "streaks",
 ] as const;

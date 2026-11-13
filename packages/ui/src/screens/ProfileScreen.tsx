@@ -89,6 +89,7 @@ export function ProfileScreen({
   source = "post",
   onOpenThread,
   onBack,
+  onOpenBlockedMembers,
   onPressTopic,
   slots,
   topInset = 0,
@@ -101,6 +102,10 @@ export function ProfileScreen({
    * thread with the reply field focused (`ThreadSheet`'s `focusComment`). */
   onOpenThread(postId: string, focusComment?: boolean): void;
   onBack?: () => void;
+  /** Opens the host's blocked members screen (`BlockedMembersScreen`). When
+   * given, one's own profile gets a "…" menu with a "Blocked members" item;
+   * absent, one's own profile has no menu. */
+  onOpenBlockedMembers?: () => void;
   /** A post's topic was tapped: the host takes the user back to its feed on
    * that topic (see `CommunityFeedScreen`'s `topicRequest`). Absent: topics
    * are not tappable here. */
@@ -220,6 +225,13 @@ export function ProfileScreen({
   const openHeaderMenu = () => {
     if (!profile.data) return;
     const targetName = profile.data.name;
+    if (isMe) {
+      Alert.alert(targetName, undefined, [
+        { text: t("blocked.title"), onPress: onOpenBlockedMembers },
+        { text: t("menu.cancel"), style: "cancel" },
+      ]);
+      return;
+    }
     Alert.alert(targetName, undefined, [
       {
         text: t("menu.blockUser", { name: targetName }),
@@ -285,16 +297,19 @@ export function ProfileScreen({
               <View style={styles.topRowSpacer} />
             )}
             <View style={styles.topRowSpacer} />
-            {myUid != null && !isMe && !unavailable && profile.data && !profile.data.admin && (
-              <Pressable
-                onPress={openHeaderMenu}
-                style={styles.dotsBtn}
-                accessibilityRole="button"
-                accessibilityLabel={t("a11y.more")}
-              >
-                <icons.menu size={22} color={theme.colors.textPrimary} weight="bold" />
-              </Pressable>
-            )}
+            {myUid != null &&
+              !unavailable &&
+              profile.data &&
+              (isMe ? onOpenBlockedMembers != null : !profile.data.admin) && (
+                <Pressable
+                  onPress={openHeaderMenu}
+                  style={styles.dotsBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("a11y.more")}
+                >
+                  <icons.menu size={22} color={theme.colors.textPrimary} weight="bold" />
+                </Pressable>
+              )}
           </View>
 
           {isQueryLoading(profile) ? (

@@ -17,7 +17,34 @@ export {
   isEventTopic,
   topicLive,
   STREAK_BADGES,
+  presenceSettings,
 } from "./config";
+export type { OnlineCountAppearance, PresenceSettings } from "./config";
+
+export {
+  PRESENCE_HEARTBEAT_MS,
+  createOnlineBatcher,
+  fetchMyPresenceVisible,
+  fetchOnlineCount,
+  fetchOnlineIds,
+  setPresenceVisible,
+  startPresenceHeartbeat,
+  touchPresence,
+} from "./presence";
+export type { AppStateLike } from "./presence";
+
+export {
+  PRESENCE_KEY,
+  PRESENCE_POLL_MS,
+  isOnlineQueryOptions,
+  onlineCountQueryOptions,
+  presenceVisibilityMutationOptions,
+  presenceVisibleQueryOptions,
+  useIsOnline,
+  useOnlineCount,
+  usePresenceVisible,
+  useSetPresenceVisible,
+} from "./presence-hooks";
 export { readerLocale, languageOf } from "./locale";
 export { CommunityProvider, useCommunityConfig } from "./provider";
 

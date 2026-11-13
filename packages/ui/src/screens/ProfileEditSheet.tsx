@@ -24,10 +24,13 @@
 //  - No analytics calls here: `useUpdateProfile` emits `profileUpdated` itself.
 
 import {
+  presenceSettings,
   useCommunityConfig,
   useMyUid,
   useProfile,
+  usePresenceVisible,
   useSetBadgeVisibility,
+  useSetPresenceVisible,
   useUpdateProfile,
   uploadAvatar,
 } from "@rocapine/community-core";
@@ -72,6 +75,8 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   const profile = useProfile(myUid);
   const updateProfile = useUpdateProfile();
   const badgeVisibility = useSetBadgeVisibility();
+  const presenceVisible = usePresenceVisible();
+  const setPresenceVisible = useSetPresenceVisible();
 
   const [base, setBase] = useState<Saved>({ name: "", handle: "", bio: "" });
   const [name, setName] = useState("");
@@ -447,6 +452,17 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
                   />
                 ))}
                 <Text style={styles.helper}>{t("profile.badgesHelper")}</Text>
+              </View>
+            )}
+
+            {presenceSettings(cfg) && presenceVisible !== null && (
+              <View style={styles.section}>
+                <Text style={styles.label}>{t("profile.activityStatus")}</Text>
+                <BadgeToggle
+                  label={t("profile.showOnline")}
+                  value={presenceVisible}
+                  onChange={(on) => setPresenceVisible.mutateAsync(on)}
+                />
               </View>
             )}
           </>

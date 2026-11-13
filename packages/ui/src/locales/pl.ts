@@ -255,4 +255,13 @@ export const pl: Record<string, string> = {
   "badge.streak.toggle": "Pokazuj moją serię",
   "badge.bestStreak.toggle": "Pokazuj moją najlepszą serię",
   "profile.badgesHelper": "Inni widzą tylko odznaki, które włączysz.",
+  "presence.count.one": "{count} online",
+  "presence.count.few": "{count} online",
+  "presence.count.other": "{count} online",
+  "a11y.onlineCount.one": "{count} osoba online",
+  "a11y.onlineCount.few": "{count} osoby online",
+  "a11y.onlineCount.other": "{count} osób online",
+  "a11y.online": "Online",
+  "profile.activityStatus": "Status aktywności",
+  "profile.showOnline": "Pokaż, kiedy jestem online",
 };

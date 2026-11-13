@@ -23,7 +23,7 @@ Amendment 1 approved by Guillaume on 2026-11-13.
   module is absent or the post is not a poll) instead of `excerpt`.
 - Fixes: a screen-reader-only line under the heatmap made the whole dashboard scroll; the stat
   card sparklines were cut at the top.
-- Out, brick 20 of the roadmap: app releases (store and OTA) as markers on the daily chart.
+- Out, brick 21 of the roadmap: app releases (store and OTA) as markers on the daily chart.
   The community database has no release data; it needs a source such as EAS.
 
 ## Amendment 1 (2026-11-13): a page of its own

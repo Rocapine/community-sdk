@@ -25,7 +25,8 @@ exact signatures, see the per-package READMEs.
     images (one photo per post and per comment — it adds a native module, so
     the next build must include `expo-image-manipulator`), and badges (the
     app's own member badges, e.g. a streak, shown on posts, comments and
-    profiles, through `host.getBadges`).
+    profiles, through `host.getBadges`), and online presence (a green dot on
+    avatars of members in the app, and an online count in the feed header).
 
 ## Phase 1 — Backend
 
@@ -36,7 +37,7 @@ exact signatures, see the per-package READMEs.
 2. **Copy the modules** from the app repo root:
 
    ```bash
-   npx @rocapine/community init --modules core,push,polls,reaction,inbox,translation,images,badges
+   npx @rocapine/community init --modules core,push,polls,reaction,inbox,translation,images,badges,presence
    ```
 
    Drop any module you don't want (`core` is always implied; omitting the flag
@@ -145,6 +146,16 @@ e.g. `lib/community-config.ts`.
    against a backend without them the feed fails to load. If the app builds `FeedPost` or
    `ThreadComment` objects by hand (tests, fixtures), add `image: null`; a host
    that types a complete `CommunityIconSet` adds the new `image` role.
+   **Presence.** `presence: {}` (or `{ minCount?, collapseAfterMs?, appearance? }`, `appearance: "text"` for plain text instead of the collapsing pill)
+   turns on the dots and the `"online"` feed header item (e.g.
+   `header={{ left: ["profile", "online"], … }}`; it is dropped when the module is
+   off). The app must run the heartbeat itself, once, with the resolved config:
+   `useEffect(() => startPresenceHeartbeat(cfg, AppState), [cfg])` (the config passed to `CommunityProvider` must be stable, i.e. memoized: a config rebuilt on every render restarts the heartbeat every render), `AppState` from
+   `react-native`. It beats only in the foreground and never signs in anonymously
+   (no session, no beat). Online means in the foreground within the grace window:
+   5 minutes by default, a per-project backend setting changed from the SQL editor
+   (service role) with `select public.presence_set_grace_minutes(10);` (1 to 60).
+   The server owns it so members can't vary it to probe when someone was last active. The caller always counts as online unless banned (hidden callers are counted, never listed).
 3. **Host adapters.** Every field is optional and defaults to a no-op.
    - `getDisplayName` must be **synchronous**: read an already-hydrated store.
    - `getAnalyticsIds` must also be synchronous. The providers' own getters are
@@ -235,12 +246,18 @@ On a dev client, against the real project or a scratch one:
 8. **Report and block.** A report sends a Slack alert if the webhook is set; a
    harassment report offers to block the author too. A block hides both members from
    each other (posts, comments, likes, profile), and neither can comment under the
-   other's posts. Admins can't be blocked. Mount `BlockedMembersScreen` in your
-   settings so members can unblock.
+   other's posts. Admins can't be blocked. Mount `BlockedMembersScreen` and pass
+   `onOpenBlockedMembers` to `ProfileScreen` (it opens from the "…" menu of your own
+   profile), or link it from your settings, so members can unblock.
 9. **Push and inbox.** Actions from a second account arrive as pushes, and
    tapping one routes to the community screen. The inbox shows the events and
    clears the badge.
-10. **The app's own tests** still pass.
+10. **Presence.** With the presence module, two accounts on two devices: each sees the
+    other's green dot on posts, comments and the profile, and the header's online
+    count; backgrounding one app drops its dot after the grace window. "Show when I'm
+    online" off in the profile edit sheet hides the dot but the member still counts.
+    Members who blocked each other see no dot.
+11. **The app's own tests** still pass.
 
 ## Maintenance
 
@@ -250,7 +267,7 @@ On a dev client, against the real project or a scratch one:
     function templates since `community-sdk.json`. Review them, `supabase db push`,
     then redeploy the functions it touched.
   - `upgrade --add-modules <m>` adds a module (`images` for post and comment
-    images, then `supabase db push` and redeploy the functions).
+    images or `presence`, then `supabase db push` and redeploy the functions).
   - [`compat.md`](compat.md) says which releases carry backend changes.
 - **Never renumber or edit a migration that has been applied.** New behaviour
   always ships as a new file.

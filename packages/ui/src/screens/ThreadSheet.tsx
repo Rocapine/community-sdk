@@ -770,6 +770,7 @@ function CommentRow({
           url={comment.authorAvatarUrl}
           size={depth === 1 ? 24 : 30}
           placement="comment"
+          ringColor={theme.colors.background}
           admin={comment.authorAdmin}
           handle={comment.authorHandle}
           badges={comment.authorBadges}

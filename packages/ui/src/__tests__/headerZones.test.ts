@@ -7,7 +7,7 @@ describe("resolveHeaderZones", () => {
   it("drops the inbox when the inbox module is off", () => {
     const zones = resolveHeaderZones(
       { left: ["profile"], right: ["search", "inbox"] },
-      { inbox: false },
+      { inbox: false, online: true },
     );
     expect(zones.right).toEqual(["search"]);
   });
@@ -15,7 +15,7 @@ describe("resolveHeaderZones", () => {
   it("keeps logos and the order of each zone", () => {
     const zones = resolveHeaderZones(
       { left: [logo], center: ["title"], right: ["inbox", "search"] },
-      { inbox: true },
+      { inbox: true, online: true },
     );
     expect(zones).toEqual({
       left: [logo],
@@ -26,8 +26,10 @@ describe("resolveHeaderZones", () => {
   });
 
   it("hides the row when every zone ends up empty", () => {
-    expect(resolveHeaderZones({ right: ["inbox"] }, { inbox: false }).visible).toBe(false);
-    expect(resolveHeaderZones({ left: [] }, { inbox: true })).toEqual({
+    expect(resolveHeaderZones({ right: ["inbox"] }, { inbox: false, online: true }).visible).toBe(
+      false,
+    );
+    expect(resolveHeaderZones({ left: [] }, { inbox: true, online: true })).toEqual({
       left: [],
       center: [],
       right: [],
@@ -38,7 +40,7 @@ describe("resolveHeaderZones", () => {
   it("keeps the default zones when the config sets none (only a background, say)", () => {
     const zones = resolveHeaderZones(
       { background: { color: "#000" }, topInset: 47 },
-      { inbox: true },
+      { inbox: true, online: true },
     );
     expect(zones).toEqual({
       left: ["profile"],
@@ -49,10 +51,24 @@ describe("resolveHeaderZones", () => {
   });
 
   it("defaults to profile, title, search and inbox", () => {
-    expect(resolveHeaderZones(DEFAULT_FEED_HEADER, { inbox: true })).toMatchObject({
+    expect(resolveHeaderZones(DEFAULT_FEED_HEADER, { inbox: true, online: true })).toMatchObject({
       left: ["profile"],
       center: ["title"],
       right: ["search", "inbox"],
     });
+  });
+
+  it("drops online when the presence module is off", () => {
+    const z = resolveHeaderZones(
+      { left: ["online"], right: ["inbox"] },
+      { inbox: true, online: false },
+    );
+    expect(z.left).toEqual([]);
+  });
+
+  it("keeps online when the module is on", () => {
+    expect(resolveHeaderZones({ left: ["online"] }, { inbox: false, online: true }).left).toEqual([
+      "online",
+    ]);
   });
 });

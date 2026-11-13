@@ -60,6 +60,7 @@ import {
   type FeedPost,
   type PostAttachment,
   useUnreadNotificationCount,
+  presenceSettings,
 } from "@rocapine/community-core";
 import {
   useCallback,
@@ -113,7 +114,8 @@ import { useRulesAccepted } from "../utils/rulesAcceptance";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
 import { MyAvatar } from "../components/Avatar";
-import { TABS_ROW_HEIGHT, TopicTabs } from "../components/TopicTabs";
+import { firstTabLabelInset, TABS_ROW_HEIGHT, TopicTabs } from "../components/TopicTabs";
+import { OnlinePill } from "../components/OnlinePill";
 import { PressableScale } from "../components/PressableScale";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
@@ -537,15 +539,28 @@ export function CommunityFeedScreen({
     [openThread, openThreadToComment, onOpenProfile, openPostMenu, selectTopic, slots],
   );
 
-  const zones = resolveHeaderZones(header, { inbox: !!cfg.modules.inbox && !!onOpenInbox });
-  const renderHeaderItem = (item: FeedHeaderItem, index: number) => {
+  const zones = resolveHeaderZones(header, {
+    inbox: !!cfg.modules.inbox && !!onOpenInbox,
+    online: !!presenceSettings(cfg),
+  });
+  // The row bleeds out so icon glyphs sit flush with the content edge. A logo or the
+  // online count first on the left lines up with the first topic tab's label instead;
+  // last on the right, with the content edge.
+  const startInset = firstTabLabelInset(theme) - theme.spacing(CONTROLS_GUTTER) + EDGE_INSET;
+  const renderHeaderItem = (item: FeedHeaderItem, index: number, edge?: "start" | "end") => {
+    const inset =
+      edge === "start"
+        ? { marginLeft: startInset }
+        : edge === "end"
+          ? { marginRight: EDGE_INSET }
+          : null;
     if (typeof item === "object") {
       const height = item.height ?? LOGO_HEIGHT;
       return (
         <Image
           key={index}
           source={item.logo}
-          style={{ height, width: item.width ?? height }}
+          style={[{ height, width: item.width ?? height }, inset]}
           contentFit="contain"
           accessible={!!item.accessibilityLabel}
           accessibilityRole="image"
@@ -575,6 +590,8 @@ export function CommunityFeedScreen({
         );
       case "inbox":
         return <InboxBell key={index} onPress={onOpenInbox!} />;
+      case "online":
+        return <OnlinePill key={index} style={inset} />;
       case "search":
         return (
           <PressableScale
@@ -672,12 +689,20 @@ export function CommunityFeedScreen({
           <View style={styles.controls}>
             {zones.visible && (
               <View style={styles.headerRow}>
-                <View style={styles.headerSide}>{zones.left.map(renderHeaderItem)}</View>
+                <View style={styles.headerSide}>
+                  {zones.left.map((item, i) =>
+                    renderHeaderItem(item, i, i === 0 ? "start" : undefined),
+                  )}
+                </View>
                 {zones.center.length > 0 && (
-                  <View style={styles.headerCenter}>{zones.center.map(renderHeaderItem)}</View>
+                  <View style={styles.headerCenter}>
+                    {zones.center.map((item, i) => renderHeaderItem(item, i))}
+                  </View>
                 )}
                 <View style={[styles.headerSide, styles.headerSideRight]}>
-                  {zones.right.map(renderHeaderItem)}
+                  {zones.right.map((item, i) =>
+                    renderHeaderItem(item, i, i === zones.right.length - 1 ? "end" : undefined),
+                  )}
                 </View>
               </View>
             )}
@@ -902,6 +927,10 @@ function InboxBell({ onPress }: { onPress: () => void }) {
 
 /** Minimum touch target (Apple HIG / Material: 44pt / 48dp). */
 const ICON_TARGET = 44;
+/** The header's side gutter, in theme spacing units. */
+const CONTROLS_GUTTER = 5;
+/** How far the header row bleeds past the content edge (half an icon's padding). */
+const EDGE_INSET = (ICON_TARGET - 22) / 2;
 /** The search bar that takes the topic tabs' slot. */
 const CONTROL_HEIGHT = 40;
 const FAB_SIZE = 56;
@@ -930,13 +959,13 @@ function makeStyles(theme: CommunityTheme) {
       overflow: "hidden",
       backgroundColor: theme.colors.background,
     },
-    controls: { paddingHorizontal: theme.spacing(5), paddingTop: theme.spacing(1) },
+    controls: { paddingHorizontal: theme.spacing(CONTROLS_GUTTER), paddingTop: theme.spacing(1) },
     // Icons sit flush with the content edge; each keeps a 44pt target.
     headerRow: {
       flexDirection: "row",
       alignItems: "center",
       minHeight: ICON_TARGET,
-      marginHorizontal: -(ICON_TARGET - 22) / 2,
+      marginHorizontal: -EDGE_INSET,
     },
     // Both sides flex equally, so the center zone stays centered.
     headerSide: { flex: 1, flexDirection: "row", alignItems: "center", gap: theme.spacing(1) },
@@ -949,7 +978,7 @@ function makeStyles(theme: CommunityTheme) {
     headerSideRight: { justifyContent: "flex-end" },
     headerTitle: {
       flexShrink: 1,
-      paddingHorizontal: (ICON_TARGET - 22) / 2,
+      paddingHorizontal: EDGE_INSET,
       ...theme.typography.title,
       color: theme.colors.headerText,
     },

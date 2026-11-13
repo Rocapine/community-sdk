@@ -169,4 +169,9 @@ describe("pluralCategory", () => {
     expect(pluralCategory("es-ES", 0)).toBe("other");
     expect(pluralCategory("de", 1)).toBe("one");
   });
+
+  it("resolves the presence copy", () => {
+    expect(makeT("en")("presence.count", { count: 12 })).toBe("12 online");
+    expect(makeT("fr")("a11y.onlineCount", { count: 1 })).toBe("1 personne en ligne");
+  });
 });

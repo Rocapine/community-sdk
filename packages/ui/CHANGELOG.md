@@ -1,5 +1,52 @@
 # @rocapine/community-ui
 
+## 0.19.1
+
+### Patch Changes
+
+- c8a9fc8: **The online count can be plain text.** `modules.presence.appearance: "text"` shows the
+  header's online count as the green dot and "N online", always in full, with no pill
+  behind it; the dot pulses once on the first arrival (per JS runtime). The default stays
+  `"pill"`. Core exports `OnlineCountAppearance`.
+
+  **Header alignment.** A logo or the online count placed first in the feed header's left
+  zone now lines up with the first topic tab's label, and one placed last on the right with
+  the content edge, like the icons. A left logo moves 9pt inward.
+
+- Updated dependencies [c8a9fc8]
+  - @rocapine/community-core@0.19.1
+
+## 0.19.0
+
+### Minor Changes
+
+- 57b5d16: Your blocked members are one tap away from your own profile. `ProfileScreen` takes `onOpenBlockedMembers`: when given, your own profile gets the "…" menu with a "Blocked members" item that calls it, and the host opens `BlockedMembersScreen`. Without it, your own profile has no menu, as before.
+
+## 0.18.0
+
+### Minor Changes
+
+- 7b2c58a: **Online presence.** A green dot on a member's avatar while they are in the app, and an
+  "online" header item with the live count.
+
+  - Backend: the `presence` module (`npx @rocapine/community init|upgrade --add-modules
+presence`). Online means in the foreground within the grace window, a per-project backend
+    setting (default 5 minutes, `select public.presence_set_grace_minutes(10);` as service
+    role) that clients cannot pass, so no one can probe when a member was last active. RPCs
+    never return a timestamp. Hidden members still count, and blocked members never see each other's dot.
+  - Core: `modules.presence: { minCount?, collapseAfterMs? } | false`,
+    `startPresenceHeartbeat(cfg, AppState)` (the host runs it; it never signs in anonymously),
+    `touchPresence`, `presenceSettings`, hooks `useOnlineCount`, `useIsOnline`,
+    `usePresenceVisible`, `useSetPresenceVisible`, event `community_presence_visibility_changed`.
+  - UI: the `"online"` feed header item (dropped when the module is off), the dot on post,
+    comment and profile avatars (drawn around a custom `renderAvatar` too, which also receives `AvatarRenderProps.online`; the new `"blocked"` placement is the blocked-members list, with no dot), and an
+    "Activity status" switch in the profile edit sheet.
+
+### Patch Changes
+
+- Updated dependencies [7b2c58a]
+  - @rocapine/community-core@0.18.0
+
 ## 0.17.0
 
 ### Minor Changes

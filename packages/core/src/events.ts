@@ -21,6 +21,7 @@ export const COMMUNITY_EVENTS = {
   contentDeleted: "content_deleted",
   inboxOpened: "notification_center_opened",
   translationToggled: "community_translation_toggled",
+  presenceVisibilityChanged: "community_presence_visibility_changed",
 } as const;
 
 export type CommunityEventName = (typeof COMMUNITY_EVENTS)[keyof typeof COMMUNITY_EVENTS];

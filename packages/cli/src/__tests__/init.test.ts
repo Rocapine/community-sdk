@@ -123,6 +123,13 @@ describe("runInit", () => {
     expect(toBadges).toBeGreaterThan(badges);
   });
 
+  it("installs presence after core", async () => {
+    const result = await runInit(baseOptions({ modules: ["core", "presence"] }));
+    expect(result.manifest.modules).toEqual(["core", "presence"]);
+    const files = fs.readdirSync(path.join(cwd, "supabase", "migrations"));
+    expect(files.some((f) => f.includes("_community_presence_"))).toBe(true);
+  });
+
   it("warns when inbox is selected without reaction, but proceeds", async () => {
     const onWarn = vi.fn();
     const result = await runInit(baseOptions({ modules: ["core", "inbox"], onWarn }));
