@@ -182,6 +182,7 @@ What each SDK feature gives the dashboard to manage. Update a row when the SDK c
 | Post drafts, `publish_post_draft` (core `014_post_drafts`)             | 0.16              | Shared drafts; publish as a team account               | 4, 7    |
 | Draft images (images `002_draft_images`)                               | 0.16              | Images in drafts, kept by the nightly sweep            | 4       |
 | Scheduled posts (core `015`)                                           | 0.16              | Composer, Home                                         | 7       |
+| Activity metrics and breakdown, `created_at` indexes (core `017`)      | next release      | Activity page and Home overview                        | 5       |
 | Member badges (badges; replaces streaks)                               | 0.15              | Badges on the member card                              | 3, 18   |
 
 ## Open questions
