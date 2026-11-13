@@ -13,6 +13,7 @@
 ## Global Constraints
 
 - **Precondition (met):** [Rocapine/community-sdk#82](https://github.com/Rocapine/community-sdk/pull/82) is merged (6dafb63) and shipped in 0.17.0. It adds `public.blocked_member_ids()` in `core/016_mutual_blocks.sql`, which this plan relies on. This branch is rebased on it. Presence ships as **0.18.0**.
+- **Superseded during execution:** the grace is no longer a client parameter. The final review found that a client-chosen `p_grace_minutes` let any member probe another's last activity to the minute, so the grace lives in the backend (`presence_settings`, default 5, set with `presence_set_grace_minutes`), the RPCs take no grace, and `modules.presence` has no `graceMinutes`. Where this plan still says otherwise, the code and the spec win.
 - The rule behind every choice: **show presence, never absence.** No grey dot, no "Inactive", no last-seen text, nowhere.
 - Online = foreground on any screen, plus a grace period. The grace defaults to **5 minutes** and is configurable.
 - Module config, with these exact defaults:
