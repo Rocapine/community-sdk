@@ -40,11 +40,14 @@ begin
   perform public.set_presence_visible(false);
   assert (select visible from public.member_presence where user_id = v) = false, 'v hid themselves';
   assert public.online_member_ids(array[v], 5) = '{}', 'hidden v is not listed';
+  perform public.set_presence_visible(true);
   reset role;
 
   -- e, blocked by v, does not see v.
   perform set_config('request.jwt.claims', json_build_object('sub', e, 'role', 'authenticated')::text, true);
   set local role authenticated;
+  -- v is visible again, so only the block can exclude v; a is the positive control.
+  assert a = any (public.online_member_ids(array[v,a,e], 5)), 'a is in e''s list';
   assert not (v = any (public.online_member_ids(array[v,a,e], 5))), 'v is not in e''s list';
   reset role;
 
