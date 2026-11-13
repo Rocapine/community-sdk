@@ -1,5 +1,5 @@
 -- Activity breakdown (core/017_activity_metrics.sql, admin_activity_breakdown).
--- Run against a backend with core applied, after 017 (the push module adds profiles.locale):
+-- Run against a backend with core applied, after 017 (profiles.locale is added here when the push module is absent):
 --   supabase db query --linked --project-ref <ref> --yes -f supabase-tests/activity-breakdown.sql
 -- It flips is_house on existing profiles and adds content dated April 2001, then always rolls back
 -- by raising at the end: the run passed when the error message is exactly ACTIVITY_BREAKDOWN_TESTS_PASSED.
@@ -12,6 +12,7 @@ declare
   j jsonb;
   e jsonb;
 begin
+  alter table public.profiles add column if not exists locale text;
   select array_agg(id) into ids from (select id from public.profiles order by created_at limit 5) s;
   assert cardinality(ids) = 5, 'the backend needs five profiles';
   m1 := ids[1]; m2 := ids[2]; m3 := ids[3]; m4 := ids[4]; h := ids[5];
@@ -67,6 +68,8 @@ begin
   insert into public.reports (reporter_id, reported_user_id, post_id, reason, created_at) values
     (m1, m2, pb, 'spam', '2001-04-10 12:00Z'), (m3, m1, pa, 'spam', '2001-04-12 12:00Z'),   -- current: 2
     (m1, m2, pb, 'spam', '2001-04-06 12:00Z'),                                              -- previous: 1
+    (m1, m2, pb, 'spam', '2001-04-01 22:00:00Z'),   -- exactly at the previous period's start (02 00:00 Paris): in
+    (m1, m2, pb, 'spam', '2001-04-01 21:59:59Z'),   -- one second before: out
     (m1, m2, pb, 'spam', '2001-05-01 12:00Z');                                              -- outside both
   insert into public.moderation_actions (actor_email, action, target_post_id, created_at) values
     ('a@example.com', 'hide', pa, '2001-04-11 12:00Z'),                                     -- current: 1
@@ -92,7 +95,7 @@ begin
     'languages: ' || (j->'languages')::text;
 
   -- moderation.
-  assert j->'moderation' = '{"reports":2,"ai_hidden":2,"team_actions":1,"previous":{"reports":1,"ai_hidden":1,"team_actions":2}}'::jsonb,
+  assert j->'moderation' = '{"reports":2,"ai_hidden":2,"team_actions":1,"previous":{"reports":2,"ai_hidden":1,"team_actions":2}}'::jsonb,
     'moderation: ' || (j->'moderation')::text;
 
   -- returning: m1 and m2 posted in both periods, m4 only before, m3 only now.
@@ -106,6 +109,7 @@ begin
   assert (select array_agg(k order by k) from jsonb_object_keys(e) k)
     = array['author_id','author_name','comments','created_at','excerpt','id','likes','topic'], 'top post keys: ' || e::text;
   assert (e->>'likes')::int = 2 and (e->>'comments')::int = 1, 'house like and house or deleted comment are out: ' || e::text;
+  assert e->>'created_at' = '2001-04-09T07:30:00.000Z', 'created_at is ISO UTC: ' || e::text;
   assert length(e->>'excerpt') = 140 and e->>'topic' = 'tA' and e->>'author_name' = 'member-one'
     and (e->>'author_id')::uuid = m1, 'excerpt, topic, author: ' || e::text;
   assert (j->'top_posts'->0->>'likes')::int = 2 and (j->'top_posts'->0->>'comments')::int = 1, 'pc: ' || (j->'top_posts'->0)::text;
@@ -139,6 +143,12 @@ begin
   assert not has_function_privilege('authenticated', 'public.admin_activity_breakdown(date,date,text)', 'execute')
     and not has_function_privilege('anon', 'public.admin_activity_breakdown(date,date,text)', 'execute'),
     'clients cannot read the breakdown';
+
+  -- Without the push module's column, languages is null and the rest is unchanged.
+  alter table public.profiles drop column locale;
+  j := public.admin_activity_breakdown('2001-04-09', '2001-04-15', 'Europe/Paris');
+  assert jsonb_typeof(j->'languages') = 'null' and j->'returning' = '{"previous_contributors":3,"returned":2}'::jsonb
+    and (j->'heatmap'->0->>9)::int = 1, 'no locale column: ' || j::text;
 
   raise exception 'ACTIVITY_BREAKDOWN_TESTS_PASSED';
 end $$;
