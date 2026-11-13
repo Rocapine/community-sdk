@@ -198,7 +198,9 @@ export function CommunityPost({
       </Pressable>
       {topicId && (
         <>
-          <Text style={styles.meta}>›</Text>
+          <Text style={styles.meta} accessibilityElementsHidden importantForAccessibility="no">
+            ›
+          </Text>
           <Pressable
             onPress={onPressTopic ? () => onPressTopic(topicId) : undefined}
             disabled={!onPressTopic}
@@ -230,7 +232,14 @@ export function CommunityPost({
   );
 
   const likeButton = (
-    <PressableScale hitSlop={4} onPress={handleToggleLike} style={styles.stat}>
+    <PressableScale
+      hitSlop={4}
+      onPress={handleToggleLike}
+      style={styles.stat}
+      accessibilityLabel={t("a11y.like")}
+      accessibilityValue={{ text: String(post.likeCount) }}
+      accessibilityState={{ selected: post.likedByMe }}
+    >
       <icons.like
         size={18}
         color={post.likedByMe ? theme.colors.like : theme.colors.textFaint}
@@ -249,6 +258,9 @@ export function CommunityPost({
       hitSlop={4}
       onPress={handleReact}
       style={[styles.stat, reactionWord != null && styles.statWithWord]}
+      accessibilityLabel={reactionWord ?? t("a11y.react")}
+      accessibilityValue={{ text: String(post.reactionCount) }}
+      accessibilityState={{ selected: post.hasReacted }}
     >
       <icons.reaction
         size={18}
@@ -276,6 +288,7 @@ export function CommunityPost({
       hitSlop={4}
       onPress={() => (onPressComment ?? onOpenThread)?.(post.id)}
       style={styles.stat}
+      accessibilityLabel={t("thread.comments", { count: post.commentCount })}
     >
       <icons.comment size={18} color={theme.colors.textFaint} weight="regular" />
       <StatCount value={post.commentCount} boxStyle={styles.statCount} style={styles.statText} />
@@ -379,8 +392,14 @@ export function CommunityPost({
   );
 
   return onOpenThread ? (
+    // Hidden from screen readers, its content not: as one element, VoiceOver
+    // read the whole post in one go and never reached its buttons, and TalkBack
+    // stopped on it too. The comment button opens the thread.
     <PressableScale
       scale="surface"
+      accessible={false}
+      accessibilityRole="none"
+      importantForAccessibility="no"
       onPress={() => onOpenThread(post.id)}
       style={[styles.row, overBackground && styles.rowOverBackground]}
     >

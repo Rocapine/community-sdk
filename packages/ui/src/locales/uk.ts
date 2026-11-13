@@ -215,6 +215,7 @@ export const uk: Record<string, string> = {
   "a11y.closeSearch": "Закрити пошук",
   "a11y.clearSearch": "Очистити пошук",
   "a11y.myProfile": "Мій профіль",
+  "a11y.react": "Відреагувати",
   "composer.addImage": "Додати зображення",
   "composer.removeImage": "Видалити зображення",
   "composer.removeAttachment": "Видалити вкладення",

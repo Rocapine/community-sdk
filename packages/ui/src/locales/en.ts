@@ -223,6 +223,7 @@ export const en: Record<string, string> = {
   "a11y.closeSearch": "Close search",
   "a11y.clearSearch": "Clear search",
   "a11y.myProfile": "My profile",
+  "a11y.react": "React",
   "composer.addImage": "Add an image",
   "composer.removeImage": "Remove image",
   "composer.removeAttachment": "Remove attachment",

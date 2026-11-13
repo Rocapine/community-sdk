@@ -128,6 +128,8 @@ export function ReportSheet({
                 haptic="selection"
                 onPress={() => setReason(r)}
                 style={[styles.chip, on && styles.chipOn]}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: on }}
               >
                 <Text style={[styles.chipText, on && styles.chipTextOn]}>
                   {t(`report.reasons.${r}`)}
