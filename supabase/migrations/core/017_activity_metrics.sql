@@ -14,8 +14,8 @@
 -- Also admin_activity_breakdown(from_date, to_date, tz): the Activity page's breakdowns in one
 -- call (service role only): a 7 x 24 heatmap (Monday first, hours in tz) of member posts and
 -- comments, those by author language (profiles.locale, from the push module; null when the
--- column is absent: then languages is null), moderation counts (reports, AI-hidden items not yet reviewed, team
--- actions) against the previous period of the same length, how many of the previous period's
+-- column is absent: then languages is null), moderation counts (reports by members, items the AI hid whatever their status or review now,
+-- team moderation actions) against the previous period of the same length, how many of the previous period's
 -- contributors came back, and the five top posts. Same zone check and window as above.
 -- Requires core/004. Fully idempotent.
 
@@ -226,14 +226,16 @@ begin
     from cur group by 1, 2),
   mod as (
     select w.k,
-      (select count(*) from reports r where r.created_at >= w.a and r.created_at < w.b) as reports,
+      (select count(*) from reports r join profiles a on a.id = r.reporter_id and not a.is_house
+        where r.created_at >= w.a and r.created_at < w.b) as reports,
       (select count(*) from (
           select 1 from posts p join profiles a on a.id = p.author_id and not a.is_house
-          where p.status = 'hidden' and p.reviewed_at is null and p.moderated_at >= w.a and p.moderated_at < w.b
+          where p.moderation_reason is not null and p.moderated_at >= w.a and p.moderated_at < w.b
           union all
           select 1 from comments c join profiles a on a.id = c.author_id and not a.is_house
-          where c.status = 'hidden' and c.reviewed_at is null and c.moderated_at >= w.a and c.moderated_at < w.b) q) as ai_hidden,
-      (select count(*) from moderation_actions m where m.created_at >= w.a and m.created_at < w.b) as team_actions
+          where c.moderation_reason is not null and c.moderated_at >= w.a and c.moderated_at < w.b) q) as ai_hidden,
+      (select count(*) from moderation_actions m where m.created_at >= w.a and m.created_at < w.b
+        and m.action in ('hide','restore','confirm_hide','reject_report','ban','unban')) as team_actions
     from (values ('cur', t0, t1), ('prev', pt0, t0)) w(k, a, b)),
   top as (select * from (
     select p.id, left(p.content, 140) as excerpt, p.topic, p.author_id, a.username as author_name, p.created_at,

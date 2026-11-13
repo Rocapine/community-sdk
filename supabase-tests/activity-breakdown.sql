@@ -24,27 +24,29 @@ begin
   update public.profiles set username = 'member-one' where id = m1;
 
   -- Current window. m1: pa (hidden by the AI), pd, pe, pf, cb, cc. m2: pb, ca. m3: pc, cd. House: hp and a comment.
-  insert into public.posts (author_id, content, topic, status, moderated_at, created_at)
-    values (m1, repeat('x', 200), 'tA', 'hidden', '2001-04-10 10:00Z', '2001-04-09 07:30Z') returning id into pa;
-  insert into public.posts (author_id, content, topic, status, created_at)
-    values (m2, 'pb', 'tB', 'visible', '2001-04-10 10:00Z') returning id into pb;
+  insert into public.posts (author_id, content, topic, status, moderated_at, moderation_reason, created_at)
+    values (m1, repeat('x', 200), 'tA', 'hidden', '2001-04-10 10:00Z', 'spam', '2001-04-09 07:30Z') returning id into pa;
+  -- pb: hidden by the AI, then restored and reviewed by a human: still counts in its period.
+  insert into public.posts (author_id, content, topic, status, moderated_at, moderation_reason, reviewed_at, created_at)
+    values (m2, 'pb', 'tB', 'visible', '2001-04-10 10:00Z', 'spam', '2001-04-10 12:00Z', '2001-04-10 10:00Z') returning id into pb;
   insert into public.posts (author_id, content, status, created_at)
     values (m3, 'pc', 'visible', '2001-04-11 12:00Z') returning id into pc;
-  insert into public.posts (author_id, content, status, created_at) values (m1, 'pd', 'visible', '2001-04-12 12:00Z') returning id into pd;
+  -- pd: hidden without a moderation_reason (not by the AI): does not count.
+  insert into public.posts (author_id, content, status, moderated_at, created_at) values (m1, 'pd', 'hidden', '2001-04-12 13:00Z', '2001-04-12 12:00Z') returning id into pd;
   insert into public.posts (author_id, content, status, created_at) values (m1, 'pe', 'visible', '2001-04-13 12:00Z') returning id into pe;
   insert into public.posts (author_id, content, status, created_at) values (m1, 'pf', 'visible', '2001-04-14 12:00Z') returning id into pf;
   -- Left out: a deleted post (Monday 09:30 Paris too, and liked twice), a house post with the most likes.
   insert into public.posts (author_id, content, status, created_at)
     values (m1, 'gone', 'deleted', '2001-04-09 07:30Z') returning id into pdel;
-  insert into public.posts (author_id, content, status, moderated_at, created_at)
-    values (h, 'house', 'hidden', '2001-04-10 11:00Z', '2001-04-09 07:30Z') returning id into hp;
+  insert into public.posts (author_id, content, status, moderated_at, moderation_reason, created_at)
+    values (h, 'house', 'hidden', '2001-04-10 11:00Z', 'spam', '2001-04-09 07:30Z') returning id into hp;
 
   insert into public.comments (post_id, author_id, content, status, created_at)
     values (pa, m2, 'ca', 'visible', '2001-04-15 21:10Z');  -- Sunday 23:10 Paris
-  insert into public.comments (post_id, author_id, content, status, moderated_at, created_at)
-    values (pb, m1, 'cb', 'hidden', '2001-04-11 09:00Z', '2001-04-10 11:00Z');  -- hidden by the AI
-  insert into public.comments (post_id, author_id, content, status, moderated_at, reviewed_at, created_at)
-    values (pb, m1, 'cc', 'hidden', '2001-04-11 09:00Z', '2001-04-11 10:00Z', '2001-04-10 11:30Z');  -- hidden, reviewed by a human
+  insert into public.comments (post_id, author_id, content, status, moderated_at, moderation_reason, created_at)
+    values (pb, m1, 'cb', 'hidden', '2001-04-11 09:00Z', 'abuse', '2001-04-10 11:00Z');  -- hidden by the AI
+  insert into public.comments (post_id, author_id, content, status, moderated_at, moderation_reason, reviewed_at, created_at)
+    values (pb, m1, 'cc', 'hidden', '2001-04-11 09:00Z', 'abuse', '2001-04-11 10:00Z', '2001-04-10 11:30Z');  -- hidden, reviewed by a human
   insert into public.comments (post_id, author_id, content, status, created_at)
     values (pc, m3, 'cd', 'visible', '2001-04-11 12:30Z');
   insert into public.comments (post_id, author_id, content, status, created_at) values
@@ -58,23 +60,26 @@ begin
     (pdel, m2, '2001-04-10 08:00Z'), (pdel, m3, '2001-04-10 08:00Z');
 
   -- Previous period. m1: pz (hidden by the AI). m2: pq. m4: pm. m3 only has a deleted post. House: a hidden post.
-  insert into public.posts (author_id, content, status, moderated_at, created_at) values
-    (m1, 'pz', 'hidden', '2001-04-05 10:00Z', '2001-04-04 10:00Z'),
-    (m2, 'pq', 'visible', null, '2001-04-05 10:00Z'),
-    (m4, 'pm', 'visible', null, '2001-04-06 10:00Z'),
-    (m3, 'gone', 'deleted', null, '2001-04-03 10:00Z'),
-    (h, 'house', 'hidden', '2001-04-05 11:00Z', '2001-04-05 11:00Z');
+  insert into public.posts (author_id, content, status, moderated_at, moderation_reason, created_at) values
+    (m1, 'pz', 'hidden', '2001-04-05 10:00Z', 'spam', '2001-04-04 10:00Z'),
+    (m2, 'pq', 'visible', null, null, '2001-04-05 10:00Z'),
+    (m4, 'pm', 'visible', null, null, '2001-04-06 10:00Z'),
+    (m3, 'gone', 'deleted', null, null, '2001-04-03 10:00Z'),
+    (h, 'house', 'hidden', '2001-04-05 11:00Z', 'spam', '2001-04-05 11:00Z');
 
   insert into public.reports (reporter_id, reported_user_id, post_id, reason, created_at) values
     (m1, m2, pb, 'spam', '2001-04-10 12:00Z'), (m3, m1, pa, 'spam', '2001-04-12 12:00Z'),   -- current: 2
     (m1, m2, pb, 'spam', '2001-04-06 12:00Z'),                                              -- previous: 1
     (m1, m2, pb, 'spam', '2001-04-01 22:00:00Z'),   -- exactly at the previous period's start (02 00:00 Paris): in
     (m1, m2, pb, 'spam', '2001-04-01 21:59:59Z'),   -- one second before: out
-    (m1, m2, pb, 'spam', '2001-05-01 12:00Z');                                              -- outside both
+    (m1, m2, pb, 'spam', '2001-05-01 12:00Z'),                                              -- outside both
+    (h, m2, pb, 'spam', '2001-04-10 12:00Z'), (h, m2, pb, 'spam', '2001-04-06 12:00Z');     -- filed by a house account: out
   insert into public.moderation_actions (actor_email, action, target_post_id, created_at) values
     ('a@example.com', 'hide', pa, '2001-04-11 12:00Z'),                                     -- current: 1
     ('a@example.com', 'hide', pa, '2001-04-03 12:00Z'), ('a@example.com', 'restore', pa, '2001-04-07 12:00Z'),  -- previous: 2
-    ('a@example.com', 'hide', pa, '2001-05-01 12:00Z');                                     -- outside both
+    ('a@example.com', 'hide', pa, '2001-05-01 12:00Z'),                                     -- outside both
+    ('a@example.com', 'publish_post', pa, '2001-04-12 12:00Z'),                             -- not moderation: out (both periods)
+    ('a@example.com', 'publish_post', pa, '2001-04-06 12:00Z');
 
   j := public.admin_activity_breakdown('2001-04-09', '2001-04-15', 'Europe/Paris');
   assert (select array_agg(k order by k) from jsonb_object_keys(j) k)
@@ -95,7 +100,7 @@ begin
     'languages: ' || (j->'languages')::text;
 
   -- moderation.
-  assert j->'moderation' = '{"reports":2,"ai_hidden":2,"team_actions":1,"previous":{"reports":2,"ai_hidden":1,"team_actions":2}}'::jsonb,
+  assert j->'moderation' = '{"reports":2,"ai_hidden":4,"team_actions":1,"previous":{"reports":2,"ai_hidden":1,"team_actions":2}}'::jsonb,
     'moderation: ' || (j->'moderation')::text;
 
   -- returning: m1 and m2 posted in both periods, m4 only before, m3 only now.
