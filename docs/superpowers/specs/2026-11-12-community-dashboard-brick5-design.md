@@ -3,6 +3,116 @@
 Date: 2026-11-12. Status: approved by Guillaume on 2026-11-13 (palette v3 pending his look). Roadmap:
 [docs/dashboard-roadmap.md](../../dashboard-roadmap.md)
 
+**Amended on 2026-11-13** after Guillaume saw the first build: the section "Amendment 1" below
+overrides the older sections where they disagree (a page of its own, more panels, indexes).
+Amendment 1 waits for his approval.
+
+## Amendment 1 (2026-11-13): a page of its own
+
+Guillaume's feedback on the first build, in his words: Activity deserves its own page, with an
+overview on Home and a "See all" button; the topic panel must be a Bklit chart too; load times
+are judged on production data, with Bklit loading states where needed; add the indexes if they
+cost little; show more numbers, as Octopus does; and let him look at all of it with production
+data. Below, how each one lands. Everything else in this spec stands.
+
+### Where it lives
+
+- **Activity page** at `/:app/:env/activity`, a sidebar item "Activity" right under Home. The
+  7 / 30 / 90-day toggle, the dates line and the "vs the period before" comparison move there,
+  unchanged. The page uses the screen's width: a 12-column grid, panels side by side, stacked
+  on narrow screens.
+- **Home keeps an overview**: the section title "Activity", the four stat cards of today, and a
+  "See all" link (top right, where the toggle was) to the page. The overview follows the period
+  last picked on the page (same `localStorage` key, default 30 d) and says it in the dates line,
+  so Home has no toggle of its own (my call: one fewer control on the screen read every day).
+- The "needs the latest SDK" line shows on both when the probe is off; the sidebar item stays,
+  and the page shows that line alone.
+
+### The page, top to bottom
+
+1. **Six stat cards** (today's card): Contributions, Contributors, **New members**, **Active
+   members**, Replied within 24 h (with "N unanswered" under it), **Median first reply**.
+2. **Posts and comments per day** (today's area chart), 8 columns; beside it, 4 columns,
+   **Engagement**: all members (profiles at the period's end) → active → contributors, as three horizontal bars with
+   their count and share (Octopus "Engagement", without readers, which we can't count).
+3. **Contributions** table (today's), 6 columns; **Posts per topic**, 6 columns, now a Bklit
+   horizontal `BarChart`: the topic label and its count both sit in the category axis label
+   ("Quitting porn  439"), so a short bar never hides its number; one colour (slot 1).
+4. **When members are active**: Bklit `heatmap-chart`, days of the week by hour, posts and
+   comments in the browser's zone, one hue on the blue ramp with a legend. Answers "when should
+   we schedule a post", which brick 7 needs. 8 columns; beside it **Contributors by
+   contributions** (today's segmented bar), 4 columns.
+5. **Languages**: contributions by the author's app language (`profiles.locale`), Bklit
+   `ring-chart`, top 4 + "Other", each with label, count and share in the legend. 4 columns.
+   **Moderation**: reports filed, posts and comments hidden by the AI, items the team acted on,
+   each with its change. 4 columns. **Returning contributors**: the share of the previous
+   period's contributors who contributed again, with the count. 4 columns.
+6. **Most engaged posts**: the five posts of the period with the most likes + comments: first
+   words, topic, author, likes, comments, date. Plain rows (my call: a ranking from the
+   database, not brick 14's AI "standout posts"; brick 14 keeps themes, sentiment and the
+   monthly summary).
+
+### New definitions (my calls, to confirm)
+
+- **New members**: profiles created in the period, house accounts out. The SDK creates a
+  profile at the first anonymous sign-in, when the app first uses the community. Production
+  check: 11,117 profiles since 20 Oct, against 8,354 monthly users on Octopus in October, so
+  "opened the community at least once" is the right reading.
+- **Active members**: distinct members who posted, commented, liked, voted or reacted in the
+  period. Its share is out of the members who existed at the period's end.
+- **Median first reply**: over the period's posts that got a reply from someone else (not
+  deleted), the median time from the post to that first reply, shown in minutes or hours. Posts
+  under 24 h old are left out, like the reply rate.
+- **Returning contributors**: contributors of the previous period who also contributed in this
+  one, over the previous period's contributors. No comparison line (it is already a
+  comparison).
+- **Moderation**: reports by `reports.created_at`; AI-hidden = posts and comments with
+  `status = 'hidden'` and no team review, by `moderated_at`; team actions = rows of
+  `moderation_actions` by `created_at`.
+- **Heatmap and languages** count posts + comments, like Contributors by contributions.
+
+### The SDK
+
+- `admin_daily_metrics` gains `new_members` and `active_members` in `daily`, and
+  `new_members`, `active_members`, `members_total` and `median_first_reply_minutes` at the top
+  level. Home calls only this function.
+- A second function, `admin_activity_breakdown(from_date, to_date, tz)`, same rules (service
+  role only, invalid zone raises 22023, house accounts out, a missing module gives null): the
+  heatmap (7 × 24 counts), languages, moderation counts with the previous period's, returning
+  contributors, and the five most engaged posts (id, first 140 characters, topic, author id and
+  name, likes, comments, created_at). Only the page calls it, so Home stays one call.
+- **Indexes** in 017 (cheap at this size: a few thousand rows, a few milliseconds of lock on
+  creation, a negligible cost per insert): `created_at` on `posts`, `comments`, `likes`,
+  `comment_likes`, `profiles`, `reports`, and on `poll_votes` / `post_reactions` when their
+  module is installed. `create index if not exists`, so re-running 017 stays harmless.
+
+### Loading
+
+Each Bklit chart that has `status` (area, bar, heatmap) mounts at once with
+`status="loading"` and hands off to the data, as Bklit intends; the ring, the stat cards and the
+lists get a same-size `Skeleton`. The page asks for both functions in parallel; Home asks for one.
+
+### Speed on production
+
+Production Unchaind today: 691 posts, 1,224 comments, 4,459 likes, 11,117 profiles, all since
+20 Oct. On a copy of those rows, 017 answers a 30-day call in 110 ms without the new indexes.
+Speed is measured again on production (`explain analyze`, read only) once 017 is applied there.
+
+### Production data for review
+
+A local harness, not shipped: a data-minimal copy of production (ids, dates, statuses, topics,
+locales; no post text, no bio, no third-party ids, no push token) in a local Postgres with 017
+applied, behind a local stand-in for Supabase that answers the `admin_*` calls from that copy and
+sends every other call to the sandbox. A second `wrangler dev` points the community at it.
+Production is only read. The most engaged posts need their first words: the harness copies
+those for the page's five posts only.
+
+### Still out
+
+Visits, readers, post views, sessions, time in the app, retention and the share of app users
+reaching the community: they need app analytics (brick 15, from Amplitude). Export, custom
+ranges and the iOS / Android split stay out.
+
 ## Why
 
 The team needs to know whether the community is alive and getting better: how much members
@@ -33,11 +143,11 @@ SDK change.
 - Views, visits, sessions, time in the app and retention. The SDK doesn't track app opens or
   post views. Octopus shows these; for us they belong to brick 15 (Community vs. app, from
   Amplitude).
-- Top posts, top contributors, topics on the rise, sentiment: brick 14 (Insights).
+- Top contributors, topics on the rise, sentiment: brick 14 (Insights). (Most engaged posts: Amendment 1.)
 - A link from "unanswered posts" to the list of those posts: brick 6 (Feed explorer) has the
   "no answer yet" filter. The number comes first, the link with brick 6.
 - Export (CSV, PDF), custom date ranges, platform split (iOS / Android).
-- A new page. Activity lives on Home (UI principles).
+- ~~A new page.~~ Overridden by Amendment 1.
 
 ## Anti-goals
 
