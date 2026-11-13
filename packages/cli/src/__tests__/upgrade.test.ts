@@ -129,7 +129,7 @@ describe("runUpgrade", () => {
 
     const migrationsDir = path.join(cwd, "supabase", "migrations");
     const before = fs.readdirSync(migrationsDir).sort();
-    expect(before).toHaveLength(17);
+    expect(before).toHaveLength(18);
 
     // Simulate a newer SDK version shipping one additional core migration.
     fs.writeFileSync(
@@ -140,7 +140,7 @@ describe("runUpgrade", () => {
     const result = await runUpgrade(baseOptions());
 
     const after = fs.readdirSync(migrationsDir).sort();
-    expect(after).toHaveLength(18);
+    expect(after).toHaveLength(19);
 
     const newFiles = after.filter((f) => !before.includes(f));
     expect(newFiles).toHaveLength(1);

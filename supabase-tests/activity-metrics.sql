@@ -148,6 +148,8 @@ begin
     = (select sum((e->>'reply_eligible')::int) from jsonb_array_elements(b->'daily') e) + 1, 'only the older post is eligible';
   assert (j->>'unanswered')::int = (b->>'unanswered')::int + 1, 'only the older post is unanswered';
 
+  assert public.admin_daily_metrics('2001-03-11', '2001-03-10')->'daily' = '[]'::jsonb, 'an inverted range gives no days';
+
   begin
     perform public.admin_daily_metrics('2001-03-10', '2001-03-10', 'Invalid/Zone');
     assert false, 'an invalid zone is accepted';

@@ -6,7 +6,7 @@
 -- left out), new posters on their first post that isn't deleted, and likes, poll votes,
 -- reactions, unanswered posts, contributors and reactors. Poll votes and reactions are null
 -- when the polls / reaction module is not installed. Replaces the two-argument version of core/004.
--- Requires core/004. Fully idempotent. If #82 lands after this, renumber.
+-- Requires core/004. Fully idempotent.
 
 drop function if exists public.admin_daily_metrics(date, date);
 
@@ -102,7 +102,7 @@ begin
     from events group by day)
   select jsonb_build_object(
     'tz', tz,
-    'daily', (select jsonb_agg(jsonb_build_object(
+    'daily', (select coalesce(jsonb_agg(jsonb_build_object(
         'day', d.day,
         'posts', coalesce(x.posts, 0),
         'comments', coalesce(x.comments, 0),
@@ -114,7 +114,7 @@ begin
         'replied_24h', coalesce(x.replied, 0),
         'reply_eligible', coalesce(x.eligible, 0),
         'contributors', coalesce(x.contributors, 0)
-      ) order by d.day) from days d left join per_day x on x.day = d.day),
+      ) order by d.day), '[]'::jsonb) from days d left join per_day x on x.day = d.day),
     'topics', (select coalesce(jsonb_agg(jsonb_build_object('topic', topic, 'count', n) order by n desc, topic), '[]')
       from (select coalesce(topic, '(sans)') as topic, count(*) as n from m_posts group by 1) t),
     'reply_rate', (select coalesce(count(*) filter (where replied)::float / nullif(count(*), 0), 0)
