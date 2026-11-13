@@ -11,8 +11,11 @@ Amendment 1 approved by Guillaume on 2026-11-13.
 
 - **Engagement** is a Bklit `funnel-chart` (members → active → contributors, share of members).
 - **Languages** sits beside the heatmap; the contributor buckets move to the Moderation row,
-  titled "Posts and comments per contributor", with a line saying what they count and each
-  bucket's number of contributors beside its share.
+  titled "Posts and comments per contributor", each bucket's number of contributors beside its
+  share. Languages is a large ring with its total in the middle (a hovered slice or row shows
+  its share) and a two-column legend below.
+- **Explanations** go in a tooltip after a panel's title, only where the title is not enough:
+  Engagement (what "active" counts), Languages and Returning contributors.
 - **Most engaged posts** are cards in a row that scrolls sideways (with previous / next
   buttons): rank, likes, comments, date, the whole text (cut past six lines, "Show more"), the
   image, the verse reference, the poll with its votes, author and topic. `top_posts` returns
@@ -20,8 +23,8 @@ Amendment 1 approved by Guillaume on 2026-11-13.
   module is absent or the post is not a poll) instead of `excerpt`.
 - Fixes: a screen-reader-only line under the heatmap made the whole dashboard scroll; the stat
   card sparklines were cut at the top.
-- Out, proposed as a brick of its own: app releases (store and OTA) as markers on the daily
-  chart. The community database has no release data; it needs a source such as EAS.
+- Out, brick 20 of the roadmap: app releases (store and OTA) as markers on the daily chart.
+  The community database has no release data; it needs a source such as EAS.
 
 ## Amendment 1 (2026-11-13): a page of its own
 

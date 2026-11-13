@@ -144,6 +144,7 @@ Set by the team on 2026-11-10; every brick follows them.
 | 17  | **Support handoff.** Send a post to Roca Support, ready-made replies for moderators.                                                                                                                                                                     | M      | maybe      | todo   |
 | 18  | **Member badges view.** See and reset a member's badges.                                                                                                                                                                                                 | S      | no         | todo   |
 | 19  | **Other apps.** Eve's Rhythm and Nightward once their backends run the SDK schema; their Rocactopus extras (articles, stories, callouts) stay out of this dashboard.                                                                                     | S each | no         | todo   |
+| 20  | **Release markers.** The app's store releases and OTA updates as markers on Activity's posts-and-comments chart. The community database knows nothing of releases: the Worker would read EAS (builds, updates), App Store Connect / Google Play or the Publishing Platform, with a key and a setting per app. | M      | no         | todo   |
 
 ## SDK improvements for the dashboard
 
