@@ -5,7 +5,7 @@ Date: 2026-11-12. Status: approved by Guillaume on 2026-11-13 (palette v3 pendin
 
 **Amended on 2026-11-13** after Guillaume saw the first build: the section "Amendment 1" below
 overrides the older sections where they disagree (a page of its own, more panels, indexes).
-Amendment 1 waits for his approval.
+Amendment 1 approved by Guillaume on 2026-11-13.
 
 ## Amendment 1 (2026-11-13): a page of its own
 
