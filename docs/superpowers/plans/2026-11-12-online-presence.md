@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Precondition:** [Rocapine/community-sdk#82](https://github.com/Rocapine/community-sdk/pull/82) (`feat/mutual-blocks`) must be merged first, because it adds `public.blocked_member_ids()` in `core/016_mutual_blocks.sql` and this plan relies on it. Before Task 1, run `git rebase origin/main`. If #82 is still open, rebase onto `origin/feat/mutual-blocks` instead and rebase again once it merges.
+- **Precondition (met):** [Rocapine/community-sdk#82](https://github.com/Rocapine/community-sdk/pull/82) is merged (6dafb63) and shipped in 0.17.0. It adds `public.blocked_member_ids()` in `core/016_mutual_blocks.sql`, which this plan relies on. This branch is rebased on it. Presence ships as **0.18.0**.
 - The rule behind every choice: **show presence, never absence.** No grey dot, no "Inactive", no last-seen text, nowhere.
 - Online = foreground on any screen, plus a grace period. The grace defaults to **5 minutes** and is configurable.
 - Module config, with these exact defaults:
@@ -381,7 +381,7 @@ Also update the existing `resolveHeaderZones` call sites in that test file to pa
 - Modify: `examples/expo-app/src/app/(tabs)/config.tsx` (the switch for it)
 - Modify: `examples/expo-app/src/PlaygroundProvider.tsx` (`useEffect(() => startPresenceHeartbeat(resolved, AppState), [resolved])`, with `resolved` from `resolveConfig` or the hook)
 - Modify: the example feed's `header` prop, to include `"online"` in a zone
-- Modify: `docs/dashboard-roadmap.md` (coverage row "Online presence (presence)" at version 0.17, plus a brick: "Online now: the current online count on the dashboard home", size S)
+- Modify: `docs/dashboard-roadmap.md` (coverage row "Online presence (presence)" at version 0.18, plus a brick: "Online now: the current online count on the dashboard home", size S)
 - Modify: `docs/integration.md` (add `presence` to the `init --modules` lists; a Phase 3 note on `modules.presence`, `startPresenceHeartbeat(cfg, AppState)` and the `"online"` header item; a Phase 6 QA line)
 - Modify: `packages/core/README.md`, `packages/ui/README.md` (a module section in each, in the style of badges)
 - Create: `.changeset/online-presence.md` (minor for `@rocapine/community-core`, `@rocapine/community-ui` and `@rocapine/community`)
@@ -403,13 +403,14 @@ Also update the existing `resolveHeaderZones` call sites in that test file to pa
   - Both light and dark themes look right.
 - [ ] **Step 3:** Record the walkthrough (`argent-screen-recording`) and compress it with `ffmpeg -i in.mp4 -vcodec libx264 -crf 28 -vf scale=-2:1280 -an out.mp4`.
 - [ ] **Step 4:** Push `feat/online-presence` and open the PR with `gh pr create --attach ./walkthrough.mp4`. Put `![](./walkthrough.mp4)` alone on its own line in the body, and end the body with the attribution line. Then bind the PR (`ccd_pr`).
-- [ ] **Step 5:** The 0.17.0 release follows the existing release-PR flow (as in `release: community 0.16.0 (#81)`). Ask Guillaume before publishing anything to npm.
+- [ ] **Step 5:** The 0.18.0 release follows the existing release-PR flow (as in `release: community 0.16.0 (#81)`). Ask Guillaume before publishing anything to npm.
 
-### Task 9: Unchaind integration (repo `/Users/glsx/Developer/unchaind`, after 0.17.0 is on npm)
+### Task 9: Unchaind integration (repo `/Users/glsx/Developer/unchaind`, after 0.18.0 is on npm)
 
 **Files:**
 
-- Modify: `package.json` (`@rocapine/community-core` and `-ui` set to `^0.17.0`, then a clean `npm i`)
+- Modify: `package.json` (`@rocapine/community-core` and `-ui` set to `^0.18.0`, then a clean `npm i`)
+- **Start from Unchaind branch `chore/community-backend-0.17`** (a00af923, pushed, no PR; or `main` once it is merged). It holds the 0.17 migration files already pushed to prod (20261113002844/45/46). Running `upgrade` from any other base regenerates them with new timestamps. The 0.17 app bump (packages + `BlockedMembersScreen` in settings) is not done yet; fold it into this task or land it first.
 - Modify: `services/community/communityConfig.ts:69-80` (`modules.presence: {}`)
 - Modify: `hooks/useCommunityIdentity.ts`. After `ensureIdentity` resolves, call `startPresenceHeartbeat(resolvedCommunityConfig, AppState)` and keep its stop function. The effect's cleanup calls it, and a cleanup that runs before the start resolves must keep the heartbeat from starting.
 - Modify: `app/(blended)/community/index.tsx:72-86`, to `left: [{ logo, height: 32, accessibilityLabel: "Unchaind" }, "online"]`, `center: []`, `right: ["inbox", "profile"]`. This removes search, as intended.
