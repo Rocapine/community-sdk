@@ -146,14 +146,16 @@ e.g. `lib/community-config.ts`.
    against a backend without them the feed fails to load. If the app builds `FeedPost` or
    `ThreadComment` objects by hand (tests, fixtures), add `image: null`; a host
    that types a complete `CommunityIconSet` adds the new `image` role.
-   **Presence.** `presence: {}` (or `{ graceMinutes?, minCount?, collapseAfterMs? }`)
+   **Presence.** `presence: {}` (or `{ minCount?, collapseAfterMs? }`)
    turns on the dots and the `"online"` feed header item (e.g.
    `header={{ left: ["profile", "online"], … }}`; it is dropped when the module is
    off). The app must run the heartbeat itself, once, with the resolved config:
    `useEffect(() => startPresenceHeartbeat(cfg, AppState), [cfg])` (the config from `useCommunityConfig()` is stable; a config rebuilt on every render would restart the heartbeat), `AppState` from
    `react-native`. It beats only in the foreground and never signs in anonymously
-   (no session, no beat). Online means in the foreground within the grace window
-   (5 minutes by default).
+   (no session, no beat). Online means in the foreground within the grace window:
+   5 minutes by default, a per-project backend setting changed from the SQL editor
+   (service role) with `select public.presence_set_grace_minutes(10);` (1 to 60).
+   The server owns it so members can't vary it to probe when someone was last active.
 3. **Host adapters.** Every field is optional and defaults to a no-op.
    - `getDisplayName` must be **synchronous**: read an already-hydrated store.
    - `getAnalyticsIds` must also be synchronous. The providers' own getters are

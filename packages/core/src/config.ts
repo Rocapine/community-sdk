@@ -67,16 +67,16 @@ export type CommunityModules = {
   attachments?: { types: string[]; membersCanAttach: boolean } | false;
   /** Presence module: a green dot on online members, a live online count and a
    * "hide my status" switch (table and RPCs added by the presence migration).
-   * `graceMinutes`: how long after its last heartbeat a member counts as online
-   * (default 5). `minCount`: the online count shows from this many members
-   * (default 0). `collapseAfterMs`: the count's label collapses to the dot after
-   * this delay, `false` keeps it open (default 3000). Absent or false ⇒ nothing
+   * How long after its last heartbeat a member counts as online is a backend
+   * setting (default 5 minutes, `presence_set_grace_minutes`), not a client
+   * option. `minCount`: the online count shows from this many members (default
+   * 0). `collapseAfterMs`: the count's label collapses to the dot after this
+   * delay, `false` keeps it open (default 3000). Absent or false ⇒ nothing
    * changes. */
-  presence?: { graceMinutes?: number; minCount?: number; collapseAfterMs?: number | false } | false;
+  presence?: { minCount?: number; collapseAfterMs?: number | false } | false;
 };
 
 export type PresenceSettings = {
-  graceMinutes: number;
   minCount: number;
   collapseAfterMs: number | false;
 };
@@ -86,7 +86,6 @@ export function presenceSettings(cfg: { modules: CommunityModules }): PresenceSe
   const p = cfg.modules.presence;
   if (!p) return null;
   return {
-    graceMinutes: p.graceMinutes ?? 5,
     minCount: p.minCount ?? 0,
     collapseAfterMs: p.collapseAfterMs ?? 3000,
   };

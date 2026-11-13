@@ -76,10 +76,7 @@ export function startPresenceHeartbeat(
 
 /** Members online right now. Throws on RPC error. */
 export async function fetchOnlineCount(cfg: ResolvedCommunityConfig): Promise<number> {
-  const settings = presenceSettings(cfg);
-  const { data, error } = await cfg
-    .requireClient()
-    .rpc("online_member_count", { p_grace_minutes: settings?.graceMinutes ?? 5 });
+  const { data, error } = await cfg.requireClient().rpc("online_member_count");
   if (error) throw error;
   return (data as number | null) ?? 0;
 }
@@ -90,10 +87,7 @@ export async function fetchOnlineIds(
   ids: string[],
 ): Promise<string[]> {
   if (ids.length === 0) return [];
-  const settings = presenceSettings(cfg);
-  const { data, error } = await cfg
-    .requireClient()
-    .rpc("online_member_ids", { p_ids: ids, p_grace_minutes: settings?.graceMinutes ?? 5 });
+  const { data, error } = await cfg.requireClient().rpc("online_member_ids", { p_ids: ids });
   if (error) throw error;
   return (data as string[] | null) ?? [];
 }

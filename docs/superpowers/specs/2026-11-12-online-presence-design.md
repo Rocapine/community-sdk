@@ -44,7 +44,7 @@ here gets a green dot; someone who isn't gets nothing — no grey dot, no "Inact
 ### Who is "online"
 
 - **Online** = the app is in the foreground, on any screen (not only the community), **plus a
-  grace period after it leaves the foreground**. Default 5 minutes, configurable in the SDK.
+  grace period after it leaves the foreground**. Default 5 minutes, a per-project backend setting (`presence_set_grace_minutes`), never a client parameter.
   Unchaind uses 5 minutes.
 - A member is shown online (dot) only if online **and** their status is visible.
 - **Everyone online counts in the header number, including members who hid their status**
@@ -107,7 +107,7 @@ pulse + option 2A).
 ## SDK surface (decided)
 
 - A new optional module, off unless the app enables it:
-  `modules.presence?: { graceMinutes?: number /* 5 */; minCount?: number /* 0 */; collapseAfterMs?: number | false /* 3000 */ }`.
+  `modules.presence?: { minCount?: number /* 0 */; collapseAfterMs?: number | false /* 3000 */ }`.
   Exact names are the builder's; the three knobs and their defaults are not.
 - A new header item, e.g. `"online"`, in `FeedHeaderItem` (`packages/ui/src/utils/headerZones.ts`).
   It renders nothing when the module is off. `DEFAULT_FEED_HEADER` is unchanged.

@@ -1,7 +1,8 @@
 -- community-sdk presence/001_presence.sql (schema v1)
 -- Presence module: a green dot on online members, a live online count, and a
 -- per-member switch to hide. The app calls touch_presence() while it is open; a
--- member is online when their last touch is within a grace window.
+-- member is online when their last touch is within the project's grace window
+-- (presence_settings, default 5 minutes).
 --
 -- The timestamp is never readable by clients (only user_id and visible are, and
 -- only for the member's own row): readers get a boolean through online_member_ids()
@@ -48,9 +49,34 @@ as $$
   on conflict (user_id) do update set visible = excluded.visible;
 $$;
 
--- Members online within the grace window (clamped to 1..60 minutes), hidden
--- members included: a count reveals no one.
-create or replace function public.online_member_count(p_grace_minutes int)
+-- The grace window is a per-project setting, never a client parameter: if callers
+-- chose it, sweeping 1..60 would tell them when each member was last active.
+-- One row, readable only by the security definer RPCs below. Change it from the
+-- SQL editor (service role): select public.presence_set_grace_minutes(10);
+create table if not exists public.presence_settings (
+  id boolean primary key default true check (id),
+  grace_minutes int not null default 5 check (grace_minutes between 1 and 60)
+);
+insert into public.presence_settings (id) values (true) on conflict do nothing;
+alter table public.presence_settings enable row level security;
+revoke all on public.presence_settings from public, anon, authenticated;
+
+-- The check constraint rejects values outside 1..60.
+create or replace function public.presence_set_grace_minutes(p_minutes int)
+returns void
+language sql security definer set search_path = public
+as $$
+  insert into presence_settings (id, grace_minutes) values (true, p_minutes)
+  on conflict (id) do update set grace_minutes = excluded.grace_minutes;
+$$;
+
+-- Earlier drafts took the grace as a parameter.
+drop function if exists public.online_member_count(int);
+drop function if exists public.online_member_ids(uuid[], int);
+
+-- Members online within the grace window, hidden members included: a count
+-- reveals no one.
+create or replace function public.online_member_count()
 returns int
 language sql stable security definer set search_path = public
 as $$
@@ -58,13 +84,13 @@ as $$
   from member_presence mp
   join profiles p on p.id = mp.user_id
   where not p.is_banned
-    and mp.last_active_at
-      > now() - make_interval(mins => least(greatest(p_grace_minutes, 1), 60));
+    and mp.last_active_at > now() - make_interval(
+      mins => coalesce((select grace_minutes from presence_settings), 5));
 $$;
 
 -- Which of the first 200 of p_ids are online, visible, not banned and not
 -- blocked either way with the caller.
-create or replace function public.online_member_ids(p_ids uuid[], p_grace_minutes int)
+create or replace function public.online_member_ids(p_ids uuid[])
 returns uuid[]
 language sql stable security definer set search_path = public
 as $$
@@ -74,16 +100,18 @@ as $$
   where mp.user_id = any (p_ids[1:200])
     and mp.visible
     and not p.is_banned
-    and mp.last_active_at
-      > now() - make_interval(mins => least(greatest(p_grace_minutes, 1), 60))
+    and mp.last_active_at > now() - make_interval(
+      mins => coalesce((select grace_minutes from presence_settings), 5))
     and not (mp.user_id = any ((select public.blocked_member_ids())::uuid[]));
 $$;
 
 revoke execute on function public.touch_presence() from public, anon;
 revoke execute on function public.set_presence_visible(boolean) from public, anon;
-revoke execute on function public.online_member_count(int) from public, anon;
-revoke execute on function public.online_member_ids(uuid[], int) from public, anon;
+revoke execute on function public.online_member_count() from public, anon;
+revoke execute on function public.online_member_ids(uuid[]) from public, anon;
 grant execute on function public.touch_presence() to authenticated;
 grant execute on function public.set_presence_visible(boolean) to authenticated;
-grant execute on function public.online_member_count(int) to authenticated;
-grant execute on function public.online_member_ids(uuid[], int) to authenticated;
+grant execute on function public.online_member_count() to authenticated;
+grant execute on function public.online_member_ids(uuid[]) to authenticated;
+revoke execute on function public.presence_set_grace_minutes(int) from public, anon, authenticated;
+grant execute on function public.presence_set_grace_minutes(int) to service_role;

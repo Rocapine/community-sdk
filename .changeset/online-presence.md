@@ -8,9 +8,11 @@
 "online" header item with the live count.
 
 - Backend: the `presence` module (`npx @rocapine/community init|upgrade --add-modules
-presence`). Online means in the foreground within the grace window; RPCs never return a
-  timestamp. Hidden members still count, and blocked members never see each other's dot.
-- Core: `modules.presence: { graceMinutes?, minCount?, collapseAfterMs? } | false`,
+presence`). Online means in the foreground within the grace window, a per-project backend
+  setting (default 5 minutes, `select public.presence_set_grace_minutes(10);` as service
+  role) that clients cannot pass, so no one can probe when a member was last active. RPCs
+  never return a timestamp. Hidden members still count, and blocked members never see each other's dot.
+- Core: `modules.presence: { minCount?, collapseAfterMs? } | false`,
   `startPresenceHeartbeat(cfg, AppState)` (the host runs it; it never signs in anonymously),
   `touchPresence`, `presenceSettings`, hooks `useOnlineCount`, `useIsOnline`,
   `usePresenceVisible`, `useSetPresenceVisible`, event `community_presence_visibility_changed`.

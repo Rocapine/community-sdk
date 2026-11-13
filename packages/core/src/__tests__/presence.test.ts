@@ -69,7 +69,6 @@ describe("presenceSettings", () => {
     expect(presenceSettings(cfgWith(undefined))).toBeNull();
     expect(presenceSettings(cfgWith(false))).toBeNull();
     expect(presenceSettings(cfgWith({}))).toEqual({
-      graceMinutes: 5,
       minCount: 0,
       collapseAfterMs: 3000,
     });
@@ -161,23 +160,18 @@ describe("batcher", () => {
 });
 
 describe("fetchers", () => {
-  it("fetchOnlineIds passes the grace; [] skips the rpc", async () => {
+  it("fetchOnlineIds sends only the ids (the server owns the grace); [] skips the rpc", async () => {
     const client = fakeClient({ rpcData: ["a"] });
-    await expect(fetchOnlineIds(cfgWith({ graceMinutes: 7 }, client), ["a"])).resolves.toEqual([
-      "a",
-    ]);
-    expect(client.rpc).toHaveBeenCalledWith("online_member_ids", {
-      p_ids: ["a"],
-      p_grace_minutes: 7,
-    });
+    await expect(fetchOnlineIds(cfgWith({}, client), ["a"])).resolves.toEqual(["a"]);
+    expect(client.rpc).toHaveBeenCalledWith("online_member_ids", { p_ids: ["a"] });
     client.rpc.mockClear();
     await expect(fetchOnlineIds(cfgWith({}, client), [])).resolves.toEqual([]);
     expect(client.rpc).not.toHaveBeenCalled();
   });
-  it("fetchOnlineCount passes the grace and throws on error", async () => {
+  it("fetchOnlineCount sends no grace and throws on error", async () => {
     const client = fakeClient({ rpcData: 12 });
     await expect(fetchOnlineCount(cfgWith({}, client))).resolves.toBe(12);
-    expect(client.rpc).toHaveBeenCalledWith("online_member_count", { p_grace_minutes: 5 });
+    expect(client.rpc).toHaveBeenCalledWith("online_member_count");
     const bad = fakeClient({ rpcError: new Error("boom") });
     await expect(fetchOnlineCount(cfgWith({}, bad))).rejects.toThrow("boom");
   });
