@@ -24,6 +24,11 @@ export const PRESENCE_KEY = ["community", "presence"] as const;
 export const PRESENCE_POLL_MS = 60_000;
 const STALE_MS = 30_000;
 
+// Time to the next wall-clock minute: every observer polls at the same instant,
+// so the batcher sends one online_member_ids per minute, not one per mount group.
+// TanStack recomputes a function refetchInterval after each fetch.
+const untilNextPoll = () => PRESENCE_POLL_MS - (Date.now() % PRESENCE_POLL_MS);
+
 const presenceEnabled = (cfg: ResolvedCommunityConfig) =>
   presenceSettings(cfg) !== null && cfg.supabase !== null;
 
@@ -41,7 +46,9 @@ export function onlineCountQueryOptions(cfg: ResolvedCommunityConfig) {
   return {
     queryKey: [...PRESENCE_KEY, "count"] as const,
     queryFn: () => fetchOnlineCount(cfg),
-    refetchInterval: PRESENCE_POLL_MS,
+    refetchInterval: untilNextPoll,
+    refetchIntervalInBackground: false,
+    retry: 1,
     staleTime: STALE_MS,
     enabled: presenceEnabled(cfg),
   };
@@ -51,7 +58,9 @@ export function isOnlineQueryOptions(cfg: ResolvedCommunityConfig, userId: strin
   return {
     queryKey: [...PRESENCE_KEY, "online", userId] as const,
     queryFn: () => batcherFor(cfg)(userId as string),
-    refetchInterval: PRESENCE_POLL_MS,
+    refetchInterval: untilNextPoll,
+    refetchIntervalInBackground: false,
+    retry: 1,
     staleTime: STALE_MS,
     enabled: presenceEnabled(cfg) && userId !== null,
   };
@@ -77,6 +86,7 @@ export function usePresenceVisible(): boolean | null {
       queryKey: [...PRESENCE_KEY, "visible"] as const,
       queryFn: () => fetchMyPresenceVisible(cfg),
       enabled: presenceEnabled(cfg),
+      retry: 1,
     }).data ?? null
   );
 }
