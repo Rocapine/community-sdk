@@ -11,6 +11,8 @@ declare
   pa uuid; pb uuid; pc uuid; pd uuid; pe uuid; pf uuid; pdel uuid; hp uuid;
   j jsonb;
   e jsonb;
+  has_polls boolean := to_regclass('public.poll_options') is not null;
+  o1 uuid; o2 uuid;
 begin
   alter table public.profiles add column if not exists locale text;
   select array_agg(id) into ids from (select id from public.profiles order by created_at limit 5) s;
@@ -58,6 +60,14 @@ begin
     (pc, m1, '2001-04-12 08:00Z'), (pc, m2, '2001-04-12 08:00Z'),
     (hp, m1, '2001-04-10 08:00Z'), (hp, m2, '2001-04-10 08:00Z'), (hp, m3, '2001-04-10 08:00Z'), (hp, m4, '2001-04-10 08:00Z'),
     (pdel, m2, '2001-04-10 08:00Z'), (pdel, m3, '2001-04-10 08:00Z');
+
+  -- pc is a poll (polls module): two votes on its first option, one on its second, cast after the windows.
+  if has_polls then
+    insert into public.poll_options (post_id, idx, label) values (pc, 1, 'No') returning id into o2;
+    insert into public.poll_options (post_id, idx, label) values (pc, 0, 'Yes') returning id into o1;
+    insert into public.poll_votes (post_id, option_id, user_id, created_at) values
+      (pc, o1, m1, '2001-05-01Z'), (pc, o1, m2, '2001-05-01Z'), (pc, o2, m4, '2001-05-01Z');
+  end if;
 
   -- Previous period. m1: pz (hidden by the AI). m2: pq. m4: pm. m3 only has a deleted post. House: a hidden post.
   insert into public.posts (author_id, content, status, moderated_at, moderation_reason, created_at) values
@@ -112,11 +122,16 @@ begin
     = to_jsonb(array[pc, pa, pb, pf, pe]::text[]), 'top posts order: ' || (j->'top_posts')::text;
   e := j->'top_posts'->1;
   assert (select array_agg(k order by k) from jsonb_object_keys(e) k)
-    = array['author_id','author_name','comments','created_at','excerpt','id','likes','topic'], 'top post keys: ' || e::text;
+    = array['attachment','author_id','author_name','comments','content','created_at','id','image_path','likes','poll','topic'],
+    'top post keys: ' || e::text;
   assert (e->>'likes')::int = 2 and (e->>'comments')::int = 1, 'house like and house or deleted comment are out: ' || e::text;
   assert e->>'created_at' = '2001-04-09T07:30:00.000Z', 'created_at is ISO UTC: ' || e::text;
-  assert length(e->>'excerpt') = 140 and e->>'topic' = 'tA' and e->>'author_name' = 'member-one'
-    and (e->>'author_id')::uuid = m1, 'excerpt, topic, author: ' || e::text;
+  assert e->>'content' = repeat('x', 200) and e->>'topic' = 'tA' and e->>'author_name' = 'member-one'
+    and (e->>'author_id')::uuid = m1, 'whole content, topic, author: ' || e::text;
+  assert e->'image_path' = 'null'::jsonb and e->'attachment' = 'null'::jsonb and e->'poll' = 'null'::jsonb,
+    'no image, verse or poll: ' || e::text;
+  assert not has_polls or j->'top_posts'->0->'poll' = '[{"label":"Yes","votes":2},{"label":"No","votes":1}]'::jsonb,
+    'pc poll, options in order with votes: ' || (j->'top_posts'->0)::text;
   assert (j->'top_posts'->0->>'likes')::int = 2 and (j->'top_posts'->0->>'comments')::int = 1, 'pc: ' || (j->'top_posts'->0)::text;
   assert (j->'top_posts'->2->>'likes')::int = 0 and (j->'top_posts'->2->>'comments')::int = 2, 'pb: ' || (j->'top_posts'->2)::text;
 

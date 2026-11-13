@@ -16,7 +16,7 @@
 -- comments, those by author language (profiles.locale, from the push module; null when the
 -- column is absent: then languages is null), moderation counts (reports by members, items the AI hid whatever their status or review now,
 -- team moderation actions) against the previous period of the same length, how many of the previous period's
--- contributors came back, and the five top posts. Same zone check and window as above.
+-- contributors came back, and the five top posts (whole content, image, verse, poll with votes). Same zone check and window as above.
 -- Requires core/004. Fully idempotent.
 
 create index if not exists posts_created_at_idx on public.posts (created_at);
@@ -196,6 +196,7 @@ declare
   t0 timestamptz;
   t1 timestamptz;
   pt0 timestamptz;  -- the previous period: as many days, right before from_date
+  polls jsonb;
   -- profiles.locale comes from the push module: without it, languages is null.
   has_locale boolean := exists (select 1 from pg_attribute
     where attrelid = 'public.profiles'::regclass and attname = 'locale' and not attisdropped);
@@ -238,7 +239,8 @@ begin
         and m.action in ('hide','restore','confirm_hide','reject_report','ban','unban')) as team_actions
     from (values ('cur', t0, t1), ('prev', pt0, t0)) w(k, a, b)),
   top as (select * from (
-    select p.id, left(p.content, 140) as excerpt, p.topic, p.author_id, a.username as author_name, p.created_at,
+    -- image_path and attachment come from optional modules: read through to_jsonb so their absence is null.
+    select p.id, p.content, to_jsonb(p)->>'image_path' as image_path, to_jsonb(p)->'attachment' as attachment, p.topic, p.author_id, a.username as author_name, p.created_at,
       (select count(*) from likes l join profiles u on u.id = l.user_id and not u.is_house where l.post_id = p.id) as likes,
       (select count(*) from comments c join profiles u on u.id = c.author_id and not u.is_house
         where c.post_id = p.id and c.status <> 'deleted') as comments
@@ -258,11 +260,23 @@ begin
       'previous_contributors', (select count(distinct author_id) from writes where created_at < t0),
       'returned', (select count(distinct author_id) from cur
         where author_id in (select author_id from writes where created_at < t0))),
-    'top_posts', (select coalesce(jsonb_agg(jsonb_build_object('id', id, 'excerpt', excerpt, 'topic', topic,
+    'top_posts', (select coalesce(jsonb_agg(jsonb_build_object('id', id, 'content', content, 'image_path', image_path,
+        'attachment', attachment, 'poll', null, 'topic', topic,
         'author_id', author_id, 'author_name', author_name, 'likes', likes, 'comments', comments,
         'created_at', to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
         order by likes + comments desc, created_at desc, id), '[]') from top))
   into result;
+  -- A top post's poll (polls module): its options in order with their vote counts.
+  if to_regclass('public.poll_options') is not null and jsonb_array_length(result->'top_posts') > 0 then
+    execute $q$select coalesce(jsonb_object_agg(post_id, opts), '{}') from (
+        select o.post_id, jsonb_agg(jsonb_build_object('label', o.label,
+          'votes', (select count(*) from public.poll_votes v where v.option_id = o.id)) order by o.idx) as opts
+        from public.poll_options o where o.post_id = any($1) group by o.post_id) x$q$
+      into polls
+      using (select array_agg((e->>'id')::uuid) from jsonb_array_elements(result->'top_posts') e);
+    result := jsonb_set(result, '{top_posts}', (select jsonb_agg(jsonb_set(e, '{poll}', coalesce(polls->(e->>'id'), 'null'))
+      order by n) from jsonb_array_elements(result->'top_posts') with ordinality t(e, n)));
+  end if;
   return result;
 end;
 $$;

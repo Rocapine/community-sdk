@@ -7,6 +7,22 @@ Date: 2026-11-12. Status: approved by Guillaume on 2026-11-13 (palette v3 pendin
 overrides the older sections where they disagree (a page of its own, more panels, indexes).
 Amendment 1 approved by Guillaume on 2026-11-13.
 
+## Amendment 2 (2026-11-13): after Guillaume's review of the page
+
+- **Engagement** is a Bklit `funnel-chart` (members → active → contributors, share of members).
+- **Languages** sits beside the heatmap; the contributor buckets move to the Moderation row,
+  titled "Posts and comments per contributor", with a line saying what they count and each
+  bucket's number of contributors beside its share.
+- **Most engaged posts** are cards in a row that scrolls sideways (with previous / next
+  buttons): rank, likes, comments, date, the whole text (cut past six lines, "Show more"), the
+  image, the verse reference, the poll with its votes, author and topic. `top_posts` returns
+  `content`, `image_path`, `attachment` and `poll` (`[{label, votes}]`, null when the polls
+  module is absent or the post is not a poll) instead of `excerpt`.
+- Fixes: a screen-reader-only line under the heatmap made the whole dashboard scroll; the stat
+  card sparklines were cut at the top.
+- Out, proposed as a brick of its own: app releases (store and OTA) as markers on the daily
+  chart. The community database has no release data; it needs a source such as EAS.
+
 ## Amendment 1 (2026-11-13): a page of its own
 
 Guillaume's feedback on the first build, in his words: Activity deserves its own page, with an
