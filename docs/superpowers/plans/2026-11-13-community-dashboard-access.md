@@ -41,17 +41,12 @@
 4. **Two people adding the same project at once.** The UNIQUE constraint answers 409 `project_taken`, not a 500. Test in Task 6.
 5. **An app id that collides with a route** (`api`, `assets`) or an existing app: refused with `bad_app_id` / `app_taken`. Test in Task 6.
 
-## Before Task 1: Cloudflare resources (Guillaume)
+## Before Task 1: Cloudflare resources (done 2026-11-13)
 
-Not needed for Tasks 1–11 (tests use a local D1 stand-in, `wrangler dev` a local D1), needed before merge. Guillaume runs these, or allows them:
-
-```bash
-npx wrangler d1 create community-dashboard
-npx wrangler d1 create community-dashboard-preview
-openssl rand -base64 32 | npx wrangler secret put MASTER_KEY_V1
-```
-
-The preview master key is a different value, set as a Previews secret named `MASTER_KEY_V1` (Workers Builds → Previews, as the sandbox key is today). The two database ids go into `wrangler.jsonc` in Task 11.
+Created with Guillaume's authorization: D1 `community-dashboard` (id `7562373c-7e31-43d7-8c18-4dced8f4d2a7`) and
+`community-dashboard-preview` (id `5ea5dc87-b4cd-4e6e-a55b-2c9b97ce97dd`), both WEUR; Worker secret `MASTER_KEY_V1`
+and a different Preview base config secret `MASTER_KEY_V1` (32 random bytes, base64, never printed). Tasks 1–10 don't
+need them (tests use a local D1 stand-in); Task 11 puts the ids in `wrangler.jsonc`.
 
 ## File map
 
