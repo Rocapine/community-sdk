@@ -73,5 +73,5 @@ export function OnlineDot({
 
 const styles = StyleSheet.create({
   slot: { position: "absolute", right: 0, bottom: 0 },
-  fill: { ...StyleSheet.absoluteFillObject },
+  fill: { ...StyleSheet.absoluteFill },
 });
