@@ -1,5 +1,21 @@
 # @rocapine/community-ui
 
+## 0.19.1
+
+### Patch Changes
+
+- c8a9fc8: **The online count can be plain text.** `modules.presence.appearance: "text"` shows the
+  header's online count as the green dot and "N online", always in full, with no pill
+  behind it; the dot pulses once on the first arrival (per JS runtime). The default stays
+  `"pill"`. Core exports `OnlineCountAppearance`.
+
+  **Header alignment.** A logo or the online count placed first in the feed header's left
+  zone now lines up with the first topic tab's label, and one placed last on the right with
+  the content edge, like the icons. A left logo moves 9pt inward.
+
+- Updated dependencies [c8a9fc8]
+  - @rocapine/community-core@0.19.1
+
 ## 0.19.0
 
 ### Minor Changes
