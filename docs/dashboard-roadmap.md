@@ -17,7 +17,7 @@ iteration.
 Status: `todo` · `in progress` · `done` · `dropped`. Size: **S** one session · **M** a few
 sessions · **L** a project with its own design doc, usually with an SDK release.
 
-Last reviewed: 2026-11-12, SDK 0.16.0. V1 (bricks 1–3) live at https://community.rocapi.ne.
+Last reviewed: 2026-11-13, SDK 0.17.0. V1 (bricks 1–3) live at https://community.rocapi.ne.
 
 ## Needs it serves
 
