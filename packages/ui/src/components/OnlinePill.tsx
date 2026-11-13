@@ -11,6 +11,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withRepeat,
   withTiming,
 } from "react-native-reanimated";
@@ -26,6 +27,13 @@ import {
 
 const DOT = 8;
 const SLIDE_MS = 350;
+// The label fades out just before the pill shrinks and fades in just after it grows,
+// so it is never seen cut off.
+const FADE_OUT_MS = 110;
+const SHRINK_DELAY_MS = 100;
+const FADE_IN_DELAY_MS = 200;
+const FADE_IN_MS = 200;
+const PULSE_MS = 1600;
 // 32pt pill + this on each side = the 44pt target of the sibling header buttons.
 const HIT_SLOP = { top: 6, bottom: 6 } as const;
 
@@ -53,6 +61,7 @@ function Pill({
   const [taps, setTaps] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const open = useSharedValue(expanded ? 1 : 0);
+  const fade = useSharedValue(expanded ? 1 : 0);
   const pulse = useSharedValue(0);
 
   const clearTimer = () => {
@@ -75,12 +84,26 @@ function Pill({
 
   useEffect(() => {
     const target = expanded ? 1 : 0;
-    open.value = reduceMotion
-      ? target
-      : withTiming(target, { duration: SLIDE_MS, easing: Easing.out(Easing.cubic) });
-  }, [expanded, reduceMotion, open]);
+    if (reduceMotion) {
+      open.value = target;
+      fade.value = target;
+      return;
+    }
+    const slide = withTiming(target, { duration: SLIDE_MS, easing: Easing.out(Easing.cubic) });
+    if (expanded) {
+      open.value = slide;
+      fade.value = withDelay(
+        FADE_IN_DELAY_MS,
+        withTiming(1, { duration: FADE_IN_MS, easing: Easing.in(Easing.quad) }),
+      );
+    } else {
+      fade.value = withTiming(0, { duration: FADE_OUT_MS, easing: Easing.out(Easing.quad) });
+      open.value = withDelay(SHRINK_DELAY_MS, slide);
+    }
+  }, [expanded, reduceMotion, open, fade]);
 
-  // The dot's halo loops only while expanded, and never under Reduce Motion.
+  // The dot's halo loops while expanded (two beats only when the pill never
+  // collapses), and never under Reduce Motion.
   const pulsing = expanded && !reduceMotion;
   useEffect(() => {
     if (!pulsing) {
@@ -90,19 +113,19 @@ function Pill({
     }
     pulse.value = 0;
     pulse.value = withRepeat(
-      withTiming(1, { duration: 2000, easing: Easing.out(Easing.quad) }),
-      -1,
+      withTiming(1, { duration: PULSE_MS, easing: Easing.out(Easing.quad) }),
+      collapseAfterMs === false ? 2 : -1,
     );
     return () => cancelAnimation(pulse);
-  }, [pulsing, pulse]);
+  }, [pulsing, pulse, collapseAfterMs]);
 
   const haloStyle = useAnimatedStyle(() => ({
-    opacity: 0.7 * (1 - pulse.value),
-    transform: [{ scale: 0.6 + (1.8 - 0.6) * pulse.value }],
+    opacity: 0.55 * (1 - pulse.value),
+    transform: [{ scale: 1 + 2 * pulse.value }],
   }));
   const labelStyle = useAnimatedStyle(() => ({
     width: labelWidth * open.value,
-    opacity: open.value,
+    opacity: fade.value,
   }));
 
   const text = t("presence.count", { count });
@@ -154,7 +177,13 @@ function Pill({
         style={[styles.labelClip, labelClipStyle]}
         importantForAccessibility="no-hide-descendants"
       >
-        <Text style={labelStyles} numberOfLines={1} accessible={false}>
+        {/* Pinned to its measured width: clipped by the pill, never ellipsized. */}
+        <Text
+          style={[labelStyles, measured && { width: labelWidth }]}
+          numberOfLines={1}
+          ellipsizeMode="clip"
+          accessible={false}
+        >
           {label}
         </Text>
       </Animated.View>

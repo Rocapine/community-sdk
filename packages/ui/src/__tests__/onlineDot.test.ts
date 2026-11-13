@@ -5,8 +5,9 @@ describe("onlineDotMetrics", () => {
   it.each([
     [24, 8, 2],
     [30, 8, 2],
-    [40, 10, 2],
-    [72, 19, 3],
+    [40, 8, 2],
+    [72, 12, 3],
+    [96, 12, 3],
   ])("size %i → dot %i ring %i", (size, dot, ring) => {
     expect(onlineDotMetrics(size)).toEqual({ dot, ring });
   });

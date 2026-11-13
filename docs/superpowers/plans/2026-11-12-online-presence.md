@@ -262,7 +262,7 @@ it("a successful write emits community_presence_visibility_changed", async () =>
 - Produces:
   - `AvatarRenderProps.online: boolean`, passed to a host's `renderAvatar`.
   - `Avatar` gains an optional `ringColor?: string`, which defaults to `theme.colors.background`.
-  - `export function onlineDotMetrics(size: number): { dot: number; ring: number }`: `dot = max(8, round(size * 0.26))`, and `ring = size >= 48 ? 3 : 2`.
+  - `export function onlineDotMetrics(size: number): { dot: number; ring: number }`: `dot = min(12, max(8, round(size * 0.2)))` (revised after design review; was `max(8, round(size * 0.26))`), and `ring = size >= 48 ? 3 : 2`.
   - `OnlineDot({ size, ringColor }: { size: number; ringColor: string })`. The ringed dot is absolutely positioned with `right: 0, bottom: 0`, its outer diameter is `dot + 2 * ring`, and it uses `theme.colors.success`. It sets `accessible` and `accessibilityLabel={t("a11y.online")}`. The dot is static.
   - Locale keys, used by Tasks 4–6. Copy for en and fr is below; translate the other locales in the same register as their `profile.*` keys. `fr-vous` gets the same strings as `fr`.
 
@@ -326,7 +326,7 @@ The existing parity tests cover the other locales.
     - Its content is the dot (`success`), the number (`fontVariant: ["tabular-nums"]`), and, when expanded, the label `t("presence.count", { count })` with the number removed from the visible label.
     - Its `accessibilityLabel` is always `t("a11y.onlineCount", { count })`.
     - Expansion: on mount, `claimColdStartExpansion()` decides whether it opens expanded. When `collapseAfterMs === false` it stays expanded for good. Otherwise it collapses after `collapseAfterMs`, and a tap expands it again and restarts the timer.
-    - The dot pulses on a loop (scale 0.6 → 1.8, opacity 0.7 → 0, 2 s) only while expanded and Reduce Motion is off.
+    - The dot pulses on a loop (revised after design review: scale 1 → 3, opacity 0.55 → 0, 1.6 s; two beats only when the pill never collapses; the label fades out before the pill shrinks and fades in after it grows) only while expanded and Reduce Motion is off.
     - The label's width and opacity animate over about 350 ms, or switch instantly under Reduce Motion.
 
 - [ ] **Step 1: Write the failing tests:**
