@@ -30,8 +30,10 @@ data. Below, how each one lands. Everything else in this spec stands.
 
 ### The page, top to bottom
 
-1. **Six stat cards** (today's card): Contributions, Contributors, **New members**, **Active
-   members**, Replied within 24 h (with "N unanswered" under it), **Median first reply**.
+1. **Six stat cards** (today's card): Contributions, Contributors, **New members**, New
+   posters, Replied within 24 h (with "N unanswered" under it), **Median first reply** (a drop
+   is shown as good). Active members sit in the Engagement panel. Home's four stay today's:
+   Contributions, Contributors, New posters, Replied within 24 h.
 2. **Posts and comments per day** (today's area chart), 8 columns; beside it, 4 columns,
    **Engagement**: all members (profiles at the period's end) → active → contributors, as three horizontal bars with
    their count and share (Octopus "Engagement", without readers, which we can't count).
@@ -104,8 +106,9 @@ A local harness, not shipped: a data-minimal copy of production (ids, dates, sta
 locales; no post text, no bio, no third-party ids, no push token) in a local Postgres with 017
 applied, behind a local stand-in for Supabase that answers the `admin_*` calls from that copy and
 sends every other call to the sandbox. A second `wrangler dev` points the community at it.
-Production is only read. The most engaged posts need their first words: the harness copies
-those for the page's five posts only.
+Production is only read. The most engaged posts need their first words and author name: the
+harness copies the first 140 characters of published posts and the usernames of their authors,
+text members already see in the app.
 
 ### Still out
 
