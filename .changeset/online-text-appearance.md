@@ -1,6 +1,6 @@
 ---
-"@rocapine/community-core": minor
-"@rocapine/community-ui": minor
+"@rocapine/community-core": patch
+"@rocapine/community-ui": patch
 ---
 
 **The online count can be plain text.** `modules.presence.appearance: "text"` shows the
