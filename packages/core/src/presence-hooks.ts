@@ -32,6 +32,11 @@ const untilNextPoll = () => PRESENCE_POLL_MS - (Date.now() % PRESENCE_POLL_MS);
 const presenceEnabled = (cfg: ResolvedCommunityConfig) =>
   presenceSettings(cfg) !== null && cfg.supabase !== null;
 
+// A disabled query still returns its cached data (the host's QueryClient outlives a config
+// change), so the module-off case must be answered here, not by the cache.
+export const presenceValue = <T, O>(enabled: boolean, data: T | undefined, off: O): T | O =>
+  enabled && data !== undefined ? data : off;
+
 const batchers = new WeakMap<ResolvedCommunityConfig, (id: string) => Promise<boolean>>();
 function batcherFor(cfg: ResolvedCommunityConfig) {
   let b = batchers.get(cfg);
@@ -69,26 +74,28 @@ export function isOnlineQueryOptions(cfg: ResolvedCommunityConfig, userId: strin
 /** Members online now; null when presence is off or not loaded yet. */
 export function useOnlineCount(): number | null {
   const cfg = useCommunityConfig();
-  return useQuery(onlineCountQueryOptions(cfg)).data ?? null;
+  const opts = onlineCountQueryOptions(cfg);
+  return presenceValue(opts.enabled, useQuery(opts).data, null);
 }
 
 /** Whether a member is online; false when presence is off or loading. */
 export function useIsOnline(userId: string | null): boolean {
   const cfg = useCommunityConfig();
-  return useQuery(isOnlineQueryOptions(cfg, userId)).data ?? false;
+  const opts = isOnlineQueryOptions(cfg, userId);
+  return presenceValue(opts.enabled, useQuery(opts).data, false);
 }
 
 /** Whether the owner shows as online to others; null until loaded. */
 export function usePresenceVisible(): boolean | null {
   const cfg = useCommunityConfig();
-  return (
-    useQuery({
-      queryKey: [...PRESENCE_KEY, "visible"] as const,
-      queryFn: () => fetchMyPresenceVisible(cfg),
-      enabled: presenceEnabled(cfg),
-      retry: 1,
-    }).data ?? null
-  );
+  const enabled = presenceEnabled(cfg);
+  const { data } = useQuery({
+    queryKey: [...PRESENCE_KEY, "visible"] as const,
+    queryFn: () => fetchMyPresenceVisible(cfg),
+    enabled,
+    retry: 1,
+  });
+  return presenceValue(enabled, data, null);
 }
 
 export function presenceVisibilityMutationOptions(

@@ -10,6 +10,7 @@ import { COMMUNITY_EVENTS } from "../events";
 import {
   isOnlineQueryOptions,
   onlineCountQueryOptions,
+  presenceValue,
   presenceVisibilityMutationOptions,
 } from "../presence-hooks";
 import * as presence from "../presence";
@@ -91,4 +92,15 @@ it("observers mounted apart poll together: one online_member_ids batch per minut
   a();
   b();
   client.clear();
+});
+
+it("module off returns the off value even when the cache holds data", () => {
+  const cache = new QueryClient();
+  cache.setQueryData(isOnlineQueryOptions(on, "u1").queryKey, true);
+  const cached = cache.getQueryData<boolean>(isOnlineQueryOptions(off, "u1").queryKey);
+  expect(cached).toBe(true);
+  expect(presenceValue(isOnlineQueryOptions(off, "u1").enabled, cached, false)).toBe(false);
+  expect(presenceValue(onlineCountQueryOptions(off).enabled, 7, null)).toBeNull();
+  expect(presenceValue(isOnlineQueryOptions(on, "u1").enabled, cached, false)).toBe(true);
+  expect(presenceValue(isOnlineQueryOptions(on, null).enabled, cached, false)).toBe(false);
 });
