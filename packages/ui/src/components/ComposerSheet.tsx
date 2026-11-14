@@ -153,7 +153,7 @@ export function ComposerSheet({
   const latestDraft = useRef({ text, pollDraft, image, attachment });
   latestDraft.current = { text, pollDraft, image, attachment };
   const imagesOn = !!cfg.modules.images && imagesSupported();
-  const keyboardHeight = useKeyboardHeight();
+  const keyboardHeight = useKeyboardHeight(insets.bottom);
   const isEmpty = text.trim() === "" && pollDraft === null && image === null && attachment === null;
 
   // An empty draft follows the feed's tab each time the sheet opens.
@@ -615,23 +615,29 @@ function OptionPill({
   );
 }
 
-/** iOS: the keyboard's height, so the toolbar rides on top of it. The page
- * sheet's bottom is the screen's bottom, so the height is the offset as is
- * (`KeyboardAvoidingView` measures against the sheet's frame and comes out
- * short there). Android resizes the Modal's window itself: 0. */
-function useKeyboardHeight(): number {
+/** The keyboard's height, so the toolbar rides on top of it.
+ * iOS: the page sheet's bottom is the screen's bottom, so the height is the
+ * offset as is (`KeyboardAvoidingView` measures against the sheet's frame and
+ * comes out short there).
+ * Android: the Modal is edge-to-edge, so the OS does not resize it for the
+ * keyboard. RN reports the height minus the navigation bar, which the keyboard
+ * also covers: add it back (`bottomInset`). */
+function useKeyboardHeight(bottomInset: number): number {
   const [height, setHeight] = useState(0);
+  const ios = Platform.OS === "ios";
+  const extra = ios ? 0 : bottomInset;
   useEffect(() => {
-    if (Platform.OS !== "ios") return;
-    const show = Keyboard.addListener("keyboardWillShow", (e) =>
-      setHeight(e.endCoordinates.height),
+    const show = Keyboard.addListener(ios ? "keyboardWillShow" : "keyboardDidShow", (e) =>
+      setHeight(e.endCoordinates.height > 0 ? e.endCoordinates.height + extra : 0),
     );
-    const hide = Keyboard.addListener("keyboardWillHide", () => setHeight(0));
+    const hide = Keyboard.addListener(ios ? "keyboardWillHide" : "keyboardDidHide", () =>
+      setHeight(0),
+    );
     return () => {
       show.remove();
       hide.remove();
     };
-  }, []);
+  }, [ios, extra]);
   return height;
 }
 
