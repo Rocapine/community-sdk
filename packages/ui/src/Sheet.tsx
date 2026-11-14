@@ -224,7 +224,9 @@ function SheetBody({
         // so they must move up by the keyboard height instead.
         keyboardBehavior={snapTo === "full" ? "extend" : "interactive"}
         keyboardBlurBehavior="restore"
-        android_keyboardInputMode="adjustResize"
+        // The Modal is edge-to-edge on Android, so the OS never resizes it for
+        // the keyboard: gorhom lifts the sheet itself with "adjustPan".
+        android_keyboardInputMode={Platform.OS === "android" ? "adjustPan" : "adjustResize"}
         onClose={onSheetClosed}
         backdropComponent={SheetBackdrop}
         footerComponent={hasFooter ? SheetFooter : undefined}
