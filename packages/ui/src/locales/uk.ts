@@ -186,7 +186,7 @@ export const uk: Record<string, string> = {
   "inbox.someone": "Хтось",
   "inbox.liked": "{name} вподобав(ла) твій допис",
   "inbox.commented": "{name} прокоментував(ла) твій допис",
-  "inbox.replied": "{name} відповів(-ла) на ваш коментар",
+  "inbox.replied": "{name} відповів(ла) на твій коментар",
   "inbox.markAllRead": "Позначити все як прочитане",
   "inbox.reacted": "{name} відреагував(ла) на твій допис",
   "inbox.news": "Новини від {name}",

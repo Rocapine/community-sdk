@@ -191,7 +191,7 @@ caption line, see Translations below) and `language.en` / `.es` / `.pt` /
 
 **The `COMMUNITY_REACTION_PUSH_TEXT` caveat**: the reaction module's push
 copy (server-side, in the `notify-reaction` Edge Function) is built-in and
-localized per recipient for the common "one reactor" case across all 7
+localized per recipient for the common "one reactor" case across all 23
 locales. The `COMMUNITY_REACTION_PUSH_TEXT` secret (see
 `docs/backend-runbook.md`) overrides that template — but it is a **single
 string, not a per-locale map**: setting it replaces the built-in copy for
