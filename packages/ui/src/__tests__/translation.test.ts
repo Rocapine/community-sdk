@@ -27,6 +27,11 @@ describe("translation helpers", () => {
     const br = { text: "x", translation: { text: "y", sourceLocale: "pt-BR" } };
     expect(translationLine(t, br, false)).toBe("Traducido del portugués · Ver original");
   });
+  it("names Norwegian reported as the macrolanguage code", () => {
+    const t = makeT("en");
+    const no = { text: "x", translation: { text: "y", sourceLocale: "no" } };
+    expect(translationLine(t, no, false)).toBe("Translated from Norwegian · See original");
+  });
   it("keeps the raw code when neither the region nor the base is known", () => {
     const t = makeT("en");
     const zh = { text: "x", translation: { text: "y", sourceLocale: "zh-Hant" } };
