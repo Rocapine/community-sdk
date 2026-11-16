@@ -150,10 +150,12 @@ custom icon can swap glyphs there instead of filling the outline one.
 
 ## i18n
 
-Framework-free, no i18next. 13 built-in locales ship as plain objects:
+Framework-free, no i18next. 23 built-in locales ship as plain objects:
 `en`, `es-ES`, `es-419`, `fr`, `fr-vous`, `de`, `it`, `pl`, `pt-PT`, `pt-BR`,
-`ko`, `ro`, `uk` (all exported by name, e.g.
-`import { en, esES, es419, fr, frVous, de, it, pl, ptPT, ptBR, ko, ro, uk } from "@rocapine/community-ui"`).
+`ko`, `ro`, `uk`, `nl`, `ru`, `el`, `hu`, `sv`, `nb`, `da`, `hr`, `sk`, `cs`
+(all exported by name, e.g.
+`import { en, esES, es419, fr, frVous, de, it, pl, ptPT, ptBR, ko, ro, uk, nl, ru, el, hu, sv, nb, da, hr, sk, cs } from "@rocapine/community-ui"`).
+Norwegian ships as Bokmål under `nb`; `no` / `no-NO` resolve to it.
 
 ```tsx
 <CommunityUIProvider translations={{ locale: "pt-BR", overrides: { "rules.accept": "..." } }}>
@@ -167,7 +169,7 @@ region falls back to `es-ES`, `pt`/any other `pt-*` region falls back to
 to its bare-language catalog, e.g. `it`) → `catalog.en` → the key itself
 (never a blank string). A numeric `params.count` selects `<key>.<category>`
 for the locale's CLDR plural category (`pluralCategory`, exported — `one`/`other`,
-plus `few`/`many` for Polish, falling back to `.other` when a catalog only ships
+plus `few`/`many` for Polish and `few` for Ukrainian, Russian, Croatian, Czech, Slovak and Romanian, falling back to `.other` when a catalog only ships
 the binary pair), i.e. `<key>.one` /
 `<key>.other` (through the same fallback chain) before falling back to the
 bare key — e.g. `t("feed.newPosts", { count: 3 })`.
@@ -183,8 +185,9 @@ catalogs.
 **Translation keys**: `translation.translatedFrom` / `translation.original` /
 `translation.showOriginal` / `translation.showTranslation` (the per-item
 caption line, see Translations below) and `language.en` / `.es` / `.pt` /
-`.it` / `.pl` / `.fr` / `.de` / `.ko` / `.ro` / `.uk` (language names used to fill in
-`translation.translatedFrom`) ship in all 13 built-in locales.
+`.it` / `.pl` / `.fr` / `.de` / `.ko` / `.ro` / `.uk` / `.nl` / `.ru` / `.el` / `.hu` /
+`.sv` / `.nb` / `.da` / `.hr` / `.sk` / `.cs` (language names used to fill in
+`translation.translatedFrom`) ship in all 23 built-in locales.
 
 **The `COMMUNITY_REACTION_PUSH_TEXT` caveat**: the reaction module's push
 copy (server-side, in the `notify-reaction` Edge Function) is built-in and

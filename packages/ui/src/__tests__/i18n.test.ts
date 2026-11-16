@@ -13,6 +13,16 @@ import { ptBR } from "../locales/pt-BR";
 import { ko } from "../locales/ko";
 import { ro } from "../locales/ro";
 import { uk } from "../locales/uk";
+import { nl } from "../locales/nl";
+import { ru } from "../locales/ru";
+import { el } from "../locales/el";
+import { hu } from "../locales/hu";
+import { sv } from "../locales/sv";
+import { nb } from "../locales/nb";
+import { da } from "../locales/da";
+import { hr } from "../locales/hr";
+import { sk } from "../locales/sk";
+import { cs } from "../locales/cs";
 
 describe("makeT", () => {
   it("resolves a key from the en catalog", () => {
@@ -96,6 +106,11 @@ describe("makeT", () => {
     expect(t("rules.accept")).toBe(esES["rules.accept"]);
   });
 
+  it("resolves the Norwegian macrolanguage code to the nb catalog", () => {
+    expect(makeT("no")("rules.accept")).toBe(nb["rules.accept"]);
+    expect(makeT("no-NO")("rules.accept")).toBe(nb["rules.accept"]);
+  });
+
   it("resolves an unlisted pt variant to the pt-PT base catalog", () => {
     const t = makeT("pt-AO");
     expect(t("rules.accept")).toBe(ptPT["rules.accept"]);
@@ -136,6 +151,16 @@ describe("locale catalogs", () => {
     ko,
     ro,
     uk,
+    nl,
+    ru,
+    el,
+    hu,
+    sv,
+    nb,
+    da,
+    hr,
+    sk,
+    cs,
   };
 
   // `.few`/`.many` are optional per-locale plural refinements (see
@@ -165,6 +190,14 @@ describe("pluralCategory", () => {
     expect(pluralCategory("ro", 20)).toBe("other");
     expect(pluralCategory("ro", 101)).toBe("other");
     expect(pluralCategory("ro", 102)).toBe("few");
+    expect(pluralCategory("ru", 21)).toBe("one");
+    expect(pluralCategory("ru", 12)).toBe("other");
+    expect(pluralCategory("ru", 34)).toBe("few");
+    expect(pluralCategory("hr", 22)).toBe("few");
+    expect(pluralCategory("cs", 4)).toBe("few");
+    expect(pluralCategory("cs", 22)).toBe("other");
+    expect(pluralCategory("sk", 1)).toBe("one");
+    expect(pluralCategory("sk", 0)).toBe("other");
     expect(pluralCategory("ko", 2)).toBe("other");
     expect(pluralCategory("es-ES", 0)).toBe("other");
     expect(pluralCategory("de", 1)).toBe("one");
