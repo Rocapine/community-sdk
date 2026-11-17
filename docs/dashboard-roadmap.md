@@ -188,6 +188,7 @@ What each SDK feature gives the dashboard to manage. Update a row when the SDK c
 | Member badges (badges; replaces streaks)                                 | 0.15              | Badges on the member card                              | 3, 18   |
 | Online presence (presence)                                               | 0.18              | Online count on the home; grace window in settings     | 12, 20  |
 | Length limit as a trigger, importable history (core `018`, images `003`) | 0.21.1            | Nothing yet; lets imported history exceed 2000 / 1000  | —       |
+| Placeholder profiles, left out of the counts (core `019`)                | 0.21.1            | Nothing yet; hold an imported author's posts           | —       |
 
 ## Open questions
 
