@@ -187,7 +187,8 @@ import { COMMUNITY_EVENTS, type CommunityEventName } from "@rocapine/community-c
 `userReported`, `userBlocked`, `userUnblocked`, `contentDeleted`, `inboxOpened`,
 `translationToggled` (`community_translation_toggled`, props `{ postId | commentId, to: "original" | "translation" }`) — forwarded to
 `host.onEvent` by the exported `emitEvent(cfg, name, props)` helper. `postPublished` and `commentPublished` carry
-`hasImage: boolean` (alongside `hasPoll`). Route or
+`hasImage: boolean` (alongside `hasPoll`); `postPublished` also carries the post's host card as
+`attachmentType` / `attachmentId` (`null` without one). Route or
 ignore these in your own tracking plan; nothing else in the package calls an
 analytics provider directly.
 
