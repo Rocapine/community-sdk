@@ -523,7 +523,11 @@ export function createPostMutationOptions(
         );
       return { id, verdict };
     },
-    onSuccess: ({ id, verdict }, { topic, text, pollOptions, image, pin }, { tempId }) => {
+    onSuccess: (
+      { id, verdict },
+      { topic, text, pollOptions, image, attachment, pin },
+      { tempId },
+    ) => {
       const rejected = verdict.status === "rejected";
       queryClient.setQueriesData<InfiniteData<FeedPost[]>>({ queryKey: FEED_KEY }, (d) =>
         d
@@ -546,6 +550,9 @@ export function createPostMutationOptions(
           bodyLength: text.trim().length,
           hasPoll,
           hasImage: !!image,
+          // The host's card: lets a host count a "share to community" once it is really posted.
+          attachmentType: attachment?.type ?? null,
+          attachmentId: attachment?.id ?? null,
         });
         cfg.host.onContentPublished();
         // The in-place swap above keeps the optimistic poll's temp option ids
