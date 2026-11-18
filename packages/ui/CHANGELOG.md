@@ -1,5 +1,12 @@
 # @rocapine/community-ui
 
+## 0.21.2
+
+### Patch Changes
+
+- Updated dependencies [74cf4c7]
+  - @rocapine/community-core@0.21.2
+
 ## 0.21.0
 
 ### Minor Changes
