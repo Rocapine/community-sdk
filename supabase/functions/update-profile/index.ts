@@ -9,7 +9,7 @@
 // time, so partial application is not observable in practice.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { adminClient, json, SUPABASE_URL } from "../_shared/client.ts";
+import { adminClient, json, preflight, SUPABASE_URL } from "../_shared/client.ts";
 import { assertModerationConfigured, moderateInput } from "../_shared/moderation.ts";
 import { containsAppName, isReservedHandle, suggestHandle } from "../_shared/names.ts";
 
@@ -18,6 +18,8 @@ assertModerationConfigured();
 const admin = adminClient();
 
 Deno.serve(async (req) => {
+  const pre = preflight(req);
+  if (pre) return pre;
   const caller = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
     global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
   });

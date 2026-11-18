@@ -1,6 +1,9 @@
 // Shared Supabase admin client, caller identity helpers + JSON response helper.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { corsHeaders } from "jsr:@supabase/supabase-js@2/cors";
+
+export { corsHeaders };
 
 export const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 
@@ -70,9 +73,15 @@ export async function callerUserId(req: Request): Promise<string | null> {
 
 // The client consumes responses via supabase.functions.invoke, which only
 // parses the body as JSON when the Content-Type says so. Without this header
-// invoke returns a raw string and verdict.status is undefined.
+// invoke returns a raw string and verdict.status is undefined. The CORS
+// headers let a browser (the app's web build) read the response.
 export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+
+// A browser preflights every functions.invoke call with OPTIONS before the
+// POST. Answer it before reading the body, or the browser never sends the call.
+export const preflight = (req: Request) =>
+  req.method === "OPTIONS" ? new Response("ok", { headers: corsHeaders }) : null;
