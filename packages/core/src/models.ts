@@ -14,6 +14,8 @@ export const FEED_PAGE_SIZE = 20;
 export const POST_MAX_LENGTH = 2000;
 export const COMMENT_MAX_LENGTH = 1000;
 
+// Poll defaults: an app may change them per install (`modules.polls`, `pollLimits`), with
+// the same values on the backend (`poll_set_limits`, polls/002).
 export const POLL_MIN_OPTIONS = 2;
 export const POLL_MAX_OPTIONS = 4;
 export const POLL_OPTION_MAX_LENGTH = 60;

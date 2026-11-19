@@ -119,6 +119,16 @@ All optional, all default to a no-op:
 | `getBadges`          | `() => MemberBadges \| null`                             | Badges module: this member's badges, keyed by the ids in `modules.badges` (e.g. `streakBadgeData({ startedAt, bestDays })`), mirrored to the profile by `syncProfileFromHost` (call it again on app foreground). Synchronous — read an already-warmed cache. `null`: nothing to mirror                              |
 | `getLocale`          | `() => string`                                           | The app's language. Resolved against `modules.translation.locales` to choose the language content is read in (`readerLocale`), and mirrored to `profiles.locale` by `syncProfileFromHost` so pushes arrive in each recipient's language. Distinct from the UI package's `translations.locale` prop (interface copy) |
 
+### Polls (`modules.polls`)
+
+`polls: true` allows 2 to 4 options of up to 60 characters. Another range:
+`polls: { minOptions?, maxOptions?, optionMaxLength? }` (each field defaults as above), and the
+same values on the backend, once per Supabase project, from the SQL editor (service role):
+`select public.poll_set_limits(2, 7, 100);` (2 ≤ min ≤ max ≤ 10, length 1 to 200). The database
+enforces its own copy (`create_poll_post`, a trigger on `poll_options`, dashboard drafts), so
+keep both equal. `pollLimits(cfg)` returns the effective limits, or null when polls are off;
+the composer uses it. Members can read the backend's with the `poll_limits()` RPC.
+
 ### Presence (`modules.presence`)
 
 Online = in the foreground within the grace window: 5 minutes by default, a per-project
@@ -207,7 +217,7 @@ runs in production and is silent in degraded mode.
   `ReactionData`, and DB-mirroring constants `FEED_PAGE_SIZE`,
   `POST_MAX_LENGTH` (2000), `COMMENT_MAX_LENGTH` (1000), `POLL_MIN_OPTIONS`
   (2), `POLL_MAX_OPTIONS` (4), `POLL_OPTION_MAX_LENGTH` (60) — client-side
-  mirrors of the backend's check constraints. `FeedPost.translation` /
+  mirrors of the backend's limits (the poll ones are the defaults; see `pollLimits`). `FeedPost.translation` /
   `ThreadComment.translation` are `{ text, sourceLocale } | null` (embedded
   only when the translation module is on and the reader locale resolves);
   `text`/`content` always stay the original. Poll options carry

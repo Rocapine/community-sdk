@@ -1,5 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { POST_MAX_LENGTH, type BadgePlacement, type FeedPost, type MemberBadges } from "./models";
+import {
+  POLL_MAX_OPTIONS,
+  POLL_MIN_OPTIONS,
+  POLL_OPTION_MAX_LENGTH,
+  POST_MAX_LENGTH,
+  type BadgePlacement,
+  type FeedPost,
+  type MemberBadges,
+} from "./models";
 
 /** A feed topic. `adminOnly`: everyone reads it, only admin accounts post in it
  * (applied by the UI: members get no `+` on its tab and never see it in the composer).
@@ -41,7 +49,10 @@ function liveTopics(topics: CommunityTopicDef[], now?: Date): CommunityTopicDef[
 }
 
 export type CommunityModules = {
-  polls: boolean;
+  /** Polls module. `true` uses the default limits (2 to 4 options of up to 60
+   * characters); an object overrides some of them. The backend enforces its own
+   * copy of the limits (`poll_set_limits`, polls/002): keep both equal. */
+  polls: boolean | Partial<PollLimits>;
   push: boolean;
   inbox: boolean;
   /** The secondary reaction (a prayer, a cheer…): `key` is stored with each
@@ -97,6 +108,21 @@ export function presenceSettings(cfg: { modules: CommunityModules }): PresenceSe
     minCount: p.minCount ?? 0,
     collapseAfterMs: p.collapseAfterMs ?? 3000,
     appearance: p.appearance ?? "pill",
+  };
+}
+
+/** How many options a poll takes and how long each may be. */
+export type PollLimits = { minOptions: number; maxOptions: number; optionMaxLength: number };
+
+/** The polls module's limits with defaults, or null when it is off. */
+export function pollLimits(cfg: { modules: CommunityModules }): PollLimits | null {
+  const p = cfg.modules.polls;
+  if (!p) return null;
+  const o = p === true ? {} : p;
+  return {
+    minOptions: o.minOptions ?? POLL_MIN_OPTIONS,
+    maxOptions: o.maxOptions ?? POLL_MAX_OPTIONS,
+    optionMaxLength: o.optionMaxLength ?? POLL_OPTION_MAX_LENGTH,
   };
 }
 

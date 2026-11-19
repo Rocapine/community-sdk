@@ -18,8 +18,9 @@ export {
   topicLive,
   STREAK_BADGES,
   presenceSettings,
+  pollLimits,
 } from "./config";
-export type { OnlineCountAppearance, PresenceSettings } from "./config";
+export type { OnlineCountAppearance, PollLimits, PresenceSettings } from "./config";
 
 export {
   PRESENCE_HEARTBEAT_MS,

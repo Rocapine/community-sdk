@@ -4,6 +4,7 @@ import {
   CommunityDisabledError,
   DEFAULT_NAME,
   isEventTopic,
+  pollLimits,
   resolveConfig,
   topicLive,
 } from "../config";
@@ -139,5 +140,24 @@ describe("event topics", () => {
       ),
     ).toBe(true);
     expect(topicLive({ id: "x", until: "2026-11-01" }, new Date(2026, 10, 1))).toBe(false);
+  });
+});
+
+describe("pollLimits", () => {
+  const withPolls = (polls: CommunityConfig["modules"]["polls"]) => ({
+    modules: { ...base.modules, polls },
+  });
+  it("null when off, defaults when true, overrides per field", () => {
+    expect(pollLimits(withPolls(false))).toBeNull();
+    expect(pollLimits(withPolls(true))).toEqual({
+      minOptions: 2,
+      maxOptions: 4,
+      optionMaxLength: 60,
+    });
+    expect(pollLimits(withPolls({ maxOptions: 7, optionMaxLength: 100 }))).toEqual({
+      minOptions: 2,
+      maxOptions: 7,
+      optionMaxLength: 100,
+    });
   });
 });
