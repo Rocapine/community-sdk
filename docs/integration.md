@@ -146,6 +146,13 @@ e.g. `lib/community-config.ts`.
    against a backend without them the feed fails to load. If the app builds `FeedPost` or
    `ThreadComment` objects by hand (tests, fixtures), add `image: null`; a host
    that types a complete `CommunityIconSet` adds the new `image` role.
+   **Polls.** `polls: true` allows 2 to 4 options of up to 60 characters. Another range is
+   `polls: { minOptions?, maxOptions?, optionMaxLength? }` in the config **and** the same
+   values on the backend, once per Supabase project, from the SQL editor (service role):
+   `select public.poll_set_limits(2, 7, 100);` (2 ≤ min ≤ max ≤ 10, length 1 to 200). The
+   database enforces its own copy, so keep both equal: a client above the backend gets an
+   error on publish. An importer can write options beyond the limits with
+   `alter table public.poll_options disable trigger user` (then `enable`).
    **Presence.** `presence: {}` (or `{ minCount?, collapseAfterMs?, appearance? }`, `appearance: "text"` for plain text instead of the collapsing pill)
    turns on the dots and the `"online"` feed header item (e.g.
    `header={{ left: ["profile", "online"], … }}`; it is dropped when the module is

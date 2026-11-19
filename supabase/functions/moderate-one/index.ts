@@ -10,7 +10,7 @@
 // `status = 'pending'` so a row the author deleted mid-flight is never
 // resurrected.
 
-import { adminClient, callerUserId, isServiceCaller, json } from "../_shared/client.ts";
+import { adminClient, callerUserId, isServiceCaller, json, preflight } from "../_shared/client.ts";
 import { fetchImagePath, POST_IMAGES_BUCKET, postImageUrl } from "../_shared/images.ts";
 import { assertModerationConfigured, moderateItem } from "../_shared/moderation.ts";
 import { postToSlack } from "../_shared/slack.ts";
@@ -20,6 +20,8 @@ assertModerationConfigured();
 const supabase = adminClient();
 
 Deno.serve(async (req) => {
+  const pre = preflight(req);
+  if (pre) return pre;
   const { kind, id } = (await req.json().catch(() => ({}))) as {
     kind?: "post" | "comment";
     id?: string;

@@ -107,7 +107,7 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
 /** Fonts every iOS device has, to try the `title` role without bundling one. */
 export const TITLE_FONTS = ["Georgia", "Courier New", "Avenir Next", "Snell Roundhand"] as const;
 
-/** The 13 locales `@rocapine/community-ui` ships. */
+/** The 23 locales `@rocapine/community-ui` ships. */
 export const LOCALES = [
   "en",
   "es-ES",
@@ -122,6 +122,16 @@ export const LOCALES = [
   "ko",
   "ro",
   "uk",
+  "nl",
+  "ru",
+  "el",
+  "hu",
+  "sv",
+  "nb",
+  "da",
+  "hr",
+  "sk",
+  "cs",
 ] as const;
 
 export const STORAGE_KEY = "playground.settings.v1";

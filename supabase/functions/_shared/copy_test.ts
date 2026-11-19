@@ -32,3 +32,61 @@ Deno.test("excerptOrPhoto: photo for blank content, 140-char truncation otherwis
   assertEquals(long.length, 140);
   assertEquals(long.endsWith("..."), true);
 });
+
+// The 23 locales packages/ui ships: each one gets its own push copy, not English.
+const UI_LOCALES = [
+  "en",
+  "es-ES",
+  "es-419",
+  "fr",
+  "fr-vous",
+  "de",
+  "it",
+  "pl",
+  "pt-PT",
+  "pt-BR",
+  "ko",
+  "ro",
+  "uk",
+  "nl",
+  "ru",
+  "el",
+  "hu",
+  "sv",
+  "nb",
+  "da",
+  "hr",
+  "sk",
+  "cs",
+];
+
+Deno.test("pushCopy: every UI locale has built-in copy", () => {
+  for (const locale of UI_LOCALES) {
+    const copy = pushCopy(locale);
+    assertEquals(copy.locale, locale);
+    if (locale !== "en") {
+      assertEquals(
+        copy.text("comment.title") !== pushCopy("en").text("comment.title"),
+        true,
+        locale,
+      );
+    }
+  }
+});
+
+Deno.test("pushCopy: Slavic plurals and Norwegian", () => {
+  assertEquals(pluralCategory("ru", 22), "few");
+  assertEquals(pluralCategory("hr", 11), "other");
+  assertEquals(pluralCategory("cs", 3), "few");
+  assertEquals(pluralCategory("sk", 5), "other");
+  assertEquals(
+    pushCopy("ru").text("like.many", { name: "Иван", count: 3 }),
+    "Иван и ещё 3 человека оценили твой пост",
+  );
+  assertEquals(
+    pushCopy("cs").text("reaction.many", { name: "Petr", count: 5 }),
+    "Petr a 5 dalších myslí na tebe",
+  );
+  assertEquals(pushCopy("no").locale, "nb");
+  assertEquals(pushCopy("fr-vous").text("reaction.one", { name: "Paul" }), "Paul pense à vous");
+});

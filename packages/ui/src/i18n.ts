@@ -15,6 +15,16 @@ import { ptBR } from "./locales/pt-BR";
 import { ko } from "./locales/ko";
 import { ro } from "./locales/ro";
 import { uk } from "./locales/uk";
+import { nl } from "./locales/nl";
+import { ru } from "./locales/ru";
+import { el } from "./locales/el";
+import { hu } from "./locales/hu";
+import { sv } from "./locales/sv";
+import { nb } from "./locales/nb";
+import { da } from "./locales/da";
+import { hr } from "./locales/hr";
+import { sk } from "./locales/sk";
+import { cs } from "./locales/cs";
 
 export type TFn = (key: string, params?: Record<string, string | number>) => string;
 
@@ -36,6 +46,16 @@ const catalog: Record<string, LocaleCatalog> = {
   ko,
   ro,
   uk,
+  nl,
+  ru,
+  el,
+  hu,
+  sv,
+  nb,
+  da,
+  hr,
+  sk,
+  cs,
 };
 
 /**
@@ -44,7 +64,7 @@ const catalog: Record<string, LocaleCatalog> = {
  * both ship two regional catalogs (`es-ES`/`es-419`, `pt-PT`/`pt-BR`), so an
  * unlisted variant (`es-MX`, `pt-AO`, or the bare `es`/`pt`) needs a pick:
  * `es-ES` and `pt-PT` win. Every other language has exactly one catalog,
- * keyed by its bare language code (`fr`, `de`, `it`, `pl`, `ko`, `ro`, `uk`) — those resolve
+ * keyed by its bare language code (`fr`, `de`, `nb`, `uk`…) — those resolve
  * to themselves with no entry needed here (see `baseLocaleFor`): `fr-CA`,
  * `de-AT`, `it-CH`, etc. all fall back to their bare-language catalog by
  * the same default this map has no override for.
@@ -52,6 +72,8 @@ const catalog: Record<string, LocaleCatalog> = {
 const BASE_LOCALE: Record<string, string> = {
   es: "es-ES",
   pt: "pt-PT",
+  // Norwegian ships as Bokmål; the macrolanguage code `no` (and `no-NO`) reads it too.
+  no: "nb",
 };
 
 /** The language subtag of `locale` (e.g. "es-MX" -> "es"), mapped through
@@ -65,7 +87,8 @@ function baseLocaleFor(locale: string): string | undefined {
 /**
  * CLDR plural category for integer counts in the languages this package
  * ships. Polish distinguishes one/few/many (2 → "nowe posty", 5 → "nowych
- * postów"); Ukrainian likewise, except that 21, 31… are `one` (one/few/other);
+ * postów"); Ukrainian, Russian and Croatian likewise, except that 21, 31… are
+ * `one` (one/few/other); Czech and Slovak split one (1) / few (2–4) / other;
  * Romanian splits one (1) / few (0, 2–19, x02–x19) / other (20, 21, 100…);
  * French treats 0 like 1. Everything else is a binary one/other.
  * Catalogs only need `.one`/`.other`; `.few`/`.many` are optional refinements
@@ -80,9 +103,14 @@ export function pluralCategory(locale: string, n: number): "one" | "few" | "many
     if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return "few";
     return "many";
   }
-  if (lang === "uk") {
+  if (lang === "uk" || lang === "ru" || lang === "hr") {
     if (m10 === 1 && m100 !== 11) return "one";
     if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return "few";
+    return "other";
+  }
+  if (lang === "cs" || lang === "sk") {
+    if (n === 1) return "one";
+    if (n >= 2 && n <= 4) return "few";
     return "other";
   }
   if (lang === "ro") {

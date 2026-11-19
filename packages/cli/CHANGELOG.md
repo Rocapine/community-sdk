@@ -1,5 +1,23 @@
 # @rocapine/community
 
+## 0.21.3
+
+### Patch Changes
+
+- b1dfa84: `moderate-one` and `update-profile` answer the browser's CORS preflight and send CORS headers, so a web build can call them. Before, every post published from the web stayed `pending` until the daily moderation sweep, and profile edits failed. Redeploy both functions after upgrading.
+
+## 0.21.1
+
+### Patch Changes
+
+- 47df2d6: Two additive migrations for importing content from another platform. `core/018_content_length` (and `images/003_content_length`) moves the post and comment length limit from CHECK constraints to a trigger, so the limit applies to new writing only and an importer can bring in longer history (`alter table ... disable trigger user`). `core/019_placeholders` adds `profiles.is_placeholder`: placeholder profiles for imported authors show like members but are left out of the dashboard counts. Run `npx @rocapine/community upgrade` and `supabase db push` to pick them up; nothing changes for existing data.
+
+## 0.21.0
+
+### Minor Changes
+
+- 6cb46bf: Community pushes (comment, reply, like, reaction) have built-in copy in all 23 locales `@rocapine/community-ui` ships, instead of 9: adds `fr-vous`, `ko`, `ro`, `uk`, `nl`, `ru`, `el`, `hu`, `sv`, `nb`, `da`, `hr`, `sk` and `cs`. Russian, Croatian, Czech and Slovak counts now pick their own plural forms (before, any locale without built-in copy used the English rule, even when `COMMUNITY_PUSH_COPY` overrode its strings), and a `no` profile locale gets the Norwegian copy. Reinstall the functions with the CLI and redeploy `notify-comment`, `notify-like` and `notify-reaction` to pick it up.
+
 ## 0.20.0
 
 ### Minor Changes

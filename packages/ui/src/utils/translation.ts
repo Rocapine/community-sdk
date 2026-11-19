@@ -29,7 +29,9 @@ export function translationLine(t: TFn, item: Translatable, showOriginal: boolea
 /** "portugués" for `pt-BR` too (the translator may report a regional code); the raw
  * code when neither the code nor its base language has a name. */
 function languageName(t: TFn, code: string): string {
-  for (const candidate of [code, code.split("-")[0]]) {
+  // The translator may report Norwegian as the macrolanguage "no"; the catalogs name it "nb".
+  const base = code.split("-")[0];
+  for (const candidate of [code, base === "no" ? "nb" : base]) {
     const key = `language.${candidate}`;
     const named = t(key);
     if (named !== key) return named;

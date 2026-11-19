@@ -1,5 +1,24 @@
 # @rocapine/community-ui
 
+## 0.21.2
+
+### Patch Changes
+
+- Updated dependencies [74cf4c7]
+  - @rocapine/community-core@0.21.2
+
+## 0.21.0
+
+### Minor Changes
+
+- 6cb46bf: Ten more built-in locales: Dutch (`nl`), Russian (`ru`), Greek (`el`), Hungarian (`hu`), Swedish (`sv`), Norwegian Bokmål (`nb`, also used for `no`), Danish (`da`), Croatian (`hr`), Slovak (`sk`) and Czech (`cs`), 23 in all. Russian and Croatian plurals use one/few/other like Ukrainian, Czech and Slovak one (1) / few (2–4) / other. Every locale also names these ten languages in "Translated from …", including a post the translator reports as `no`.
+
+## 0.20.1
+
+### Patch Changes
+
+- 1c97b28: Android: the keyboard no longer covers the comment and reply field in a thread, nor the new-post composer's toolbar. Since React Native 0.88 every `Modal` is drawn edge-to-edge on Android, so the system no longer shrinks the window for the keyboard: the bottom sheet now lifts itself (`adjustPan`), and the composer moves its toolbar up by the keyboard height plus the navigation bar. iOS is unchanged.
+
 ## 0.20.0
 
 ### Minor Changes

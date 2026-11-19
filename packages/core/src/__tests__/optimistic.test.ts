@@ -194,6 +194,24 @@ describe("create mutations with an image", () => {
     );
   });
 
+  it("reports the attachment on postPublished", async () => {
+    seedFeed();
+    await run(createPostMutationOptions(cfg, qc, null), {
+      ...postVars,
+      image: undefined,
+      attachment: { type: "streak", id: "23" },
+    });
+    expect(onEvent).toHaveBeenLastCalledWith(
+      "community_post_published",
+      expect.objectContaining({ attachmentType: "streak", attachmentId: "23" }),
+    );
+    await run(createPostMutationOptions(cfg, qc, null), postVars);
+    expect(onEvent).toHaveBeenLastCalledWith(
+      "community_post_published",
+      expect.objectContaining({ attachmentType: null, attachmentId: null }),
+    );
+  });
+
   const commentVars = { postId: "p1", text: "", authorName: "Ann", image: local };
   const seedThread = () => qc.setQueryData<ThreadComment[]>(threadKey("p1", null), []);
   const threadIds = () => qc.getQueryData<ThreadComment[]>(threadKey("p1", null))?.map((c) => c.id);

@@ -1,7 +1,7 @@
 // Locale-aware push copy for notify-comment / notify-like / notify-reaction.
 //
-// Every string below is a neutral built-in for the 9 locales the UI package
-// ships. An app with its own voice overrides ANY of them — per locale, per
+// Every string below is a neutral built-in for each of the 23 locales the UI
+// package ships. An app with its own voice overrides ANY of them — per locale, per
 // key — through ONE JSON secret instead of forking the function bodies (the
 // way one host app had to before this existed):
 //
@@ -18,8 +18,9 @@
 // Placeholders: `{name}` (actor display name) and `{count}` (the number of
 // OTHER people in a coalesced push). A `*.many` value is either a string or a
 // `{ one, few, many, other }` object picked by the CLDR plural category of
-// `{count}` for the recipient's locale (Polish needs all three; Ukrainian and
-// Romanian one/few/other; French treats 0 like 1; everything else is one/other).
+// `{count}` for the recipient's locale (Polish needs all three; Ukrainian,
+// Russian, Croatian, Czech, Slovak and Romanian one/few/other; French treats 0
+// like 1; everything else is one/other).
 //
 // Legacy single-string secrets still apply, below the JSON and above the
 // built-ins: COMMUNITY_FALLBACK_NAME (every locale's fallbackName) and
@@ -186,6 +187,242 @@ const BUILTIN: Record<string, LocaleCopy> = {
       other: "{name} und {count} weitere Personen denken an dich",
     },
   },
+  "fr-vous": {
+    fallbackName: "Quelqu'un",
+    photo: "📷 Photo",
+    "comment.title": "Vous avez reçu un commentaire",
+    "reply.title": "Vous avez reçu une réponse",
+    "like.one": "{name} a aimé votre publication",
+    "like.many": {
+      one: "{name} et {count} autre personne ont aimé votre publication",
+      other: "{name} et {count} autres personnes ont aimé votre publication",
+    },
+    "reaction.one": "{name} pense à vous",
+    "reaction.many": {
+      one: "{name} et {count} autre personne pensent à vous",
+      other: "{name} et {count} autres personnes pensent à vous",
+    },
+  },
+  ko: {
+    fallbackName: "누군가",
+    photo: "📷 사진",
+    "comment.title": "새 댓글이 달렸어요",
+    "reply.title": "새 답글이 달렸어요",
+    "like.one": "{name}님이 내 게시글을 좋아해요",
+    "like.many": {
+      one: "{name}님 외 {count}명이 내 게시글을 좋아해요",
+      other: "{name}님 외 {count}명이 내 게시글을 좋아해요",
+    },
+    "reaction.one": "{name}님이 나를 생각하고 있어요",
+    "reaction.many": {
+      one: "{name}님 외 {count}명이 나를 생각하고 있어요",
+      other: "{name}님 외 {count}명이 나를 생각하고 있어요",
+    },
+  },
+  ro: {
+    fallbackName: "Cineva",
+    photo: "📷 Fotografie",
+    "comment.title": "Ai primit un comentariu",
+    "reply.title": "Ai primit un răspuns",
+    "like.one": "{name} a apreciat postarea ta",
+    "like.many": {
+      one: "{name} și încă o persoană au apreciat postarea ta",
+      few: "{name} și încă {count} persoane au apreciat postarea ta",
+      other: "{name} și încă {count} de persoane au apreciat postarea ta",
+    },
+    "reaction.one": "{name} se gândește la tine",
+    "reaction.many": {
+      one: "{name} și încă o persoană se gândesc la tine",
+      few: "{name} și încă {count} persoane se gândesc la tine",
+      other: "{name} și încă {count} de persoane se gândesc la tine",
+    },
+  },
+  uk: {
+    fallbackName: "Хтось",
+    photo: "📷 Фото",
+    "comment.title": "У тебе новий коментар",
+    "reply.title": "У тебе нова відповідь",
+    "like.one": "{name} вподобав(ла) твій допис",
+    "like.many": {
+      one: "{name} і ще {count} людина вподобали твій допис",
+      few: "{name} і ще {count} людини вподобали твій допис",
+      other: "{name} і ще {count} людей вподобали твій допис",
+    },
+    "reaction.one": "{name} думає про тебе",
+    "reaction.many": {
+      one: "{name} і ще {count} людина думають про тебе",
+      few: "{name} і ще {count} людини думають про тебе",
+      other: "{name} і ще {count} людей думають про тебе",
+    },
+  },
+  nl: {
+    fallbackName: "Iemand",
+    photo: "📷 Foto",
+    "comment.title": "Je hebt een reactie ontvangen",
+    "reply.title": "Je hebt een antwoord ontvangen",
+    "like.one": "{name} vindt je post leuk",
+    "like.many": {
+      one: "{name} en {count} ander vinden je post leuk",
+      other: "{name} en {count} anderen vinden je post leuk",
+    },
+    "reaction.one": "{name} denkt aan je",
+    "reaction.many": {
+      one: "{name} en {count} ander denken aan je",
+      other: "{name} en {count} anderen denken aan je",
+    },
+  },
+  ru: {
+    fallbackName: "Кто-то",
+    photo: "📷 Фото",
+    "comment.title": "У тебя новый комментарий",
+    "reply.title": "У тебя новый ответ",
+    "like.one": "{name} оценил(а) твой пост",
+    "like.many": {
+      one: "{name} и ещё {count} человек оценили твой пост",
+      few: "{name} и ещё {count} человека оценили твой пост",
+      other: "{name} и ещё {count} человек оценили твой пост",
+    },
+    "reaction.one": "{name} думает о тебе",
+    "reaction.many": {
+      one: "{name} и ещё {count} человек думают о тебе",
+      few: "{name} и ещё {count} человека думают о тебе",
+      other: "{name} и ещё {count} человек думают о тебе",
+    },
+  },
+  el: {
+    fallbackName: "Κάποιος",
+    photo: "📷 Φωτογραφία",
+    "comment.title": "Έλαβες ένα σχόλιο",
+    "reply.title": "Έλαβες μια απάντηση",
+    "like.one": "{name} έκανε like στη δημοσίευσή σου",
+    "like.many": {
+      one: "{name} και {count} ακόμα άτομο έκαναν like στη δημοσίευσή σου",
+      other: "{name} και {count} ακόμα άτομα έκαναν like στη δημοσίευσή σου",
+    },
+    "reaction.one": "{name} σε σκέφτεται",
+    "reaction.many": {
+      one: "{name} και {count} ακόμα άτομο σε σκέφτονται",
+      other: "{name} και {count} ακόμα άτομα σε σκέφτονται",
+    },
+  },
+  hu: {
+    fallbackName: "Valaki",
+    photo: "📷 Fotó",
+    "comment.title": "Hozzászólást kaptál",
+    "reply.title": "Választ kaptál",
+    "like.one": "{name} kedvelte a bejegyzésedet",
+    "like.many": {
+      one: "{name} és még {count} ember kedvelte a bejegyzésedet",
+      other: "{name} és még {count} ember kedvelte a bejegyzésedet",
+    },
+    "reaction.one": "{name} gondol rád",
+    "reaction.many": {
+      one: "{name} és még {count} ember gondol rád",
+      other: "{name} és még {count} ember gondol rád",
+    },
+  },
+  sv: {
+    fallbackName: "Någon",
+    photo: "📷 Foto",
+    "comment.title": "Du har fått en kommentar",
+    "reply.title": "Du har fått ett svar",
+    "like.one": "{name} gillade ditt inlägg",
+    "like.many": {
+      one: "{name} och {count} annan gillade ditt inlägg",
+      other: "{name} och {count} andra gillade ditt inlägg",
+    },
+    "reaction.one": "{name} tänker på dig",
+    "reaction.many": {
+      one: "{name} och {count} annan tänker på dig",
+      other: "{name} och {count} andra tänker på dig",
+    },
+  },
+  nb: {
+    fallbackName: "Noen",
+    photo: "📷 Bilde",
+    "comment.title": "Du har fått en kommentar",
+    "reply.title": "Du har fått et svar",
+    "like.one": "{name} likte innlegget ditt",
+    "like.many": {
+      one: "{name} og {count} annen likte innlegget ditt",
+      other: "{name} og {count} andre likte innlegget ditt",
+    },
+    "reaction.one": "{name} tenker på deg",
+    "reaction.many": {
+      one: "{name} og {count} annen tenker på deg",
+      other: "{name} og {count} andre tenker på deg",
+    },
+  },
+  da: {
+    fallbackName: "Nogen",
+    photo: "📷 Foto",
+    "comment.title": "Du har fået en kommentar",
+    "reply.title": "Du har fået et svar",
+    "like.one": "{name} synes godt om dit opslag",
+    "like.many": {
+      one: "{name} og {count} anden synes godt om dit opslag",
+      other: "{name} og {count} andre synes godt om dit opslag",
+    },
+    "reaction.one": "{name} tænker på dig",
+    "reaction.many": {
+      one: "{name} og {count} anden tænker på dig",
+      other: "{name} og {count} andre tænker på dig",
+    },
+  },
+  hr: {
+    fallbackName: "Netko",
+    photo: "📷 Fotografija",
+    "comment.title": "Imaš novi komentar",
+    "reply.title": "Imaš novi odgovor",
+    "like.one": "{name} je lajkao/la tvoju objavu",
+    "like.many": {
+      one: "{name} i još {count} osoba lajkali su tvoju objavu",
+      few: "{name} i još {count} osobe lajkali su tvoju objavu",
+      other: "{name} i još {count} osoba lajkali su tvoju objavu",
+    },
+    "reaction.one": "{name} misli na tebe",
+    "reaction.many": {
+      one: "{name} i još {count} osoba misle na tebe",
+      few: "{name} i još {count} osobe misle na tebe",
+      other: "{name} i još {count} osoba misle na tebe",
+    },
+  },
+  sk: {
+    fallbackName: "Niekto",
+    photo: "📷 Fotka",
+    "comment.title": "Máš nový komentár",
+    "reply.title": "Máš novú odpoveď",
+    "like.one": "{name} dal(a) like tvojmu príspevku",
+    "like.many": {
+      one: "{name} a {count} ďalší dali like tvojmu príspevku",
+      few: "{name} a {count} ďalší dali like tvojmu príspevku",
+      other: "{name} a {count} ďalších dali like tvojmu príspevku",
+    },
+    "reaction.one": "{name} myslí na teba",
+    "reaction.many": {
+      one: "{name} a {count} ďalší myslia na teba",
+      few: "{name} a {count} ďalší myslia na teba",
+      other: "{name} a {count} ďalších myslia na teba",
+    },
+  },
+  cs: {
+    fallbackName: "Někdo",
+    photo: "📷 Fotka",
+    "comment.title": "Máš nový komentář",
+    "reply.title": "Máš novou odpověď",
+    "like.one": "{name} ocenil(a) tvůj příspěvek",
+    "like.many": {
+      one: "{name} a {count} další ocenili tvůj příspěvek",
+      few: "{name} a {count} další ocenili tvůj příspěvek",
+      other: "{name} a {count} dalších ocenili tvůj příspěvek",
+    },
+    "reaction.one": "{name} myslí na tebe",
+    "reaction.many": {
+      one: "{name} a {count} další myslí na tebe",
+      few: "{name} a {count} další myslí na tebe",
+      other: "{name} a {count} dalších myslí na tebe",
+    },
+  },
 };
 
 // Same rule set as the UI package's `pluralCategory` (packages/ui/src/i18n.ts).
@@ -198,9 +435,14 @@ export function pluralCategory(locale: string, n: number): keyof Forms {
     if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return "few";
     return "many";
   }
-  if (lang === "uk") {
+  if (lang === "uk" || lang === "ru" || lang === "hr") {
     if (m10 === 1 && m100 !== 11) return "one";
     if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return "few";
+    return "other";
+  }
+  if (lang === "cs" || lang === "sk") {
+    if (n === 1) return "one";
+    if (n >= 2 && n <= 4) return "few";
     return "other";
   }
   if (lang === "ro") {
@@ -228,7 +470,7 @@ const OVERRIDES = parseOverrides();
 const LEGACY_FALLBACK_NAME = Deno.env.get("COMMUNITY_FALLBACK_NAME");
 const LEGACY_REACTION_ONE = Deno.env.get("COMMUNITY_REACTION_PUSH_TEXT");
 
-/** `es-MX` → `es-ES`, `pt-AO` → `pt-PT`, `fr-CA` → `fr`; unknown → `en`. */
+/** `es-MX` → `es-ES`, `pt-AO` → `pt-PT`, `fr-CA` → `fr`, `no` → `nb`; unknown → `en`. */
 function resolveLocale(locale: string | null | undefined): string {
   if (!locale) return "en";
   if (BUILTIN[locale]) return locale;
@@ -236,6 +478,7 @@ function resolveLocale(locale: string | null | undefined): string {
   if (BUILTIN[lang]) return lang;
   if (lang === "es") return "es-ES";
   if (lang === "pt") return "pt-PT";
+  if (lang === "no") return "nb";
   return "en";
 }
 

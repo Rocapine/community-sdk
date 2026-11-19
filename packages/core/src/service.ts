@@ -127,7 +127,7 @@ export function buildFeedSelect(
 function postsSelect(cfg: ResolvedCommunityConfig): string {
   return buildFeedSelect(
     cfg.feed.extraPostColumns,
-    cfg.modules.polls,
+    !!cfg.modules.polls,
     readerLocale(cfg) !== null,
     !!cfg.modules.images,
     !!cfg.modules.badges,
