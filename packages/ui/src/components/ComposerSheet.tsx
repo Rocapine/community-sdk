@@ -15,9 +15,7 @@
 
 import {
   isEventTopic,
-  POLL_MAX_OPTIONS,
-  POLL_MIN_OPTIONS,
-  POLL_OPTION_MAX_LENGTH,
+  pollLimits,
   useCommunityConfig,
   useCreatePost,
   useMyUid,
@@ -107,6 +105,7 @@ export function ComposerSheet({
   const t = useT();
   const icons = useCommunityIcons();
   const cfg = useCommunityConfig();
+  const polls = pollLimits(cfg);
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const createPost = useCreatePost();
@@ -189,7 +188,7 @@ export function ComposerSheet({
   }, [visible, initialAttachment, initialText]);
 
   const filledPollOptions = (pollDraft ?? []).map((o) => o.trim()).filter((o) => o.length > 0);
-  const pollInvalid = pollDraft !== null && filledPollOptions.length < POLL_MIN_OPTIONS;
+  const pollInvalid = pollDraft !== null && filledPollOptions.length < (polls?.minOptions ?? 0);
   const canPost = canPublish({
     text,
     image,
@@ -252,7 +251,7 @@ export function ComposerSheet({
 
   const togglePoll = () => {
     haptic("selection");
-    setPollDraft((prev) => (prev === null ? ["", ""] : null));
+    setPollDraft((prev) => (prev === null ? Array<string>(polls?.minOptions ?? 2).fill("") : null));
   };
 
   const submit = () => {
@@ -409,7 +408,7 @@ export function ComposerSheet({
                   </View>
                 )}
 
-                {cfg.modules.polls && pollDraft !== null && (
+                {polls && pollDraft !== null && (
                   <View style={styles.pollEditor}>
                     {pollDraft.map((option, i) => (
                       <View key={i} style={styles.pollOptionRow}>
@@ -422,14 +421,14 @@ export function ComposerSheet({
                           }
                           placeholder={t("composer.option", { number: i + 1 })}
                           placeholderTextColor={theme.colors.textFaint}
-                          maxLength={POLL_OPTION_MAX_LENGTH}
+                          maxLength={polls.optionMaxLength}
                           // Long options wrap; Return ends the option, no newline.
                           multiline
                           scrollEnabled={false}
                           submitBehavior="blurAndSubmit"
                           style={styles.pollOptionInput}
                         />
-                        {pollDraft.length > POLL_MIN_OPTIONS && (
+                        {pollDraft.length > polls.minOptions && (
                           <Pressable
                             hitSlop={8}
                             onPress={() =>
@@ -443,7 +442,7 @@ export function ComposerSheet({
                         )}
                       </View>
                     ))}
-                    {pollDraft.length < POLL_MAX_OPTIONS && (
+                    {pollDraft.length < polls.maxOptions && (
                       <Pressable
                         onPress={() => setPollDraft((prev) => (prev ? [...prev, ""] : prev))}
                         style={styles.pollAdd}
@@ -511,7 +510,7 @@ export function ComposerSheet({
                 )}
               </Pressable>
             )}
-            {cfg.modules.polls && (
+            {polls && (
               <Pressable
                 onPress={togglePoll}
                 disabled={image !== null || attachment !== null}
