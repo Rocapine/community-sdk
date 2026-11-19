@@ -112,3 +112,44 @@ describe("ensureIdentity — default name", () => {
     expect(await ensureIdentity(resolveConfig(baseConfig(client, false)))).toBe("uid1");
   });
 });
+
+describe("ensureIdentity — never replaces a session it could not read", () => {
+  beforeEach(() => {
+    resetIdentity();
+  });
+
+  function clientWith(getSession: () => Promise<unknown>) {
+    const signIns: number[] = [];
+    const client = {
+      auth: {
+        getSession,
+        signInAnonymously: async () => {
+          signIns.push(1);
+          return { data: { user: { id: "new-uid" } }, error: null };
+        },
+      },
+      from: () => ({ update: () => ({ eq: async () => ({ error: null }) }) }),
+      rpc: async () => ({ error: null }),
+    } as unknown as SupabaseClient;
+    return { client, signIns };
+  }
+
+  it("does not sign in anonymously when getSession reports an error (refresh failed offline)", async () => {
+    // auth-js returns { session: null, error } when the stored session's refresh fails
+    // with a network error: the session is still in storage, signing in would overwrite it.
+    const { client, signIns } = clientWith(async () => ({
+      data: { session: null },
+      error: Object.assign(new Error("Network request failed"), {
+        name: "AuthRetryableFetchError",
+      }),
+    }));
+    expect(await ensureIdentity(resolveConfig(baseConfig(client, false)))).toBeNull();
+    expect(signIns).toHaveLength(0);
+  });
+
+  it("signs in anonymously when there is no session and no error", async () => {
+    const { client, signIns } = clientWith(async () => ({ data: { session: null }, error: null }));
+    expect(await ensureIdentity(resolveConfig(baseConfig(client, false)))).toBe("new-uid");
+    expect(signIns).toHaveLength(1);
+  });
+});

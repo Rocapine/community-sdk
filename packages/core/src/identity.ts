@@ -42,11 +42,16 @@ export function resetIdentity(): void {
 
 async function bootstrap(cfg: ResolvedCommunityConfig): Promise<string> {
   const client = cfg.requireClient();
-  const { data } = await client.auth.getSession();
+  const { data, error: sessionError } = await client.auth.getSession();
   if (data.session) {
     await assignDefaultProfile(cfg);
     return data.session.user.id;
   }
+  // { session: null, error } = the stored session could not be refreshed right now
+  // (offline, a refresh failure cooldown, a discarded refresh) but may still be in
+  // storage. Signing in would overwrite it with a new user: retry on the next call.
+  // A dead session is cleared by auth-js, so the next call reads { null, null }.
+  if (sessionError) throw sessionError;
 
   const { data: signIn, error } = await client.auth.signInAnonymously();
   if (error || !signIn.user) throw error ?? new Error("anonymous sign-in returned no user");
