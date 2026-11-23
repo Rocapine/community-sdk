@@ -143,10 +143,11 @@ export async function translateItem(input: {
   options: string[];
   targets: string[];
 }): Promise<ParsedTranslation | null> {
+  if (input.targets.length === 0) return { sourceLocale: "", translations: {} };
+  // Poll labels are translated too, so they count toward each call's output.
+  const length = input.content.length + input.options.reduce((n, o) => n + o.length, 0);
   const parts = await Promise.all(
-    targetChunks(input.content.length, input.targets).map((targets) =>
-      translateChunk({ ...input, targets }),
-    ),
+    targetChunks(length, input.targets).map((targets) => translateChunk({ ...input, targets })),
   );
   if (parts.some((p) => p === null)) return null;
   const done = parts as ParsedTranslation[];
