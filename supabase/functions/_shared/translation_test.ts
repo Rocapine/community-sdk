@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { hasTranslatableContent, translationStyleLines } from "./translation.ts";
+import { hasTranslatableContent, targetChunks, translationStyleLines } from "./translation.ts";
 
 Deno.test("translationStyleLines: a plain sentence applies to every target", () => {
   assertEquals(translationStyleLines("warm and brotherly", ["fr", "de"]), [
@@ -32,5 +32,25 @@ Deno.test(
     assertEquals(hasTranslatableContent(""), false);
     assertEquals(hasTranslatableContent("  \n"), false);
     assertEquals(hasTranslatableContent("bonjour"), true);
+  },
+);
+
+Deno.test("targetChunks: a short text keeps every target in one call", () => {
+  const targets = Array.from({ length: 19 }, (_, i) => `l${i}`);
+  assertEquals(targetChunks(300, targets), [targets]);
+});
+
+Deno.test(
+  "targetChunks: a long text splits the targets, each call within the output budget",
+  () => {
+    const targets = Array.from({ length: 19 }, (_, i) => `l${i}`);
+    const chunks = targetChunks(2000, targets);
+    assertEquals(
+      chunks.map((c) => c.length),
+      [6, 6, 6, 1],
+    );
+    assertEquals(chunks.flat(), targets);
+    // Longer than the budget itself: one target per call, never zero.
+    assertEquals(targetChunks(20_000, ["a", "b"]), [["a"], ["b"]]);
   },
 );

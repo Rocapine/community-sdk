@@ -123,8 +123,42 @@ export function translationTimeoutMs(contentLength: number, targetCount: number)
   return Math.min(90_000, 20_000 + 5 * contentLength * Math.max(1, targetCount));
 }
 
-/** One OpenAI call. Returns null on any failure (caller writes nothing). */
+/** Output characters one call may produce (text length × targets): keeps a call
+ * inside translationTimeoutMs, whose cap a 2,000-character post in 19 locales
+ * overran on every try. */
+const OUTPUT_CHARS_PER_CALL = 12_000;
+
+/** Splits the targets into groups small enough for one call each. */
+export function targetChunks(contentLength: number, targets: string[]): string[][] {
+  const size = Math.max(1, Math.floor(OUTPUT_CHARS_PER_CALL / Math.max(1, contentLength)));
+  const chunks: string[][] = [];
+  for (let i = 0; i < targets.length; i += size) chunks.push(targets.slice(i, i + size));
+  return chunks;
+}
+
+/** Translates into every target, in parallel calls of at most OUTPUT_CHARS_PER_CALL
+ * each. Returns null when any call fails (caller writes nothing). */
 export async function translateItem(input: {
+  content: string;
+  options: string[];
+  targets: string[];
+}): Promise<ParsedTranslation | null> {
+  if (input.targets.length === 0) return { sourceLocale: "", translations: {} };
+  // Poll labels are translated too, so they count toward each call's output.
+  const length = input.content.length + input.options.reduce((n, o) => n + o.length, 0);
+  const parts = await Promise.all(
+    targetChunks(length, input.targets).map((targets) => translateChunk({ ...input, targets })),
+  );
+  if (parts.some((p) => p === null)) return null;
+  const done = parts as ParsedTranslation[];
+  return {
+    sourceLocale: done[0].sourceLocale,
+    translations: Object.assign({}, ...done.map((p) => p.translations)),
+  };
+}
+
+/** One OpenAI call. Returns null on any failure. */
+async function translateChunk(input: {
   content: string;
   options: string[];
   targets: string[];
