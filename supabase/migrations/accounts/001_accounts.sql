@@ -5,6 +5,7 @@
 --   account_link_and_merge links and merges in one transaction.
 --   reset_profile_identity_for  core's reset_profile_identity for a given profile (account deletion).
 --   account_hook_exists    tells the edge function which optional host SQL hooks are installed.
+--   account_last_active, account_user_id_by_email  lookups for the account-session function.
 --   account_session_calls  rate-limit store of the account-session function.
 -- Everything here is service-role only. Requires core. Fully idempotent.
 
@@ -172,7 +173,8 @@ as $$
 $$;
 
 -- Links (provider, subject) to p_main if the link is missing, then merges each p_merge profile into
--- it, all in one transaction. True when the link is new.
+-- it, all in one transaction. True when the link is new. Raises unique_violation, merging nothing,
+-- when the account is linked to another profile or p_main to another account.
 create or replace function public.account_link_and_merge(p_provider text, p_subject text, p_main uuid, p_merge uuid[])
 returns boolean
 language plpgsql volatile security definer
@@ -186,11 +188,38 @@ begin
   values (p_provider, p_subject, p_main)
   on conflict (provider, subject) do nothing;
   get diagnostics inserted = row_count;
+  if inserted = 0 and not exists (select 1 from public.account_links
+      where provider = p_provider and subject = p_subject and profile_id = p_main) then
+    raise exception 'account_link_and_merge: the account is linked to another profile'
+      using errcode = 'unique_violation';
+  end if;
   foreach x in array coalesce(p_merge, '{}') loop
     perform public.merge_profiles(p_main, x);
   end loop;
   return inserted > 0;
 end;
+$$;
+
+-- Latest post, comment, like or creation of each profile: account-session adopts the most active candidate.
+create or replace function public.account_last_active(p_profiles uuid[])
+returns table (profile_id uuid, at timestamptz)
+language sql stable security definer
+set search_path = public
+as $$
+  select p.id, greatest(p.created_at,
+    (select max(created_at) from public.posts where author_id = p.id),
+    (select max(created_at) from public.comments where author_id = p.id),
+    (select max(created_at) from public.likes where user_id = p.id))
+  from public.profiles p where p.id = any (p_profiles);
+$$;
+
+-- The auth user holding an email, so account-session can replace an unlinked squatter.
+create or replace function public.account_user_id_by_email(p_email text)
+returns uuid
+language sql stable security definer
+set search_path = public
+as $$
+  select id from auth.users where email = lower(p_email);
 $$;
 
 revoke execute on function public.merge_profiles(uuid, uuid) from public, anon, authenticated;
@@ -201,3 +230,7 @@ grant execute on function public.merge_profiles(uuid, uuid) to service_role;
 grant execute on function public.reset_profile_identity_for(uuid) to service_role;
 grant execute on function public.account_hook_exists(text) to service_role;
 grant execute on function public.account_link_and_merge(text, text, uuid, uuid[]) to service_role;
+revoke execute on function public.account_last_active(uuid[]) from public, anon, authenticated;
+revoke execute on function public.account_user_id_by_email(text) from public, anon, authenticated;
+grant execute on function public.account_last_active(uuid[]) to service_role;
+grant execute on function public.account_user_id_by_email(text) to service_role;

@@ -8,7 +8,7 @@ declare
   m uuid := gen_random_uuid();
   o uuid := gen_random_uuid();
   p_both uuid; p_o uuid;
-  c_both uuid; c_o uuid; opt uuid; x uuid := gen_random_uuid();
+  c_both uuid; c_o uuid; opt uuid; x uuid := gen_random_uuid(); y uuid := gen_random_uuid(); p_y uuid;
   r text; fn text;
   rec record;
   n int;
@@ -22,7 +22,7 @@ declare
     'notification_seen.user_id', 'notification_reads.user_id', 'poll_votes.user_id',
     'post_reactions.user_id', 'member_presence.user_id', 'push_tokens.user_id', 'push_devices.user_id'];
 begin
-  insert into auth.users (id) values (m), (o), (x);
+  insert into auth.users (id) values (m), (o), (x), (y);
   assert exists (select 1 from public.profiles where id = m), 'the auth trigger creates the profile';
 
   -- Content: o has a post and two comments, m has a post.
@@ -143,6 +143,32 @@ begin
   assert not public.account_link_and_merge('test', 'subject-1', m, '{}'), 'the second is not';
   assert (select profile_id from public.account_links where provider = 'test' and subject = 'subject-1') = m, 'link stored';
 
+  -- An account linked to another profile, or a profile linked to another account: raise, merge nothing.
+  insert into public.posts (author_id, content, status) values (y, 'y post', 'visible') returning id into p_y;
+  failed := false;
+  begin
+    perform public.account_link_and_merge('test', 'subject-1', x, array[y]);
+  exception when unique_violation then failed := true;
+  end;
+  assert failed, 'linking an account to a second profile raises';
+  failed := false;
+  begin
+    perform public.account_link_and_merge('test', 'subject-2', m, array[y]);
+  exception when unique_violation then failed := true;
+  end;
+  assert failed, 'linking a profile to a second account raises';
+  assert (select author_id from public.posts where id = p_y) = y, 'nothing merged on a conflict';
+  assert (select count(*) from public.account_links where subject = 'subject-2') = 0, 'no second link';
+
+  -- Lookups for account-session.
+  update public.posts set created_at = now() + interval '1 day' where id = p_y;
+  assert (select at from public.account_last_active(array[y])) = (select created_at from public.posts where id = p_y),
+    'last activity is the latest post';
+  assert (select count(*) from public.account_last_active(array[m, y])) = 2, 'one row per profile';
+  update auth.users set email = 'account+abc@account.invalid' where id = x;
+  assert public.account_user_id_by_email('account+abc@account.invalid') = x, 'user found by email';
+  assert public.account_user_id_by_email('nobody@account.invalid') is null, 'no user, null';
+
   -- reset_profile_identity_for: default name back, bio and avatar cleared.
   update public.profiles set default_username = 'Default 1', bio = 'x', avatar_url = 'y' where id = m;
   perform public.reset_profile_identity_for(m);
@@ -180,7 +206,9 @@ begin
       'public.merge_profiles(gen_random_uuid(), gen_random_uuid())',
       'public.reset_profile_identity_for(gen_random_uuid())',
       'public.account_link_and_merge(''t'', ''s'', gen_random_uuid(), ''{}''::uuid[])',
-      'public.account_hook_exists(''on_account_linked'')'] loop
+      'public.account_hook_exists(''on_account_linked'')',
+      'public.account_last_active(''{}''::uuid[])',
+      'public.account_user_id_by_email(''x'')'] loop
       execute format('set local role %I', r);
       failed := false;
       begin
