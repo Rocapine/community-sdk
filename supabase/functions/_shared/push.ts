@@ -89,7 +89,8 @@ export async function unreadBadges(
 export async function sendExpoPushBatch(
   messages: ExpoPushMessage[],
   opts: { fetchImpl?: typeof fetch; concurrency?: number } = {},
-): Promise<void> {
+): Promise<{ invalidTokens: string[] }> {
+  const invalidTokens: string[] = [];
   const fetchImpl = opts.fetchImpl ?? fetch;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const accessToken = Deno.env.get("EXPO_ACCESS_TOKEN");
@@ -111,12 +112,67 @@ export async function sendExpoPushBatch(
       if (!res.ok || /"status"\s*:\s*"error"/.test(body)) {
         console.error(`expo push: HTTP ${res.status} ${body.slice(0, 500)}`);
       }
+      // Tickets come back in message order; a lone message answers with an object.
+      const parsed = JSON.parse(body || "{}") as { data?: unknown };
+      const tickets = Array.isArray(parsed.data) ? parsed.data : parsed.data ? [parsed.data] : [];
+      tickets.forEach((t: { status?: string; details?: { error?: string } }, i) => {
+        if (t?.status === "error" && t.details?.error === "DeviceNotRegistered") {
+          invalidTokens.push(chunk[i].to);
+        }
+      });
     } catch (error) {
       console.error("expo push: request failed", error);
     }
   });
+  return { invalidTokens };
 }
 
-export async function sendExpoPush(message: ExpoPushMessage): Promise<void> {
-  await sendExpoPushBatch([message]);
+export async function sendExpoPush(message: ExpoPushMessage): Promise<{ invalidTokens: string[] }> {
+  return await sendExpoPushBatch([message]);
+}
+
+/** Every token a member can be pushed on: `push_devices` (one per device) plus the legacy
+ * single `push_tokens` token, de-duplicated. Prefs come from `push_tokens` (true without a row).
+ * A project without `push_devices` yet just has the legacy token. */
+export async function recipientTokens(
+  supabase: { from: (table: string) => any },
+  userId: string,
+): Promise<{ tokens: string[]; prefs: { notify_likes: boolean; notify_comments: boolean } }> {
+  const { data: devices } = await supabase
+    .from("push_devices")
+    .select("expo_push_token")
+    .eq("user_id", userId);
+  const { data: legacy } = await supabase
+    .from("push_tokens")
+    .select("expo_push_token, notify_likes, notify_comments")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const tokens = [
+    ...new Set(
+      [
+        ...(devices ?? []).map((d: { expo_push_token: string }) => d.expo_push_token),
+        legacy?.expo_push_token,
+      ].filter((t): t is string => !!t),
+    ),
+  ];
+  return {
+    tokens,
+    prefs: {
+      notify_likes: legacy?.notify_likes ?? true,
+      notify_comments: legacy?.notify_comments ?? true,
+    },
+  };
+}
+
+/** Forget tokens Expo says are gone: delete their device rows, null the legacy one. */
+export async function dropInvalidTokens(
+  supabase: { from: (table: string) => any },
+  invalidTokens: string[],
+): Promise<void> {
+  if (invalidTokens.length === 0) return;
+  await supabase.from("push_devices").delete().in("expo_push_token", invalidTokens);
+  await supabase
+    .from("push_tokens")
+    .update({ expo_push_token: null })
+    .in("expo_push_token", invalidTokens);
 }

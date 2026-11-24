@@ -1,5 +1,11 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { type ExpoPushMessage, sendExpoPushBatch, unreadBadge, unreadBadges } from "./push.ts";
+import {
+  type ExpoPushMessage,
+  recipientTokens,
+  sendExpoPushBatch,
+  unreadBadge,
+  unreadBadges,
+} from "./push.ts";
 
 const messages = (n: number): ExpoPushMessage[] =>
   Array.from({ length: n }, (_, i) => ({ to: `ExponentPushToken[${i}]`, title: "t", data: {} }));
@@ -152,4 +158,68 @@ Deno.test("unreadBadges: each member gets their own count, computed once", async
   const badges = await unreadBadges(supabase, ["u1", "u2", "u1"]);
   assertEquals(Object.fromEntries(badges), { u1: 3, u2: 1 });
   assertEquals(seenReads, 2);
+});
+
+Deno.test("recipientTokens unions and dedupes", async () => {
+  const supabase = fakeSupabase({
+    push_devices: [{ expo_push_token: "T1" }, { expo_push_token: "T2" }],
+    push_tokens: { expo_push_token: "T1", notify_likes: false, notify_comments: true },
+  });
+  const r = await recipientTokens(supabase, "u1");
+  assertEquals(r.tokens.sort(), ["T1", "T2"]);
+  assertEquals(r.prefs, { notify_likes: false, notify_comments: true });
+});
+
+Deno.test("prefs default to true without a push_tokens row", async () => {
+  const supabase = fakeSupabase({ push_devices: [{ expo_push_token: "T1" }], push_tokens: null });
+  const r = await recipientTokens(supabase, "u1");
+  assertEquals(r.tokens, ["T1"]);
+  assertEquals(r.prefs, { notify_likes: true, notify_comments: true });
+});
+
+Deno.test("DeviceNotRegistered tokens are returned", async () => {
+  const fetchImpl = (async () =>
+    new Response(
+      JSON.stringify({
+        data: [
+          { status: "ok", id: "x" },
+          {
+            status: "error",
+            message: "gone",
+            details: { error: "DeviceNotRegistered" },
+          },
+        ],
+      }),
+    )) as unknown as typeof fetch;
+  const original = console.error;
+  console.error = () => {};
+  try {
+    const out = await sendExpoPushBatch(
+      [
+        { to: "ok-token", title: "t", data: {} },
+        { to: "dead-token", title: "t", data: {} },
+      ],
+      { fetchImpl },
+    );
+    assertEquals(out.invalidTokens, ["dead-token"]);
+  } finally {
+    console.error = original;
+  }
+});
+
+Deno.test("a single message answers with an object, still handled", async () => {
+  const fetchImpl = (async () =>
+    new Response(
+      JSON.stringify({
+        data: { status: "error", message: "gone", details: { error: "DeviceNotRegistered" } },
+      }),
+    )) as unknown as typeof fetch;
+  const original = console.error;
+  console.error = () => {};
+  try {
+    const out = await sendExpoPushBatch([{ to: "dead", title: "t", data: {} }], { fetchImpl });
+    assertEquals(out.invalidTokens, ["dead"]);
+  } finally {
+    console.error = original;
+  }
 });

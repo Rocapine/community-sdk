@@ -10,7 +10,7 @@
 
 import { adminClient, fetchAllRows, isServiceCaller } from "../_shared/client.ts";
 import { excerptOrPhoto, pushCopy } from "../_shared/copy.ts";
-import { sendExpoPushBatch, unreadBadges } from "../_shared/push.ts";
+import { dropInvalidTokens, sendExpoPushBatch, unreadBadges } from "../_shared/push.ts";
 import { BROADCAST_FALLBACK_TITLE } from "../_shared/config.ts";
 import { ensureTranslations, resolveTargetLocale, TARGET_LOCALES } from "../_shared/translation.ts";
 
@@ -63,15 +63,18 @@ Deno.serve(async (req) => {
   // creates a new anonymous user while the old row keeps the same token, and
   // the dedupe below keeps the first (newest) row's locale. Offset paging can
   // skip a row if one is deleted mid-broadcast — acceptable.
-  const rows = await fetchAllRows((from, to) =>
-    supabase
-      .from("push_tokens")
-      .select("user_id, expo_push_token, profiles(locale)")
-      .not("expo_push_token", "is", null)
-      .order("updated_at", { ascending: false })
-      .order("user_id")
-      .range(from, to),
-  );
+  // Two queries for everyone: the per-device tokens, then the legacy single tokens.
+  const paged = (table: string) =>
+    fetchAllRows((from, to) =>
+      supabase
+        .from(table)
+        .select("user_id, expo_push_token, profiles(locale)")
+        .not("expo_push_token", "is", null)
+        .order("updated_at", { ascending: false })
+        .order("user_id")
+        .range(from, to),
+    );
+  const rows = [...(await paged("push_devices")), ...(await paged("push_tokens"))];
   // The author's own devices: their center never lists their own post.
   const seen = new Set<string>(
     rows.filter((r) => r.user_id === post.author_id).map((r) => r.expo_push_token as string),
@@ -103,7 +106,8 @@ Deno.serve(async (req) => {
     data: { route: "/community", kind: "community_admin_post", postId: post.id },
     badge: badges.get(uid) ?? 1,
   }));
-  await sendExpoPushBatch(messages);
+  const { invalidTokens } = await sendExpoPushBatch(messages);
+  await dropInvalidTokens(supabase, invalidTokens);
 
   return new Response(JSON.stringify({ sent: messages.length }), {
     headers: { "Content-Type": "application/json" },

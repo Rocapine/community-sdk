@@ -10,7 +10,12 @@
 
 import { adminClient } from "../_shared/client.ts";
 import { blockedWith } from "../_shared/blocks.ts";
-import { sendExpoPush, unreadBadge } from "../_shared/push.ts";
+import {
+  dropInvalidTokens,
+  recipientTokens,
+  sendExpoPushBatch,
+  unreadBadge,
+} from "../_shared/push.ts";
 import { excerptOrPhoto, pushCopy } from "../_shared/copy.ts";
 import { ensureTranslations, resolveTargetLocale, languageOf } from "../_shared/translation.ts";
 
@@ -69,12 +74,8 @@ Deno.serve(async (req) => {
     target: { uid: string; title: "reply.title" | "comment.title"; kind: string },
     actorName: string | null,
   ) {
-    const { data: pref } = await supabase
-      .from("push_tokens")
-      .select("expo_push_token, notify_comments")
-      .eq("user_id", target.uid)
-      .single();
-    if (!pref?.expo_push_token || !pref.notify_comments) return;
+    const { tokens, prefs } = await recipientTokens(supabase, target.uid);
+    if (tokens.length === 0 || !prefs.notify_comments) return;
 
     if ((await blockedWith(supabase, target.uid)).has(comment!.author_id)) return;
 
@@ -106,12 +107,16 @@ Deno.serve(async (req) => {
       ? `${name}: "${excerptOrPhoto(excerptSource, "")}"`
       : `${name}: ${copy.text("photo")}`;
 
-    await sendExpoPush({
-      to: pref.expo_push_token,
-      title: copy.text(target.title),
-      body,
-      data: { route: "/community", kind: target.kind, postId },
-      badge: await unreadBadge(supabase, target.uid),
-    });
+    const badge = await unreadBadge(supabase, target.uid);
+    const { invalidTokens } = await sendExpoPushBatch(
+      tokens.map((to) => ({
+        to,
+        title: copy.text(target.title),
+        body,
+        data: { route: "/community", kind: target.kind, postId },
+        badge,
+      })),
+    );
+    await dropInvalidTokens(supabase, invalidTokens);
   }
 });
