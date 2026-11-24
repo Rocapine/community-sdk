@@ -5,7 +5,7 @@
 --   account_link_and_merge links and merges in one transaction.
 --   reset_profile_identity_for  core's reset_profile_identity for a given profile (account deletion).
 --   account_hook_exists    tells the edge function which optional host SQL hooks are installed.
---   account_last_active, account_user_id_by_email  lookups for the account-session function.
+--   account_last_active, account_user_id_by_email, account_session_touch  helpers of account-session.
 --   account_session_calls  rate-limit store of the account-session function.
 -- Everything here is service-role only. Requires core. Fully idempotent.
 
@@ -213,13 +213,26 @@ as $$
   from public.profiles p where p.id = any (p_profiles);
 $$;
 
--- The auth user holding an email, so account-session can replace an unlinked squatter.
+-- The auth user holding an email, so account-session can replace an unlinked squatter. Never an SSO
+-- user: those are not squatters and must never be deleted.
 create or replace function public.account_user_id_by_email(p_email text)
 returns uuid
 language sql stable security definer
 set search_path = public
 as $$
-  select id from auth.users where email = lower(p_email);
+  select id from auth.users where email = lower(p_email) and not is_sso_user;
+$$;
+
+-- Rate limit of account-session, atomic: true when the account's last call is over 10 s old (and
+-- records this one), null when it is not.
+create or replace function public.account_session_touch(p_subject_hash text)
+returns boolean
+language sql volatile security definer
+set search_path = public
+as $$
+  insert into public.account_session_calls as c (subject_hash, at) values (p_subject_hash, now())
+  on conflict (subject_hash) do update set at = now() where c.at < now() - interval '10 seconds'
+  returning true;
 $$;
 
 revoke execute on function public.merge_profiles(uuid, uuid) from public, anon, authenticated;
@@ -234,3 +247,5 @@ revoke execute on function public.account_last_active(uuid[]) from public, anon,
 revoke execute on function public.account_user_id_by_email(text) from public, anon, authenticated;
 grant execute on function public.account_last_active(uuid[]) to service_role;
 grant execute on function public.account_user_id_by_email(text) to service_role;
+revoke execute on function public.account_session_touch(text) from public, anon, authenticated;
+grant execute on function public.account_session_touch(text) to service_role;

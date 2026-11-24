@@ -51,10 +51,12 @@ export type AccountSessionDeps = {
     deleteUser(id: string): Promise<void>;
   };
   openSession(email: string): Promise<Session>;
-  /** Optional app SQL hooks; null when the hook is not installed. */
+  /** Optional app SQL hooks. They may run more than once for the same link: they must be idempotent. */
   hooks: {
+    /** null when the hook is not installed. */
     candidates(provider: string, subject: string, claims: unknown): Promise<string[] | null>;
-    ownsProfile(profile: string, claims: unknown): Promise<boolean | null>;
+    /** undefined when the hook is not installed, else its result (null for SQL NULL). */
+    ownsProfile(profile: string, claims: unknown): Promise<boolean | null | undefined>;
     onLinked(profile: string, provider: string, subject: string, claims: unknown): Promise<void>;
   };
 };
@@ -70,20 +72,24 @@ export async function resolveAccountSession(
 
   // The caller's profile may be converted or merged only if it is anonymous and belongs to nobody else.
   const caller = callerId ? await deps.authAdmin.getUser(callerId) : null;
-  const callerFree =
-    !!caller?.is_anonymous &&
-    (await deps.db.linkedAmong([caller.id])).length === 0 &&
-    (await deps.hooks.ownsProfile(caller.id, claims)) !== false;
+  // An installed account_owns_profile agrees only with true: NULL (e.g. a missing key) is a no.
+  let callerFree = !!caller?.is_anonymous && (await deps.db.linkedAmong([caller.id])).length === 0;
+  if (callerFree) {
+    const owns = await deps.hooks.ownsProfile(caller!.id, claims);
+    callerFree = owns === undefined || owns === true;
+  }
 
   let main = await deps.db.linkedProfile(provider, subject);
   let merge: string[] = [];
   if (!main) {
     const candidates = [...new Set((await deps.hooks.candidates(provider, subject, claims)) ?? [])];
     const taken = candidates.length ? await deps.db.linkedAmong(candidates) : [];
-    const free = candidates.filter((id) => !taken.includes(id));
+    const unlinked = candidates.filter((id) => !taken.includes(id));
+    const at = unlinked.length ? await deps.db.lastActive(unlinked) : {};
+    // An id without a profile row (stale hook data) would make every merge raise.
+    const free = unlinked.filter((id) => id in at);
     if (free.length) {
-      const at = await deps.db.lastActive(free);
-      main = free.reduce((a, b) => ((at[b] ?? 0) > (at[a] ?? 0) ? b : a));
+      main = free.reduce((a, b) => (at[b] > at[a] ? b : a));
       merge = free.filter((id) => id !== main);
     } else if (callerFree) {
       main = caller!.id;
@@ -98,16 +104,18 @@ export async function resolveAccountSession(
 
   // Link first, then the email: a crash in between leaves a link whose email the next call sets.
   const isNew = await deps.db.linkAndMerge(provider, subject, main, merge);
-  if ((await deps.authAdmin.getUser(main))?.email !== email) {
+  const emailMissing = (await deps.authAdmin.getUser(main))?.email !== email;
+  if (emailMissing) {
     await replacingSquatter(deps, email, () =>
       deps.authAdmin.updateUserById(main!, { email, email_confirm: true }),
     );
   }
-  if (isNew) {
+  // A missing email on a linked profile means an earlier call died before reaching the hook.
+  if (isNew || emailMissing) {
     try {
       await deps.hooks.onLinked(main, provider, subject, claims);
     } catch (e) {
-      // The link is committed, so the hook never runs again for it: it must be logged, not retried.
+      // Not retried once the email is set: logged for the app to act on.
       console.error("account-session: on_account_linked failed", e);
     }
   }
@@ -127,7 +135,9 @@ async function replacingSquatter<T>(
     if (!(e instanceof EmailTakenError)) throw e;
   }
   const squatter = await deps.db.userIdByEmail(email);
-  if (!squatter || (await deps.db.linkedAmong([squatter])).length) {
+  // Gone since (a concurrent call deleted it): just try again.
+  if (!squatter) return op();
+  if ((await deps.db.linkedAmong([squatter])).length) {
     console.error("account-session: the account's email is held by a linked user");
     throw new HttpError(409, "conflict");
   }
@@ -154,6 +164,12 @@ export async function accountSessionResponse(
     return { status: 500, body: { error: "internal" } };
   }
 }
+
+/** Only account_link_and_merge's own conflicts; any other unique violation is a bug (500). */
+export const isLinkConflict = (e: { code?: string; message: string }) =>
+  e.code === "23505" &&
+  (e.message.includes("account_links_profile_id_key") ||
+    e.message.includes("the account is linked to another profile"));
 
 const isEmailTaken = (e: { code?: string; message: string }) =>
   e.code === "email_exists" || /already (been )?registered/i.test(e.message);
@@ -206,33 +222,16 @@ export function supabaseAccountDeps(
           p_main: main,
           p_merge: merge,
         });
-        if (error?.code === "23505") {
+        if (error && isLinkConflict(error)) {
           console.error("account-session: link conflict", error.message);
           throw new HttpError(409, "conflict");
         }
         if (error) throw new Error(`account_link_and_merge: ${error.message}`);
         return data as boolean;
       },
-      // shortcut: read-then-write, so two calls in the same instant can both pass; fine for a
-      // per-account throttle, upgrade to a single conditional SQL upsert if it ever matters.
-      touchRateLimit: async (subjectHash) => {
-        const row = must<{ at: string } | null>(
-          await admin
-            .from("account_session_calls")
-            .select("at")
-            .eq("subject_hash", subjectHash)
-            .maybeSingle(),
-          "account_session_calls",
-        );
-        if (row && Date.now() - Date.parse(row.at) < 10_000) return false;
-        must(
-          await admin
-            .from("account_session_calls")
-            .upsert({ subject_hash: subjectHash, at: new Date().toISOString() }),
-          "account_session_calls",
-        );
-        return true;
-      },
+      touchRateLimit: async (subjectHash) =>
+        (await rpc<boolean | null>("account_session_touch", { p_subject_hash: subjectHash })) ===
+        true,
     },
     authAdmin: {
       getUser: async (id) => {
@@ -274,8 +273,8 @@ export function supabaseAccountDeps(
           : null,
       ownsProfile: async (profile, claims) =>
         (await hookExists("account_owns_profile"))
-          ? rpc<boolean>("account_owns_profile", { profile, claims })
-          : null,
+          ? rpc<boolean | null>("account_owns_profile", { profile, claims })
+          : undefined,
       onLinked: async (profile, provider, subject, claims) => {
         if (await hookExists("on_account_linked"))
           await rpc("on_account_linked", { profile, provider, subject, claims });

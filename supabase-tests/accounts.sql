@@ -168,6 +168,8 @@ begin
   update auth.users set email = 'account+abc@account.invalid' where id = x;
   assert public.account_user_id_by_email('account+abc@account.invalid') = x, 'user found by email';
   assert public.account_user_id_by_email('nobody@account.invalid') is null, 'no user, null';
+  update auth.users set is_sso_user = true where id = x;
+  assert public.account_user_id_by_email('account+abc@account.invalid') is null, 'an SSO user is never returned';
 
   -- reset_profile_identity_for: default name back, bio and avatar cleared.
   update public.profiles set default_username = 'Default 1', bio = 'x', avatar_url = 'y' where id = m;
@@ -180,8 +182,11 @@ begin
   assert not public.account_hook_exists('on_account_linked'), 'no hook installed';
   assert not public.account_hook_exists('nonsense'), 'unknown hook name is false';
 
-  -- Rate-limit store exists.
-  insert into public.account_session_calls (subject_hash, at) values ('h', now());
+  -- Rate limit: the first call passes, a second within 10 s does not, an older one passes again.
+  assert public.account_session_touch('h'), 'first call passes';
+  assert public.account_session_touch('h') is null, 'a second call within 10 s is refused';
+  update public.account_session_calls set at = now() - interval '11 seconds' where subject_hash = 'h';
+  assert public.account_session_touch('h'), 'a call after 10 s passes';
 
   -- Not readable by clients.
   perform set_config('request.jwt.claims', json_build_object('sub', m, 'role', 'authenticated')::text, true);
@@ -208,7 +213,8 @@ begin
       'public.account_link_and_merge(''t'', ''s'', gen_random_uuid(), ''{}''::uuid[])',
       'public.account_hook_exists(''on_account_linked'')',
       'public.account_last_active(''{}''::uuid[])',
-      'public.account_user_id_by_email(''x'')'] loop
+      'public.account_user_id_by_email(''x'')',
+      'public.account_session_touch(''x'')'] loop
       execute format('set local role %I', r);
       failed := false;
       begin

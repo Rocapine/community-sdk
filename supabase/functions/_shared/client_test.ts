@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { fetchAllRows, json, preflight } from "./client.ts";
+import { fetchAllRows, isAuthOutage, json, preflight } from "./client.ts";
 
 type Page = { data: number[] | null; error: { message: string } | null };
 
@@ -70,4 +70,13 @@ Deno.test("json: carries CORS headers so a browser can read the verdict", () => 
   const res = json({ status: "published" });
   assertEquals(res.headers.get("Access-Control-Allow-Origin"), "*");
   assertEquals(res.headers.get("Content-Type"), "application/json");
+});
+
+Deno.test("isAuthOutage: a rejected token is no caller, anything else is an outage", () => {
+  assertEquals(isAuthOutage({ status: 403 }), false);
+  assertEquals(isAuthOutage({ status: 401 }), false);
+  assertEquals(isAuthOutage({ status: 400 }), false);
+  assertEquals(isAuthOutage({ status: 503 }), true);
+  assertEquals(isAuthOutage({ status: 0 }), true);
+  assertEquals(isAuthOutage({}), true);
 });

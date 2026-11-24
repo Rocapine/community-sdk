@@ -4,6 +4,7 @@ import {
   accountSessionResponse,
   EmailTakenError,
   HttpError,
+  isLinkConflict,
   type AccountSessionDeps,
   type AuthUser,
 } from "./account-session.ts";
@@ -16,7 +17,7 @@ type World = {
   users: Map<string, AuthUser>;
   activity: Record<string, number>;
   candidates: string[] | null; // null: hook not installed
-  owns: boolean | null; // null: hook not installed
+  owns: boolean | null | undefined; // undefined: hook not installed; null: it returned SQL NULL
   calls: string[];
   merges: [string, string][];
   linkedHook: number;
@@ -28,7 +29,7 @@ const world = (w: Partial<World> = {}): World => ({
   users: new Map(),
   activity: {},
   candidates: null,
-  owns: null,
+  owns: undefined,
   calls: [],
   merges: [],
   linkedHook: 0,
@@ -53,10 +54,13 @@ function fake(w: World): AccountSessionDeps {
         w.calls.push("db.linkedAmong"),
         ids.filter((id) => linkedProfiles().has(id))
       ),
-      lastActive: async (ids) => (
-        w.calls.push("db.lastActive"),
-        Object.fromEntries(ids.map((id) => [id, w.activity[id] ?? 0]))
-      ),
+      lastActive: async (ids) => {
+        w.calls.push("db.lastActive");
+        // Like the SQL: only ids that still have a profile come back.
+        return Object.fromEntries(
+          ids.filter((id) => w.users.has(id)).map((id) => [id, w.activity[id] ?? 0]),
+        );
+      },
       userIdByEmail: async (email) => (w.calls.push("db.userIdByEmail"), holder(email)?.id ?? null),
       linkAndMerge: async (p, s, main, merge) => {
         w.calls.push("db.linkAndMerge");
@@ -205,6 +209,82 @@ Deno.test("foreign profile is left aside: account_owns_profile says no", async (
   assertEquals((res.body as { profile_id: string }).profile_id, "new-1");
   assert(!w.calls.includes("updateUserById:c"));
   assertEquals(w.merges, []);
+});
+
+Deno.test("foreign profile is left aside: account_owns_profile returns NULL", async () => {
+  const w = world({ users: new Map([["c", anon("c")]]), owns: null });
+  const res = await run(w, "c");
+  assertEquals((res.body as { profile_id: string }).profile_id, "new-1");
+  assert(!w.calls.includes("updateUserById:c"));
+  assertEquals(w.merges, []);
+});
+
+Deno.test("an interrupted call is resumed: linked, still anonymous, no email", async () => {
+  const w = world({
+    links: new Map([["appwrite:acct-1", "c"]]),
+    users: new Map([["c", anon("c")]]),
+  });
+  const res = await run(w, "c");
+  assertEquals(res.status, 200);
+  assertEquals((res.body as { profile_id: string }).profile_id, "c");
+  assert(w.calls.includes("updateUserById:c"));
+  assert(!w.calls.includes("createUser"));
+  assert(!w.calls.some((c) => c.startsWith("deleteUser")));
+  assertEquals(w.merges, []);
+  assertEquals(w.linkedHook, 1, "the hook the first call never ran");
+});
+
+Deno.test("a candidate without a profile is ignored", async () => {
+  const w = world({
+    users: new Map([["p1", anon("p1")]]),
+    candidates: ["ghost", "p1"],
+    activity: { ghost: Date.now() },
+  });
+  const res = await run(w, null);
+  assertEquals((res.body as { profile_id: string }).profile_id, "p1");
+  assertEquals(w.merges, []);
+});
+
+Deno.test("email taken but its holder gone: the operation is retried", async () => {
+  const w = world();
+  const deps = fake(w);
+  const create = deps.authAdmin.createUser;
+  let first = true;
+  deps.authAdmin.createUser = (attrs) => {
+    if (first) {
+      first = false;
+      return Promise.reject(new EmailTakenError(attrs.email));
+    }
+    return create(attrs);
+  };
+  const res = await accountSessionResponse(
+    { ...deps, verify: async () => verified },
+    { proof: "p", callerId: null },
+  );
+  assertEquals(res.status, 200);
+  assert(!w.calls.some((c) => c.startsWith("deleteUser")));
+});
+
+Deno.test("only the account-links conflicts are 409s", () => {
+  assert(
+    isLinkConflict({
+      code: "23505",
+      message: "account_link_and_merge: the account is linked to another profile",
+    }),
+  );
+  assert(
+    isLinkConflict({
+      code: "23505",
+      message: 'duplicate key value violates unique constraint "account_links_profile_id_key"',
+    }),
+  );
+  assert(
+    !isLinkConflict({
+      code: "23505",
+      message: 'duplicate key value violates unique constraint "likes_pkey"',
+    }),
+  );
+  assert(!isLinkConflict({ code: "P0001", message: "account_links_profile_id_key" }));
 });
 
 Deno.test("a non-anonymous caller is neither converted nor merged", async () => {
