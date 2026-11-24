@@ -1,6 +1,7 @@
 // account-delete: POST { proof }, or { provider, subject } with the service role.
 // Resets the account profile's identity, drops its push rows, revokes its sessions and unlinks
-// the account: 200 { deleted } (false when no profile was linked), 401 bad_proof,
+// the account: 200 { deleted } (false when no profile was linked), 400 bad_request (no proof, or
+// not JSON), 401 bad_proof, 500 internal (a step failed: call again, every step is idempotent),
 // 503 provider_unavailable. Logic: _shared/account-session.ts.
 // Deploy with verify_jwt ON: the service-role check relies on the gateway verifying the JWT signature.
 

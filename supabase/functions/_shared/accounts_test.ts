@@ -175,3 +175,28 @@ Deno.test("readAccountEnv requires the secrets of the chosen provider", () => {
     },
   );
 });
+
+Deno.test("jwks: the key set is fetched once per function instance", async () => {
+  const { publicKey, privateKey } = await jose.generateKeyPair("RS256");
+  const jwk = { ...(await jose.exportJWK(publicKey)), kid: "k2", alg: "RS256", use: "sig" };
+  let fetches = 0;
+  const f = (() => (fetches++, Promise.resolve(json({ keys: [jwk] })))) as unknown as typeof fetch;
+  const env: AccountEnv = {
+    provider: "jwks",
+    secret: "s",
+    jwksUrl: "https://idp.test/cached-jwks.json",
+    issuer: "https://idp.test",
+    audience: "app",
+    subjectClaim: "sub",
+  };
+  const token = () =>
+    new jose.SignJWT({ sub: "abc" })
+      .setProtectedHeader({ alg: "RS256", kid: "k2" })
+      .setIssuer("https://idp.test")
+      .setAudience("app")
+      .setExpirationTime("5m")
+      .sign(privateKey);
+  await verifyProof(await token(), env, f);
+  await verifyProof(await token(), env, f);
+  assertEquals(fetches, 1);
+});

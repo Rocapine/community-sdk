@@ -78,10 +78,10 @@ export async function callerUserId(
 
 export class AuthOutageError extends Error {}
 
-// A 4xx is Auth rejecting the token (anon key, expired, forged); anything else (5xx, network
+// A 4xx is Auth rejecting the token (anon key, expired, forged); anything else (429, 5xx, network
 // with status 0 or none) means Auth could not answer.
 export const isAuthOutage = (e: { status?: number }) =>
-  !(e.status !== undefined && e.status >= 400 && e.status < 500);
+  !(e.status !== undefined && e.status >= 400 && e.status < 500 && e.status !== 429);
 
 // The client consumes responses via supabase.functions.invoke, which only
 // parses the body as JSON when the Content-Type says so. Without this header

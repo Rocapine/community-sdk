@@ -76,6 +76,7 @@ Deno.test("isAuthOutage: a rejected token is no caller, anything else is an outa
   assertEquals(isAuthOutage({ status: 403 }), false);
   assertEquals(isAuthOutage({ status: 401 }), false);
   assertEquals(isAuthOutage({ status: 400 }), false);
+  assertEquals(isAuthOutage({ status: 429 }), true, "rate limited: Auth could not answer");
   assertEquals(isAuthOutage({ status: 503 }), true);
   assertEquals(isAuthOutage({ status: 0 }), true);
   assertEquals(isAuthOutage({}), true);

@@ -141,13 +141,26 @@ const PROOF_ERRORS = [
   jose.errors.JOSENotSupported,
 ];
 
+const jwksCache = new Map<
+  string,
+  { fetchImpl: typeof fetch; jwks: ReturnType<typeof jose.createRemoteJWKSet> }
+>();
+
 async function verifyJwks(
   token: string,
   env: Extract<AccountEnv, { provider: "jwks" }>,
   fetchImpl: typeof fetch,
 ): Promise<VerifiedAccount> {
-  // createRemoteJWKSet caches per instance; a fresh one per call is fine for a function that runs once per sign-in.
-  const jwks = jose.createRemoteJWKSet(new URL(env.jwksUrl), { [jose.customFetch]: fetchImpl });
+  // One key set per function instance: it caches the keys, so warm calls fetch nothing.
+  let cached = jwksCache.get(env.jwksUrl);
+  if (cached?.fetchImpl !== fetchImpl) {
+    cached = {
+      fetchImpl,
+      jwks: jose.createRemoteJWKSet(new URL(env.jwksUrl), { [jose.customFetch]: fetchImpl }),
+    };
+    jwksCache.set(env.jwksUrl, cached);
+  }
+  const jwks = cached.jwks;
   let payload: jose.JWTPayload;
   try {
     ({ payload } = await jose.jwtVerify(token, jwks, {

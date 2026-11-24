@@ -1,6 +1,7 @@
 // account-session: POST { proof } with the device's access token, if any, as the bearer.
 // Verifies the host account's proof, then answers the account profile's session:
-// 200 { access_token, refresh_token, profile_id, subject_hash }, 401 bad_proof,
+// 200 { access_token, refresh_token, profile_id, subject_hash } (no tokens when the bearer already is
+// this account's session: nothing is minted), 400 bad_request, 401 bad_proof,
 // 409 conflict, 429 rate_limited, 503 provider_unavailable or auth_unavailable. Logic: _shared/account-session.ts.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";

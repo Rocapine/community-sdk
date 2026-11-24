@@ -242,6 +242,63 @@ Deno.test("an interrupted call is resumed: linked, still anonymous, no email", a
   assertEquals(w.linkedHook, 1, "the hook the first call never ran");
 });
 
+Deno.test("a candidate that is not anonymous is never adopted (its real email stays)", async () => {
+  const now = Date.now();
+  const w = world({
+    users: new Map([
+      ["real", { id: "real", email: "member@example.com", is_anonymous: false }],
+      ["p1", anon("p1")],
+    ]),
+    candidates: ["real", "p1"],
+    activity: { real: now, p1: now - DAY },
+  });
+  const res = await run(w, null);
+  assertEquals((res.body as { profile_id: string }).profile_id, "p1");
+  assertEquals(w.merges, []);
+  assertEquals(w.users.get("real")?.email, "member@example.com");
+});
+
+Deno.test("relaunch: the bearer already is the account's session, nothing is minted", async () => {
+  const email = await syntheticEmail(SECRET, "appwrite", "acct-1");
+  const w = world({
+    links: new Map([["appwrite:acct-1", "main"]]),
+    users: new Map([["main", { id: "main", email, is_anonymous: false }]]),
+  });
+  const first = await run(w, "main");
+  assertEquals(first, {
+    status: 200,
+    body: { profile_id: "main", subject_hash: email.slice(8, 40) },
+  });
+  // The check never takes the rate limit slot: the host's own accountSignedIn() right after passes.
+  assertEquals((await run(w, "main")).status, 200);
+  assert(!w.calls.some((c) => c.startsWith("openSession") || c === "db.touchRateLimit"));
+  assertEquals(w.merges, []);
+  assertEquals(w.linkedHook, 0);
+});
+
+Deno.test("relaunch: another account's session as bearer still gets a session", async () => {
+  const w = world({
+    links: new Map([["appwrite:acct-1", "main"]]),
+    users: new Map([
+      [
+        "main",
+        {
+          id: "main",
+          email: await syntheticEmail(SECRET, "appwrite", "acct-1"),
+          is_anonymous: false,
+        },
+      ],
+      [
+        "b",
+        { id: "b", email: await syntheticEmail(SECRET, "appwrite", "acct-2"), is_anonymous: false },
+      ],
+    ]),
+  });
+  const res = await run(w, "b");
+  assertEquals((res.body as { access_token: string }).access_token, "at-main");
+  assertEquals(w.merges, []);
+});
+
 Deno.test("a candidate without a profile is ignored", async () => {
   const w = world({
     users: new Map([["p1", anon("p1")]]),
@@ -342,7 +399,8 @@ Deno.test("link conflict answers 409", async () => {
 Deno.test("a second call within 10 s is rate limited", async () => {
   const w = world({ users: new Map([["c", anon("c")]]) });
   assertEquals((await run(w, "c")).status, 200);
-  assertEquals(await run(w, "c"), { status: 429, body: { error: "rate_limited" } });
+  // Another device (no bearer) would mint a second session.
+  assertEquals(await run(w, null), { status: 429, body: { error: "rate_limited" } });
 });
 
 Deno.test("bad proof answers 401 without touching the db", async () => {

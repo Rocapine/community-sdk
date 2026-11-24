@@ -67,14 +67,19 @@ export type AccountSessionDeps = {
 export async function resolveAccountSession(
   deps: AccountSessionDeps,
   { verified, callerId }: { verified: VerifiedAccount; callerId: string | null },
-): Promise<Session & { profile_id: string; subject_hash: string }> {
+): Promise<Partial<Session> & { profile_id: string; subject_hash: string }> {
   const { provider, subject, claims } = verified;
   const email = await syntheticEmail(deps.secret, provider, subject);
   const subjectHash = email.slice("account+".length, "account+".length + 32);
+  const caller = callerId ? await deps.authAdmin.getUser(callerId) : null;
+  // The device already holds this account's session (a relaunch check): confirm it, mint nothing.
+  // Before the rate limit, so a launch check never makes the host's own accountSignedIn() a 429.
+  if (caller?.email === email && (await deps.db.linkedProfile(provider, subject)) === caller.id) {
+    return { profile_id: caller.id, subject_hash: subjectHash };
+  }
   if (!(await deps.db.touchRateLimit(subjectHash))) throw new HttpError(429, "rate_limited");
 
   // The caller's profile may be converted or merged only if it is anonymous and belongs to nobody else.
-  const caller = callerId ? await deps.authAdmin.getUser(callerId) : null;
   // An installed account_owns_profile agrees only with true: NULL (e.g. a missing key) is a no.
   let callerFree = !!caller?.is_anonymous && (await deps.db.linkedAmong([caller.id])).length === 0;
   if (callerFree) {
@@ -87,7 +92,11 @@ export async function resolveAccountSession(
   if (!main) {
     const candidates = [...new Set((await deps.hooks.candidates(provider, subject, claims)) ?? [])];
     const taken = candidates.length ? await deps.db.linkedAmong(candidates) : [];
-    const unlinked = candidates.filter((id) => !taken.includes(id));
+    // Only anonymous profiles: adopting one sets the synthetic email, which must never replace a real one.
+    const users = await Promise.all(
+      candidates.filter((id) => !taken.includes(id)).map((id) => deps.authAdmin.getUser(id)),
+    );
+    const unlinked = users.filter((u) => u?.is_anonymous).map((u) => u!.id);
     const at = unlinked.length ? await deps.db.lastActive(unlinked) : {};
     // An id without a profile row (stale hook data) would make every merge raise.
     const free = unlinked.filter((id) => id in at);
