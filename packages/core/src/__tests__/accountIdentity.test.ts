@@ -478,4 +478,68 @@ describe("host transitions during a running account check", () => {
     expect(await ensureIdentity(cfg)).toBe("b-uid");
     expect(f.invokes).toHaveLength(2);
   });
+
+  /** Holds the first setSession until `release`; later ones run at once. */
+  function holdFirstSetSession(client: SupabaseClient) {
+    const auth = client.auth as unknown as { setSession: (t: unknown) => Promise<unknown> };
+    const original = auth.setSession;
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let calls = 0;
+    auth.setSession = async (tokens) => {
+      calls += 1;
+      if (calls === 1) await gate;
+      return original(tokens);
+    };
+    return () => release();
+  }
+
+  it("a sign-out while the session is being applied ends signed out", async () => {
+    let signedIn = true;
+    const getAccountProof = vi.fn(async () => (signedIn ? proof : null));
+    const f = fakeClient(null, () => ({ data: opened(HASH_A), error: null }));
+    const release = holdFirstSetSession(f.client);
+    const cfg = resolveConfig(config(f.client, { getAccountProof }));
+    const pending = ensureIdentity(cfg);
+    await flush();
+    expect(f.setSessions).toHaveLength(0); // setSession(A) is in flight
+    signedIn = false;
+    const signingOut = accountSignedOut(cfg);
+    await flush();
+    release();
+    await signingOut;
+    expect(await pending).toBeNull();
+    expect(f.log).toEqual([
+      "setSession",
+      "delete push_devices user_id=a-uid device_id=install-1",
+      "signOut",
+    ]);
+    const proofCalls = getAccountProof.mock.calls.length;
+    // No cached check for A: the next call reads the (empty) session and asks for a proof.
+    expect(await ensureIdentity(cfg)).toBe("fresh-anon-uid");
+    expect(getAccountProof.mock.calls.length).toBe(proofCalls + 1);
+  });
+
+  it("a sign-in to another account while the session is being applied ends on it", async () => {
+    let calls = 0;
+    const f = fakeClient(null, () => {
+      calls += 1;
+      return { data: opened(calls === 1 ? HASH_A : HASH_B), error: null };
+    });
+    const release = holdFirstSetSession(f.client);
+    const cfg = resolveConfig(config(f.client, { getAccountProof: async () => proof }));
+    const pending = ensureIdentity(cfg);
+    await flush();
+    const signingIn = accountSignedIn(cfg);
+    await flush();
+    release();
+    await signingIn;
+    expect(await pending).toBeNull();
+    expect(f.setSessions).toEqual([
+      { access_token: "new-a-at", refresh_token: "new-a-rt" },
+      { access_token: "new-b-at", refresh_token: "new-b-rt" },
+    ]);
+    expect(await ensureIdentity(cfg)).toBe("b-uid");
+    expect(f.invokes).toHaveLength(2);
+  });
 });

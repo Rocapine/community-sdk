@@ -19,6 +19,8 @@ let retryAfter = 0;
 const RETRY_MS = 60_000;
 // Bumped by every host transition: a bootstrap started before one never applies its result.
 let epoch = 0;
+// The setSession being applied: auth-js does not serialize it with signOut, so transitions await it.
+let adopting: Promise<unknown> | null = null;
 
 function assertCurrent(start: number): void {
   if (epoch !== start) throw new Error("identity changed during the account check");
@@ -48,7 +50,8 @@ export function ensureIdentity(cfg: ResolvedCommunityConfig): Promise<string | n
       return uid;
     },
     () => {
-      if (inFlight === p) inFlight = null; // allow a retry on the next call
+      // Allow a retry on the next call (after the backoff, if one is set).
+      if (inFlight === p && !retryAfter) inFlight = null;
       return null;
     },
   );
@@ -260,11 +263,19 @@ async function adoptAccount(
   assertCurrent(start);
   if (accountHash(previous)) await unregisterQuietly(cfg);
   assertCurrent(start);
-  const { error } = await client.auth.setSession({
+  const applying = client.auth.setSession({
     access_token: opened.access_token,
     refresh_token: opened.refresh_token,
   });
-  if (error) throw error;
+  adopting = applying;
+  const { error } = await applying.finally(() => {
+    if (adopting === applying) adopting = null;
+  });
+  if (error) {
+    retryAfter = Date.now() + RETRY_MS; // don't retry the switch on every service call
+    throw error;
+  }
+  assertCurrent(start); // a transition started while it applied: it owns the session now
   resetSyncMemos();
   accountCheck = { subjectHash: opened.subject_hash, checkedAt: Date.now() };
 }
@@ -301,6 +312,7 @@ export async function accountSignedIn(cfg: ResolvedCommunityConfig): Promise<voi
   // Any bootstrap already running is stale from here on.
   const start = ++epoch;
   inFlight = null;
+  await adopting?.catch(() => {});
   const proof = await cfg.host.getAccountProof?.();
   if (!proof) throw new Error("accountSignedIn: the host gave no account proof");
   const { data, error } = await client.auth.getSession();
@@ -327,6 +339,7 @@ export async function accountSignedIn(cfg: ResolvedCommunityConfig): Promise<voi
 export async function accountSignedOut(cfg: ResolvedCommunityConfig): Promise<void> {
   if (!cfg.supabase) return;
   resetIdentity(); // a running bootstrap must not apply its session over the sign-out
+  await adopting?.catch(() => {}); // one already applying lands first, then is signed out
   await signOutLocally(cfg);
   resetIdentity();
 }
