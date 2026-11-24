@@ -85,22 +85,27 @@ supabase secrets set OPENAI_API_KEY=sk-... SLACK_WEBHOOK_URL=https://hooks.slack
 supabase functions deploy
 ```
 
-| Secret                                                             | Default                               | Required?                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Used by                                                                                                       |
-| ------------------------------------------------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `OPENAI_API_KEY`                                                   | none                                  | **Required.** Missing ⇒ the affected function throws at module load (`assertModerationConfigured()`) — a hard, immediate failure, not a silent degrade. With the translation module on, the key needs Moderation **and** Responses (write) access: a restricted key with only moderation makes every translation fail with 401 `Missing scopes: api.responses.write` in the function logs.                                                                                                                                                                                                                                                                  | `moderate-one`, `daily-moderation`, `update-profile`                                                          |
-| `SLACK_WEBHOOK_URL`                                                | none                                  | Optional. Unset ⇒ `report-to-slack` and `daily-moderation`'s summary post become logged no-ops (`_shared/slack.ts` logs and returns instead of posting).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `report-to-slack`, `daily-moderation`                                                                         |
-| `COMMUNITY_APP_NAME`                                               | `"Community"`                         | Optional.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `broadcast-post` — push title fallback for an admin post whose author has no username set                     |
-| `COMMUNITY_PUSH_COPY`                                              | _(built-in neutral copy, 23 locales)_ | Optional JSON: per-locale, per-key override of every push string — `fallbackName`, `comment.title`, `like.one`, `like.many`, `reaction.one`, `reaction.many`, `photo` (the excerpt of an image-only post or comment, default "📷 Photo" localized) — with `{name}`/`{count}` placeholders; a `*.many` value can be a `{one, few, many, other}` object picked by the recipient locale's CLDR plural category. This is how an app keeps its own voice ("prayed for you 🙏", a gendered fallback name…) without forking the functions. See `supabase/functions/_shared/copy.ts`.                                                                               | `notify-comment`, `notify-like`, `notify-reaction`                                                            |
-| `COMMUNITY_FALLBACK_NAME`                                          | `"Someone"`                           | Optional legacy single string (every locale); `COMMUNITY_PUSH_COPY.fallbackName` wins over it. Rarely used since every profile gets a default name (core/009).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `notify-comment`, `notify-like`, `notify-reaction` — actor-name fallback when the acting user has no username |
-| `COMMUNITY_REACTION_PUSH_TEXT`                                     | `"{name} is thinking of you"`         | Optional legacy single string for the single-reactor case (every locale); `COMMUNITY_PUSH_COPY["reaction.one"]` wins over it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `notify-reaction`                                                                                             |
-| `MODERATION_SCORE_THRESHOLD`                                       | `0.5`                                 | Optional. Raw OpenAI moderation score at or above which a category is hidden even when OpenAI's own boolean flag is false (catches under-scored insults/harassment, including other languages).                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `_shared/moderation.ts` (all moderating functions)                                                            |
-| `MODERATION_EXCLUDED_CATEGORIES`                                   | `""` (none excluded)                  | Optional, comma-separated. Removes listed categories from the score-threshold check only — OpenAI's own boolean flag for that category still applies regardless. **Example (Eve's Rhythm, a menstrual-health app):** `MODERATION_EXCLUDED_CATEGORIES=sexual` lets legitimate intimacy/fertility discussion through the score check, while OpenAI's own `sexual`/`sexual/minors` boolean flags still hide clearly explicit content. **Never applies to images:** a post/comment image and an avatar are judged strictly (every category, score threshold included), whatever this secret says — so avatars of apps that set it are now stricter than before. | `_shared/moderation.ts`                                                                                       |
-| `EXPO_ACCESS_TOKEN`                                                | none                                  | Optional — only needed for an Expo project with Enhanced Security.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `_shared/push.ts` (push module)                                                                               |
-| `COMMUNITY_TRANSLATION_LOCALES`                                    | none                                  | **Required with the translation module.** Comma-separated target locales, e.g. `en,es-ES,es-419,it,pl,pt-PT,pt-BR` — must equal the client's `modules.translation.locales`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `translate-one`, `daily-translation`, `notify-comment`, `broadcast-post`                                      |
-| `COMMUNITY_TRANSLATION_MODEL`                                      | `gpt-5-mini`                          | Optional.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `translate-one`, `daily-translation`                                                                          |
-| `COMMUNITY_TRANSLATION_STYLE`                                      | none                                  | Optional per-app voice instruction appended to the translation prompt.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `translate-one`, `daily-translation`                                                                          |
-| `COMMUNITY_TRANSLATION_SWEEP_BATCH`                                | `250`                                 | Optional test/cost knob: items fetched per kind (post/comment) per `daily-translation` run. A small value (e.g. `2`) forces the self-chain on a small backlog, which is how the chain is exercised on a scratch project.                                                                                                                                                                                                                                                                                                                                                                                                                                    | `daily-translation`                                                                                           |
-| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` | —                                     | Platform-provided automatically; never set these yourself.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | all functions via `_shared/client.ts`                                                                         |
+| Secret                                                                                   | Default                               | Required?                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Used by                                                                                                       |
+| ---------------------------------------------------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `OPENAI_API_KEY`                                                                         | none                                  | **Required.** Missing ⇒ the affected function throws at module load (`assertModerationConfigured()`) — a hard, immediate failure, not a silent degrade. With the translation module on, the key needs Moderation **and** Responses (write) access: a restricted key with only moderation makes every translation fail with 401 `Missing scopes: api.responses.write` in the function logs.                                                                                                                                                                                                                                                    | `moderate-one`, `daily-moderation`, `update-profile`                                                          |
+| `SLACK_WEBHOOK_URL`                                                                      | none                                  | Optional. Unset ⇒ `report-to-slack` and `daily-moderation`'s summary post become logged no-ops (`_shared/slack.ts` logs and returns instead of posting).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `report-to-slack`, `daily-moderation`                                                                         |
+| `COMMUNITY_APP_NAME`                                                                     | `"Community"`                         | Optional.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `broadcast-post` — push title fallback for an admin post whose author has no username set                     |
+| `COMMUNITY_PUSH_COPY`                                                                    | _(built-in neutral copy, 23 locales)_ | Optional JSON: per-locale, per-key override of every push string — `fallbackName`, `comment.title`, `like.one`, `like.many`, `reaction.one`, `reaction.many`, `photo` (the excerpt of an image-only post or comment, default "📷 Photo" localized) — with `{name}`/`{count}` placeholders; a `*.many` value can be a `{one, few, many, other}` object picked by the recipient locale's CLDR plural category. This is how an app keeps its own voice ("prayed for you 🙏", a gendered fallback name…) without forking the functions. See `supabase/functions/_shared/copy.ts`.                                                                 | `notify-comment`, `notify-like`, `notify-reaction`                                                            |
+| `COMMUNITY_FALLBACK_NAME`                                                                | `"Someone"`                           | Optional legacy single string (every locale); `COMMUNITY_PUSH_COPY.fallbackName` wins over it. Rarely used since every profile gets a default name (core/009).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `notify-comment`, `notify-like`, `notify-reaction` — actor-name fallback when the acting user has no username |
+| `COMMUNITY_REACTION_PUSH_TEXT`                                                           | `"{name} is thinking of you"`         | Optional legacy single string for the single-reactor case (every locale); `COMMUNITY_PUSH_COPY["reaction.one"]` wins over it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `notify-reaction`                                                                                             |
+| `MODERATION_SCORE_THRESHOLD`                                                             | `0.5`                                 | Optional. Raw OpenAI moderation score at or above which a category is hidden even when OpenAI's own boolean flag is false (catches under-scored insults/harassment, including other languages).                                                                                                                                                                                                                                                                                                                                                                                                                                               | `_shared/moderation.ts` (all moderating functions)                                                            |
+| `MODERATION_EXCLUDED_CATEGORIES`                                                         | `""` (none excluded)                  | Optional, comma-separated. Removes listed categories from the score-threshold check only — OpenAI's own boolean flag for that category still applies regardless. **Example (a menstrual-health app):** `MODERATION_EXCLUDED_CATEGORIES=sexual` lets legitimate intimacy/fertility discussion through the score check, while OpenAI's own `sexual`/`sexual/minors` boolean flags still hide clearly explicit content. **Never applies to images:** a post/comment image and an avatar are judged strictly (every category, score threshold included), whatever this secret says — so avatars of apps that set it are now stricter than before. | `_shared/moderation.ts`                                                                                       |
+| `EXPO_ACCESS_TOKEN`                                                                      | none                                  | Optional — only needed for an Expo project with Enhanced Security.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `_shared/push.ts` (push module)                                                                               |
+| `COMMUNITY_TRANSLATION_LOCALES`                                                          | none                                  | **Required with the translation module.** Comma-separated target locales, e.g. `en,es-ES,es-419,it,pl,pt-PT,pt-BR` — must equal the client's `modules.translation.locales`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `translate-one`, `daily-translation`, `notify-comment`, `broadcast-post`                                      |
+| `COMMUNITY_TRANSLATION_MODEL`                                                            | `gpt-5-mini`                          | Optional.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `translate-one`, `daily-translation`                                                                          |
+| `COMMUNITY_TRANSLATION_STYLE`                                                            | none                                  | Optional per-app voice instruction appended to the translation prompt.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `translate-one`, `daily-translation`                                                                          |
+| `COMMUNITY_TRANSLATION_SWEEP_BATCH`                                                      | `250`                                 | Optional test/cost knob: items fetched per kind (post/comment) per `daily-translation` run. A small value (e.g. `2`) forces the self-chain on a small backlog, which is how the chain is exercised on a scratch project.                                                                                                                                                                                                                                                                                                                                                                                                                      | `daily-translation`                                                                                           |
+| `COMMUNITY_ACCOUNT_PROVIDER`                                                             | none                                  | **Required with the accounts module.** `appwrite` or `jwks`: how `account-session` checks the app's account proof.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `account-session`, `account-delete`                                                                           |
+| `COMMUNITY_ACCOUNT_SECRET`                                                               | none                                  | **Required with the accounts module.** Random, 32 bytes or more (`openssl rand -hex 32`). Keys the synthetic email of each account profile. **Never rotate it once accounts are linked:** every synthetic email would change, and each linked profile's next sign-in would fail until fixed by hand.                                                                                                                                                                                                                                                                                                                                          | `account-session`, `account-delete`                                                                           |
+| `COMMUNITY_APPWRITE_ENDPOINT` / `COMMUNITY_APPWRITE_PROJECT`                             | none                                  | **Required with `COMMUNITY_ACCOUNT_PROVIDER=appwrite`.** The Appwrite endpoint (e.g. `https://<region>.cloud.appwrite.io/v1`) and project id. The proof is an Appwrite JWT (`account.createJWT()`), checked against `GET /account`.                                                                                                                                                                                                                                                                                                                                                                                                           | `account-session`, `account-delete`                                                                           |
+| `COMMUNITY_ACCOUNT_JWKS_URL` / `COMMUNITY_ACCOUNT_ISSUER` / `COMMUNITY_ACCOUNT_AUDIENCE` | none                                  | **Required with `COMMUNITY_ACCOUNT_PROVIDER=jwks`.** Any provider that signs JWTs with a published key set (Supabase Auth, Firebase, Clerk, Auth0, OIDC): the key set URL, and the `iss` and `aud` the token must carry. Asymmetric algorithms only.                                                                                                                                                                                                                                                                                                                                                                                          | `account-session`, `account-delete`                                                                           |
+| `COMMUNITY_ACCOUNT_SUBJECT_CLAIM`                                                        | `sub`                                 | Optional, `jwks` only: the claim that holds the account id.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `account-session`, `account-delete`                                                                           |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY`                       | —                                     | Platform-provided automatically; never set these yourself.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | all functions via `_shared/client.ts`                                                                         |
 
 Deploy after setting secrets (`supabase functions deploy`, or scope it to
 just the functions a module added — see `packages/cli/README.md`'s `init`
@@ -340,6 +345,11 @@ least the public anon key. On top of that:
   row; both only ever translate visible items that still miss a locale, and
   paid calls are bounded by the `attempt` claim row (one API call per item per
   6 h, whoever calls).
+- `account-session` accepts anyone with a valid account proof; the device's
+  own session, when sent as the bearer, only decides which anonymous profile
+  is converted or merged. `account-delete` accepts a valid proof, or the
+  service role with `{ provider, subject }` (the app's own backend). See
+  [Accounts](#7-accounts).
 
 ## 6. Schema drift detection
 
@@ -348,3 +358,175 @@ least the public anon key. On top of that:
 builds only — a mismatch against the installed package's
 `REQUIRED_SCHEMA_VERSION` logs a console warning, never throws. See
 `docs/compat.md` for the version table this checks against.
+
+## 7. Accounts
+
+The optional `accounts` module gives each account of the app one community
+profile: same profile on every device and after a reinstall. The app proves
+its account with a short-lived token (`host.getAccountProof`), and
+`account-session` answers that profile's Supabase session. Each account profile
+is an auth user with a synthetic, unreachable email (`account+<hash>@account.invalid`,
+an HMAC of provider and account id keyed by `COMMUNITY_ACCOUNT_SECRET`);
+`account_links` (provider, subject → profile) is the only proof of ownership.
+
+### Install and deploy
+
+```bash
+npx @rocapine/community upgrade --add-modules accounts   # or init --modules …,accounts
+supabase db push
+supabase secrets set COMMUNITY_ACCOUNT_PROVIDER=appwrite \
+  COMMUNITY_APPWRITE_ENDPOINT=https://<region>.cloud.appwrite.io/v1 \
+  COMMUNITY_APPWRITE_PROJECT=<appwrite project id> \
+  COMMUNITY_ACCOUNT_SECRET=$(openssl rand -hex 32)
+supabase functions deploy account-session account-delete
+```
+
+- **Keep `verify_jwt` on** for both functions (the default; never deploy them
+  with `--no-verify-jwt`). `account-delete` trusts a service-role bearer
+  because the gateway has already checked the JWT's signature.
+- **Keep anonymous sign-ins on** ([section 1](#1-anonymous-sign-ins-manual-no-migration-does-this)):
+  a signed-out member still gets an anonymous profile, unless the app sets
+  `accounts.required`.
+- **Turn public email sign-ups off** when the app never uses Supabase email
+  sign-up (`[auth.email] enable_signup = false` in `config.toml`, or the Email
+  provider's "Allow new users to sign up"). Leave the global sign-up switch
+  on: it also gates anonymous sign-ins. Someone signing up on an account's
+  synthetic address would hold it until `account-session` replaces them (it
+  deletes an unlinked user holding the address); with email sign-ups off
+  nobody can.
+- With the push module, `push/006_push_devices.sql` gives each device its own
+  push row (`push_devices`, keyed by `host.getInstallId()`), so a member signed
+  in on two phones gets the push on both.
+
+`account-session` answers `200 { access_token, refresh_token, profile_id, subject_hash }`,
+or `200 { profile_id, subject_hash }` without tokens when the bearer already is
+that account's session (the launch check of a member still signed in: nothing
+is minted), `400 bad_request`, `401 bad_proof` (the provider refused the token),
+`409 conflict` (the address is held by another linked profile: fix by hand),
+`429 rate_limited` (one new session per account per 10 s), `503 provider_unavailable`
+or `auth_unavailable`. `account-delete` answers `200 { deleted }` (`false` when
+no profile was linked), `400 bad_request` (no proof, or a body that is not
+JSON), `401 bad_proof`, `500 internal` (a step failed: call it again, every step
+is idempotent), `503 provider_unavailable`.
+
+**Sessions and Auth's rate limits.** A session is minted only on a sign-in,
+a sign-up on a new device or an account switch: a relaunch is confirmed
+without one. Each mint is a magic-link verification server-side, from the
+functions' own IPs, so it counts against Auth's **token verification** rate
+limit (dashboard: Authentication → Rate limits). The default is enough for
+ordinary traffic; raise it before a mass sign-in (a migration, a campaign
+that signs every member in at once). Past the limit `account-session` answers
+`500` and the device keeps its current session and retries a minute later.
+
+### Optional SQL hooks
+
+The app may define these functions in `public` (service role only; revoke
+execute from `public, anon, authenticated`). Each is looked up by its exact
+signature, so keep the parameter names and types:
+
+```sql
+-- Profiles that already belong to this account (e.g. the member's profile from before the
+-- module, found through a table the app's own server fills with (subject, profile id)).
+-- Only anonymous profiles are used: others are skipped. The most recently active one
+-- becomes the account profile, the others are merged into it.
+create function public.account_profile_candidates(provider text, subject text, claims jsonb)
+returns setof uuid ...;
+
+-- Whether the calling device's anonymous profile may be converted or merged into this
+-- account (e.g. no row of the app's server-filled table ties it to another subject).
+-- NULL counts as no.
+create function public.account_owns_profile(profile uuid, claims jsonb)
+returns boolean ...;
+
+-- Runs once a profile is linked to an account (e.g. record (subject, profile) in the app's
+-- own table).
+create function public.on_account_linked(profile uuid, provider text, subject text, claims jsonb)
+returns void ...;
+```
+
+**Key the hooks on `subject`, or on data only the app's own server writes.**
+`subject` is the verified account id. Two things look like proof and are not:
+
+- `claims.prefs` (`appwrite`): Appwrite lets the member write their own
+  preferences from the client, so a member can put any value there.
+- Profile columns the client writes, `profiles.revenuecat_id` and
+  `profiles.amplitude_id` among them: any device can set them to someone else's
+  ids, and a hook trusting them hands that member's profile (posts, name,
+  inbox) to the caller.
+
+`claims` is what the provider verified: the JWT payload (`jwks`), or
+`{ prefs, emailVerification, status }` (`appwrite`); in a JWT, trust only the
+claims your own backend issues. Hooks **must be idempotent**: an interrupted
+call runs them again on the next sign-in. A failing `on_account_linked` is
+logged (`account-session: on_account_linked failed`) and not retried: the link
+stands.
+
+A profile merged into the account profile keeps its (now empty) row with the
+default name, no bio and no avatar; its push preferences move, its legacy
+`push_tokens` token does not.
+
+### Account deletion
+
+`account-delete` resets the account profile's name, handle, bio and avatar
+(its posts stay, under the default pseudonym), clears its `revenuecat_id` and
+`amplitude_id` (so no candidates hook adopts it again), deletes its push rows, revokes
+every session (all devices drop it), moves the synthetic email off and
+deletes the link. The profile becomes an ordinary orphan. The app calls
+`deleteAccountProfile()` before disabling its own account, or its backend
+calls the function with the service role:
+
+```bash
+curl -X POST https://<project-ref>.supabase.co/functions/v1/account-delete \
+  -H "Authorization: Bearer <service role key>" -H "Content-Type: application/json" \
+  -d '{"provider":"appwrite","subject":"<account id>"}'
+```
+
+### End-to-end check on a sandbox
+
+Run it on a sandbox project, never production, after a deploy that touches
+the accounts module. Proofs come from a throwaway Appwrite user (server API
+key with `users.read` and `users.write`; `jwks` needs a test issuer instead):
+
+```bash
+REF=<project-ref>; SB=https://$REF.supabase.co; ANON=<anon key>
+AW=<appwrite endpoint>; AWP=<appwrite project id>; AWK=<appwrite server key>
+
+# Schema and functions (both idempotent).
+supabase db query --remote=$REF --yes -f supabase/migrations/<ts>_community_accounts_accounts.sql
+supabase functions deploy account-session account-delete --project-ref $REF
+
+# A throwaway account and its proof.
+U=$(curl -s -X POST $AW/users -H "X-Appwrite-Project: $AWP" -H "X-Appwrite-Key: $AWK" \
+  -H "Content-Type: application/json" -d '{"userId":"unique()","name":"e2e"}' | jq -r '.["$id"]')
+JWT=$(curl -s -X POST $AW/users/$U/jwts -H "X-Appwrite-Project: $AWP" -H "X-Appwrite-Key: $AWK" | jq -r .jwt)
+
+# Device 1: anonymous, then account-session with its bearer.
+D1=$(curl -s -X POST $SB/auth/v1/signup -H "apikey: $ANON" -H "Content-Type: application/json" -d '{}')
+curl -s -X POST $SB/functions/v1/account-session -H "apikey: $ANON" \
+  -H "Authorization: Bearer $(jq -r .access_token <<<"$D1")" -H "Content-Type: application/json" \
+  -d "{\"proof\":\"$JWT\"}"
+```
+
+Expect, in order (wait 10 s between two calls for the same account that open a session):
+
+1. **Device 1:** `200`, `profile_id` = device 1's user id. That auth user now
+   carries the synthetic email (converted in place, same uid).
+2. **Device 2** (another anonymous session that posted first): `200`, the same
+   `profile_id`; the post's `author_id` is now that profile.
+3. **Relaunch:** the same call with device 1's account session (the
+   `access_token` step 1 returned) as bearer: `200 { profile_id, subject_hash }`
+   with no tokens, and a call right after it is not rate limited.
+4. **Bad proof** (`{"proof":"x"}` with the anon key as bearer): `401 bad_proof`.
+5. **Squatter:** create a user holding the account's synthetic email
+   (`auth.admin.createUser`) before step 1: the call still answers `200`, and
+   that user is gone.
+6. **Candidates hook:** with a test `account_profile_candidates` installed, a
+   new account adopts the most recently active returned profile and merges the
+   others into it. Drop the test hook afterwards.
+7. **Delete:** `account-delete` with the proof answers `{ "deleted": true }`;
+   refreshing a session it returned
+   (`POST $SB/auth/v1/token?grant_type=refresh_token`) now fails; a second
+   delete answers `{ "deleted": false }`.
+8. **Clean up:** delete every test auth user (`auth.admin.deleteUser`, which
+   also removes their profiles and posts) and the Appwrite user
+   (`DELETE $AW/users/$U`).

@@ -1,4 +1,5 @@
 export type {
+  AccountProof,
   CommunityTopicDef,
   CommunityModules,
   HostStreak,
@@ -106,11 +107,15 @@ export { COMMUNITY_EVENTS, emitEvent } from "./events";
 export type { CommunityEventName } from "./events";
 
 export {
+  accountSignedIn,
+  accountSignedOut,
+  deleteAccountProfile,
   ensureIdentity,
   resetIdentity,
   resetProfileIdentity,
   syncProfileFromHost,
 } from "./identity";
+export { registerPushDevice, unregisterPushDevice } from "./push-devices";
 
 export {
   buildFeedSelect,
@@ -186,6 +191,7 @@ export {
   useDeleteContent,
   usePinPost,
   isOptimistic,
+  resetCommunityQueries,
 } from "./hooks";
 
 export {

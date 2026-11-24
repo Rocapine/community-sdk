@@ -139,6 +139,10 @@ export const STREAK_BADGES: Record<string, { placements: BadgePlacement[] }> = {
   bestStreak: { placements: ["profile"] },
 };
 
+/** A proof of the host account (e.g. a short-lived JWT), checked server-side by
+ * `account-session` against the backend's configured provider. */
+export type AccountProof = { provider: string; token: string };
+
 export type CommunityHostAdapters = {
   getDisplayName?: () => string | null;
   getAnalyticsIds?: () => { amplitudeId?: string; revenuecatId?: string };
@@ -149,6 +153,13 @@ export type CommunityHostAdapters = {
   /** The badges module's source: this member's badges, computed by the app (the
    * member never types them). Mirrored onto the profile by `syncProfileFromHost`. */
   getBadges?: () => MemberBadges | null;
+  /** Accounts module: a proof of the host account the member is signed in to.
+   * `null` means signed out; a throw means signed in, but no proof right now (the
+   * provider is down or offline): the SDK then keeps the session it has. */
+  getAccountProof?: () => Promise<AccountProof | null>;
+  /** A stable id for this install, keying this device's push row (`push_devices`).
+   * `null` (default) skips the per-device push row. */
+  getInstallId?: () => string | null;
 };
 
 /**
@@ -211,6 +222,9 @@ export type CommunityConfig = {
    * their notification center). Defaults to false: the admin picks "Notify
    * everyone" per post in the composer. */
   adminPostsNotifyAll?: boolean;
+  /** Accounts module (with `host.getAccountProof`). `required`: never sign in
+   * anonymously; without a proof there is no session and the community stays hidden. */
+  accounts?: { required?: boolean };
 };
 
 export class CommunityDisabledError extends Error {
@@ -220,7 +234,9 @@ export class CommunityDisabledError extends Error {
   }
 }
 
-type RequiredCommunityHostAdapters = Required<CommunityHostAdapters>;
+// getAccountProof stays optional: its absence keeps the anonymous-only behaviour.
+type RequiredCommunityHostAdapters = Required<Omit<CommunityHostAdapters, "getAccountProof">> &
+  Pick<CommunityHostAdapters, "getAccountProof">;
 
 export type ResolvedCommunityConfig = CommunityConfig & {
   host: RequiredCommunityHostAdapters;
@@ -261,6 +277,7 @@ const defaultHost: RequiredCommunityHostAdapters = {
   onContentPublished: () => {},
   getLocale: () => "en",
   getBadges: () => null,
+  getInstallId: () => null,
 };
 
 export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig {

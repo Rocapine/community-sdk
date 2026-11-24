@@ -25,10 +25,14 @@ export const MODULE_ORDER = [
   "attachments",
   "badges",
   "presence",
+  "accounts",
   // Deprecated: kept to move existing streaks onto badges (streaks/002). Implies badges.
   "streaks",
 ] as const;
 export type Module = (typeof MODULE_ORDER)[number];
+
+// Installed only when named: accounts needs the host's own account system and its secrets.
+const OPT_IN_MODULES: readonly Module[] = ["accounts"];
 
 const ALWAYS_FUNCTIONS = [
   "moderate-one",
@@ -40,17 +44,20 @@ const ALWAYS_FUNCTIONS = [
 const PUSH_FUNCTIONS = ["notify-like", "notify-comment", "broadcast-post"];
 const REACTION_FUNCTIONS = ["notify-reaction"];
 const TRANSLATION_FUNCTIONS = ["translate-one", "daily-translation"];
+const ACCOUNTS_FUNCTIONS = ["account-session", "account-delete"];
 
 export function functionsForModules(modules: readonly Module[]): string[] {
   const set = new Set<string>(ALWAYS_FUNCTIONS);
   if (modules.includes("push")) for (const f of PUSH_FUNCTIONS) set.add(f);
   if (modules.includes("reaction")) for (const f of REACTION_FUNCTIONS) set.add(f);
   if (modules.includes("translation")) for (const f of TRANSLATION_FUNCTIONS) set.add(f);
+  if (modules.includes("accounts")) for (const f of ACCOUNTS_FUNCTIONS) set.add(f);
   return [...set];
 }
 
 /**
- * Validates and canonicalizes a requested module list: rejects unknown
+ * Validates and canonicalizes a requested module list (none: every module but
+ * the opt-in ones): rejects unknown
  * names, always implies `core`, orders the result per MODULE_ORDER, and
  * warns (non-fatally) when `inbox` is picked without `reaction`.
  */
@@ -58,7 +65,10 @@ export function resolveModules(
   requested: string[] | undefined,
   onWarn: (message: string) => void,
 ): Module[] {
-  const source = requested && requested.length > 0 ? requested : [...MODULE_ORDER];
+  const source =
+    requested && requested.length > 0
+      ? requested
+      : MODULE_ORDER.filter((m) => !OPT_IN_MODULES.includes(m));
   const requestedSet = new Set(source.map((m) => m.trim()).filter(Boolean));
 
   for (const m of requestedSet) {

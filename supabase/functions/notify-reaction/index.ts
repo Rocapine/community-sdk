@@ -16,7 +16,12 @@
 
 import { adminClient } from "../_shared/client.ts";
 import { blockedWith } from "../_shared/blocks.ts";
-import { sendExpoPush, unreadBadge } from "../_shared/push.ts";
+import {
+  dropInvalidTokens,
+  recipientTokens,
+  sendExpoPushBatch,
+  unreadBadge,
+} from "../_shared/push.ts";
 import { pushCopy } from "../_shared/copy.ts";
 
 const supabase = adminClient();
@@ -33,11 +38,13 @@ async function flushPost(postId: string) {
     .single();
   const copy = pushCopy(recipient?.locale);
 
+  const { tokens } = await recipientTokens(supabase, post.author_id);
+  // notify_reactions lives on push_tokens only; no row means the default (on).
   const { data: pref } = await supabase
     .from("push_tokens")
-    .select("expo_push_token, notify_reactions")
+    .select("notify_reactions")
     .eq("user_id", post.author_id)
-    .single();
+    .maybeSingle();
 
   const { data: unnotified } = await supabase
     .from("post_reactions")
@@ -54,7 +61,7 @@ async function flushPost(postId: string) {
     .eq("post_id", postId)
     .is("notified_at", null);
 
-  if (!pref?.expo_push_token || !pref.notify_reactions) return;
+  if (tokens.length === 0 || pref?.notify_reactions === false) return;
 
   const blockedSet = await blockedWith(supabase, post.author_id);
   const contributors = unnotified.filter(
@@ -73,12 +80,16 @@ async function flushPost(postId: string) {
       ? copy.text("reaction.one", { name })
       : copy.text("reaction.many", { name, count: contributors.length - 1 });
 
-  await sendExpoPush({
-    to: pref.expo_push_token,
-    title,
-    data: { route: "/community", kind: "community_reaction", postId },
-    badge: await unreadBadge(supabase, post.author_id),
-  });
+  const badge = await unreadBadge(supabase, post.author_id);
+  const { invalidTokens } = await sendExpoPushBatch(
+    tokens.map((to) => ({
+      to,
+      title,
+      data: { route: "/community", kind: "community_reaction", postId },
+      badge,
+    })),
+  );
+  await dropInvalidTokens(supabase, invalidTokens);
 }
 
 Deno.serve(async (req) => {

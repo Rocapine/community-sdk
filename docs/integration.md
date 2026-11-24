@@ -77,6 +77,37 @@ exact signatures, see the per-package READMEs.
    - The full secrets table and the cron jobs are in
      [`backend-runbook.md`](backend-runbook.md).
 
+6. **Accounts (optional).** When the app has its own accounts and members
+   should keep one community profile across devices and reinstalls, add the
+   `accounts` module and its secrets:
+
+   ```bash
+   supabase secrets set COMMUNITY_ACCOUNT_PROVIDER=appwrite \
+     COMMUNITY_APPWRITE_ENDPOINT=<endpoint> COMMUNITY_APPWRITE_PROJECT=<project id> \
+     COMMUNITY_ACCOUNT_SECRET=$(openssl rand -hex 32)
+   supabase functions deploy account-session account-delete
+   ```
+
+   - `COMMUNITY_ACCOUNT_PROVIDER` is `appwrite` (Appwrite JWTs) or `jwks` (any
+     provider with a published key set: `COMMUNITY_ACCOUNT_JWKS_URL`,
+     `COMMUNITY_ACCOUNT_ISSUER`, `COMMUNITY_ACCOUNT_AUDIENCE`, and
+     `COMMUNITY_ACCOUNT_SUBJECT_CLAIM`, `sub` by default).
+   - `COMMUNITY_ACCOUNT_SECRET`: random, 32 bytes or more. **Never rotate it
+     once accounts are linked**: it keys every account profile's synthetic
+     email, so rotating changes them all.
+   - Both functions keep `verify_jwt` on (the default): `account-delete`'s
+     service-role path relies on the gateway's signature check.
+   - Turn public email sign-ups off when the app never uses them
+     (`[auth.email] enable_signup = false`); anonymous sign-ins stay on.
+   - To adopt the profiles members already have, or to copy app ids onto a
+     linked profile, define the optional SQL hooks
+     `account_profile_candidates(provider text, subject text, claims jsonb) returns setof uuid`,
+     `account_owns_profile(profile uuid, claims jsonb) returns boolean` (NULL counts
+     as no) and `on_account_linked(profile uuid, provider text, subject text, claims jsonb) returns void`.
+     They must be idempotent: an interrupted call runs them again. A failing
+     `on_account_linked` is logged, not retried. Details and an end-to-end
+     check in [`backend-runbook.md`](backend-runbook.md#7-accounts).
+
 ## Phase 2 — Packages
 
 ```bash
@@ -181,6 +212,26 @@ e.g. `lib/community-config.ts`.
    `syncProfileFromHost(cfg)` whenever the display name or the language changes.
    Both take the resolved config: `const cfg = resolveConfig(config)` in a
    module-scope singleton, for code that runs outside the React tree.
+   **With the accounts module**, set `host.getAccountProof` (a fresh proof of
+   the app account, `null` when signed out; throw when signed in but no proof
+   can be made right now) and wire the app's auth transitions:
+   - `accountSignedIn(cfg)` every time the app session is (re)established,
+     including at launch for a member already signed in (otherwise a stored
+     anonymous session is kept; once this launch has checked the account, it
+     does nothing). It rejects when no session could be opened, or when a
+     second call overtook it: call it again later.
+   - `accountSignedOut(cfg)` on logout, **before** the app's own logout. A
+     switch from account A to B is `accountSignedOut(cfg)` then
+     `accountSignedIn(cfg)`.
+   - `deleteAccountProfile(cfg)` **before** disabling the app account; don't
+     disable it when it returns `false`.
+   - After each of these transitions, call `resetCommunityQueries(queryClient)`
+     so the screens refetch as the new profile.
+   - With push, set `host.getInstallId` and call
+     `registerPushDevice(cfg, token)` again after each of these transitions.
+   - `accounts: { required: true }` when signed-out users must not get an
+     anonymous profile (the community stays hidden until sign-in).
+     See [`packages/core/README.md`](../packages/core/README.md#accounts-accounts-module).
 6. **Theme, i18n and icons** go on `CommunityUIProvider`: `theme`,
    `translations: { locale, overrides }` and `icons`. See
    [`packages/ui/README.md`](../packages/ui/README.md).
@@ -211,11 +262,18 @@ e.g. `lib/community-config.ts`.
   If you use the avatar picker or the images module, set `expo-image-picker`'s
   `photosPermission` to mention every use: the community profile photo and the
   photos members add to posts and comments. App Review reads this text.
-- **Push module.** The SDK doesn't register the device. The app upserts its
-  Expo push token into `push_tokens` (`user_id` = the community uid,
-  `expo_push_token`, `notify_*` preferences) after permission is granted. It
-  also routes notification taps: the payload has `data.route: "/community"`
-  and `data.kind`.
+- **Push module.** Set `host.getInstallId` (a stable id of this install) and,
+  once notification permission is granted, call
+  `registerPushDevice(cfg, expoPushToken)`: it writes this device's row in
+  `push_devices` and makes sure the profile's `push_tokens` row exists, which
+  holds the `notify_*` preferences (`useNotificationPreferences`). Call it
+  again after every identity change (sign-in, sign-out, account deletion), and
+  `unregisterPushDevice(cfg)` to stop pushes on this device (the account
+  transitions already do). **Never write `push_tokens.expo_push_token`
+  yourself:** with accounts, one profile spans several devices, and that single
+  token would keep reaching a device after it signed out. The app also routes
+  notification taps: the payload has `data.route: "/community"` and
+  `data.kind`.
 
 ## Phase 5 — Moderation
 
@@ -264,7 +322,14 @@ On a dev client, against the real project or a scratch one:
     count; backgrounding one app drops its dot after the grace window. "Show when I'm
     online" off in the profile edit sheet hides the dot but the member still counts.
     Members who blocked each other see no dot.
-11. **The app's own tests** still pass.
+11. **Accounts.** With the accounts module: post anonymously, sign in, and the
+    post stays yours under the same profile. Sign in to the same account on a
+    second device (or after a reinstall): same profile and name, and what that
+    device posted anonymously moved over. Sign out: a fresh anonymous profile
+    (or none with `accounts.required`). Delete the account: every device drops
+    the profile, which falls back to the default name. Pushes reach both
+    devices.
+12. **The app's own tests** still pass.
 
 ## Maintenance
 
@@ -274,7 +339,7 @@ On a dev client, against the real project or a scratch one:
     function templates since `community-sdk.json`. Review them, `supabase db push`,
     then redeploy the functions it touched.
   - `upgrade --add-modules <m>` adds a module (`images` for post and comment
-    images or `presence`, then `supabase db push` and redeploy the functions).
+    images, `presence` or `accounts`, then `supabase db push` and redeploy the functions).
   - [`compat.md`](compat.md) says which releases carry backend changes.
 - **Never renumber or edit a migration that has been applied.** New behaviour
   always ships as a new file.

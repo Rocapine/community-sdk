@@ -82,6 +82,15 @@ import {
   type UpdateProfileResult,
 } from "./service";
 
+/**
+ * Drops every cached community query (`["community", …]`) and refetches the ones on screen. Call it
+ * after `accountSignedIn`, `accountSignedOut` and `deleteAccountProfile`: they switch the profile,
+ * and cached reads (your uid, profile, likes, inbox) still belong to the previous one.
+ */
+export function resetCommunityQueries(queryClient: QueryClient): Promise<void> {
+  return queryClient.resetQueries({ queryKey: ["community"] });
+}
+
 const profileKey = (userId: string) => ["community", "profile", userId] as const;
 const MY_UID_KEY = ["community", "myUid"] as const;
 

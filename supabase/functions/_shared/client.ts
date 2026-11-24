@@ -60,16 +60,28 @@ export function isServiceCaller(req: Request): boolean {
 // The user behind the request's bearer, or null for an anon-key-only call
 // (or an invalid/expired user JWT). Resolved through Auth so a forged `sub`
 // claim can't be smuggled in with a plain anon token.
-export async function callerUserId(req: Request): Promise<string | null> {
+// With `throwOnOutage`, a GoTrue failure throws AuthOutageError instead of reading as "no caller".
+export async function callerUserId(
+  req: Request,
+  { throwOnOutage = false } = {},
+): Promise<string | null> {
   const authorization = req.headers.get("authorization");
   if (!authorization) return null;
   const client = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
     global: { headers: { Authorization: authorization } },
   });
   const { data, error } = await client.auth.getUser();
+  if (error && throwOnOutage && isAuthOutage(error)) throw new AuthOutageError(error.message);
   if (error || !data.user) return null;
   return data.user.id;
 }
+
+export class AuthOutageError extends Error {}
+
+// A 4xx is Auth rejecting the token (anon key, expired, forged); anything else (429, 5xx, network
+// with status 0 or none) means Auth could not answer.
+export const isAuthOutage = (e: { status?: number }) =>
+  !(e.status !== undefined && e.status >= 400 && e.status < 500 && e.status !== 429);
 
 // The client consumes responses via supabase.functions.invoke, which only
 // parses the body as JSON when the Content-Type says so. Without this header

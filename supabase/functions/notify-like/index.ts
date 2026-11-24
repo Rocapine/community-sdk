@@ -12,7 +12,12 @@
 
 import { adminClient } from "../_shared/client.ts";
 import { blockedWith } from "../_shared/blocks.ts";
-import { sendExpoPush, unreadBadge } from "../_shared/push.ts";
+import {
+  dropInvalidTokens,
+  recipientTokens,
+  sendExpoPushBatch,
+  unreadBadge,
+} from "../_shared/push.ts";
 import { pushCopy } from "../_shared/copy.ts";
 
 const supabase = adminClient();
@@ -24,11 +29,7 @@ async function flushPost(postId: string) {
   const { data: post } = await supabase.from("posts").select("author_id").eq("id", postId).single();
   if (!post) return;
 
-  const { data: pref } = await supabase
-    .from("push_tokens")
-    .select("expo_push_token, notify_likes")
-    .eq("user_id", post.author_id)
-    .single();
+  const { tokens, prefs } = await recipientTokens(supabase, post.author_id);
 
   const { data: unnotified } = await supabase
     .from("likes")
@@ -47,7 +48,7 @@ async function flushPost(postId: string) {
     .eq("post_id", postId)
     .is("notified_at", null);
 
-  if (!pref?.expo_push_token || !pref.notify_likes) return;
+  if (tokens.length === 0 || !prefs.notify_likes) return;
 
   // Contributors = likers who are not the author and not blocked either way.
   const blockedSet = await blockedWith(supabase, post.author_id);
@@ -74,12 +75,16 @@ async function flushPost(postId: string) {
       ? copy.text("like.one", { name })
       : copy.text("like.many", { name, count: contributors.length - 1 });
 
-  await sendExpoPush({
-    to: pref.expo_push_token,
-    title,
-    data: { route: "/community", kind: "community_like", postId },
-    badge: await unreadBadge(supabase, post.author_id),
-  });
+  const badge = await unreadBadge(supabase, post.author_id);
+  const { invalidTokens } = await sendExpoPushBatch(
+    tokens.map((to) => ({
+      to,
+      title,
+      data: { route: "/community", kind: "community_like", postId },
+      badge,
+    })),
+  );
+  await dropInvalidTokens(supabase, invalidTokens);
 }
 
 Deno.serve(async (req) => {
