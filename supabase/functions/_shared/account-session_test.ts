@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertMatch } from "jsr:@std/assert@1";
 import { AccountProofError, AccountProviderError, syntheticEmail } from "./accounts.ts";
 import {
+  accountDeleteResponse,
   accountSessionResponse,
   EmailTakenError,
   HttpError,
@@ -71,6 +72,11 @@ function fake(w: World): AccountSessionDeps {
         w.links.set(key, main);
         for (const other of merge) w.merges.push([main, other]);
         return !existing;
+      },
+      deleteProfileData: async (id) => void w.calls.push(`db.deleteProfileData:${id}`),
+      unlink: async (p, s) => {
+        w.calls.push(`db.unlink:${p}:${s}`);
+        w.links.delete(`${p}:${s}`);
       },
       touchRateLimit: async (hash) => {
         w.calls.push("db.touchRateLimit");
@@ -349,4 +355,82 @@ Deno.test("provider down answers 503", async () => {
   const res = await run(w, "c", () => Promise.reject(new AccountProviderError("down")));
   assertEquals(res, { status: 503, body: { error: "provider_unavailable" } });
   assertEquals(w.calls, []);
+});
+
+Deno.test("delete resets, revokes, unlinks, then retires the email", async () => {
+  const email = await syntheticEmail(SECRET, "appwrite", "acct-1");
+  const w = world({
+    links: new Map([["appwrite:acct-1", "main"]]),
+    users: new Map([["main", { id: "main", email, is_anonymous: false }]]),
+  });
+  const res = await accountDeleteResponse(
+    { ...fake(w), verify: async () => verified },
+    { proof: "proof" },
+  );
+  assertEquals(res, { status: 200, body: { deleted: true } });
+  assertEquals(
+    w.calls.filter(
+      (c) =>
+        c.startsWith("db.delete") || c.startsWith("db.unlink") || c.startsWith("updateUserById"),
+    ),
+    ["db.deleteProfileData:main", "db.unlink:appwrite:acct-1", "updateUserById:main"],
+  );
+  assertEquals(w.links.size, 0);
+  assertMatch(w.users.get("main")!.email!, /^[0-9a-f-]{36}@deleted\.invalid$/);
+});
+
+Deno.test("delete: the service role needs no proof", async () => {
+  const w = world({
+    links: new Map([["appwrite:acct-1", "main"]]),
+    users: new Map([["main", { id: "main", email: "x", is_anonymous: false }]]),
+  });
+  const res = await accountDeleteResponse(
+    {
+      ...fake(w),
+      verify: async () => {
+        throw new Error("must not verify");
+      },
+    },
+    { service: { provider: "appwrite", subject: "acct-1" } },
+  );
+  assertEquals(res, { status: 200, body: { deleted: true } });
+  assertEquals(w.links.size, 0);
+});
+
+Deno.test("delete: an unknown account is a no-op", async () => {
+  const w = world();
+  const res = await accountDeleteResponse(
+    { ...fake(w), verify: async () => verified },
+    { proof: "proof" },
+  );
+  assertEquals(res, { status: 200, body: { deleted: false } });
+  assert(
+    !w.calls.some(
+      (c) => c.startsWith("db.delete") || c.startsWith("db.unlink") || c.startsWith("updateUser"),
+    ),
+  );
+});
+
+Deno.test("delete: bad proof is 401, provider outage 503", async () => {
+  const w = world();
+  const bad = await accountDeleteResponse(
+    {
+      ...fake(w),
+      verify: async () => {
+        throw new AccountProofError("no");
+      },
+    },
+    { proof: "p" },
+  );
+  assertEquals(bad.status, 401);
+  const down = await accountDeleteResponse(
+    {
+      ...fake(w),
+      verify: async () => {
+        throw new AccountProviderError("down");
+      },
+    },
+    { proof: "p" },
+  );
+  assertEquals(down.status, 503);
 });

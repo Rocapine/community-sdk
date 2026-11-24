@@ -4,6 +4,7 @@
 --   merge_profiles         moves everything of `other` onto `main`, then the caller deletes `other`.
 --   account_link_and_merge links and merges in one transaction.
 --   reset_profile_identity_for  core's reset_profile_identity for a given profile (account deletion).
+--   account_delete_profile reset + push rows + sessions of a profile (account-delete).
 --   account_hook_exists    tells the edge function which optional host SQL hooks are installed.
 --   account_last_active, account_user_id_by_email, account_session_touch  helpers of account-session.
 --   account_session_calls  rate-limit store of the account-session function.
@@ -159,6 +160,26 @@ begin
 end;
 $$;
 
+-- Account deletion, step one: resets the profile's identity, drops its push rows and revokes every
+-- session (auth.refresh_tokens cascade), in one transaction. The edge function then unlinks.
+create or replace function public.account_delete_profile(p_profile uuid)
+returns void
+language plpgsql volatile security definer
+set search_path = public, extensions
+as $$
+begin
+  perform public.reset_profile_identity_for(p_profile);
+  if to_regclass('public.push_tokens') is not null then
+    delete from public.push_tokens where user_id = p_profile;
+  end if;
+  -- Created by a later push migration.
+  if to_regclass('public.push_devices') is not null then
+    delete from public.push_devices where user_id = p_profile;
+  end if;
+  delete from auth.sessions where user_id = p_profile;
+end;
+$$;
+
 -- True when the app installed the named optional hook (signatures: see the accounts docs).
 create or replace function public.account_hook_exists(name text)
 returns boolean
@@ -249,3 +270,5 @@ grant execute on function public.account_last_active(uuid[]) to service_role;
 grant execute on function public.account_user_id_by_email(text) to service_role;
 revoke execute on function public.account_session_touch(text) from public, anon, authenticated;
 grant execute on function public.account_session_touch(text) to service_role;
+revoke execute on function public.account_delete_profile(uuid) from public, anon, authenticated;
+grant execute on function public.account_delete_profile(uuid) to service_role;

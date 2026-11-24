@@ -41,6 +41,9 @@ export type AccountSessionDeps = {
       main: string,
       merge: string[],
     ): Promise<boolean>;
+    /** Resets the profile's identity, deletes its push rows and revokes every session, in one call. */
+    deleteProfileData(profile: string): Promise<void>;
+    unlink(provider: string, subject: string): Promise<void>;
     /** False when this account called less than 10 s ago. */
     touchRateLimit(subjectHash: string): Promise<boolean>;
   };
@@ -165,6 +168,42 @@ export async function accountSessionResponse(
   }
 }
 
+/** Deletes the account's data on the profile; false when no profile is linked. */
+export async function deleteAccountProfile(
+  deps: AccountSessionDeps,
+  { provider, subject }: { provider: string; subject: string },
+): Promise<boolean> {
+  const profile = await deps.db.linkedProfile(provider, subject);
+  if (!profile) return false;
+  // Reset and revoke first, so a crash later leaves the profile already empty and signed out.
+  await deps.db.deleteProfileData(profile);
+  await deps.db.unlink(provider, subject);
+  // The synthetic email goes, or a later sign-in with the same account would reach this profile.
+  await deps.authAdmin.updateUserById(profile, {
+    email: `${crypto.randomUUID()}@deleted.invalid`,
+    email_confirm: true,
+  });
+  return true;
+}
+
+export async function accountDeleteResponse(
+  deps: AccountSessionDeps & { verify(proof: string): Promise<VerifiedAccount> },
+  input: { proof: string } | { service: { provider: string; subject: string } },
+): Promise<{ status: number; body: unknown }> {
+  try {
+    const account = "proof" in input ? await deps.verify(input.proof) : input.service;
+    return { status: 200, body: { deleted: await deleteAccountProfile(deps, account) } };
+  } catch (e) {
+    if (e instanceof AccountProofError) return { status: 401, body: { error: "bad_proof" } };
+    if (e instanceof AccountProviderError) {
+      console.error("account-delete: provider unavailable", e.message);
+      return { status: 503, body: { error: "provider_unavailable" } };
+    }
+    console.error("account-delete failed", e);
+    return { status: 500, body: { error: "internal" } };
+  }
+}
+
 /** Only account_link_and_merge's own conflicts; any other unique violation is a bug (500). */
 export const isLinkConflict = (e: { code?: string; message: string }) =>
   e.code === "23505" &&
@@ -228,6 +267,19 @@ export function supabaseAccountDeps(
         }
         if (error) throw new Error(`account_link_and_merge: ${error.message}`);
         return data as boolean;
+      },
+      deleteProfileData: async (profile) => {
+        await rpc("account_delete_profile", { p_profile: profile });
+      },
+      unlink: async (provider, subject) => {
+        must(
+          await admin
+            .from("account_links")
+            .delete()
+            .eq("provider", provider)
+            .eq("subject", subject),
+          "account_links",
+        );
       },
       touchRateLimit: async (subjectHash) =>
         (await rpc<boolean | null>("account_session_touch", { p_subject_hash: subjectHash })) ===

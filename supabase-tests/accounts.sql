@@ -210,6 +210,7 @@ begin
     foreach fn in array array[
       'public.merge_profiles(gen_random_uuid(), gen_random_uuid())',
       'public.reset_profile_identity_for(gen_random_uuid())',
+      'public.account_delete_profile(gen_random_uuid())',
       'public.account_link_and_merge(''t'', ''s'', gen_random_uuid(), ''{}''::uuid[])',
       'public.account_hook_exists(''on_account_linked'')',
       'public.account_last_active(''{}''::uuid[])',
@@ -225,6 +226,23 @@ begin
       assert failed, r || ' must not execute ' || fn;
     end loop;
   end loop;
+
+  -- account_delete_profile: identity reset, push rows and sessions gone; o is the profile.
+  update public.profiles set username = 'Custom', username_set_by_user = true, bio = 'hi' where id = o;
+  if to_regclass('public.push_tokens') is not null then
+    insert into public.push_tokens (user_id, expo_push_token) values (o, 'other') on conflict do nothing;
+  end if;
+  insert into auth.sessions (id, user_id) values (gen_random_uuid(), o);
+  assert exists (select 1 from auth.sessions where user_id = o), 'o has a session';
+  perform public.account_delete_profile(o);
+  assert (select not username_set_by_user and bio is null from public.profiles where id = o), 'delete resets the identity';
+  assert not exists (select 1 from auth.sessions where user_id = o), 'delete revokes the sessions';
+  if to_regclass('public.push_tokens') is not null then
+    assert not exists (select 1 from public.push_tokens where user_id = o), 'delete drops the push token';
+  end if;
+  if to_regclass('public.push_devices') is not null then
+    assert not exists (select 1 from public.push_devices where user_id = o), 'delete drops the push devices';
+  end if;
 
   raise exception 'ACCOUNTS_TESTS_PASSED';
 end $$;
