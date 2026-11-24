@@ -17,6 +17,12 @@ let accountCheck: { subjectHash: string; checkedAt: number } | null = null;
 // When an account check that failed for a transient reason may run again (0: none pending).
 let retryAfter = 0;
 const RETRY_MS = 60_000;
+// Bumped by every host transition: a bootstrap started before one never applies its result.
+let epoch = 0;
+
+function assertCurrent(start: number): void {
+  if (epoch !== start) throw new Error("identity changed during the account check");
+}
 
 /**
  * Resolve the community user id, signing in anonymously on first use.
@@ -31,17 +37,23 @@ export function ensureIdentity(cfg: ResolvedCommunityConfig): Promise<string | n
     retryAfter = 0;
     inFlight = null; // re-run the account check that failed
   }
-  inFlight ??= bootstrap(cfg).then(
+  if (inFlight) return inFlight;
+  const start = epoch;
+  const p: Promise<string | null> = bootstrap(cfg, start).then(
     (uid) => {
-      if (uid === null) inFlight = null; // no identity yet: retry on the next call
+      // Accounts: a host transition happened meanwhile, so this id may be stale: retry.
+      if (cfg.host.getAccountProof && epoch !== start) return null;
+      // No identity yet: retry on the next call (after the backoff, if one is set).
+      if (uid === null && !retryAfter && inFlight === p) inFlight = null;
       return uid;
     },
     () => {
-      inFlight = null; // allow a retry on the next call
+      if (inFlight === p) inFlight = null; // allow a retry on the next call
       return null;
     },
   );
-  return inFlight;
+  inFlight = p;
+  return p;
 }
 
 /**
@@ -51,6 +63,7 @@ export function ensureIdentity(cfg: ResolvedCommunityConfig): Promise<string | n
  * fresh anonymous identity.
  */
 export function resetIdentity(): void {
+  epoch += 1;
   inFlight = null;
   accountCheck = null;
   retryAfter = 0;
@@ -64,7 +77,7 @@ function resetSyncMemos(): void {
   lastSyncedBadgesKey = null;
 }
 
-async function bootstrap(cfg: ResolvedCommunityConfig): Promise<string | null> {
+async function bootstrap(cfg: ResolvedCommunityConfig, start: number): Promise<string | null> {
   const client = cfg.requireClient();
   const { data, error: sessionError } = await client.auth.getSession();
   // { session: null, error } = the stored session could not be refreshed right now
@@ -72,7 +85,7 @@ async function bootstrap(cfg: ResolvedCommunityConfig): Promise<string | null> {
   // storage. Signing in would overwrite it with a new user: retry on the next call.
   // A dead session is cleared by auth-js, so the next call reads { null, null }.
   if (!data.session && sessionError) throw sessionError;
-  if (cfg.host.getAccountProof) return accountBootstrap(cfg, data.session);
+  if (cfg.host.getAccountProof) return accountBootstrap(cfg, data.session, start);
   if (data.session) {
     await assignDefaultProfile(cfg);
     return data.session.user.id;
@@ -120,11 +133,14 @@ function accountHash(session: Session | null): string | null {
 async function accountBootstrap(
   cfg: ResolvedCommunityConfig,
   stored: Session | null,
+  start: number,
 ): Promise<string | null> {
   let session = stored;
   const hash = accountHash(session);
-  // An anonymous session is kept; the host converts it with accountSignedIn().
-  if (session && (!hash || accountCheck?.subjectHash === hash)) {
+  const required = cfg.accounts?.required === true;
+  // An anonymous session is kept (the host converts it with accountSignedIn()), unless
+  // accounts are required and the host is signed out. A checked account session is kept.
+  if (session && ((!hash && !required) || (hash && accountCheck?.subjectHash === hash))) {
     await assignDefaultProfile(cfg);
     return session.user.id;
   }
@@ -134,19 +150,39 @@ async function accountBootstrap(
     proof = await cfg.host.getAccountProof!();
   } catch (e) {
     warn("no account proof right now, keeping the session", e);
-    if (session) retryAfter = Date.now() + RETRY_MS;
+    assertCurrent(start);
+    retryAfter = Date.now() + RETRY_MS;
     return session?.user.id ?? null;
   }
 
+  if (session && !hash) {
+    // Accounts required: keep it only while the host is signed in.
+    if (proof) {
+      await assignDefaultProfile(cfg);
+      return session.user.id;
+    }
+    assertCurrent(start);
+    await signOutLocally(cfg);
+    return null;
+  }
   if (session && !proof) {
+    assertCurrent(start);
     await signOutLocally(cfg); // the host signed out
     session = null;
   }
   if (!session) {
-    if (!proof) return cfg.accounts?.required ? null : signInAnonymous(cfg);
+    if (!proof) {
+      if (required) return null;
+      assertCurrent(start);
+      return signInAnonymous(cfg);
+    }
     const opened = await callAccountSession(cfg, proof, null);
-    if (typeof opened === "string") return null;
-    await adoptAccount(cfg, opened, null);
+    if (typeof opened === "string") {
+      assertCurrent(start);
+      retryAfter = Date.now() + RETRY_MS; // don't call the provider on every service call
+      return null;
+    }
+    await adoptAccount(cfg, opened, null, start);
     await assignDefaultProfile(cfg);
     return opened.profile_id;
   }
@@ -159,10 +195,12 @@ async function accountBootstrap(
     return session.user.id;
   }
   if (opened === "failed") {
+    assertCurrent(start);
     retryAfter = Date.now() + RETRY_MS;
     return session.user.id;
   }
-  if (opened.subject_hash !== hash) await adoptAccount(cfg, opened, session);
+  if (opened.subject_hash !== hash) await adoptAccount(cfg, opened, session, start);
+  assertCurrent(start);
   accountCheck = { subjectHash: opened.subject_hash, checkedAt: Date.now() };
   await assignDefaultProfile(cfg);
   return opened.profile_id;
@@ -216,9 +254,12 @@ async function adoptAccount(
   cfg: ResolvedCommunityConfig,
   opened: OpenedAccount,
   previous: Session | null,
+  start: number,
 ): Promise<void> {
   const client = cfg.requireClient();
+  assertCurrent(start);
   if (accountHash(previous)) await unregisterQuietly(cfg);
+  assertCurrent(start);
   const { error } = await client.auth.setSession({
     access_token: opened.access_token,
     refresh_token: opened.refresh_token,
@@ -257,6 +298,9 @@ async function signOutLocally(cfg: ResolvedCommunityConfig): Promise<void> {
  */
 export async function accountSignedIn(cfg: ResolvedCommunityConfig): Promise<void> {
   const client = cfg.requireClient();
+  // Any bootstrap already running is stale from here on.
+  const start = ++epoch;
+  inFlight = null;
   const proof = await cfg.host.getAccountProof?.();
   if (!proof) throw new Error("accountSignedIn: the host gave no account proof");
   const { data, error } = await client.auth.getSession();
@@ -265,9 +309,13 @@ export async function accountSignedIn(cfg: ResolvedCommunityConfig): Promise<voi
   const opened = await callAccountSession(cfg, proof, data.session);
   if (typeof opened === "string") throw new Error(`accountSignedIn: account-session ${opened}`);
   if (opened.subject_hash !== accountHash(data.session)) {
-    await adoptAccount(cfg, opened, data.session);
-    inFlight = null;
+    await adoptAccount(cfg, opened, data.session, start);
   }
+  assertCurrent(start);
+  accountCheck = { subjectHash: opened.subject_hash, checkedAt: Date.now() };
+  retryAfter = 0;
+  epoch += 1; // a bootstrap started meanwhile may have read the old session
+  inFlight = null;
 }
 
 /**
@@ -278,6 +326,7 @@ export async function accountSignedIn(cfg: ResolvedCommunityConfig): Promise<voi
  */
 export async function accountSignedOut(cfg: ResolvedCommunityConfig): Promise<void> {
   if (!cfg.supabase) return;
+  resetIdentity(); // a running bootstrap must not apply its session over the sign-out
   await signOutLocally(cfg);
   resetIdentity();
 }
