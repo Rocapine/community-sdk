@@ -451,6 +451,26 @@ describe("runUpgrade", () => {
     expect(manifest.installedTemplates).toContain("images/images");
   });
 
+  it("adds the opt-in accounts module with addModules", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+    expect(readManifest(cwd)!.modules).not.toContain("accounts");
+
+    await runUpgrade(baseOptions({ addModules: ["accounts"] }));
+
+    const manifest = readManifest(cwd)!;
+    expect(manifest.modules).toContain("accounts");
+    expect(manifest.installedTemplates).toContain("accounts/accounts");
+    const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions"));
+    expect(fnDirs).toContain("account-session");
+  });
+
   it("warns when adding translation without polls", async () => {
     await runInit({
       cwd,

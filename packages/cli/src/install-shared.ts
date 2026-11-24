@@ -31,6 +31,9 @@ export const MODULE_ORDER = [
 ] as const;
 export type Module = (typeof MODULE_ORDER)[number];
 
+// Installed only when named: accounts needs the host's own account system and its secrets.
+const OPT_IN_MODULES: readonly Module[] = ["accounts"];
+
 const ALWAYS_FUNCTIONS = [
   "moderate-one",
   "daily-moderation",
@@ -53,7 +56,8 @@ export function functionsForModules(modules: readonly Module[]): string[] {
 }
 
 /**
- * Validates and canonicalizes a requested module list: rejects unknown
+ * Validates and canonicalizes a requested module list (none: every module but
+ * the opt-in ones): rejects unknown
  * names, always implies `core`, orders the result per MODULE_ORDER, and
  * warns (non-fatally) when `inbox` is picked without `reaction`.
  */
@@ -61,7 +65,10 @@ export function resolveModules(
   requested: string[] | undefined,
   onWarn: (message: string) => void,
 ): Module[] {
-  const source = requested && requested.length > 0 ? requested : [...MODULE_ORDER];
+  const source =
+    requested && requested.length > 0
+      ? requested
+      : MODULE_ORDER.filter((m) => !OPT_IN_MODULES.includes(m));
   const requestedSet = new Set(source.map((m) => m.trim()).filter(Boolean));
 
   for (const m of requestedSet) {

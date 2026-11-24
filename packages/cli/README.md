@@ -23,7 +23,8 @@ manifest at the repo root recording what was installed.
 
 - `--modules` — comma-separated (`core,push,polls,reaction,inbox,translation,images,attachments,badges,presence,accounts,streaks`). `core`
   is always implied even if omitted. Omit the flag entirely to install every
-  module. Regardless of the order you type them, modules are installed
+  module except `accounts`, which is opt-in (it needs the app's own account system:
+  name it in `--modules`, or add it later with `upgrade --add-modules accounts`). Regardless of the order you type them, modules are installed
   `core → push → polls → reaction → inbox → translation → images → attachments → badges → presence → accounts → streaks` — this order is load-bearing:
   the inbox module's reaction trigger is guarded at install time and must
   find the reaction module's table already present, so reaction has to land

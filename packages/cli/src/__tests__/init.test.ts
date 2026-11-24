@@ -142,6 +142,15 @@ describe("runInit", () => {
     expect(fnDirs).toContain("account-delete");
   });
 
+  it("init without --modules installs every module but accounts (opt-in)", async () => {
+    const result = await runInit(baseOptions());
+    expect(result.manifest.modules).not.toContain("accounts");
+    expect(result.manifest.modules).toContain("presence");
+    const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions"));
+    expect(fnDirs).not.toContain("account-session");
+    expect(fnDirs).not.toContain("account-delete");
+  });
+
   it("warns when inbox is selected without reaction, but proceeds", async () => {
     const onWarn = vi.fn();
     const result = await runInit(baseOptions({ modules: ["core", "inbox"], onWarn }));
