@@ -59,21 +59,23 @@ Deno.serve(async (req) => {
   };
 
   // Paged (PostgREST max_rows caps a single select, default 1000) with a total
-  // order so pages don't overlap. Newest registration first: a reinstall
-  // creates a new anonymous user while the old row keeps the same token, and
-  // the dedupe below keeps the first (newest) row's locale. Offset paging can
-  // skip a row if one is deleted mid-broadcast — acceptable.
+  // order so pages don't overlap: updated_at desc, user_id, then device_id for
+  // push_devices (its key is (user_id, device_id); push_tokens has one row per
+  // user). Newest registration first: a reinstall creates a new anonymous user
+  // while the old row keeps the same token, and the dedupe below keeps the first
+  // (newest) row's locale. Offset paging can skip a row if one is deleted
+  // mid-broadcast — acceptable.
   // Two queries for everyone: the per-device tokens, then the legacy single tokens.
   const paged = (table: string) =>
-    fetchAllRows((from, to) =>
-      supabase
+    fetchAllRows((from, to) => {
+      const q = supabase
         .from(table)
         .select("user_id, expo_push_token, profiles(locale)")
         .not("expo_push_token", "is", null)
         .order("updated_at", { ascending: false })
-        .order("user_id")
-        .range(from, to),
-    );
+        .order("user_id");
+      return (table === "push_devices" ? q.order("device_id") : q).range(from, to);
+    });
   const rows = [...(await paged("push_devices")), ...(await paged("push_tokens"))];
   // The author's own devices: their center never lists their own post.
   const seen = new Set<string>(

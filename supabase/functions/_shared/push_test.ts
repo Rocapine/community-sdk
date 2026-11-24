@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import {
   type ExpoPushMessage,
+  dropInvalidTokens,
   recipientTokens,
   sendExpoPushBatch,
   unreadBadge,
@@ -222,4 +223,46 @@ Deno.test("a single message answers with an object, still handled", async () => 
   } finally {
     console.error = original;
   }
+});
+
+Deno.test("dropInvalidTokens: only the given tokens, in chunks of 100", async () => {
+  const calls: { table: string; op: string; tokens: string[] }[] = [];
+  const supabase = {
+    from: (table: string) => ({
+      delete: () => ({
+        in: (_c: string, tokens: string[]) => {
+          calls.push({ table, op: "delete", tokens });
+          return Promise.resolve({ error: null });
+        },
+      }),
+      update: () => ({
+        in: (_c: string, tokens: string[]) => {
+          calls.push({ table, op: "update", tokens });
+          return Promise.resolve({ error: { message: "boom" } });
+        },
+      }),
+    }),
+  };
+  const original = console.error;
+  console.error = () => {};
+  try {
+    await dropInvalidTokens(supabase, []);
+    assertEquals(calls.length, 0);
+    const tokens = Array.from({ length: 250 }, (_, i) => `t${i}`);
+    await dropInvalidTokens(supabase, tokens);
+  } finally {
+    console.error = original;
+  }
+  assertEquals(
+    calls.map((c) => `${c.table}:${c.op}:${c.tokens.length}`),
+    [
+      "push_devices:delete:100",
+      "push_tokens:update:100",
+      "push_devices:delete:100",
+      "push_tokens:update:100",
+      "push_devices:delete:50",
+      "push_tokens:update:50",
+    ],
+  );
+  assertEquals(calls.flatMap((c) => (c.op === "delete" ? c.tokens : [])).length, 250);
 });

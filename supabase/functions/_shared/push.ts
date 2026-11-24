@@ -117,7 +117,7 @@ export async function sendExpoPushBatch(
       const tickets = Array.isArray(parsed.data) ? parsed.data : parsed.data ? [parsed.data] : [];
       tickets.forEach((t: { status?: string; details?: { error?: string } }, i) => {
         if (t?.status === "error" && t.details?.error === "DeviceNotRegistered") {
-          invalidTokens.push(chunk[i].to);
+          if (chunk[i]) invalidTokens.push(chunk[i].to);
         }
       });
     } catch (error) {
@@ -169,10 +169,18 @@ export async function dropInvalidTokens(
   supabase: { from: (table: string) => any },
   invalidTokens: string[],
 ): Promise<void> {
-  if (invalidTokens.length === 0) return;
-  await supabase.from("push_devices").delete().in("expo_push_token", invalidTokens);
-  await supabase
-    .from("push_tokens")
-    .update({ expo_push_token: null })
-    .in("expo_push_token", invalidTokens);
+  // Chunked: the tokens travel in the URL, and a long list would exceed PostgREST's limit.
+  for (let i = 0; i < invalidTokens.length; i += 100) {
+    const chunk = invalidTokens.slice(i, i + 100);
+    const results = [
+      await supabase.from("push_devices").delete().in("expo_push_token", chunk),
+      await supabase
+        .from("push_tokens")
+        .update({ expo_push_token: null })
+        .in("expo_push_token", chunk),
+    ];
+    for (const { error } of results) {
+      if (error) console.error("expo push: pruning dead tokens failed", error.message);
+    }
+  }
 }
