@@ -8,7 +8,8 @@ declare
   m uuid := gen_random_uuid();
   o uuid := gen_random_uuid();
   p_both uuid; p_o uuid;
-  c_both uuid; c_o uuid; opt uuid;
+  c_both uuid; c_o uuid; opt uuid; x uuid := gen_random_uuid();
+  r text; fn text;
   rec record;
   n int;
   failed boolean;
@@ -21,7 +22,7 @@ declare
     'notification_seen.user_id', 'notification_reads.user_id', 'poll_votes.user_id',
     'post_reactions.user_id', 'member_presence.user_id', 'push_tokens.user_id', 'push_devices.user_id'];
 begin
-  insert into auth.users (id) values (m), (o);
+  insert into auth.users (id) values (m), (o), (x);
   assert exists (select 1 from public.profiles where id = m), 'the auth trigger creates the profile';
 
   -- Content: o has a post and two comments, m has a post.
@@ -36,6 +37,11 @@ begin
   -- A block between the two must vanish, not become a self-block.
   insert into public.blocks (blocker_id, blocked_id) values (o, m);
   insert into public.reports (reporter_id, reported_user_id, post_id, reason) values (o, m, p_both, 'spam'), (m, o, p_o, 'spam');
+  insert into public.moderation_actions (actor_email, action, target_user_id) values ('t@example.com', 'ban', o);
+  insert into public.post_drafts (author_id, created_by, updated_by) values (o, 't@example.com', 't@example.com');
+  if to_regclass('public.notifications') is not null then
+    insert into public.notifications (user_id, kind, actor_id, post_id) values (o, 'test', x, p_both), (x, 'test', o, p_both);
+  end if;
   -- Optional modules, only where installed.
   if to_regclass('public.post_reactions') is not null then
     insert into public.post_reactions (post_id, user_id) values (p_both, m), (p_both, o), (p_o, o);
@@ -75,6 +81,12 @@ begin
   assert (select count(*) from public.comment_likes where comment_id = c_both and user_id = m) = 1, 'one comment like, not two';
   assert (select count(*) from public.blocks where blocker_id = m and blocked_id = m) = 0, 'no self-block';
   assert (select count(*) from public.reports where reporter_id = m and reported_user_id = m) = 2, 'reports moved';
+  assert (select count(*) from public.moderation_actions where target_user_id = m) = 1, 'moderation action moved';
+  assert (select count(*) from public.post_drafts where author_id = m) = 1, 'draft moved';
+  if to_regclass('public.notifications') is not null then
+    assert (select count(*) from public.notifications where user_id = m and actor_id = x and kind = 'test') = 1, 'notification user_id moved';
+    assert (select count(*) from public.notifications where user_id = x and actor_id = m and kind = 'test') = 1, 'notification actor_id moved';
+  end if;
   if to_regclass('public.push_devices') is not null then
     assert (select expo_push_token from public.push_devices where user_id = m and device_id = 'd1') = 'a', 'main keeps its device row';
     assert (select count(*) from public.push_devices where user_id = m) = 2, 'o''s other device moved';
@@ -163,14 +175,22 @@ begin
   end;
   reset role;
   assert failed, 'anon must not read account_links';
-  set local role authenticated;
-  failed := false;
-  begin
-    perform public.merge_profiles(m, o);
-  exception when insufficient_privilege then failed := true;
-  end;
-  reset role;
-  assert failed, 'authenticated must not call merge_profiles';
+  foreach r in array array['authenticated', 'anon'] loop
+    foreach fn in array array[
+      'public.merge_profiles(gen_random_uuid(), gen_random_uuid())',
+      'public.reset_profile_identity_for(gen_random_uuid())',
+      'public.account_link_and_merge(''t'', ''s'', gen_random_uuid(), ''{}''::uuid[])',
+      'public.account_hook_exists(''on_account_linked'')'] loop
+      execute format('set local role %I', r);
+      failed := false;
+      begin
+        execute 'select ' || fn;
+      exception when insufficient_privilege then failed := true;
+      end;
+      reset role;
+      assert failed, r || ' must not execute ' || fn;
+    end loop;
+  end loop;
 
   raise exception 'ACCOUNTS_TESTS_PASSED';
 end $$;
