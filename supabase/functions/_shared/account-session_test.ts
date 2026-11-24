@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertMatch } from "jsr:@std/assert@1";
+import { assert, assertEquals, assertMatch, assertRejects } from "jsr:@std/assert@1";
 import { AccountProofError, AccountProviderError, syntheticEmail } from "./accounts.ts";
 import {
   accountDeleteResponse,
@@ -7,6 +7,7 @@ import {
   HttpError,
   isLinkConflict,
   parseDeleteRequest,
+  supabaseAccountDeps,
   type AccountSessionDeps,
   type AuthUser,
 } from "./account-session.ts";
@@ -491,3 +492,32 @@ Deno.test("parseDeleteRequest: only the service role may name an account", () =>
   assertEquals(parseDeleteRequest({}, true), { status: 400, error: "bad_request" });
   assertEquals(parseDeleteRequest(null, true), { status: 400, error: "bad_request" });
 });
+
+// GoTrue answers an admin email change onto a taken address with a bare 500, not email_exists.
+Deno.test(
+  "supabaseAccountDeps: a 500 on an email held by another user is EmailTakenError",
+  async () => {
+    const admin = (holder: string | null) =>
+      ({
+        auth: {
+          admin: {
+            updateUserById: async () => ({
+              data: { user: null },
+              error: { status: 500, message: "Error updating user" },
+            }),
+          },
+        },
+        rpc: async () => ({ data: holder, error: null }),
+      }) as unknown as Parameters<typeof supabaseAccountDeps>[0];
+    const update = (holder: string | null) =>
+      supabaseAccountDeps(admin(holder), () => admin(null), SECRET).authAdmin.updateUserById("me", {
+        email: "a@b.c",
+        email_confirm: true,
+      });
+    await assertRejects(() => update("someone-else"), EmailTakenError);
+    const other = await update(null).catch((e) => e);
+    assert(!(other instanceof EmailTakenError));
+    const own = await update("me").catch((e) => e);
+    assert(!(own instanceof EmailTakenError));
+  },
+);

@@ -243,6 +243,8 @@ export function supabaseAccountDeps(
   const rpc = async <T>(fn: string, args: Record<string, unknown>) =>
     must<T>(await admin.rpc(fn, args), fn);
   const hookExists = (name: string) => rpc<boolean>("account_hook_exists", { name });
+  const userIdByEmail = (email: string) =>
+    rpc<string | null>("account_user_id_by_email", { p_email: email });
 
   return {
     secret,
@@ -270,7 +272,7 @@ export function supabaseAccountDeps(
             })
           ).map((r) => [r.profile_id, Date.parse(r.at)]),
         ),
-      userIdByEmail: (email) => rpc<string | null>("account_user_id_by_email", { p_email: email }),
+      userIdByEmail,
       linkAndMerge: async (provider, subject, main, merge) => {
         const { data, error } = await admin.rpc("account_link_and_merge", {
           p_provider: provider,
@@ -310,8 +312,12 @@ export function supabaseAccountDeps(
       },
       updateUserById: async (id, attrs) => {
         const { error } = await admin.auth.admin.updateUserById(id, attrs);
-        if (error && isEmailTaken(error)) throw new EmailTakenError(error.message);
-        if (error) throw new Error(`updateUserById: ${error.message}`);
+        if (!error) return;
+        // GoTrue answers an email change onto a taken address with a bare 500 "Error updating user".
+        if (isEmailTaken(error) || ((await userIdByEmail(attrs.email)) ?? id) !== id) {
+          throw new EmailTakenError(error.message);
+        }
+        throw new Error(`updateUserById: ${error.message}`);
       },
       createUser: async (attrs) => {
         const { data, error } = await admin.auth.admin.createUser(attrs);
