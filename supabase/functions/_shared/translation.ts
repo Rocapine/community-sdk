@@ -136,6 +136,11 @@ export function targetChunks(contentLength: number, targets: string[]): string[]
   return chunks;
 }
 
+/** Folds compatibility characters (math-styled letters, full-width forms) to plain text. */
+export function normalizeForTranslation(text: string): string {
+  return text.normalize("NFKC");
+}
+
 /** Translates into every target, in parallel calls of at most OUTPUT_CHARS_PER_CALL
  * each. Returns null when any call fails (caller writes nothing). */
 export async function translateItem(input: {
@@ -144,11 +149,26 @@ export async function translateItem(input: {
   targets: string[];
 }): Promise<ParsedTranslation | null> {
   if (input.targets.length === 0) return { sourceLocale: "", translations: {} };
+  // Styled Unicode (𝐛𝐨𝐥𝐝, 𝚖𝚘𝚗𝚘…) costs many tokens per letter and comes back half
+  // untranslated; NFKC folds it to plain letters.
+  input = {
+    ...input,
+    content: normalizeForTranslation(input.content),
+    options: input.options.map(normalizeForTranslation),
+  };
   // Poll labels are translated too, so they count toward each call's output.
   const length = input.content.length + input.options.reduce((n, o) => n + o.length, 0);
-  const parts = await Promise.all(
-    targetChunks(length, input.targets).map((targets) => translateChunk({ ...input, targets })),
+  return mergeParts(
+    await Promise.all(
+      targetChunks(length, input.targets).map((targets) =>
+        translateTargets({ ...input, targets }, translateChunk),
+      ),
+    ),
   );
+}
+
+/** One result from parallel calls; null when any of them failed. */
+function mergeParts(parts: (ParsedTranslation | null)[]): ParsedTranslation | null {
   if (parts.some((p) => p === null)) return null;
   const done = parts as ParsedTranslation[];
   return {
@@ -157,12 +177,34 @@ export async function translateItem(input: {
   };
 }
 
-/** One OpenAI call. Returns null on any failure. */
-async function translateChunk(input: {
-  content: string;
-  options: string[];
-  targets: string[];
-}): Promise<ParsedTranslation | null> {
+/** translateChunk's answer when OpenAI's content filter cut the response. */
+export const FILTERED = "filtered";
+type ChunkInput = { content: string; options: string[]; targets: string[] };
+type ChunkCall = (input: ChunkInput) => Promise<ParsedTranslation | null | typeof FILTERED>;
+
+/** The content filter trips at random on some locales (the Lord's Prayer in
+ * Slovak: about 1 call in 3), and one tripped locale used to sink every target
+ * of the call. A filtered call is split into one call per locale, and a single
+ * locale gets a second try. Exported for tests (`call` is injectable). */
+export async function translateTargets(
+  input: ChunkInput,
+  call: ChunkCall,
+): Promise<ParsedTranslation | null> {
+  const first = await call(input);
+  if (first !== FILTERED) return first;
+  if (input.targets.length === 1) {
+    const again = await call(input);
+    return again === FILTERED ? null : again;
+  }
+  return mergeParts(
+    await Promise.all(input.targets.map((t) => translateTargets({ ...input, targets: [t] }, call))),
+  );
+}
+
+/** One OpenAI call. Returns FILTERED when the content filter cut it, null on any other failure. */
+async function translateChunk(
+  input: ChunkInput,
+): Promise<ParsedTranslation | null | typeof FILTERED> {
   const perLocale: Record<string, unknown> = {};
   for (const l of input.targets) {
     perLocale[l] = {
@@ -231,6 +273,16 @@ async function translateChunk(input: {
       return null;
     }
     const data = await res.json();
+    if (data.status !== "completed") {
+      // A cut-off response (max_output_tokens, content_filter…) is not parseable JSON.
+      console.error(
+        "translation incomplete",
+        data.status,
+        JSON.stringify(data.incomplete_details),
+        JSON.stringify(data.usage),
+      );
+      return data.incomplete_details?.reason === "content_filter" ? FILTERED : null;
+    }
     // Responses API: the JSON text lives in output[].content[].text, on "message" items only
     // ("reasoning" items have no output_text content and must never be picked). output_text is
     // an SDK-side convenience that raw REST responses do not carry, so the fallback below is the
