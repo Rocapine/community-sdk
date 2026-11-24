@@ -25,6 +25,7 @@ export const MODULE_ORDER = [
   "attachments",
   "badges",
   "presence",
+  "accounts",
   // Deprecated: kept to move existing streaks onto badges (streaks/002). Implies badges.
   "streaks",
 ] as const;
@@ -40,12 +41,14 @@ const ALWAYS_FUNCTIONS = [
 const PUSH_FUNCTIONS = ["notify-like", "notify-comment", "broadcast-post"];
 const REACTION_FUNCTIONS = ["notify-reaction"];
 const TRANSLATION_FUNCTIONS = ["translate-one", "daily-translation"];
+const ACCOUNTS_FUNCTIONS = ["account-session", "account-delete"];
 
 export function functionsForModules(modules: readonly Module[]): string[] {
   const set = new Set<string>(ALWAYS_FUNCTIONS);
   if (modules.includes("push")) for (const f of PUSH_FUNCTIONS) set.add(f);
   if (modules.includes("reaction")) for (const f of REACTION_FUNCTIONS) set.add(f);
   if (modules.includes("translation")) for (const f of TRANSLATION_FUNCTIONS) set.add(f);
+  if (modules.includes("accounts")) for (const f of ACCOUNTS_FUNCTIONS) set.add(f);
   return [...set];
 }
 

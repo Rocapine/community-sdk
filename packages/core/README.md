@@ -79,6 +79,9 @@ const config: CommunityConfig = {
   // Optional, push module. Every admin post is pushed to every member, and so listed
   // in their notification center (default false: the admin picks per post).
   adminPostsNotifyAll: true,
+  // Optional, accounts module (with host.getAccountProof). `required`: never sign in
+  // anonymously; signed out of the app = no community session.
+  accounts: { required: false },
 
   // Host adapters — every field optional, no-op defaults.
   host: {
@@ -91,6 +94,11 @@ const config: CommunityConfig = {
     },
     onContentPublished: () => myReviewGate.arm(),
     getLocale: () => "en",
+    // Accounts module: a short-lived proof of the app account, null when signed out.
+    getAccountProof: async () =>
+      myAuth.isSignedIn() ? { provider: "appwrite", token: await myAuth.createJWT() } : null,
+    // Push module: a stable id of this install, keying its push_devices row.
+    getInstallId: () => myInstall.id,
   },
 };
 ```
@@ -109,15 +117,17 @@ backend configured — the pattern `examples/expo-app` uses when
 
 All optional, all default to a no-op:
 
-| Field                | Signature                                                | Purpose                                                                                                                                                                                                                                                                                                             |
-| -------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `getDisplayName`     | `() => string \| null`                                   | Feeds the display name shown for the current user before their community username is set                                                                                                                                                                                                                            |
-| `getAnalyticsIds`    | `() => { amplitudeId?: string; revenuecatId?: string }`  | Cross-referencing ids attached where the host wants them                                                                                                                                                                                                                                                            |
-| `onEvent`            | `(name: string, props: Record<string, unknown>) => void` | **The only analytics seam.** Every product event goes through this; the SDK never depends on any analytics provider. Never throws through to the UI even if the adapter itself throws                                                                                                                               |
-| `rulesAcceptance`    | `{ get(): Promise<boolean>; set(): Promise<void> }`      | Persists whether the user has accepted the one-time community guidelines sheet                                                                                                                                                                                                                                      |
-| `onContentPublished` | `() => void`                                             | Fired after a post/comment is successfully published (e.g. to arm a review-gate)                                                                                                                                                                                                                                    |
-| `getBadges`          | `() => MemberBadges \| null`                             | Badges module: this member's badges, keyed by the ids in `modules.badges` (e.g. `streakBadgeData({ startedAt, bestDays })`), mirrored to the profile by `syncProfileFromHost` (call it again on app foreground). Synchronous — read an already-warmed cache. `null`: nothing to mirror                              |
-| `getLocale`          | `() => string`                                           | The app's language. Resolved against `modules.translation.locales` to choose the language content is read in (`readerLocale`), and mirrored to `profiles.locale` by `syncProfileFromHost` so pushes arrive in each recipient's language. Distinct from the UI package's `translations.locale` prop (interface copy) |
+| Field                | Signature                                                    | Purpose                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `getDisplayName`     | `() => string \| null`                                       | Feeds the display name shown for the current user before their community username is set                                                                                                                                                                                                                                                                                             |
+| `getAnalyticsIds`    | `() => { amplitudeId?: string; revenuecatId?: string }`      | Cross-referencing ids attached where the host wants them                                                                                                                                                                                                                                                                                                                             |
+| `onEvent`            | `(name: string, props: Record<string, unknown>) => void`     | **The only analytics seam.** Every product event goes through this; the SDK never depends on any analytics provider. Never throws through to the UI even if the adapter itself throws                                                                                                                                                                                                |
+| `rulesAcceptance`    | `{ get(): Promise<boolean>; set(): Promise<void> }`          | Persists whether the user has accepted the one-time community guidelines sheet                                                                                                                                                                                                                                                                                                       |
+| `onContentPublished` | `() => void`                                                 | Fired after a post/comment is successfully published (e.g. to arm a review-gate)                                                                                                                                                                                                                                                                                                     |
+| `getBadges`          | `() => MemberBadges \| null`                                 | Badges module: this member's badges, keyed by the ids in `modules.badges` (e.g. `streakBadgeData({ startedAt, bestDays })`), mirrored to the profile by `syncProfileFromHost` (call it again on app foreground). Synchronous — read an already-warmed cache. `null`: nothing to mirror                                                                                               |
+| `getAccountProof`    | `() => Promise<{ provider: string; token: string } \| null>` | Accounts module: a proof of the app account the member is signed in to (e.g. an Appwrite JWT, or any JWT the backend's JWKS settings check). `null` = signed out. Throw when signed in but no proof can be made right now (offline, provider down): the SDK then keeps the session it has. Its presence switches identity to account mode, see [Accounts](#accounts-accounts-module) |
+| `getInstallId`       | `() => string \| null`                                       | Push module: a stable id of this install, keying this device's `push_devices` row so a member on several devices gets each push on each. `null` (default) skips the per-device row                                                                                                                                                                                                   |
+| `getLocale`          | `() => string`                                               | The app's language. Resolved against `modules.translation.locales` to choose the language content is read in (`readerLocale`), and mirrored to `profiles.locale` by `syncProfileFromHost` so pushes arrive in each recipient's language. Distinct from the UI package's `translations.locale` prop (interface copy)                                                                  |
 
 ### Polls (`modules.polls`)
 
@@ -143,6 +153,46 @@ resolved settings, or `null` with the module off. Hooks: `useOnlineCount()`,
 "show when I'm online" switch; event `community_presence_visibility_changed`,
 props `{ visible }`). RPCs never return a timestamp; blocked members never see each
 other's dot; hidden members still count.
+
+### Accounts (`accounts` module)
+
+With `host.getAccountProof` set, the member has one community profile per app
+account instead of one per install. Backend setup, secrets and the optional SQL
+hooks: [`docs/backend-runbook.md`](../../docs/backend-runbook.md#7-accounts).
+All three take the resolved config (`resolveConfig(config)`):
+
+- `accountSignedIn(cfg)`: opens the account profile's session. The device's
+  anonymous profile is converted into it (first device) or merged into it (its
+  posts, comments, likes… move over). Rejects, keeping the current session,
+  when there is no proof or the backend refused or failed: call it again later.
+  Of two concurrent calls the first rejects ("identity changed"): call again later
+  (the backend also answers one call per account per 10 s).
+- `accountSignedOut(cfg)`: deletes this device's push row, signs out locally;
+  the next `ensureIdentity()` opens a fresh anonymous profile (none with
+  `accounts.required`). Never throws.
+- `deleteAccountProfile(cfg)`: resets the account profile (default name, no
+  bio or avatar; posts stay under the pseudonym), signs out every device and
+  unlinks the account, then signs out like `accountSignedOut`. Resolves
+  `false`, keeping everything, when there is no proof or the backend failed.
+
+The host's side of the contract:
+
+1. Call `accountSignedIn()` **every time the host session is (re)established**:
+   sign-in, sign-up, and app launch for a member already signed in. Without it
+   a stored anonymous session is kept as it is.
+2. On logout, call `accountSignedOut()` **before** the host's own logout. A
+   switch from account A to B is `accountSignedOut()` then `accountSignedIn()`.
+3. On account deletion, call `deleteAccountProfile()` **before** disabling the
+   host account (it needs one last proof), and do not disable it when it
+   returns `false`: retry.
+4. With the push module, call `registerPushDevice(cfg, expoPushToken)` again
+   after any transition (sign-in, sign-out, deletion): the device's push row
+   belongs to the profile it was registered on. `unregisterPushDevice(cfg)`
+   deletes it; the transitions already do.
+
+At launch, `ensureIdentity()` checks a stored account session against
+`getAccountProof()` once: a signed-out host drops it, another account replaces
+it, a provider outage keeps it and retries a minute later.
 
 ### Feed row extension point (`CommunityConfig.feed`)
 
@@ -235,7 +285,10 @@ runs in production and is silent in degraded mode.
   nothing resolves. `languageOf(locale)` — the bare-language prefix of a
   locale tag (e.g. `"es-419"` → `"es"`).
 - **Identity**: `ensureIdentity()`, `resetIdentity()`, `syncProfileFromHost()`
-  — anonymous Supabase auth session management.
+  — Supabase auth session management (anonymous, or per account with the
+  accounts module: `accountSignedIn()`, `accountSignedOut()`,
+  `deleteAccountProfile()`). **Push devices**: `registerPushDevice()`,
+  `unregisterPushDevice()`.
 - **Queries** (`service.ts`): `fetchFeedPage`, `countNewPosts`, `fetchProfile`,
   `fetchUserPosts`, `searchPosts`, `fetchThread`, `createPost`, `votePoll`,
   `createComment`, `moderateOne`, `setLike`, `setReaction`,

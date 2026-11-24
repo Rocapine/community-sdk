@@ -57,6 +57,7 @@ describe("runInit", () => {
       "push",
       "push",
       "push",
+      "push",
       "polls",
       "polls",
       "reaction",
@@ -129,6 +130,16 @@ describe("runInit", () => {
     expect(result.manifest.modules).toEqual(["core", "presence"]);
     const files = fs.readdirSync(path.join(cwd, "supabase", "migrations"));
     expect(files.some((f) => f.includes("_community_presence_"))).toBe(true);
+  });
+
+  it("init with --modules accounts installs account-session and account-delete and accounts/001", async () => {
+    const result = await runInit(baseOptions({ modules: ["accounts"] }));
+    expect(result.manifest.modules).toEqual(["core", "accounts"]);
+    const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
+    expect(files.at(-1)).toMatch(/_community_accounts_accounts\.sql$/);
+    const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions"));
+    expect(fnDirs).toContain("account-session");
+    expect(fnDirs).toContain("account-delete");
   });
 
   it("warns when inbox is selected without reaction, but proceeds", async () => {
