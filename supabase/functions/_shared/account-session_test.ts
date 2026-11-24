@@ -6,6 +6,7 @@ import {
   EmailTakenError,
   HttpError,
   isLinkConflict,
+  parseDeleteRequest,
   type AccountSessionDeps,
   type AuthUser,
 } from "./account-session.ts";
@@ -357,7 +358,7 @@ Deno.test("provider down answers 503", async () => {
   assertEquals(w.calls, []);
 });
 
-Deno.test("delete resets, revokes, unlinks, then retires the email", async () => {
+Deno.test("delete resets, revokes, retires the email, then unlinks", async () => {
   const email = await syntheticEmail(SECRET, "appwrite", "acct-1");
   const w = world({
     links: new Map([["appwrite:acct-1", "main"]]),
@@ -373,7 +374,7 @@ Deno.test("delete resets, revokes, unlinks, then retires the email", async () =>
       (c) =>
         c.startsWith("db.delete") || c.startsWith("db.unlink") || c.startsWith("updateUserById"),
     ),
-    ["db.deleteProfileData:main", "db.unlink:appwrite:acct-1", "updateUserById:main"],
+    ["db.deleteProfileData:main", "updateUserById:main", "db.unlink:appwrite:acct-1"],
   );
   assertEquals(w.links.size, 0);
   assertMatch(w.users.get("main")!.email!, /^[0-9a-f-]{36}@deleted\.invalid$/);
@@ -433,4 +434,60 @@ Deno.test("delete: bad proof is 401, provider outage 503", async () => {
     { proof: "p" },
   );
   assertEquals(down.status, 503);
+});
+
+const linkedWorld = () =>
+  world({
+    links: new Map([["appwrite:acct-1", "main"]]),
+    users: new Map([["main", { id: "main", email: "x", is_anonymous: false }]]),
+  });
+const del = (d: AccountSessionDeps) =>
+  accountDeleteResponse({ ...d, verify: async () => verified }, { proof: "p" });
+
+Deno.test("delete: a failed email step keeps the link, and a retry completes", async () => {
+  const w = linkedWorld();
+  const f = fake(w);
+  const failing = {
+    ...f,
+    authAdmin: {
+      ...f.authAdmin,
+      updateUserById: async () => {
+        throw new Error("auth down");
+      },
+    },
+  };
+  assertEquals((await del(failing)).status, 500);
+  assertEquals(w.links.size, 1);
+  assertEquals(await del(f), { status: 200, body: { deleted: true } });
+  assertEquals(w.links.size, 0);
+  assertMatch(w.users.get("main")!.email!, /@deleted\.invalid$/);
+});
+
+Deno.test("delete: a failed unlink after the rotation, and a retry completes", async () => {
+  const w = linkedWorld();
+  const f = fake(w);
+  const failing = {
+    ...f,
+    db: {
+      ...f.db,
+      unlink: async () => {
+        throw new Error("db down");
+      },
+    },
+  };
+  assertEquals((await del(failing)).status, 500);
+  assertMatch(w.users.get("main")!.email!, /@deleted\.invalid$/);
+  assertEquals(w.links.size, 1);
+  assertEquals(await del(f), { status: 200, body: { deleted: true } });
+  assertEquals(w.links.size, 0);
+});
+
+Deno.test("parseDeleteRequest: only the service role may name an account", () => {
+  const named = { provider: "appwrite", subject: "acct-1" };
+  assertEquals(parseDeleteRequest(named, false), { status: 401, error: "bad_proof" });
+  assertEquals(parseDeleteRequest(named, true), { input: { service: named } });
+  assertEquals(parseDeleteRequest({ proof: "p" }, false), { input: { proof: "p" } });
+  assertEquals(parseDeleteRequest({ proof: "p", ...named }, false), { input: { proof: "p" } });
+  assertEquals(parseDeleteRequest({}, true), { status: 400, error: "bad_request" });
+  assertEquals(parseDeleteRequest(null, true), { status: 400, error: "bad_request" });
 });

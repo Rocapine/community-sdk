@@ -2,10 +2,15 @@
 // Resets the account profile's identity, drops its push rows, revokes its sessions and unlinks
 // the account: 200 { deleted } (false when no profile was linked), 401 bad_proof,
 // 503 provider_unavailable. Logic: _shared/account-session.ts.
+// Deploy with verify_jwt ON: the service-role check relies on the gateway verifying the JWT signature.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { readAccountEnv, verifyProof } from "../_shared/accounts.ts";
-import { accountDeleteResponse, supabaseAccountDeps } from "../_shared/account-session.ts";
+import {
+  accountDeleteResponse,
+  parseDeleteRequest,
+  supabaseAccountDeps,
+} from "../_shared/account-session.ts";
 import { adminClient, isServiceCaller, json, preflight, SUPABASE_URL } from "../_shared/client.ts";
 
 const env = readAccountEnv((k) => Deno.env.get(k));
@@ -27,17 +32,9 @@ Deno.serve(async (req) => {
   } catch {
     return json({ error: "bad_request" }, 400);
   }
-  const { proof, provider, subject } = body ?? {};
-  let input: Parameters<typeof accountDeleteResponse>[1];
-  if (typeof proof === "string" && proof) {
-    input = { proof };
-  } else if (typeof provider === "string" && typeof subject === "string" && provider && subject) {
-    // Without a proof, only the service role may name the account.
-    if (!isServiceCaller(req)) return json({ error: "bad_proof" }, 401);
-    input = { service: { provider, subject } };
-  } else {
-    return json({ error: "bad_request" }, 400);
-  }
+  const parsed = parseDeleteRequest(body, isServiceCaller(req));
+  if ("error" in parsed) return json({ error: parsed.error }, parsed.status);
+  const input = parsed.input;
   const { status, body: out } = await accountDeleteResponse(
     { ...deps, verify: (p) => verifyProof(p, env) },
     input,

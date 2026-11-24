@@ -177,13 +177,30 @@ export async function deleteAccountProfile(
   if (!profile) return false;
   // Reset and revoke first, so a crash later leaves the profile already empty and signed out.
   await deps.db.deleteProfileData(profile);
-  await deps.db.unlink(provider, subject);
-  // The synthetic email goes, or a later sign-in with the same account would reach this profile.
+  // Email before unlink: while the link exists a retry finds it and repeats these idempotent steps.
+  // Unlinking first would strand the old email, and a later sign-in would delete the profile as a squatter.
   await deps.authAdmin.updateUserById(profile, {
     email: `${crypto.randomUUID()}@deleted.invalid`,
     email_confirm: true,
   });
+  await deps.db.unlink(provider, subject);
   return true;
+}
+
+/** Reads an account-delete body: a proof, or a named account that only the service role may send. */
+export function parseDeleteRequest(
+  body: { proof?: unknown; provider?: unknown; subject?: unknown } | null,
+  isService: boolean,
+):
+  | { input: { proof: string } | { service: { provider: string; subject: string } } }
+  | { status: number; error: string } {
+  const { proof, provider, subject } = body ?? {};
+  if (typeof proof === "string" && proof) return { input: { proof } };
+  if (typeof provider === "string" && typeof subject === "string" && provider && subject) {
+    if (!isService) return { status: 401, error: "bad_proof" };
+    return { input: { service: { provider, subject } } };
+  }
+  return { status: 400, error: "bad_request" };
 }
 
 export async function accountDeleteResponse(
