@@ -103,6 +103,8 @@ begin
   assert (select username from public.profiles where id = m) = 'Chosen', 'main with the default name takes the chosen one';
   assert (select bio from public.profiles where id = m) = 'hi', 'and the bio';
   assert (select username_set_by_user from public.profiles where id = m), 'and now counts as chosen';
+  assert (select username is not distinct from default_username and bio is null and avatar_url is null and not username_set_by_user
+            from public.profiles where id = o), 'the merged-away profile keeps no name, bio or avatar';
 
   -- Both chosen: main keeps its own.
   perform set_config('community.trusted', 'on', true);
@@ -113,6 +115,17 @@ begin
   assert (select username from public.profiles where id = m) = 'Mine', 'both chosen: main keeps its name';
   assert (select bio from public.profiles where id = m) = 'mine', 'both chosen: main keeps its bio';
   assert not (select is_banned from public.profiles where id = m), 'not banned stays not banned';
+
+  -- Legacy push row: main without one takes other's preferences, never other's device token.
+  if to_regclass('public.push_tokens') is not null then
+    delete from public.push_tokens where user_id in (m, o);
+    insert into public.push_tokens (user_id, expo_push_token, notify_likes) values (o, 'other device', false);
+    perform public.merge_profiles(m, o);
+    assert (select expo_push_token is null and not notify_likes from public.push_tokens where user_id = m),
+      'the preferences move, the legacy token does not';
+    assert not exists (select 1 from public.push_tokens where expo_push_token = 'other device'),
+      'other''s legacy token reaches nobody';
+  end if;
 
   -- FK coverage: every foreign key to profiles(id) is handled, and nothing still points at o.
   for rec in
@@ -228,7 +241,8 @@ begin
   end loop;
 
   -- account_delete_profile: identity reset, push rows and sessions gone; o is the profile.
-  update public.profiles set username = 'Custom', username_set_by_user = true, bio = 'hi' where id = o;
+  update public.profiles set username = 'Custom', username_set_by_user = true, bio = 'hi',
+    revenuecat_id = 'rc', amplitude_id = 'amp' where id = o;
   if to_regclass('public.push_tokens') is not null then
     insert into public.push_tokens (user_id, expo_push_token) values (o, 'other') on conflict do nothing;
   end if;
@@ -236,6 +250,8 @@ begin
   assert exists (select 1 from auth.sessions where user_id = o), 'o has a session';
   perform public.account_delete_profile(o);
   assert (select not username_set_by_user and bio is null from public.profiles where id = o), 'delete resets the identity';
+  assert (select revenuecat_id is null and amplitude_id is null from public.profiles where id = o),
+    'delete clears the host ids, so no candidates hook adopts the profile again';
   assert not exists (select 1 from auth.sessions where user_id = o), 'delete revokes the sessions';
   if to_regclass('public.push_tokens') is not null then
     assert not exists (select 1 from public.push_tokens where user_id = o), 'delete drops the push token';

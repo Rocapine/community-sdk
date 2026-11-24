@@ -1,7 +1,7 @@
 -- community-sdk accounts/001_accounts.sql (schema v1)
 -- Optional module: one community profile per host-app account.
 --   account_links          (provider, subject) -> profile, the only source of truth for ownership.
---   merge_profiles         moves everything of `other` onto `main`, then the caller deletes `other`.
+--   merge_profiles         moves everything of `other` onto `main`; `other` stays, emptied, with the default identity.
 --   account_link_and_merge links and merges in one transaction.
 --   reset_profile_identity_for  core's reset_profile_identity for a given profile (account deletion).
 --   account_delete_profile reset + push rows + sessions of a profile (account-delete).
@@ -30,6 +30,7 @@ revoke all on table public.account_session_calls from public, anon, authenticate
 
 -- Moves every row that references `other` onto `main`. Where a table is unique per member, main's
 -- row wins and other's duplicate is dropped. Optional-module tables are skipped when absent.
+-- `other` keeps its (empty) row with the default name, no bio and no avatar: nothing deletes it.
 -- New foreign keys to profiles(id) must be added here (supabase-tests/accounts.sql fails otherwise).
 create or replace function public.merge_profiles(main uuid, other uuid)
 returns void
@@ -117,7 +118,8 @@ begin
   if to_regclass('public.push_tokens') is not null then
     delete from public.push_tokens where user_id = other
       and exists (select 1 from public.push_tokens where user_id = main);
-    update public.push_tokens set user_id = main where user_id = other;
+    -- The preferences move, not the legacy token: it is other's device, which may sign out later.
+    update public.push_tokens set user_id = main, expo_push_token = null where user_id = other;
   end if;
   -- Created by a later push migration.
   if to_regclass('public.push_devices') is not null then
@@ -137,6 +139,8 @@ begin
     from (select not m.username_set_by_user and o.username_set_by_user as take) t
    where id = main;
   perform set_config('community.trusted', '', true);
+  -- The member's name, bio and avatar must not stay on the profile left behind.
+  perform public.reset_profile_identity_for(other);
 end;
 $$;
 
@@ -160,7 +164,7 @@ begin
 end;
 $$;
 
--- Account deletion, step one: resets the profile's identity, drops its push rows and revokes every
+-- Account deletion, step one: resets the profile's identity and host ids, drops its push rows and revokes every
 -- session (auth.refresh_tokens cascade), in one transaction. The edge function then unlinks.
 create or replace function public.account_delete_profile(p_profile uuid)
 returns void
@@ -169,6 +173,10 @@ set search_path = public, extensions
 as $$
 begin
   perform public.reset_profile_identity_for(p_profile);
+  -- The host's ids go too: a candidates hook keyed on them must never adopt this profile again.
+  perform set_config('community.trusted', 'on', true);
+  update public.profiles set revenuecat_id = null, amplitude_id = null where id = p_profile;
+  perform set_config('community.trusted', '', true);
   if to_regclass('public.push_tokens') is not null then
     delete from public.push_tokens where user_id = p_profile;
   end if;
