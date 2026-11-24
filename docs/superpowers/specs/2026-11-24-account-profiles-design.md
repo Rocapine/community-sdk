@@ -65,7 +65,10 @@ B was picked (24 Nov 2026).
   e.g. an Appwrite JWT (`account.createJWT()`, 15 min) or a Firebase ID token.
 - **Account profile**: the community profile linked to an account. It is a
   normal `profiles` row whose `auth.users` row carries a synthetic email
-  `account+<sha256(provider:subject)[0:24]>@account.invalid`.
+  `account+<hmac_sha256(COMMUNITY_ACCOUNT_SECRET, provider:subject)[0:32]>@account.invalid`.
+  The secret pepper makes the address impossible to precompute. **`account_links`
+  is the only source of truth**: the function never adopts an auth user just
+  because it carries the expected email.
 
 ### Backend (SDK module `accounts`, optional)
 
@@ -198,20 +201,29 @@ Builds already in the field must keep working, so nothing existing changes shape
 Each app's own design covers its proof hook, its transitions (sign-in, sign-out,
 account deletion), its install id, its verifier secrets and its optional SQL hooks.
 
-## Before planning: feasibility spike (sandbox)
+## Feasibility (spike on a sandbox project, 24 Nov 2026)
 
-Approach B rests on Supabase behaviours to confirm on the sandbox project first:
+Approach B holds. A throwaway script on a sandbox project showed:
 
-- server-side `generateLink` + `verifyOtp` returns a usable session while
-  anonymous sign-ins stay on, email sign-ups stay off, and no email is sent;
-- converting an anonymous auth user by setting an email through the admin API
-  keeps its id, and its profile, intact;
-- nobody can create a user on `@account.invalid` from the public API (email
-  sign-ups off), so a link can't be squatted;
-- per-IP rate limits on `verifyOtp` don't bite when every call comes from the
-  edge function.
+- converting an anonymous auth user by setting an email (with `email_confirm`)
+  through the admin API keeps its id; it is no longer anonymous and its profile
+  is untouched;
+- server-side `admin.generateLink({ type: 'magiclink' })` + `verifyOtp({ token_hash })`
+  returns a session for that same user, with a refresh token; a device can
+  `setSession` and `refreshSession`, and RLS reads the profile as before;
+- 20 link + verify rounds in a row from one IP all succeeded;
+- `admin.signOut(jwt, 'global')` revokes every refresh token of the user
+  (the account-delete path);
+- the public API refuses to send an OTP to an `.invalid` address.
 
-If one fails, we come back to A or C before writing the plan.
+**Finding:** on a project with default auth settings, **public email + password
+sign-up is open with no confirmation**, so anyone can create a user on any
+`@account.invalid` address. Hence the HMAC-peppered address and the rule that
+only `account_links` counts (above): when `account-session` must create the
+account's user and the address is already taken by an unlinked user, it deletes
+that squatter (it can only be one) and creates its own. The backend runbook also
+recommends turning email sign-ups off when the app never uses them (anonymous
+sign-ins stay on); the admin calls above don't need public sign-ups.
 
 ## Left to the builder
 
