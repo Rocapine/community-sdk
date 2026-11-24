@@ -217,11 +217,16 @@ e.g. `lib/community-config.ts`.
    can be made right now) and wire the app's auth transitions:
    - `accountSignedIn(cfg)` every time the app session is (re)established,
      including at launch for a member already signed in (otherwise a stored
-     anonymous session is kept). It rejects when no session could be opened, or
-     when a second call overtook it: call it again later.
-   - `accountSignedOut(cfg)` on logout, **before** the app's own logout.
+     anonymous session is kept; once this launch has checked the account, it
+     does nothing). It rejects when no session could be opened, or when a
+     second call overtook it: call it again later.
+   - `accountSignedOut(cfg)` on logout, **before** the app's own logout. A
+     switch from account A to B is `accountSignedOut(cfg)` then
+     `accountSignedIn(cfg)`.
    - `deleteAccountProfile(cfg)` **before** disabling the app account; don't
      disable it when it returns `false`.
+   - After each of these transitions, call `resetCommunityQueries(queryClient)`
+     so the screens refetch as the new profile.
    - With push, set `host.getInstallId` and call
      `registerPushDevice(cfg, token)` again after each of these transitions.
    - `accounts: { required: true }` when signed-out users must not get an
@@ -257,11 +262,18 @@ e.g. `lib/community-config.ts`.
   If you use the avatar picker or the images module, set `expo-image-picker`'s
   `photosPermission` to mention every use: the community profile photo and the
   photos members add to posts and comments. App Review reads this text.
-- **Push module.** The SDK doesn't register the device. The app upserts its
-  Expo push token into `push_tokens` (`user_id` = the community uid,
-  `expo_push_token`, `notify_*` preferences) after permission is granted. It
-  also routes notification taps: the payload has `data.route: "/community"`
-  and `data.kind`.
+- **Push module.** Set `host.getInstallId` (a stable id of this install) and,
+  once notification permission is granted, call
+  `registerPushDevice(cfg, expoPushToken)`: it writes this device's row in
+  `push_devices` and makes sure the profile's `push_tokens` row exists, which
+  holds the `notify_*` preferences (`useNotificationPreferences`). Call it
+  again after every identity change (sign-in, sign-out, account deletion), and
+  `unregisterPushDevice(cfg)` to stop pushes on this device (the account
+  transitions already do). **Never write `push_tokens.expo_push_token`
+  yourself:** with accounts, one profile spans several devices, and that single
+  token would keep reaching a device after it signed out. The app also routes
+  notification taps: the payload has `data.route: "/community"` and
+  `data.kind`.
 
 ## Phase 5 — Moderation
 

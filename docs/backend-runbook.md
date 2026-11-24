@@ -399,11 +399,24 @@ supabase functions deploy account-session account-delete
   in on two phones gets the push on both.
 
 `account-session` answers `200 { access_token, refresh_token, profile_id, subject_hash }`,
-`400 bad_request`, `401 bad_proof` (the provider refused the token),
+or `200 { profile_id, subject_hash }` without tokens when the bearer already is
+that account's session (the launch check of a member still signed in: nothing
+is minted), `400 bad_request`, `401 bad_proof` (the provider refused the token),
 `409 conflict` (the address is held by another linked profile: fix by hand),
-`429 rate_limited` (one call per account per 10 s), `503 provider_unavailable`
+`429 rate_limited` (one new session per account per 10 s), `503 provider_unavailable`
 or `auth_unavailable`. `account-delete` answers `200 { deleted }` (`false` when
-no profile was linked), `401 bad_proof`, `503 provider_unavailable`.
+no profile was linked), `400 bad_request` (no proof, or a body that is not
+JSON), `401 bad_proof`, `500 internal` (a step failed: call it again, every step
+is idempotent), `503 provider_unavailable`.
+
+**Sessions and Auth's rate limits.** A session is minted only on a sign-in,
+a sign-up on a new device or an account switch: a relaunch is confirmed
+without one. Each mint is a magic-link verification server-side, from the
+functions' own IPs, so it counts against Auth's **token verification** rate
+limit (dashboard: Authentication → Rate limits). The default is enough for
+ordinary traffic; raise it before a mass sign-in (a migration, a campaign
+that signs every member in at once). Past the limit `account-session` answers
+`500` and the device keeps its current session and retries a minute later.
 
 ### Optional SQL hooks
 
@@ -413,31 +426,50 @@ signature, so keep the parameter names and types:
 
 ```sql
 -- Profiles that already belong to this account (e.g. the member's profile from before the
--- module, found by the app's own id stored on profiles). The most recently active one
+-- module, found through a table the app's own server fills with (subject, profile id)).
+-- Only anonymous profiles are used: others are skipped. The most recently active one
 -- becomes the account profile, the others are merged into it.
 create function public.account_profile_candidates(provider text, subject text, claims jsonb)
 returns setof uuid ...;
 
 -- Whether the calling device's anonymous profile may be converted or merged into this
--- account (e.g. its stored app id is empty or matches the claims). NULL counts as no.
+-- account (e.g. no row of the app's server-filled table ties it to another subject).
+-- NULL counts as no.
 create function public.account_owns_profile(profile uuid, claims jsonb)
 returns boolean ...;
 
--- Runs once a profile is linked to an account (e.g. copy the app's ids onto the profile).
+-- Runs once a profile is linked to an account (e.g. record (subject, profile) in the app's
+-- own table).
 create function public.on_account_linked(profile uuid, provider text, subject text, claims jsonb)
 returns void ...;
 ```
 
+**Key the hooks on `subject`, or on data only the app's own server writes.**
+`subject` is the verified account id. Two things look like proof and are not:
+
+- `claims.prefs` (`appwrite`): Appwrite lets the member write their own
+  preferences from the client, so a member can put any value there.
+- Profile columns the client writes, `profiles.revenuecat_id` and
+  `profiles.amplitude_id` among them: any device can set them to someone else's
+  ids, and a hook trusting them hands that member's profile (posts, name,
+  inbox) to the caller.
+
 `claims` is what the provider verified: the JWT payload (`jwks`), or
-`{ prefs, emailVerification, status }` (`appwrite`). Hooks **must be
-idempotent**: an interrupted call runs them again on the next sign-in. A
-failing `on_account_linked` is logged (`account-session: on_account_linked
-failed`) and not retried: the link stands.
+`{ prefs, emailVerification, status }` (`appwrite`); in a JWT, trust only the
+claims your own backend issues. Hooks **must be idempotent**: an interrupted
+call runs them again on the next sign-in. A failing `on_account_linked` is
+logged (`account-session: on_account_linked failed`) and not retried: the link
+stands.
+
+A profile merged into the account profile keeps its (now empty) row with the
+default name, no bio and no avatar; its push preferences move, its legacy
+`push_tokens` token does not.
 
 ### Account deletion
 
 `account-delete` resets the account profile's name, handle, bio and avatar
-(its posts stay, under the default pseudonym), deletes its push rows, revokes
+(its posts stay, under the default pseudonym), clears its `revenuecat_id` and
+`amplitude_id` (so no candidates hook adopts it again), deletes its push rows, revokes
 every session (all devices drop it), moves the synthetic email off and
 deletes the link. The profile becomes an ordinary orphan. The app calls
 `deleteAccountProfile()` before disabling its own account, or its backend
@@ -475,23 +507,26 @@ curl -s -X POST $SB/functions/v1/account-session -H "apikey: $ANON" \
   -d "{\"proof\":\"$JWT\"}"
 ```
 
-Expect, in order (wait 10 s between two calls for the same account):
+Expect, in order (wait 10 s between two calls for the same account that open a session):
 
 1. **Device 1:** `200`, `profile_id` = device 1's user id. That auth user now
    carries the synthetic email (converted in place, same uid).
 2. **Device 2** (another anonymous session that posted first): `200`, the same
    `profile_id`; the post's `author_id` is now that profile.
-3. **Bad proof** (`{"proof":"x"}` with the anon key as bearer): `401 bad_proof`.
-4. **Squatter:** create a user holding the account's synthetic email
+3. **Relaunch:** the same call with device 1's account session (the
+   `access_token` step 1 returned) as bearer: `200 { profile_id, subject_hash }`
+   with no tokens, and a call right after it is not rate limited.
+4. **Bad proof** (`{"proof":"x"}` with the anon key as bearer): `401 bad_proof`.
+5. **Squatter:** create a user holding the account's synthetic email
    (`auth.admin.createUser`) before step 1: the call still answers `200`, and
    that user is gone.
-5. **Candidates hook:** with a test `account_profile_candidates` installed, a
+6. **Candidates hook:** with a test `account_profile_candidates` installed, a
    new account adopts the most recently active returned profile and merges the
    others into it. Drop the test hook afterwards.
-6. **Delete:** `account-delete` with the proof answers `{ "deleted": true }`;
+7. **Delete:** `account-delete` with the proof answers `{ "deleted": true }`;
    refreshing a session it returned
    (`POST $SB/auth/v1/token?grant_type=refresh_token`) now fails; a second
    delete answers `{ "deleted": false }`.
-7. **Clean up:** delete every test auth user (`auth.admin.deleteUser`, which
+8. **Clean up:** delete every test auth user (`auth.admin.deleteUser`, which
    also removes their profiles and posts) and the Appwrite user
    (`DELETE $AW/users/$U`).
