@@ -91,13 +91,21 @@ async function verifyAppwrite(
   try {
     res = await fetchImpl(`${env.endpoint}/account`, {
       headers: { "X-Appwrite-Project": env.project, "X-Appwrite-JWT": jwt },
+      signal: AbortSignal.timeout(5000),
     });
   } catch (e) {
     throw new AccountProviderError(`appwrite unreachable: ${e}`);
   }
   if (res.status === 401) throw new AccountProofError("appwrite rejected the proof");
   if (!res.ok) throw new AccountProviderError(`appwrite answered ${res.status}`);
-  const u = await res.json();
+  let u: Record<string, unknown> | null;
+  try {
+    u = await res.json();
+  } catch {
+    throw new AccountProviderError("appwrite answer is not JSON");
+  }
+  if (!u || typeof u !== "object")
+    throw new AccountProviderError("appwrite answer is not an object");
   if (u.status === false) throw new AccountProofError("account is blocked");
   if (typeof u.$id !== "string" || !u.$id)
     throw new AccountProviderError("appwrite answer has no $id");
@@ -108,6 +116,31 @@ async function verifyAppwrite(
   };
 }
 
+const ASYMMETRIC_ALGS = [
+  "RS256",
+  "RS384",
+  "RS512",
+  "PS256",
+  "PS384",
+  "PS512",
+  "ES256",
+  "ES384",
+  "ES512",
+  "EdDSA",
+];
+
+// Only these mean "the token is bad"; anything else (network, DNS, TLS, JWKS HTTP errors) is the provider's outage.
+const PROOF_ERRORS = [
+  jose.errors.JWTExpired,
+  jose.errors.JWTClaimValidationFailed,
+  jose.errors.JWSSignatureVerificationFailed,
+  jose.errors.JWSInvalid,
+  jose.errors.JWTInvalid,
+  jose.errors.JWKSNoMatchingKey,
+  jose.errors.JOSEAlgNotAllowed,
+  jose.errors.JOSENotSupported,
+];
+
 async function verifyJwks(
   token: string,
   env: Extract<AccountEnv, { provider: "jwks" }>,
@@ -115,24 +148,20 @@ async function verifyJwks(
 ): Promise<VerifiedAccount> {
   // createRemoteJWKSet caches per instance; a fresh one per call is fine for a function that runs once per sign-in.
   const jwks = jose.createRemoteJWKSet(new URL(env.jwksUrl), { [jose.customFetch]: fetchImpl });
+  let payload: jose.JWTPayload;
   try {
-    const { payload } = await jose.jwtVerify(token, jwks, {
+    ({ payload } = await jose.jwtVerify(token, jwks, {
       issuer: env.issuer,
       audience: env.audience,
-    });
-    const subject = payload[env.subjectClaim];
-    if (typeof subject !== "string" || !subject)
-      throw new AccountProofError(`token has no ${env.subjectClaim}`);
-    return { provider: "jwks", subject, claims: payload as Record<string, unknown> };
+      algorithms: ASYMMETRIC_ALGS,
+    }));
   } catch (e) {
-    if (e instanceof AccountProofError) throw e;
-    // A JWKS that cannot be fetched is the provider's problem, not the caller's.
-    if (
-      e instanceof jose.errors.JWKSTimeout ||
-      (e instanceof jose.errors.JOSEError && e.code === "ERR_JOSE_GENERIC")
-    ) {
-      throw new AccountProviderError(`jwks unavailable: ${e.message}`);
-    }
-    throw new AccountProofError(e instanceof Error ? e.message : "invalid token");
+    if (PROOF_ERRORS.some((C) => e instanceof C))
+      throw new AccountProofError(e instanceof Error ? e.message : "invalid token");
+    throw new AccountProviderError(`jwks unavailable: ${e}`);
   }
+  const subject = payload[env.subjectClaim];
+  if (typeof subject !== "string" || !subject)
+    throw new AccountProofError(`token has no ${env.subjectClaim}`);
+  return { provider: "jwks", subject, claims: payload as Record<string, unknown> };
 }

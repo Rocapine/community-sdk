@@ -1,4 +1,5 @@
 import {
+  assert,
   assertEquals,
   assertMatch,
   assertNotEquals,
@@ -74,6 +75,27 @@ Deno.test("appwrite: unreachable or erroring provider is a provider error", asyn
   );
 });
 
+Deno.test(
+  "appwrite: hanging provider times out, malformed bodies are provider errors",
+  async () => {
+    const hang = ((_u: string, init: RequestInit) =>
+      new Promise((_, rej) =>
+        init.signal?.addEventListener("abort", () => rej(new DOMException("t", "AbortError"))),
+      )) as unknown as typeof fetch;
+    const t = performance.now();
+    await assertRejects(() => verifyProof("j", appwriteEnv, hang), AccountProviderError);
+    assert(performance.now() - t < 7000);
+    await assertRejects(
+      () => verifyProof("j", appwriteEnv, () => Promise.resolve(new Response("<html>"))),
+      AccountProviderError,
+    );
+    await assertRejects(
+      () => verifyProof("j", appwriteEnv, () => Promise.resolve(json(null))),
+      AccountProviderError,
+    );
+  },
+);
+
 Deno.test("jwks: valid token passes, wrong audience is a bad proof", async () => {
   const { publicKey, privateKey } = await jose.generateKeyPair("RS256");
   const jwk = { ...(await jose.exportJWK(publicKey)), kid: "k1", alg: "RS256", use: "sig" };
@@ -86,18 +108,40 @@ Deno.test("jwks: valid token passes, wrong audience is a bad proof", async () =>
     audience: "app",
     subjectClaim: "uid",
   };
-  const sign = (aud: string) =>
-    new jose.SignJWT({ uid: "abc" })
+  const sign = (
+    aud: string,
+    o: { iss?: string; exp?: string | number; claims?: Record<string, unknown> } = {},
+  ) =>
+    new jose.SignJWT(o.claims ?? { uid: "abc" })
       .setProtectedHeader({ alg: "RS256", kid: "k1" })
-      .setIssuer("https://idp.test")
+      .setIssuer(o.iss ?? "https://idp.test")
       .setAudience(aud)
-      .setExpirationTime("5m")
+      .setExpirationTime(o.exp ?? "5m")
       .sign(privateKey);
   const ok = await verifyProof(await sign("app"), env, f);
   assertEquals(ok.provider, "jwks");
   assertEquals(ok.subject, "abc");
   assertEquals(ok.claims.uid, "abc");
   await assertRejects(async () => verifyProof(await sign("other"), env, f), AccountProofError);
+  await assertRejects(
+    async () => verifyProof(await sign("app", { iss: "https://evil.test" }), env, f),
+    AccountProofError,
+  );
+  await assertRejects(
+    async () =>
+      verifyProof(await sign("app", { exp: Math.floor(Date.now() / 1000) - 3600 }), env, f),
+    AccountProofError,
+  );
+  await assertRejects(
+    async () => verifyProof(await sign("app", { claims: { other: 1 } }), env, f),
+    AccountProofError,
+  );
+  await assertRejects(() => verifyProof("not-a-jwt", env, f), AccountProofError);
+  const refused = (() => Promise.reject(new TypeError("down"))) as unknown as typeof fetch;
+  await assertRejects(
+    async () => verifyProof(await sign("app"), env, refused),
+    AccountProviderError,
+  );
   const down = (() => Promise.resolve(json({}, 500))) as unknown as typeof fetch;
   await assertRejects(async () => verifyProof(await sign("app"), env, down), AccountProviderError);
 });
