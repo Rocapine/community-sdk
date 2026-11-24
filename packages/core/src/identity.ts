@@ -26,6 +26,26 @@ function assertCurrent(start: number): void {
   if (epoch !== start) throw new Error("identity changed during the account check");
 }
 
+// A setSession that outlived its 5 s wait: later waits don't wait for it again.
+let gaveUpOn: Promise<unknown> | null = null;
+
+/** Waits for a setSession being applied, at most 5 s: a hung one must not block a transition, and
+ * the epoch check after it already stops it from writing a stale cache. */
+export async function adoptionSettled(): Promise<void> {
+  const pending = adopting;
+  if (!pending || pending === gaveUpOn) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const settled = await Promise.race([
+    pending.then(
+      () => true,
+      () => true,
+    ),
+    new Promise<boolean>((r) => (timer = setTimeout(() => r(false), 5_000))),
+  ]);
+  clearTimeout(timer);
+  if (!settled) gaveUpOn = pending;
+}
+
 /**
  * Resolve the community user id, signing in anonymously on first use.
  * Never rejects: resolves to null when offline, when anonymous sign-ins are
@@ -113,12 +133,15 @@ async function signInAnonymous(cfg: ResolvedCommunityConfig): Promise<string> {
   return uid;
 }
 
+/** account-session's answer; no tokens when the bearer already is this account's session. */
 type OpenedAccount = {
-  access_token: string;
-  refresh_token: string;
+  access_token?: string;
+  refresh_token?: string;
   profile_id: string;
   subject_hash: string;
 };
+type MintedAccount = OpenedAccount & { access_token: string; refresh_token: string };
+const minted = (o: OpenedAccount): o is MintedAccount => typeof o.access_token === "string";
 
 const warn = (message: string, detail?: unknown) =>
   console.warn(`[@rocapine/community-core] ${message}`, detail ?? "");
@@ -180,7 +203,7 @@ async function accountBootstrap(
       return signInAnonymous(cfg);
     }
     const opened = await callAccountSession(cfg, proof, null);
-    if (typeof opened === "string") {
+    if (typeof opened === "string" || !minted(opened)) {
       assertCurrent(start);
       retryAfter = Date.now() + RETRY_MS; // don't call the provider on every service call
       return null;
@@ -202,7 +225,16 @@ async function accountBootstrap(
     retryAfter = Date.now() + RETRY_MS;
     return session.user.id;
   }
-  if (opened.subject_hash !== hash) await adoptAccount(cfg, opened, session, start);
+  if (opened.subject_hash !== hash) {
+    if (!minted(opened)) {
+      // Another account, but no session for it: never answer either profile as confirmed.
+      warn("account-session answered another account without a session");
+      assertCurrent(start);
+      retryAfter = Date.now() + RETRY_MS;
+      return session.user.id;
+    }
+    await adoptAccount(cfg, opened, session, start);
+  }
   assertCurrent(start);
   accountCheck = { subjectHash: opened.subject_hash, checkedAt: Date.now() };
   await assignDefaultProfile(cfg);
@@ -222,15 +254,16 @@ async function callAccountSession(
     });
     if (!error) {
       const d = data as Partial<OpenedAccount> | null;
+      const tokens = typeof d?.access_token === "string" && typeof d.refresh_token === "string";
+      const none = d?.access_token === undefined && d?.refresh_token === undefined;
       if (
-        typeof d?.access_token === "string" &&
-        typeof d.refresh_token === "string" &&
-        typeof d.profile_id === "string" &&
+        (tokens || none) &&
+        typeof d?.profile_id === "string" &&
         typeof d.subject_hash === "string"
       ) {
         return d as OpenedAccount;
       }
-      warn("account-session answered without a session");
+      warn("account-session answered something else than a session");
       return "failed";
     }
     // supabase-js puts the Response in `context`; a network error has no status.
@@ -255,7 +288,7 @@ async function callAccountSession(
  * first deletes this device's push row there, so its pushes stop reaching it. */
 async function adoptAccount(
   cfg: ResolvedCommunityConfig,
-  opened: OpenedAccount,
+  opened: MintedAccount,
   previous: Session | null,
   start: number,
 ): Promise<void> {
@@ -309,10 +342,14 @@ async function signOutLocally(cfg: ResolvedCommunityConfig): Promise<void> {
  */
 export async function accountSignedIn(cfg: ResolvedCommunityConfig): Promise<void> {
   const client = cfg.requireClient();
+  // Already on the account session this launch checked: nothing to open (no call, no 429).
+  // A switch to another account is accountSignedOut() first, which drops that check.
+  const current = (await client.auth.getSession()).data.session;
+  if (!adopting && accountCheck && accountHash(current) === accountCheck.subjectHash) return;
   // Any bootstrap already running is stale from here on.
   const start = ++epoch;
   inFlight = null;
-  await adopting?.catch(() => {});
+  await adoptionSettled();
   const proof = await cfg.host.getAccountProof?.();
   if (!proof) throw new Error("accountSignedIn: the host gave no account proof");
   const { data, error } = await client.auth.getSession();
@@ -321,6 +358,7 @@ export async function accountSignedIn(cfg: ResolvedCommunityConfig): Promise<voi
   const opened = await callAccountSession(cfg, proof, data.session);
   if (typeof opened === "string") throw new Error(`accountSignedIn: account-session ${opened}`);
   if (opened.subject_hash !== accountHash(data.session)) {
+    if (!minted(opened)) throw new Error("accountSignedIn: account-session answered no session");
     await adoptAccount(cfg, opened, data.session, start);
   }
   assertCurrent(start);
@@ -339,7 +377,7 @@ export async function accountSignedIn(cfg: ResolvedCommunityConfig): Promise<voi
 export async function accountSignedOut(cfg: ResolvedCommunityConfig): Promise<void> {
   if (!cfg.supabase) return;
   resetIdentity(); // a running bootstrap must not apply its session over the sign-out
-  await adopting?.catch(() => {}); // one already applying lands first, then is signed out
+  await adoptionSettled(); // one already applying lands first, then is signed out
   await signOutLocally(cfg);
   resetIdentity();
 }

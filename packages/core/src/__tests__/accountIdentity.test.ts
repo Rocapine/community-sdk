@@ -174,6 +174,31 @@ describe("ensureIdentity with account proofs", () => {
     expect(f.invokes).toHaveLength(1);
   });
 
+  it("relaunch: a confirmation without tokens keeps the stored session, nothing minted", async () => {
+    const f = fakeClient(accountSession(HASH_A), () => ({
+      data: { profile_id: "a-uid", subject_hash: HASH_A },
+      error: null,
+    }));
+    const cfg = resolveConfig(config(f.client, { getAccountProof: async () => proof }));
+    expect(await ensureIdentity(cfg)).toBe("a-uid");
+    expect(await ensureIdentity(cfg)).toBe("a-uid");
+    expect(f.setSessions).toHaveLength(0);
+    expect(f.invokes).toHaveLength(1);
+  });
+
+  it("a tokenless answer for another account is a failure: the session is kept, retried later", async () => {
+    const f = fakeClient(accountSession(HASH_A), () => ({
+      data: { profile_id: "b-uid", subject_hash: HASH_B },
+      error: null,
+    }));
+    const cfg = resolveConfig(config(f.client, { getAccountProof: async () => proof }));
+    expect(await ensureIdentity(cfg)).toBe("a-uid");
+    expect(await ensureIdentity(cfg)).toBe("a-uid");
+    expect(f.setSessions).toHaveLength(0);
+    expect(f.signOuts).toHaveLength(0);
+    expect(f.invokes).toHaveLength(1); // the backoff holds the next check
+  });
+
   it("provider failure keeps the stored account session", async () => {
     const f = fakeClient(accountSession(HASH_A), noCall);
     const cfg = resolveConfig(
@@ -361,6 +386,42 @@ describe("account transitions", () => {
     expect(f.invokes).toHaveLength(1);
   });
 
+  it("accountSignedIn is a no-op on the account this launch already checked", async () => {
+    const getAccountProof = vi.fn(async () => proof);
+    const f = fakeClient(accountSession(HASH_A), () => ({
+      data: { profile_id: "a-uid", subject_hash: HASH_A },
+      error: null,
+    }));
+    const cfg = resolveConfig(config(f.client, { getAccountProof }));
+    expect(await ensureIdentity(cfg)).toBe("a-uid");
+    await accountSignedIn(cfg);
+    expect(getAccountProof).toHaveBeenCalledTimes(1);
+    expect(f.invokes).toHaveLength(1);
+    expect(f.setSessions).toHaveLength(0);
+  });
+
+  it("accountSignedIn accepts a tokenless confirmation of the stored account", async () => {
+    const f = fakeClient(accountSession(HASH_A), () => ({
+      data: { profile_id: "a-uid", subject_hash: HASH_A },
+      error: null,
+    }));
+    const cfg = resolveConfig(config(f.client, { getAccountProof: async () => proof }));
+    await accountSignedIn(cfg);
+    expect(f.setSessions).toHaveLength(0);
+    expect(await ensureIdentity(cfg)).toBe("a-uid");
+    expect(f.invokes).toHaveLength(1);
+  });
+
+  it("accountSignedIn rejects a tokenless answer for another account", async () => {
+    const f = fakeClient(accountSession(HASH_A), () => ({
+      data: { profile_id: "b-uid", subject_hash: HASH_B },
+      error: null,
+    }));
+    const cfg = resolveConfig(config(f.client, { getAccountProof: async () => proof }));
+    await expect(accountSignedIn(cfg)).rejects.toThrow();
+    expect(f.setSessions).toHaveLength(0);
+  });
+
   it("accountSignedIn rejects and keeps the anonymous session when account-session fails", async () => {
     const f = fakeClient(anonSession, () => ({ data: null, error: httpError(503) }));
     const cfg = resolveConfig(config(f.client, { getAccountProof: async () => proof }));
@@ -541,5 +602,22 @@ describe("host transitions during a running account check", () => {
     ]);
     expect(await ensureIdentity(cfg)).toBe("b-uid");
     expect(f.invokes).toHaveLength(2);
+  });
+
+  it("a setSession that never settles holds a sign-out for 5 s at most", async () => {
+    const f = fakeClient(null, () => ({ data: opened(HASH_A), error: null }));
+    holdFirstSetSession(f.client); // never released
+    const cfg = resolveConfig(config(f.client, { getAccountProof: async () => proof }));
+    void ensureIdentity(cfg);
+    await flush();
+    vi.useFakeTimers();
+    try {
+      const signingOut = accountSignedOut(cfg);
+      await vi.advanceTimersByTimeAsync(5_000);
+      await signingOut;
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(f.signOuts).toEqual([{ scope: "local" }]);
   });
 });

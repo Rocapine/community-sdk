@@ -166,7 +166,9 @@ All three take the resolved config (`resolveConfig(config)`):
   posts, comments, likes… move over). Rejects, keeping the current session,
   when there is no proof or the backend refused or failed: call it again later.
   Of two concurrent calls the first rejects ("identity changed"): call again later
-  (the backend also answers one call per account per 10 s).
+  (the backend also answers one new session per account per 10 s). A no-op,
+  calling nothing, when the device is already on the account session this
+  launch checked.
 - `accountSignedOut(cfg)`: deletes this device's push row, signs out locally;
   the next `ensureIdentity()` opens a fresh anonymous profile (none with
   `accounts.required`). Never throws.
@@ -189,10 +191,15 @@ The host's side of the contract:
    after any transition (sign-in, sign-out, deletion): the device's push row
    belongs to the profile it was registered on. `unregisterPushDevice(cfg)`
    deletes it; the transitions already do.
+5. After each transition, call `resetCommunityQueries(queryClient)` (the
+   app's React Query client): cached reads (your uid, profile, likes, inbox)
+   belong to the previous profile until then. The transitions can't do it:
+   they run outside React and never see the query client.
 
 At launch, `ensureIdentity()` checks a stored account session against
 `getAccountProof()` once: a signed-out host drops it, another account replaces
-it, a provider outage keeps it and retries a minute later.
+it, a provider outage keeps it and retries a minute later. When it is still
+the right account, the backend confirms it without opening a new session.
 
 ### Feed row extension point (`CommunityConfig.feed`)
 
