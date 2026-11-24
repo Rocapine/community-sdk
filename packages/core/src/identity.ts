@@ -1,4 +1,6 @@
-import type { ResolvedCommunityConfig } from "./config";
+import type { Session } from "@supabase/supabase-js";
+import type { AccountProof, ResolvedCommunityConfig } from "./config";
+import { unregisterPushDevice } from "./push-devices";
 
 // One anonymous Supabase identity per install. signInAnonymously() runs once;
 // afterwards getSession() restores the same user (and uuid) from AsyncStorage.
@@ -10,19 +12,35 @@ let lastSyncedUsername: string | null = null;
 let lastSyncedLocale: string | null = null;
 let lastSyncedAnalyticsKey: string | null = null;
 let lastSyncedBadgesKey: string | null = null;
+// Accounts: the stored account session checked against the host's account this launch.
+let accountCheck: { subjectHash: string; checkedAt: number } | null = null;
+// When an account check that failed for a transient reason may run again (0: none pending).
+let retryAfter = 0;
+const RETRY_MS = 60_000;
 
 /**
  * Resolve the community user id, signing in anonymously on first use.
  * Never rejects: resolves to null when offline, when anonymous sign-ins are
- * off, or when the host never configured a Supabase client (degraded mode) —
- * the next call retries.
+ * off, when the host never configured a Supabase client (degraded mode), or —
+ * with `host.getAccountProof` — while no account session can be opened (or none
+ * may be, `accounts.required` without a proof). The next call retries.
  */
 export function ensureIdentity(cfg: ResolvedCommunityConfig): Promise<string | null> {
   if (!cfg.supabase) return Promise.resolve(null);
-  inFlight ??= bootstrap(cfg).catch(() => {
-    inFlight = null; // allow a retry on the next call
-    return null;
-  });
+  if (retryAfter && Date.now() >= retryAfter) {
+    retryAfter = 0;
+    inFlight = null; // re-run the account check that failed
+  }
+  inFlight ??= bootstrap(cfg).then(
+    (uid) => {
+      if (uid === null) inFlight = null; // no identity yet: retry on the next call
+      return uid;
+    },
+    () => {
+      inFlight = null; // allow a retry on the next call
+      return null;
+    },
+  );
   return inFlight;
 }
 
@@ -34,25 +52,36 @@ export function ensureIdentity(cfg: ResolvedCommunityConfig): Promise<string | n
  */
 export function resetIdentity(): void {
   inFlight = null;
+  accountCheck = null;
+  retryAfter = 0;
+  resetSyncMemos();
+}
+
+function resetSyncMemos(): void {
   lastSyncedUsername = null;
   lastSyncedLocale = null;
   lastSyncedAnalyticsKey = null;
   lastSyncedBadgesKey = null;
 }
 
-async function bootstrap(cfg: ResolvedCommunityConfig): Promise<string> {
+async function bootstrap(cfg: ResolvedCommunityConfig): Promise<string | null> {
   const client = cfg.requireClient();
   const { data, error: sessionError } = await client.auth.getSession();
-  if (data.session) {
-    await assignDefaultProfile(cfg);
-    return data.session.user.id;
-  }
   // { session: null, error } = the stored session could not be refreshed right now
   // (offline, a refresh failure cooldown, a discarded refresh) but may still be in
   // storage. Signing in would overwrite it with a new user: retry on the next call.
   // A dead session is cleared by auth-js, so the next call reads { null, null }.
-  if (sessionError) throw sessionError;
+  if (!data.session && sessionError) throw sessionError;
+  if (cfg.host.getAccountProof) return accountBootstrap(cfg, data.session);
+  if (data.session) {
+    await assignDefaultProfile(cfg);
+    return data.session.user.id;
+  }
+  return signInAnonymous(cfg);
+}
 
+async function signInAnonymous(cfg: ResolvedCommunityConfig): Promise<string> {
+  const client = cfg.requireClient();
   const { data: signIn, error } = await client.auth.signInAnonymously();
   if (error || !signIn.user) throw error ?? new Error("anonymous sign-in returned no user");
   const uid = signIn.user.id;
@@ -66,6 +95,217 @@ async function bootstrap(cfg: ResolvedCommunityConfig): Promise<string> {
     .eq("id", uid);
   await assignDefaultProfile(cfg);
   return uid;
+}
+
+type OpenedAccount = {
+  access_token: string;
+  refresh_token: string;
+  profile_id: string;
+  subject_hash: string;
+};
+
+const warn = (message: string, detail?: unknown) =>
+  console.warn(`[@rocapine/community-core] ${message}`, detail ?? "");
+
+/** The subject hash of an account session (`account+<hash>@account.invalid`), else null. */
+function accountHash(session: Session | null): string | null {
+  return /^account\+(.+)@account\.invalid$/.exec(session?.user.email ?? "")?.[1] ?? null;
+}
+
+/**
+ * The stored session checked against the host's account. Never lands on someone
+ * else's profile, and a provider failure never replaces an account session with a
+ * fresh anonymous one: it keeps the session and retries later.
+ */
+async function accountBootstrap(
+  cfg: ResolvedCommunityConfig,
+  stored: Session | null,
+): Promise<string | null> {
+  let session = stored;
+  const hash = accountHash(session);
+  // An anonymous session is kept; the host converts it with accountSignedIn().
+  if (session && (!hash || accountCheck?.subjectHash === hash)) {
+    await assignDefaultProfile(cfg);
+    return session.user.id;
+  }
+
+  let proof: AccountProof | null;
+  try {
+    proof = await cfg.host.getAccountProof!();
+  } catch (e) {
+    warn("no account proof right now, keeping the session", e);
+    if (session) retryAfter = Date.now() + RETRY_MS;
+    return session?.user.id ?? null;
+  }
+
+  if (session && !proof) {
+    await signOutLocally(cfg); // the host signed out
+    session = null;
+  }
+  if (!session) {
+    if (!proof) return cfg.accounts?.required ? null : signInAnonymous(cfg);
+    const opened = await callAccountSession(cfg, proof, null);
+    if (typeof opened === "string") return null;
+    await adoptAccount(cfg, opened, null);
+    await assignDefaultProfile(cfg);
+    return opened.profile_id;
+  }
+
+  const opened = await callAccountSession(cfg, proof!, session);
+  if (opened === "bad_proof") {
+    // The provider refused a token the host believed valid (clock skew, glitch):
+    // keep the account for this launch, sign out only when the host says so.
+    warn("the account proof was refused, keeping the session for this launch");
+    return session.user.id;
+  }
+  if (opened === "failed") {
+    retryAfter = Date.now() + RETRY_MS;
+    return session.user.id;
+  }
+  if (opened.subject_hash !== hash) await adoptAccount(cfg, opened, session);
+  accountCheck = { subjectHash: opened.subject_hash, checkedAt: Date.now() };
+  await assignDefaultProfile(cfg);
+  return opened.profile_id;
+}
+
+/** `account-session` with the proof and, when there is one, the device's session as bearer. */
+async function callAccountSession(
+  cfg: ResolvedCommunityConfig,
+  proof: AccountProof,
+  session: Session | null,
+): Promise<OpenedAccount | "bad_proof" | "failed"> {
+  try {
+    const { data, error } = await cfg.requireClient().functions.invoke("account-session", {
+      body: { proof: proof.token },
+      headers: session ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+    });
+    if (!error) {
+      const d = data as Partial<OpenedAccount> | null;
+      if (
+        typeof d?.access_token === "string" &&
+        typeof d.refresh_token === "string" &&
+        typeof d.profile_id === "string" &&
+        typeof d.subject_hash === "string"
+      ) {
+        return d as OpenedAccount;
+      }
+      warn("account-session answered without a session");
+      return "failed";
+    }
+    // supabase-js puts the Response in `context`; a network error has no status.
+    const res = (error as { context?: { status?: number; json?: () => Promise<unknown> } }).context;
+    let code: unknown;
+    try {
+      code = ((await res?.json?.()) as { error?: unknown } | undefined)?.error;
+    } catch {
+      code = undefined;
+    }
+    // A gateway 401 (expired bearer) has no bad_proof body: transient, never a bad proof.
+    if (res?.status === 401 && code === "bad_proof") return "bad_proof";
+    warn(`account-session failed (${res?.status ?? "network"} ${code ?? ""})`);
+    return "failed";
+  } catch (e) {
+    warn("account-session failed", e);
+    return "failed";
+  }
+}
+
+/** Switch the device to the account profile's session. Leaving another account
+ * first deletes this device's push row there, so its pushes stop reaching it. */
+async function adoptAccount(
+  cfg: ResolvedCommunityConfig,
+  opened: OpenedAccount,
+  previous: Session | null,
+): Promise<void> {
+  const client = cfg.requireClient();
+  if (accountHash(previous)) await unregisterQuietly(cfg);
+  const { error } = await client.auth.setSession({
+    access_token: opened.access_token,
+    refresh_token: opened.refresh_token,
+  });
+  if (error) throw error;
+  resetSyncMemos();
+  accountCheck = { subjectHash: opened.subject_hash, checkedAt: Date.now() };
+}
+
+async function unregisterQuietly(cfg: ResolvedCommunityConfig): Promise<void> {
+  try {
+    await unregisterPushDevice(cfg);
+  } catch (e) {
+    warn("could not delete this device's push row", e);
+  }
+}
+
+/** Push row, local sign-out, memos (not the in-flight bootstrap). Never throws. */
+async function signOutLocally(cfg: ResolvedCommunityConfig): Promise<void> {
+  await unregisterQuietly(cfg);
+  try {
+    const { error } = await cfg.requireClient().auth.signOut({ scope: "local" });
+    if (error) warn("local sign-out failed", error);
+  } catch (e) {
+    warn("local sign-out failed", e);
+  }
+  resetSyncMemos();
+  accountCheck = null;
+}
+
+/**
+ * The host signed in: open the account profile's session. An anonymous session
+ * is converted into it or merged into it server-side. Rejects (keeping the
+ * current session) when the host has no proof or the backend refused or failed:
+ * call it again later.
+ */
+export async function accountSignedIn(cfg: ResolvedCommunityConfig): Promise<void> {
+  const client = cfg.requireClient();
+  const proof = await cfg.host.getAccountProof?.();
+  if (!proof) throw new Error("accountSignedIn: the host gave no account proof");
+  const { data, error } = await client.auth.getSession();
+  // Calling without the stored session would leave its content behind.
+  if (!data.session && error) throw error;
+  const opened = await callAccountSession(cfg, proof, data.session);
+  if (typeof opened === "string") throw new Error(`accountSignedIn: account-session ${opened}`);
+  if (opened.subject_hash !== accountHash(data.session)) {
+    await adoptAccount(cfg, opened, data.session);
+    inFlight = null;
+  }
+}
+
+/**
+ * The host signed out: delete this device's push row, sign out locally and drop
+ * the memos. The next ensureIdentity() opens a fresh anonymous profile (none when
+ * `accounts.required`). Never throws. A switch A → B is accountSignedOut() then
+ * accountSignedIn().
+ */
+export async function accountSignedOut(cfg: ResolvedCommunityConfig): Promise<void> {
+  if (!cfg.supabase) return;
+  await signOutLocally(cfg);
+  resetIdentity();
+}
+
+/**
+ * Account deletion: reset the account profile, revoke its sessions and unlink the
+ * account (`account-delete`), then sign out like accountSignedOut(). Call it
+ * before disabling the host account, while a proof can still be issued. Resolves
+ * false (keeping the session) when there is no proof or the backend failed.
+ */
+export async function deleteAccountProfile(cfg: ResolvedCommunityConfig): Promise<boolean> {
+  if (!cfg.supabase) return false;
+  try {
+    const proof = await cfg.host.getAccountProof?.();
+    if (!proof) return false;
+    const { error } = await cfg.supabase.functions.invoke("account-delete", {
+      body: { proof: proof.token },
+    });
+    if (error) {
+      warn("account-delete failed", error);
+      return false;
+    }
+  } catch (e) {
+    warn("account-delete failed", e);
+    return false;
+  }
+  await accountSignedOut(cfg);
+  return true;
 }
 
 /**
