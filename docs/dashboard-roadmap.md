@@ -162,34 +162,35 @@ Proposed while building the dashboard; each is an SDK change for the SDK owner t
 
 What each SDK feature gives the dashboard to manage. Update a row when the SDK changes.
 
-| SDK feature (module)                                                     | Since             | What the dashboard can do with it                      | Brick   |
-| ------------------------------------------------------------------------ | ----------------- | ------------------------------------------------------ | ------- |
-| Posts, comments, replies, likes (core)                                   | 0.1, replies 0.13 | Read, hide, restore, pin                               | 2, 6    |
-| AI moderation before publish (core)                                      | 0.1               | Review AI-hidden content                               | 2       |
-| Reports and blocks (core); mutual blocks, unblock (core `016`)           | 0.1, mutual 0.17  | Review queue; blocked-by count on the member card      | 2, 3    |
-| Bans (core)                                                              | 0.1               | Ban / unban                                            | 2, 3    |
-| Moderation audit log, `admin_user_stats`, `admin_daily_metrics` (core)   | 0.1               | Audit, member card, activity                           | 2, 3, 5 |
-| Default names, editable name and handle (core)                           | 0.12              | Member search and card                                 | 3       |
-| Admin accounts, admin-only topics (core)                                 | 0.15              | Make admin; post as admin                              | 3, 4    |
-| Pin posts (core)                                                         | 0.15              | Pin / unpin                                            | 4, 6    |
-| Notify everyone (core + push)                                            | 0.15              | Notify on a dashboard post                             | 4       |
-| Event topics `from` / `until` (app config)                               | 0.15              | Edit once topics move to the database                  | 9       |
-| Push notifications (push)                                                | 0.1               | Copy in secrets                                        | 12      |
-| Polls (polls)                                                            | 0.1               | Polls in the composer                                  | 4       |
-| Private reaction, e.g. prayer (reaction)                                 | 0.1               | Counts on posts                                        | 6       |
-| Notification inbox (inbox)                                               | 0.1               | Admin posts appear once pushed                         | 4       |
-| Translation (translation)                                                | 0.3               | Show the original and translations; locales in secrets | 6, 12   |
-| Images (images)                                                          | 0.11              | Images in the composer and the review queue            | 2, 4    |
-| Attachments (attachments)                                                | 0.15              | Attach app content in the composer                     | 4       |
-| Post drafts, `publish_post_draft` (core `014_post_drafts`)               | 0.16              | Shared drafts; publish as a team account               | 4, 7    |
-| Draft images (images `002_draft_images`)                                 | 0.16              | Images in drafts, kept by the nightly sweep            | 4       |
-| Scheduled posts (core `015`)                                             | 0.16              | Composer, Home                                         | 7       |
-| Activity metrics and breakdown, `created_at` indexes (core `017`)        | 0.20              | Activity page and Home overview                        | 5       |
-| Member badges (badges; replaces streaks)                                 | 0.15              | Badges on the member card                              | 3, 18   |
-| Online presence (presence)                                               | 0.18              | Online count on the home; grace window in settings     | 12, 20  |
-| Length limit as a trigger, importable history (core `018`, images `003`) | 0.21.1            | Nothing yet; lets imported history exceed 2000 / 1000  | —       |
-| Placeholder profiles, left out of the counts (core `019`)                | 0.21.1            | Nothing yet; hold an imported author's posts           | —       |
-| Poll limits per project, `poll_limits()` (polls `002`, core `020`)       | 0.21.4            | Composer polls follow the limits; limits in settings   | 4, 12   |
+| SDK feature (module)                                                                 | Since                | What the dashboard can do with it                      | Brick   |
+| ------------------------------------------------------------------------------------ | -------------------- | ------------------------------------------------------ | ------- |
+| Posts, comments, replies, likes (core)                                               | 0.1, replies 0.13    | Read, hide, restore, pin                               | 2, 6    |
+| AI moderation before publish (core)                                                  | 0.1                  | Review AI-hidden content                               | 2       |
+| Reports and blocks (core); mutual blocks, unblock (core `016`)                       | 0.1, mutual 0.17     | Review queue; blocked-by count on the member card      | 2, 3    |
+| Bans (core)                                                                          | 0.1                  | Ban / unban                                            | 2, 3    |
+| Moderation audit log, `admin_user_stats`, `admin_daily_metrics` (core)               | 0.1                  | Audit, member card, activity                           | 2, 3, 5 |
+| Default names, editable name and handle (core)                                       | 0.12                 | Member search and card                                 | 3       |
+| Admin accounts, admin-only topics (core)                                             | 0.15                 | Make admin; post as admin                              | 3, 4    |
+| Pin posts (core)                                                                     | 0.15                 | Pin / unpin                                            | 4, 6    |
+| Notify everyone (core + push)                                                        | 0.15                 | Notify on a dashboard post                             | 4       |
+| Event topics `from` / `until` (app config)                                           | 0.15                 | Edit once topics move to the database                  | 9       |
+| Push notifications (push)                                                            | 0.1                  | Copy in secrets                                        | 12      |
+| Polls (polls)                                                                        | 0.1                  | Polls in the composer                                  | 4       |
+| Private reaction, e.g. prayer (reaction)                                             | 0.1                  | Counts on posts                                        | 6       |
+| Notification inbox (inbox)                                                           | 0.1                  | Admin posts appear once pushed                         | 4       |
+| Translation (translation)                                                            | 0.3                  | Show the original and translations; locales in secrets | 6, 12   |
+| Images (images)                                                                      | 0.11                 | Images in the composer and the review queue            | 2, 4    |
+| Attachments (attachments)                                                            | 0.15                 | Attach app content in the composer                     | 4       |
+| Post drafts, `publish_post_draft` (core `014_post_drafts`)                           | 0.16                 | Shared drafts; publish as a team account               | 4, 7    |
+| Draft images (images `002_draft_images`)                                             | 0.16                 | Images in drafts, kept by the nightly sweep            | 4       |
+| Scheduled posts (core `015`)                                                         | 0.16                 | Composer, Home                                         | 7       |
+| Activity metrics and breakdown, `created_at` indexes (core `017`)                    | 0.20                 | Activity page and Home overview                        | 5       |
+| Member badges (badges; replaces streaks)                                             | 0.15                 | Badges on the member card                              | 3, 18   |
+| Online presence (presence)                                                           | 0.18                 | Online count on the home; grace window in settings     | 12, 20  |
+| Length limit as a trigger, importable history (core `018`, images `003`)             | 0.21.1               | Nothing yet; lets imported history exceed 2000 / 1000  | —       |
+| Placeholder profiles, left out of the counts (core `019`)                            | 0.21.1               | Nothing yet; hold an imported author's posts           | —       |
+| Poll limits per project, `poll_limits()` (polls `002`, core `020`)                   | 0.21.4               | Composer polls follow the limits; limits in settings   | 4, 12   |
+| One profile per app account (accounts; `002`: merge signs out, delete clears badges) | 0.21.8, `002` 0.21.9 | Nothing yet; an account's profile on the member card   | —       |
 
 ## Open questions
 

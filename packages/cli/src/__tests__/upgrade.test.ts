@@ -467,6 +467,7 @@ describe("runUpgrade", () => {
     const manifest = readManifest(cwd)!;
     expect(manifest.modules).toContain("accounts");
     expect(manifest.installedTemplates).toContain("accounts/accounts");
+    expect(manifest.installedTemplates).toContain("accounts/merge_and_delete");
     const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions"));
     expect(fnDirs).toContain("account-session");
   });
