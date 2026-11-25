@@ -463,12 +463,18 @@ stands.
 
 A profile merged into the account profile keeps its (now empty) row with the
 default name, no bio and no avatar; its push preferences move, its legacy
-`push_tokens` token does not.
+`push_tokens` token and its `push_devices` rows do not (they are deleted: the
+signed-in device registers again on the account profile). Its sessions are
+revoked (`auth.sessions`, refresh tokens cascade): a device still holding the
+merged profile's refresh token is signed out instead of acting as the empty
+profile. The caller's new session is minted after the merge, so the device that
+signs in stays signed in (`accounts/002_merge_and_delete.sql`).
 
 ### Account deletion
 
 `account-delete` resets the account profile's name, handle, bio and avatar
-(its posts stay, under the default pseudonym), clears its `revenuecat_id` and
+(its posts stay, under the default pseudonym), clears its badges and streak
+(badges and streaks modules: its old posts stop showing them), clears its `revenuecat_id` and
 `amplitude_id` (so no candidates hook adopts it again), deletes its push rows, revokes
 every session (all devices drop it), moves the synthetic email off and
 deletes the link. The profile becomes an ordinary orphan. The app calls
@@ -492,7 +498,8 @@ REF=<project-ref>; SB=https://$REF.supabase.co; ANON=<anon key>
 AW=<appwrite endpoint>; AWP=<appwrite project id>; AWK=<appwrite server key>
 
 # Schema and functions (both idempotent).
-supabase db query --remote=$REF --yes -f supabase/migrations/<ts>_community_accounts_accounts.sql
+supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_accounts.sql
+supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_merge_and_delete.sql
 supabase functions deploy account-session account-delete --project-ref $REF
 
 # A throwaway account and its proof.

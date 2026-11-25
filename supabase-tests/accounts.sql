@@ -1,5 +1,5 @@
--- Account links and profile merge (accounts/001_accounts.sql).
--- Run against a backend with core applied, after accounts/001:
+-- Account links and profile merge (accounts/001_accounts.sql, accounts/002_merge_and_delete.sql).
+-- Run against a backend with core applied, after accounts/001 and 002:
 --   npx supabase db query --linked --yes -f supabase-tests/accounts.sql
 -- It creates two auth users (so two profiles), merges them and always rolls back by raising at the
 -- end: the run passed when the error message is exactly ACCOUNTS_TESTS_PASSED.
@@ -10,6 +10,7 @@ declare
   p_both uuid; p_o uuid;
   c_both uuid; c_o uuid; opt uuid; x uuid := gen_random_uuid(); y uuid := gen_random_uuid(); p_y uuid;
   r text; fn text;
+  s_m uuid := gen_random_uuid(); s_o uuid := gen_random_uuid();
   rec record;
   n int;
   failed boolean;
@@ -66,6 +67,10 @@ begin
     insert into public.poll_votes (post_id, option_id, user_id) values (p_both, opt, m), (p_both, opt, o);
   end if;
 
+  -- Sessions: each has one, o's with a refresh token.
+  insert into auth.sessions (id, user_id) values (s_m, m), (s_o, o);
+  insert into auth.refresh_tokens (token, user_id, session_id) values ('o-refresh', o::text, s_o);
+
   -- Identity: m has the default name, o chose one; o is banned and admin.
   update public.profiles set username = 'Default 1', default_username = 'Default 1' where id = m;
   update public.profiles set username = 'Chosen', username_set_by_user = true, bio = 'hi', is_banned = true, is_admin = true where id = o;
@@ -89,7 +94,8 @@ begin
   end if;
   if to_regclass('public.push_devices') is not null then
     assert (select expo_push_token from public.push_devices where user_id = m and device_id = 'd1') = 'a', 'main keeps its device row';
-    assert (select count(*) from public.push_devices where user_id = m) = 2, 'o''s other device moved';
+    assert (select count(*) from public.push_devices where user_id = m) = 1, 'o''s devices do not move to m';
+    assert not exists (select 1 from public.push_devices where user_id = o), 'o''s devices are deleted';
   end if;
   if to_regclass('public.poll_votes') is not null then
     assert (select count(*) from public.poll_votes where user_id = m) = 1, 'one poll vote kept';
@@ -97,6 +103,10 @@ begin
   if to_regclass('public.push_tokens') is not null then
     assert (select expo_push_token from public.push_tokens where user_id = m) = 'main', 'main keeps its push token';
   end if;
+
+  assert not exists (select 1 from auth.sessions where user_id = o), 'the merge revokes o''s sessions';
+  assert not exists (select 1 from auth.refresh_tokens where token = 'o-refresh'), 'and its refresh tokens (cascade)';
+  assert exists (select 1 from auth.sessions where id = s_m), 'main''s session stays';
 
   assert (select is_banned from public.profiles where id = m), 'a banned other bans main';
   assert not (select is_admin from public.profiles where id = m), 'is_admin is never taken from other';
@@ -248,7 +258,25 @@ begin
   end if;
   insert into auth.sessions (id, user_id) values (gen_random_uuid(), o);
   assert exists (select 1 from auth.sessions where user_id = o), 'o has a session';
+  -- Badges and streak shown on o's posts (badges/streaks modules, where installed).
+  if exists (select 1 from pg_attribute where attrelid = 'public.profiles'::regclass and attname = 'badges') then
+    update public.profiles set badges = '{"streak": {"since": "2026-01-01T00:00:00Z"}, "bestStreak": {"days": 3}, "month": 4}',
+      hidden_badges = '{bestStreak}' where id = o;
+    assert (select visible_badges <> '{}' from public.profiles where id = o), 'o shows badges';
+  end if;
+  if exists (select 1 from pg_attribute where attrelid = 'public.profiles'::regclass and attname = 'streak_started_at') then
+    update public.profiles set streak_started_at = now() - interval '3 days', best_streak_days = 9, show_streak = false where id = o;
+  end if;
   perform public.account_delete_profile(o);
+  if exists (select 1 from pg_attribute where attrelid = 'public.profiles'::regclass and attname = 'badges') then
+    assert (select badges = '{}' and hidden_badges = '{}' and visible_badges = '{}' from public.profiles where id = o),
+      'delete clears the badges, as on a fresh profile';
+  end if;
+  if exists (select 1 from pg_attribute where attrelid = 'public.profiles'::regclass and attname = 'streak_started_at') then
+    assert (select streak_started_at is null and best_streak_days is null and show_streak and show_best_streak
+              and visible_streak_started_at is null and visible_best_streak_days is null
+            from public.profiles where id = o), 'delete clears the streak, as on a fresh profile';
+  end if;
   assert (select not username_set_by_user and bio is null from public.profiles where id = o), 'delete resets the identity';
   assert (select revenuecat_id is null and amplitude_id is null from public.profiles where id = o),
     'delete clears the host ids, so no candidates hook adopts the profile again';

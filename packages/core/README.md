@@ -173,7 +173,7 @@ All three take the resolved config (`resolveConfig(config)`):
   the next `ensureIdentity()` opens a fresh anonymous profile (none with
   `accounts.required`). Never throws.
 - `deleteAccountProfile(cfg)`: resets the account profile (default name, no
-  bio or avatar; posts stay under the pseudonym), signs out every device and
+  bio, avatar, badges or streak; posts stay under the pseudonym), signs out every device and
   unlinks the account, then signs out like `accountSignedOut`. Resolves
   `false`, keeping everything, when there is no proof or the backend failed.
 
