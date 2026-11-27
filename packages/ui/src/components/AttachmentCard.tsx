@@ -9,16 +9,22 @@ import {
   useCommunityIcons,
   useT,
   type AttachmentPlacement,
+  type AttachmentVariant,
 } from "../ThemeProvider";
 import { ModalHandoffContext } from "../utils/modalHandoff";
 
 export function AttachmentCard({
   attachment,
   placement,
+  variant = "card",
+  onOpen,
   onRemove,
 }: {
   attachment: PostAttachment;
   placement: AttachmentPlacement;
+  variant?: AttachmentVariant;
+  /** Replaces the provider's `onOpenAttachment` (a screen's own prop). */
+  onOpen?: (attachment: PostAttachment) => void;
   /** The composer's remove button. */
   onRemove?: () => void;
 }): ReactElement | null {
@@ -28,7 +34,8 @@ export function AttachmentCard({
   const t = useT();
   const node = render?.(attachment, {
     placement,
-    open: () => presentModal(() => open?.(attachment)),
+    variant,
+    open: () => presentModal(() => (onOpen ?? open)?.(attachment)),
   });
   if (node == null) return null;
   return (

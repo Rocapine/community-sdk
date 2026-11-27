@@ -43,6 +43,7 @@ export {
   type CommunityTopicStyle,
   useCommunityBackground,
   type AttachmentPlacement,
+  type AttachmentVariant,
   type RenderAttachment,
   useCommunityTheme,
   useT,
@@ -69,6 +70,7 @@ export type { ReportTarget } from "./components/ReportSheet";
 export { ReportSheet } from "./components/ReportSheet";
 
 export { CommunityFeedScreen } from "./screens/CommunityFeedScreen";
+export { ConversationScreen, type ConversationScreenProps } from "./screens/ConversationScreen";
 export {
   DEFAULT_FEED_HEADER,
   type FeedHeaderBackground,

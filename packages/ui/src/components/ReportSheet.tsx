@@ -37,7 +37,7 @@ const REASONS: ReportReason[] = ["spam", "harassment", "hate", "inappropriate", 
  * `ThreadSheet`, …) share one type instead of each redeclaring an identical
  * inline shape. */
 export type ReportTarget = {
-  kind: "post" | "comment";
+  kind: "post" | "comment" | "message";
   id: string;
   authorId: string;
   /** With a name, a harassment report offers to block the author too (never an admin). */
@@ -86,6 +86,7 @@ export function ReportSheet({
         reportedUserId: target.authorId,
         postId: target.kind === "post" ? target.id : undefined,
         commentId: target.kind === "comment" ? target.id : undefined,
+        messageId: target.kind === "message" ? target.id : undefined,
         reason,
         details,
       },
