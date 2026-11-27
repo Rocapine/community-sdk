@@ -21,10 +21,11 @@ import { postToSlack } from "./slack.ts";
 
 type Admin = ReturnType<typeof adminClient>;
 
-export const MESSAGE_COLUMNS = "id, author_id, body, image_path, status, moderated_at, edited_at";
+export const MESSAGE_COLUMNS =
+  "id, author_id, body, image_path, status, moderated_at, edited_at, created_at";
 // One literal (no concatenation), so supabase-js can type the selected row.
 export const GROUP_COLUMNS =
-  "conversation_id, created_by, name, description, image_path, pending_name, pending_description, pending_image_path, status, rejected_fields";
+  "conversation_id, created_by, name, description, image_path, pending_name, pending_description, pending_image_path, status, rejected_fields, created_at";
 
 export interface MessageRow {
   id: string;
@@ -34,6 +35,7 @@ export interface MessageRow {
   status: string;
   moderated_at: string | null;
   edited_at: string | null;
+  created_at: string;
 }
 
 export type GroupField = "name" | "description" | "image";
@@ -52,6 +54,7 @@ export interface GroupRow extends GroupValues {
   conversation_id: string;
   created_by: string | null;
   rejected_fields: string[];
+  created_at: string;
 }
 
 export interface GroupUpdate {
@@ -65,9 +68,30 @@ export interface GroupUpdate {
   status?: "visible";
 }
 
-// An attachment-only message has nothing to read: "" makes moderateItem skip the text call.
-export function messageModerationInput(row: { body: string | null }): string {
-  return row.body ?? "";
+export type ModerationMode = "pre" | "post" | "reportOnly";
+
+// The text the AI reads: none in 'reportOnly' (an image is still checked) or for an
+// attachment-only message; "" makes moderateItem skip the text call.
+export function messageModerationInput(
+  row: { body: string | null },
+  mode: ModerationMode = "post",
+): string {
+  return mode === "reportOnly" ? "" : (row.body ?? "");
+}
+
+// messaging_settings.moderation; null when it can't be read (the caller fails closed).
+export async function messagingMode(supabase: Admin): Promise<ModerationMode | null> {
+  const { data, error } = await supabase
+    .from("messaging_settings")
+    .select("settings")
+    .eq("id", 1)
+    .single();
+  if (error) {
+    console.error("messaging_settings read failed", error.message);
+    return null;
+  }
+  const mode = (data?.settings as { moderation?: string } | null)?.moderation ?? "post";
+  return mode === "pre" || mode === "reportOnly" ? mode : "post";
 }
 
 const FIELDS = [
@@ -129,24 +153,24 @@ async function removeImage(
 }
 
 // Allowed on a pending message, or a visible one the AI hasn't seen yet ('post' mode).
-export async function moderateMessage(supabase: Admin, m: MessageRow): Promise<Verdict> {
+// `mode` is read from messaging_settings when not given (the sweep reads it once).
+export async function moderateMessage(
+  supabase: Admin,
+  m: MessageRow,
+  mode?: ModerationMode,
+): Promise<Verdict> {
   if (!(m.status === "pending" || (m.status === "visible" && m.moderated_at === null))) {
     return { status: m.status === "visible" ? "published" : m.status };
   }
+  const moderation = mode ?? (await messagingMode(supabase));
+  if (!moderation) return { status: "pending", error: "settings unavailable" };
   let imageUrl: string | null = null;
   if (m.image_path) {
     imageUrl = await messageImageUrl(m.image_path);
     if (!imageUrl) return { status: "pending", error: "image unavailable" };
   }
-  const verdict = await moderateItem(messageModerationInput(m), imageUrl);
+  const verdict = await moderateItem(messageModerationInput(m, moderation), imageUrl);
   if (!verdict) return { status: "pending", error: "moderation unavailable" };
-
-  if (verdict.flagged && m.image_path && verdict.categories.includes("sexual/minors")) {
-    await removeImage(supabase, MESSAGE_IMAGES_BUCKET, m.image_path, {
-      mandatory: true,
-      label: `message ${m.id}`,
-    });
-  }
   const now = new Date().toISOString();
   let write = supabase
     .from("messages")
@@ -162,6 +186,13 @@ export async function moderateMessage(supabase: Admin, m: MessageRow): Promise<V
   const { data, error } = await write.select("id");
   // Nothing matched: deleted, edited or moderated meanwhile; the newer state wins.
   if (error || !data || data.length === 0) return { status: "pending" };
+  // Hidden first, then the file: a lost race leaves it for the next verdict.
+  if (verdict.flagged && m.image_path && verdict.categories.includes("sexual/minors")) {
+    await removeImage(supabase, MESSAGE_IMAGES_BUCKET, m.image_path, {
+      mandatory: true,
+      label: `message ${m.id}`,
+    });
+  }
   return verdict.flagged ? { status: "rejected", reason: verdict.reason } : { status: "published" };
 }
 
@@ -206,12 +237,6 @@ export async function moderateGroup(
   const flagged = new Set(verdicts.filter((v) => v.verdict!.flagged).map((v) => v.field));
   const pendingImage = g.pending_image_path;
   const imageVerdict = verdicts.find((v) => v.field === "image")?.verdict;
-  if (pendingImage && imageVerdict?.categories.includes("sexual/minors")) {
-    await removeImage(supabase, GROUP_IMAGES_PENDING_BUCKET, pendingImage, {
-      mandatory: true,
-      label: `group ${g.conversation_id}`,
-    });
-  }
 
   const update = nextGroupState(g, flagged);
   if (update.image_path) {
@@ -243,8 +268,12 @@ export async function moderateGroup(
     return { ...done, error: error ? "write failed" : undefined };
   }
 
+  // After the write: a rejected or copied pending image is referenced no more.
   if (pendingImage && update.pending_image_path === null) {
-    await removeImage(supabase, GROUP_IMAGES_PENDING_BUCKET, pendingImage);
+    await removeImage(supabase, GROUP_IMAGES_PENDING_BUCKET, pendingImage, {
+      mandatory: imageVerdict?.categories.includes("sexual/minors"),
+      label: `group ${g.conversation_id}`,
+    });
   }
   if (update.image_path && g.image_path) {
     await removeImage(supabase, GROUP_IMAGES_BUCKET, g.image_path);

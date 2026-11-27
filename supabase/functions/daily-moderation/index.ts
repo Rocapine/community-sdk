@@ -30,6 +30,7 @@ import {
   type MessageRow,
   moderateGroup,
   moderateMessage,
+  messagingMode,
 } from "../_shared/messaging.ts";
 import { containsAppName } from "../_shared/names.ts";
 import { postToSlack } from "../_shared/slack.ts";
@@ -165,12 +166,45 @@ async function sweepUnreferencedImages(): Promise<{ removed: number; error?: str
 // Undefined table: the install has no messaging / groups module.
 const isMissingTable = (code: string | undefined) => code === "42P01" || code === "PGRST205";
 
+// One page of a keyset walk: rows after `after` in (created_at, key) order.
+type Page<T> = PromiseLike<{ data: T[] | null; error: { code?: string } | null }>;
+const keysetAfter = (after: { created_at: string; key: string } | null, keyCol: string) =>
+  after
+    ? `created_at.gt."${after.created_at}",and(created_at.eq."${after.created_at}",${keyCol}.gt.${after.key})`
+    : null;
+
+/** Walks every row a page fetcher returns, oldest first, until the rows run out or the
+ * deadline passes. Paging past each row (not re-reading the oldest) means rows that
+ * fail closed on every run can't starve newer ones. Returns false on a read error
+ * other than a missing table (no messaging / groups module). */
+async function walk<T extends { created_at: string }>(
+  fetchPage: (after: { created_at: string; key: string } | null) => Page<T>,
+  key: (row: T) => string,
+  handle: (row: T) => Promise<void>,
+  deadline: number,
+  parallel: number,
+): Promise<boolean> {
+  let after: { created_at: string; key: string } | null = null;
+  while (Date.now() < deadline) {
+    const { data, error } = await fetchPage(after);
+    if (error) return isMissingTable(error.code);
+    const rows = data ?? [];
+    for (let i = 0; i < rows.length && Date.now() < deadline; i += parallel) {
+      await Promise.all(rows.slice(i, i + parallel).map(handle));
+    }
+    if (rows.length < 100) return true;
+    const last = rows[rows.length - 1];
+    after = { created_at: last.created_at, key: key(last) };
+  }
+  return true;
+}
+
 /** Messages and groups left unmoderated for 5 minutes (the client's moderate-one call
- * failed or never came), oldest first, capped per run, a few in parallel. A group
- * waiting for its creator's fix (rejected_fields set) is skipped. Groups have no
- * "submitted at", so a fresh edit of an old group may race moderate-one: the guarded
- * writes keep that safe. */
-async function sweepChat(): Promise<{
+ * failed or never came), oldest first, within a time budget. A group waiting for its
+ * creator's fix (rejected_fields set) is skipped. Groups have no "submitted at", so a
+ * fresh edit of an old group may race moderate-one: the guarded writes keep that safe.
+ * `failed` counts items left unchecked (fail closed) plus read errors. */
+async function sweepChat(budgetMs: number): Promise<{
   messages: number;
   messagesHidden: number;
   groups: number;
@@ -178,48 +212,68 @@ async function sweepChat(): Promise<{
   failed: number;
 }> {
   const out = { messages: 0, messagesHidden: 0, groups: 0, groupsRejected: 0, failed: 0 };
+  const deadline = Date.now() + budgetMs;
   const cutoff = new Date(Date.now() - 5 * 60_000).toISOString();
-  const { data: messages, error: mErr } = await supabase
-    .from("messages")
-    .select(MESSAGE_COLUMNS)
-    .is("moderated_at", null)
-    .in("status", ["pending", "visible"])
-    .lt("created_at", cutoff)
-    .order("created_at")
-    .limit(500);
-  if (mErr && !isMissingTable(mErr.code)) out.failed++;
-  const { data: groups, error: gErr } = await supabase
-    .from("groups")
-    .select(GROUP_COLUMNS)
-    .or("pending_name.not.is.null,pending_description.not.is.null,pending_image_path.not.is.null")
-    .neq("status", "deleted")
-    .eq("rejected_fields", "{}")
-    .lt("created_at", cutoff)
-    .order("created_at")
-    .limit(200);
-  if (gErr && !isMissingTable(gErr.code)) out.failed++;
 
-  const msgs = (messages ?? []) as MessageRow[];
-  for (let i = 0; i < msgs.length; i += 5) {
-    const verdicts = await Promise.all(
-      msgs.slice(i, i + 5).map((m) => moderateMessage(supabase, m)),
-    );
-    for (const v of verdicts) {
+  const mode = await messagingMode(supabase);
+  const messagesOk = await walk<MessageRow>(
+    (after) => {
+      let q = supabase
+        .from("messages")
+        .select(MESSAGE_COLUMNS)
+        .is("moderated_at", null)
+        .in("status", ["pending", "visible"])
+        .lt("created_at", cutoff);
+      const k = keysetAfter(after, "id");
+      if (k) q = q.or(k);
+      return q.order("created_at").order("id").limit(100) as unknown as Page<MessageRow>;
+    },
+    (m) => m.id,
+    async (m) => {
+      // Settings unreadable: fail closed, every message counts as unchecked.
+      const v = mode
+        ? await moderateMessage(supabase, m, mode)
+        : { status: "pending", error: "settings" };
       if (v.error) out.failed++;
       else out.messages++;
       if (v.status === "rejected") out.messagesHidden++;
-    }
-  }
-  for (const g of (groups ?? []) as GroupRow[]) {
-    const v = await moderateGroup(supabase, g);
-    if (v.error) out.failed++;
-    else out.groups++;
-    if (!v.error && v.rejected.length > 0) out.groupsRejected++;
-  }
+    },
+    deadline,
+    5,
+  );
+  if (!messagesOk) out.failed++;
+
+  const groupsOk = await walk<GroupRow>(
+    (after) => {
+      let q = supabase
+        .from("groups")
+        .select(GROUP_COLUMNS)
+        .or(
+          "pending_name.not.is.null,pending_description.not.is.null,pending_image_path.not.is.null",
+        )
+        .neq("status", "deleted")
+        .eq("rejected_fields", "{}")
+        .lt("created_at", cutoff);
+      const k = keysetAfter(after, "conversation_id");
+      if (k) q = q.or(k);
+      return q.order("created_at").order("conversation_id").limit(100) as unknown as Page<GroupRow>;
+    },
+    (g) => g.conversation_id,
+    async (g) => {
+      const v = await moderateGroup(supabase, g);
+      if (v.error) out.failed++;
+      else out.groups++;
+      if (!v.error && v.rejected.length > 0) out.groupsRejected++;
+    },
+    deadline,
+    1,
+  );
+  if (!groupsOk) out.failed++;
   return out;
 }
 
 Deno.serve(async () => {
+  const startedAt = Date.now();
   const { data: posts, error: postsError } = await supabase
     .from("posts")
     .select(
@@ -376,8 +430,9 @@ Deno.serve(async () => {
   }
 
   const usernames = await sweepUsernames();
-  const chat = await sweepChat();
   const sweep = await sweepUnreferencedImages();
+  // Last, within what is left of a 120 s run: everything above is already written.
+  const chat = await sweepChat(Math.max(0, startedAt + 120_000 - Date.now()));
   const imagesSwept = sweep.removed;
   if (sweep.error) imageErrors.push(`image sweep failed: ${sweep.error}`);
   const allFailedBatches = failedBatches + usernames.failedBatches + chat.failed;
@@ -426,7 +481,10 @@ Deno.serve(async () => {
   // Counts only: chat text never goes to Slack from here.
   const chatSummary =
     (chat.messages > 0 ? ` Messages: ${chat.messagesHidden}/${chat.messages} hidden.` : "") +
-    (chat.groups > 0 ? ` Groups: ${chat.groupsRejected}/${chat.groups} with rejected fields.` : "");
+    (chat.groups > 0
+      ? ` Groups: ${chat.groupsRejected}/${chat.groups} with rejected fields.`
+      : "") +
+    (chat.failed > 0 ? ` Messages/groups not checked (retried next run): ${chat.failed}.` : "");
   const sweepSummary = chatSummary + (imagesSwept > 0 ? ` Images swept: ${imagesSwept}.` : "");
   let summaryText: string;
   if (allFailedBatches > 0) {

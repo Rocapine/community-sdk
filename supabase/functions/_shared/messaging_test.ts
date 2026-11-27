@@ -16,6 +16,11 @@ Deno.test("messageModerationInput: the body, or an empty string", () => {
   assertEquals(messageModerationInput({ body: null }), "");
 });
 
+Deno.test("messageModerationInput: no text in reportOnly (only an image is checked)", () => {
+  assertEquals(messageModerationInput({ body: "x" }, "reportOnly"), "");
+  assertEquals(messageModerationInput({ body: "x" }, "pre"), "x");
+});
+
 Deno.test("groupFieldsToModerate skips null fields", () => {
   assertEquals(groupFieldsToModerate({ ...newGroup, pending_image_path: null }), [
     { field: "name", value: "Morning prayer" },
