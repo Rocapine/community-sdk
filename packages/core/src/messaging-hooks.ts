@@ -241,6 +241,8 @@ export function useMessages(conversationId: string | null) {
         void queryClient.invalidateQueries({ queryKey: UNREAD_MESSAGES_KEY });
       },
       onTyping: () => {},
+      // The member count, and for a member just removed the removed state.
+      onMembers: () => invalidateGroup(queryClient, conversationId),
     });
   }, [cfg, queryClient, conversationId, live]);
   return query;
@@ -611,6 +613,24 @@ const invalidateGroups = (queryClient: QueryClient) =>
     queryClient.invalidateQueries({ queryKey: UNREAD_MESSAGES_KEY }),
   ]);
 
+/** One group, its members and my conversations (its row says whether I'm in). A fetch
+ * already running is kept, not restarted. */
+export const invalidateGroup = (queryClient: QueryClient, id: string) =>
+  Promise.all(
+    [[...GROUPS_KEY, "group", id], groupMembersKey(id), CONVERSATIONS_KEY].map((queryKey) =>
+      queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false }),
+    ),
+  );
+
+/** Refreshes a group each time its screen gets the focus (and on mount): a removal, a
+ * readmission or a join seen while the screen was away, or before the app had it cached. */
+export function useRefreshGroupOnFocus(id: string | null, focused: boolean) {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (focused && id) void invalidateGroup(queryClient, id);
+  }, [queryClient, id, focused]);
+}
+
 /** Creates a group (pending until moderation approves it); resolves to its id. */
 export function useCreateGroup() {
   const cfg = useCommunityConfig();
@@ -698,10 +718,7 @@ export function useRemoveMember() {
   return useMutation({
     mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
       removeMember(cfg, groupId, userId),
-    onSuccess: (_d, { groupId }) => {
-      void queryClient.invalidateQueries({ queryKey: groupMembersKey(groupId) });
-      void queryClient.invalidateQueries({ queryKey: [...GROUPS_KEY, "group", groupId] });
-    },
+    onSuccess: (_d, { groupId }) => void invalidateGroup(queryClient, groupId),
   });
 }
 

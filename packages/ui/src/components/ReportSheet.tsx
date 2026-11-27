@@ -65,6 +65,8 @@ export function ReportSheet({
   const [details, setDetails] = useState("");
   // Inline as well as in the alert: react-native-web shows no system alert.
   const [failed, setFailed] = useState(false);
+  // The confirmation shows in the sheet (no system alert: react-native-web has none).
+  const [sent, setSent] = useState<{ blockable: ReportTarget | null } | null>(null);
 
   // A new target (report a different post/comment) starts from a clean form,
   // even if the host reuses the same sheet instance without a close in between.
@@ -72,11 +74,13 @@ export function ReportSheet({
     setReason(null);
     setDetails("");
     setFailed(false);
+    setSent(null);
   }, [target?.kind, target?.id]);
 
   const close = () => {
     setReason(null);
     setDetails("");
+    setSent(null);
     onClose();
   };
 
@@ -97,22 +101,7 @@ export function ReportSheet({
         details,
       },
       {
-        onSuccess: () => {
-          close();
-          if (!offerBlock) return Alert.alert(t("report.sentTitle"), t("report.sentBody"));
-          Alert.alert(
-            t("report.sentTitle"),
-            t("report.blockOfferBody", { name: reported.authorName! }),
-            [
-              { text: t("menu.notNow"), style: "cancel" },
-              {
-                text: t("menu.block"),
-                style: "destructive",
-                onPress: () => blockUser.mutate({ userId: reported.authorId }),
-              },
-            ],
-          );
-        },
+        onSuccess: () => setSent({ blockable: offerBlock ? reported : null }),
         onError: () => {
           setFailed(true);
           Alert.alert(t("report.errorTitle"), t("report.errorBody"));
@@ -128,42 +117,74 @@ export function ReportSheet({
           as-is — see that file's own note on why "handled" is not enough
           inside a Modal + reanimated sheet). */}
       <SheetScrollView keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>{t("report.title")}</Text>
-        <View style={styles.reasonRow}>
-          {REASONS.map((r) => {
-            const on = reason === r;
-            return (
+        {sent ? (
+          <View accessibilityLiveRegion="polite">
+            <Text style={styles.title} accessibilityRole="header">
+              {t("report.sentTitle")}
+            </Text>
+            <Text style={styles.body}>
+              {sent.blockable
+                ? t("report.blockOfferBody", { name: sent.blockable.authorName! })
+                : t("report.sentBody")}
+            </Text>
+            {sent.blockable && (
               <PressableScale
-                key={r}
-                haptic="selection"
-                onPress={() => setReason(r)}
-                style={[styles.chip, on && styles.chipOn]}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: on }}
+                onPress={() => {
+                  blockUser.mutate({ userId: sent.blockable!.authorId });
+                  close();
+                }}
+                style={[styles.cta, styles.ctaDanger]}
+                accessibilityRole="button"
               >
-                <Text style={[styles.chipText, on && styles.chipTextOn]}>
-                  {t(`report.reasons.${r}`)}
-                </Text>
+                <Text style={styles.ctaLabel}>{t("menu.block")}</Text>
               </PressableScale>
-            );
-          })}
-        </View>
-        <SheetTextInput
-          value={details}
-          onChangeText={setDetails}
-          placeholder={t("report.detailsPlaceholder")}
-          placeholderTextColor={theme.colors.textFaint}
-          multiline
-          style={styles.input}
-        />
-        <PressableScale
-          onPress={submit}
-          disabled={!reason || report.isPending}
-          style={[styles.cta, (!reason || report.isPending) && styles.ctaDisabled]}
-        >
-          <Text style={styles.ctaLabel}>{t("report.send")}</Text>
-        </PressableScale>
-        {failed && <Text style={styles.error}>{t("report.errorBody")}</Text>}
+            )}
+            <PressableScale onPress={close} style={styles.cta} accessibilityRole="button">
+              <Text style={styles.ctaLabel}>
+                {t(sent.blockable ? "menu.notNow" : "report.done")}
+              </Text>
+            </PressableScale>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.title}>{t("report.title")}</Text>
+            <View style={styles.reasonRow}>
+              {REASONS.map((r) => {
+                const on = reason === r;
+                return (
+                  <PressableScale
+                    key={r}
+                    haptic="selection"
+                    onPress={() => setReason(r)}
+                    style={[styles.chip, on && styles.chipOn]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                  >
+                    <Text style={[styles.chipText, on && styles.chipTextOn]}>
+                      {t(`report.reasons.${r}`)}
+                    </Text>
+                  </PressableScale>
+                );
+              })}
+            </View>
+            <SheetTextInput
+              value={details}
+              onChangeText={setDetails}
+              placeholder={t("report.detailsPlaceholder")}
+              placeholderTextColor={theme.colors.textFaint}
+              multiline
+              style={styles.input}
+            />
+            <PressableScale
+              onPress={submit}
+              disabled={!reason || report.isPending}
+              style={[styles.cta, (!reason || report.isPending) && styles.ctaDisabled]}
+            >
+              <Text style={styles.ctaLabel}>{t("report.send")}</Text>
+            </PressableScale>
+            {failed && <Text style={styles.error}>{t("report.errorBody")}</Text>}
+          </>
+        )}
       </SheetScrollView>
     </CommunitySheet>
   );
@@ -219,6 +240,8 @@ function makeStyles(theme: CommunityTheme) {
       marginTop: theme.spacing(4),
     },
     ctaDisabled: { opacity: 0.5 },
+    ctaDanger: { backgroundColor: theme.colors.danger },
+    body: { ...theme.typography.body, color: theme.colors.textSecondary },
     error: {
       ...theme.typography.caption,
       color: theme.colors.danger,

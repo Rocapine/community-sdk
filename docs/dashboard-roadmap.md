@@ -192,7 +192,7 @@ What each SDK feature gives the dashboard to manage. Update a row when the SDK c
 | Placeholder profiles, left out of the counts (core `019`)                                                   | 0.21.1               | Nothing yet; hold an imported author's posts           | —       |
 | Poll limits per project, `poll_limits()` (polls `002`, core `020`)                                          | 0.21.4               | Composer polls follow the limits; limits in settings   | 4, 12   |
 | One profile per app account (accounts; `002`: merge signs out, delete clears badges)                        | 0.21.8, `002` 0.21.9 | Nothing yet; an account's profile on the member card   | —       |
-| Group chats: groups, members, messages, likes (messaging `001`, groups `001`)                               | 0.22                 | Read a group, its members and its messages             | 22      |
+| Group chats: groups, members, messages, likes (messaging `001`, groups `001`, `004`, `005`)                 | 0.22                 | Read a group, its members and its messages             | 22      |
 | Message and group moderation, AI-hidden ones, `admin_message_context`, `message_versions` (messaging `001`) | 0.22                 | Review queue items with context and edit history       | 2, 22   |
 | Reports on messages and groups, `reports.message_id` / `group_id` (messaging, groups)                       | 0.22                 | Review queue                                           | 2, 22   |
 | Group management, `admin_edit_group`, `admin_transfer_group` (groups `001`)                                 | 0.22                 | Edit a group live, transfer it to a new creator        | 22      |

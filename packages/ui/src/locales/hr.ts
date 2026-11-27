@@ -148,6 +148,7 @@ export const hr: Record<string, string> = {
   "report.sentBody": "Prijava je poslana. Naš tim pregledava svaku prijavu.",
   "report.blockOfferBody":
     "Prijava je poslana. Naš tim pregledava svaku prijavu. Želiš li blokirati i {name}?",
+  "report.done": "Gotovo",
   "report.errorTitle": "Slanje prijave nije uspjelo",
   "report.errorBody": "Provjeri vezu i pokušaj ponovno.",
 

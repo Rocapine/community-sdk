@@ -1,5 +1,6 @@
--- Groups module (groups/001_groups.sql, accounts/003_merge_hooks.sql).
--- Run against a backend with messaging/001 and groups/001 applied:
+-- Groups module (groups/001_groups.sql, 004_members_changed.sql, 005_storage_sweep.sql,
+-- accounts/003_merge_hooks.sql).
+-- Run against a backend with messaging/001 and groups/001…005 applied:
 --   npx supabase db query --project-ref <ref> --linked --yes -f supabase-tests/groups.sql
 -- It creates five auth users (so five profiles: a creator, b, c members, x outsider, adm an
 -- in-app admin) and always rolls back by raising at the end: the run passed when the error
@@ -524,6 +525,85 @@ begin
     assert (select count(*) from public.notifications where user_id = c and kind = 'group_member_removed') = 1,
       'removal notified without conversation_id';
   end if;
+
+  -- groups/004: a changed member count broadcasts `members` on the conversation's channel.
+  -- groups/005: the files of deleted groups and stale unreferenced uploads are listed.
+  declare
+    s uuid := gen_random_uuid();
+    t uuid := gen_random_uuid();
+    gs uuid;
+    mid uuid;
+    listed text[];
+  begin
+    insert into auth.users (id) values (s), (t);
+    perform set_config('request.jwt.claims', json_build_object('sub', s, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    gs := public.create_group('Sweep', 'files', s || '/' || gen_random_uuid() || '.jpg');
+    reset role;
+    update public.groups
+       set status = 'visible', name = pending_name, description = pending_description,
+           pending_name = null, pending_description = null, image_path = gs || '/live.jpg'
+     where conversation_id = gs;
+
+    if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+      perform set_config('request.jwt.claims', json_build_object('sub', t, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      perform public.join_group(gs);
+      perform public.join_group(gs);
+      reset role;
+      assert (select count(*) from realtime.messages
+              where topic = 'conversation:' || gs and event = 'members') = 1,
+        'a join broadcasts members once (an idempotent rejoin changes nothing)';
+      perform set_config('request.jwt.claims', json_build_object('sub', s, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      perform public.remove_member(gs, t);
+      perform public.readmit_member(gs, t);
+      reset role;
+      assert (select count(*) from realtime.messages
+              where topic = 'conversation:' || gs and event = 'members') = 2,
+        'a removal broadcasts members; a readmission (no count change) does not';
+      assert (select bool_and(private) from realtime.messages where topic = 'conversation:' || gs),
+        'on the private channel';
+    end if;
+
+    insert into public.messages (conversation_id, author_id, image_path, status)
+      values (gs, s, gs || '/' || s || '/sent.jpg', 'visible') returning id into mid;
+    insert into public.message_versions (message_id, image_path) values (mid, gs || '/' || s || '/older.jpg');
+    insert into storage.objects (bucket_id, name, created_at) values
+      ('group-images', g1 || '/deleted-group.jpg', now()),
+      ('message-images', g1 || '/' || a || '/deleted-group.jpg', now()),
+      ('group-images', gs || '/live.jpg', now() - interval '2 days'),
+      ('group-images', gs || '/stale.jpg', now() - interval '2 days'),
+      ('group-images', gs || '/fresh.jpg', now()),
+      ('group-images-pending', (select pending_image_path from public.groups where conversation_id = gs),
+        now() - interval '2 days'),
+      ('group-images-pending', s || '/abandoned.jpg', now() - interval '2 days'),
+      ('group-images-pending', s || '/uploading.jpg', now()),
+      ('message-images', gs || '/' || s || '/sent.jpg', now() - interval '2 days'),
+      ('message-images', gs || '/' || s || '/older.jpg', now() - interval '2 days'),
+      ('message-images', gs || '/' || s || '/never-sent.jpg', now() - interval '2 days'),
+      ('message-images', gs || '/' || s || '/being-sent.jpg', now());
+    select array_agg(u.bucket || ':' || u.name order by u.bucket || ':' || u.name) into listed
+      from public.messaging_images_unreferenced(100000) u
+     where u.name like g1 || '/%' or u.name like gs || '/%' or u.name like s || '/%';
+    assert listed = (select array_agg(e order by e) from unnest(array[
+        'group-images:' || g1 || '/deleted-group.jpg',
+        'group-images:' || gs || '/stale.jpg',
+        'group-images-pending:' || s || '/abandoned.jpg',
+        'message-images:' || g1 || '/' || a || '/deleted-group.jpg',
+        'message-images:' || gs || '/' || s || '/never-sent.jpg'
+      ]) e), 'swept: deleted groups'' files and stale unreferenced uploads, got ' || listed::text;
+
+    perform set_config('request.jwt.claims', json_build_object('sub', s, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    failed := false;
+    begin
+      perform public.messaging_images_unreferenced(1);
+    exception when insufficient_privilege then failed := true;
+    end;
+    assert failed, 'authenticated must not list sweepable files';
+    reset role;
+  end;
 
   -- Clients never call the dashboard and service functions; anon calls nothing.
   perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);

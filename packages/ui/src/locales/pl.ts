@@ -173,6 +173,7 @@ export const pl: Record<string, string> = {
   "report.sentBody": "Twoje zgłoszenie zostało wysłane. Nasz zespół sprawdza każde zgłoszenie.",
   "report.blockOfferBody":
     "Twoje zgłoszenie zostało wysłane. Nasz zespół sprawdza każde zgłoszenie. Czy chcesz też zablokować {name}?",
+  "report.done": "Gotowe",
   "report.errorTitle": "Nie udało się wysłać zgłoszenia",
   "report.errorBody": "Sprawdź połączenie i spróbuj ponownie.",
 

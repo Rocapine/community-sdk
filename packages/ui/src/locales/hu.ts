@@ -138,6 +138,7 @@ export const hu: Record<string, string> = {
   "report.sentBody": "A jelentésedet elküldtük. A csapatunk minden jelentést átnéz.",
   "report.blockOfferBody":
     "A jelentésedet elküldtük. A csapatunk minden jelentést átnéz. Szeretnéd {name} felhasználót is letiltani?",
+  "report.done": "Kész",
   "report.errorTitle": "Nem sikerült elküldeni a jelentést",
   "report.errorBody": "Ellenőrizd a kapcsolatot, és próbáld újra.",
 

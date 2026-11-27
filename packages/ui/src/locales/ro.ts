@@ -146,6 +146,7 @@ export const ro: Record<string, string> = {
   "report.sentBody": "Raportarea ta a fost trimisă. Echipa noastră analizează fiecare raportare.",
   "report.blockOfferBody":
     "Raportarea ta a fost trimisă. Echipa noastră analizează fiecare raportare. Vrei să blochezi și persoana {name}?",
+  "report.done": "Gata",
   "report.errorTitle": "Raportarea nu a putut fi trimisă",
   "report.errorBody": "Verifică conexiunea și încearcă din nou.",
 

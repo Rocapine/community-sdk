@@ -26,6 +26,7 @@ import {
   useMessages,
   useMyUid,
   useProfile,
+  useRefreshGroupOnFocus,
   useSendMessage,
   useSetGroupNotify,
   useToggleMessageLike,
@@ -174,6 +175,14 @@ function Conversation({
   const [errorCode, setErrorCode] = useState<MessagingErrorCode | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const accountLinked = useAccountLinked();
+  // A removal, a readmission or a join while the screen was away (groups/004 covers the
+  // ones while it is open).
+  useRefreshGroupOnFocus(kind === "group" ? conversationId : null, isFocused);
+  // A failed action said "removed", the group now says I'm in again (readmitted, rejoined).
+  useEffect(() => {
+    if (group?.isMember)
+      setErrorCode((c) => (c === "not_a_member" || c === "removed_from_group" ? null : c));
+  }, [group?.isMember]);
   const closed = closedReason(group, errorCode, mode === "member");
   const active = member && !closed;
 
@@ -600,17 +609,20 @@ function Conversation({
             {t(closed === "removed" ? "chat.removed" : "chat.groupDeleted")}
           </Text>
         ) : !member ? (
-          <View style={styles.joinBar}>
-            {joinError && <Text style={styles.error}>{joinError}</Text>}
-            <PressableScale
-              onPress={() => void joinNow()}
-              disabled={join.isPending || gating}
-              haptic="medium"
-              style={[styles.join, (join.isPending || gating) && styles.disabled]}
-            >
-              <Text style={styles.joinLabel}>{t("chat.join")}</Text>
-            </PressableScale>
-          </View>
+          <>
+            <TypingLine userIds={typingUserIds} />
+            <View style={styles.joinBar}>
+              {joinError && <Text style={styles.error}>{joinError}</Text>}
+              <PressableScale
+                onPress={() => void joinNow()}
+                disabled={join.isPending || gating}
+                haptic="medium"
+                style={[styles.join, (join.isPending || gating) && styles.disabled]}
+              >
+                <Text style={styles.joinLabel}>{t("chat.join")}</Text>
+              </PressableScale>
+            </View>
+          </>
         ) : (
           <>
             <TypingLine userIds={typingUserIds.filter((id) => id !== myUid)} />

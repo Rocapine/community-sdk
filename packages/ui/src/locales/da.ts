@@ -133,6 +133,7 @@ export const da: Record<string, string> = {
   "report.sentBody": "Din anmeldelse er sendt. Vores hold gennemgår hver anmeldelse.",
   "report.blockOfferBody":
     "Din anmeldelse er sendt. Vores hold gennemgår hver anmeldelse. Vil du også blokere {name}?",
+  "report.done": "Færdig",
   "report.errorTitle": "Anmeldelsen kunne ikke sendes",
   "report.errorBody": "Tjek din forbindelse, og prøv igen.",
 

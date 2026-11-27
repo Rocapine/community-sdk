@@ -147,6 +147,7 @@ export const uk: Record<string, string> = {
   "report.sentBody": "Твою скаргу надіслано. Наша команда розглядає кожну скаргу.",
   "report.blockOfferBody":
     "Твою скаргу надіслано. Наша команда розглядає кожну скаргу. Заблокувати також {name}?",
+  "report.done": "Готово",
   "report.errorTitle": "Не вдалося надіслати скаргу",
   "report.errorBody": "Перевір з'єднання та спробуй ще раз.",
 

@@ -145,6 +145,7 @@ export const esES: Record<string, string> = {
   "report.sentBody": "Tu denuncia se ha enviado. Nuestro equipo revisa todas las denuncias.",
   "report.blockOfferBody":
     "Tu denuncia se ha enviado. Nuestro equipo revisa todas las denuncias. ¿Quieres bloquear también a {name}?",
+  "report.done": "Listo",
   "report.errorTitle": "No se ha podido enviar la denuncia",
   "report.errorBody": "Comprueba tu conexión y vuelve a intentarlo.",
 

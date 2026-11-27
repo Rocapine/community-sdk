@@ -145,6 +145,7 @@ export const it: Record<string, string> = {
     "La tua segnalazione è stata inviata. Il nostro team esamina ogni segnalazione.",
   "report.blockOfferBody":
     "Segnalazione inviata. Il nostro team esamina ogni segnalazione. Vuoi bloccare anche {name}?",
+  "report.done": "Fine",
   "report.errorTitle": "Impossibile inviare la segnalazione",
   "report.errorBody": "Controlla la connessione e riprova.",
 

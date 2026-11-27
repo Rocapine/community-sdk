@@ -145,6 +145,7 @@ export const ru: Record<string, string> = {
   "report.sentBody": "Жалоба отправлена. Наша команда проверяет каждую жалобу.",
   "report.blockOfferBody":
     "Жалоба отправлена. Наша команда проверяет каждую жалобу. Заблокировать также {name}?",
+  "report.done": "Готово",
   "report.errorTitle": "Не удалось отправить жалобу",
   "report.errorBody": "Проверь соединение и попробуй ещё раз.",
 

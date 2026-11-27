@@ -25,7 +25,12 @@ function fakeChannel(topic: string, opts: unknown) {
       return ch;
     },
     fire(type: string, payload: unknown) {
-      for (const b of ch.bindings.filter((x) => x.type === type)) b.cb(payload);
+      // A broadcast binding hears only its event, like realtime-js.
+      const event = (payload as { event?: unknown } | null)?.event;
+      for (const b of ch.bindings.filter(
+        (x) => x.type === type && (type !== "broadcast" || x.filter.event === event),
+      ))
+        b.cb(payload);
     },
   };
   return ch;
@@ -195,6 +200,22 @@ it("a moderation hide (broadcast `changed`, messaging/004) calls onChange", asyn
   expect(h.onChange).toHaveBeenCalledTimes(1);
   expect(h.onTyping).not.toHaveBeenCalled();
   stop();
+});
+
+it("a member count change (broadcast `members`, groups/004) calls onMembers only", async () => {
+  const { cfg, channels } = setup();
+  const h = { ...handlers(), onMembers: vi.fn() };
+  const stop = subscribeConversation(cfg, "c1", h);
+  const bare = handlers(); // a listener without onMembers is skipped
+  const stopBare = subscribeConversation(cfg, "c1", bare);
+  await vi.advanceTimersByTimeAsync(0);
+  channels[0]!.fire("broadcast", { event: "members", payload: { id: "c1" } });
+  await vi.advanceTimersByTimeAsync(150);
+  expect(h.onMembers).toHaveBeenCalledTimes(1);
+  expect(h.onChange).not.toHaveBeenCalled();
+  expect(bare.onTyping).not.toHaveBeenCalled();
+  stop();
+  stopBare();
 });
 
 it("re-opening while the old channel is closing waits for it, then opens a live one", async () => {

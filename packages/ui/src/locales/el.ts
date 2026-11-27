@@ -140,6 +140,7 @@ export const el: Record<string, string> = {
   "report.sentBody": "Η αναφορά σου στάλθηκε. Η ομάδα μας ελέγχει κάθε αναφορά.",
   "report.blockOfferBody":
     "Η αναφορά σου στάλθηκε. Η ομάδα μας ελέγχει κάθε αναφορά. Να γίνει και αποκλεισμός για {name};",
+  "report.done": "Τέλος",
   "report.errorTitle": "Η αναφορά δεν στάλθηκε",
   "report.errorBody": "Έλεγξε τη σύνδεσή σου και δοκίμασε ξανά.",
 

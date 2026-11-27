@@ -144,6 +144,7 @@ export const es419: Record<string, string> = {
   "report.sentBody": "Tu reporte fue enviado. Nuestro equipo revisa cada reporte.",
   "report.blockOfferBody":
     "Tu reporte fue enviado. Nuestro equipo revisa cada reporte. ¿También quieres bloquear a {name}?",
+  "report.done": "Listo",
   "report.errorTitle": "No se pudo enviar el reporte",
   "report.errorBody": "Revisa tu conexión y vuelve a intentar.",
 

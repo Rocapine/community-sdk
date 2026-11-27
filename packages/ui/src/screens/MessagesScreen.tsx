@@ -16,7 +16,7 @@ import {
   useProfile,
   type Conversation,
 } from "@rocapine/community-core";
-import { memo, useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -63,6 +63,10 @@ function Messages({ onOpenConversation, onOpenExplore, onBack }: MessagesScreenP
     // Once per opening.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The spinner only answers a pull: a background refetch (back from a chat, a Realtime
+  // change) must not show it, or iOS leaves the list pushed down under a stuck spinner.
+  const [pulling, setPulling] = useState(false);
 
   const groups = useMemo(
     () =>
@@ -124,8 +128,11 @@ function Messages({ onOpenConversation, onOpenExplore, onBack }: MessagesScreenP
           }
           refreshControl={
             <RefreshControl
-              refreshing={conversations.isRefetching}
-              onRefresh={() => void conversations.refetch()}
+              refreshing={pulling}
+              onRefresh={() => {
+                setPulling(true);
+                void conversations.refetch().finally(() => setPulling(false));
+              }}
               tintColor={theme.colors.accent}
             />
           }

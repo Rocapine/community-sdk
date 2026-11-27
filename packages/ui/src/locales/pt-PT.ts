@@ -142,6 +142,7 @@ export const ptPT: Record<string, string> = {
   "report.sentBody": "A tua denúncia foi enviada. A nossa equipa analisa todas as denúncias.",
   "report.blockOfferBody":
     "A tua denúncia foi enviada. A nossa equipa analisa todas as denúncias. Queres bloquear também {name}?",
+  "report.done": "Concluído",
   "report.errorTitle": "Não foi possível enviar a denúncia",
   "report.errorBody": "Verifica a tua ligação e tenta de novo.",
 

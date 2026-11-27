@@ -135,6 +135,7 @@ export const nb: Record<string, string> = {
   "report.sentBody": "Rapporten din er sendt. Teamet vårt går gjennom hver rapport.",
   "report.blockOfferBody":
     "Rapporten din er sendt. Teamet vårt går gjennom hver rapport. Vil du også blokkere {name}?",
+  "report.done": "Ferdig",
   "report.errorTitle": "Kunne ikke sende rapporten",
   "report.errorBody": "Sjekk tilkoblingen din og prøv igjen.",
 

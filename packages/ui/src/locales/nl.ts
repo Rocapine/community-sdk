@@ -137,6 +137,7 @@ export const nl: Record<string, string> = {
   "report.sentBody": "Je melding is verstuurd. Ons team bekijkt elke melding.",
   "report.blockOfferBody":
     "Je melding is verstuurd. Ons team bekijkt elke melding. Wil je {name} ook blokkeren?",
+  "report.done": "Klaar",
   "report.errorTitle": "Melding versturen mislukt",
   "report.errorBody": "Controleer je verbinding en probeer het opnieuw.",
 

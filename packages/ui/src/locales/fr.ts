@@ -167,6 +167,7 @@ export const fr: Record<string, string> = {
   "report.sentBody": "Ton signalement a été envoyé. Notre équipe examine chaque signalement.",
   "report.blockOfferBody":
     "Ton signalement a été envoyé. Notre équipe examine chaque signalement. Veux-tu aussi bloquer {name} ?",
+  "report.done": "Terminé",
   "report.errorTitle": "Impossible d'envoyer le signalement",
   "report.errorBody": "Vérifie ta connexion et réessaie.",
 

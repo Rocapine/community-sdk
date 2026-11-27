@@ -77,3 +77,33 @@ export async function fetchImagePaths(
   }
   return { paths, failedIds };
 }
+
+// Group pictures and chat images nothing needs any more (groups/005): every file of a
+// deleted group, and uploads no row points at after a day. Removed bucket by bucket;
+// a missing RPC (no groups module) is a silent no-op. Returns how many files went, and
+// the first error (surfaced in the Slack summary).
+export async function sweepMessagingImages(
+  supabase: Admin,
+  limit = 500,
+): Promise<{ removed: number; error?: string }> {
+  const { data, error } = await supabase.rpc("messaging_images_unreferenced", { p_limit: limit });
+  if (error) {
+    const missing = error.code === "42883" || error.code === "PGRST202";
+    if (!missing) console.error("messaging image sweep: list failed", error.message);
+    return missing ? { removed: 0 } : { removed: 0, error: error.message };
+  }
+  const byBucket = new Map<string, string[]>();
+  for (const { bucket, name } of (data ?? []) as { bucket: string; name: string }[]) {
+    byBucket.set(bucket, [...(byBucket.get(bucket) ?? []), name]);
+  }
+  let removed = 0;
+  let firstError: string | undefined;
+  for (const [bucket, names] of byBucket) {
+    const { data: gone, error: removeError } = await supabase.storage.from(bucket).remove(names);
+    if (removeError) {
+      console.error("messaging image sweep: remove failed", bucket, removeError.message);
+      firstError ??= removeError.message;
+    } else removed += gone?.length ?? 0;
+  }
+  return firstError ? { removed, error: firstError } : { removed };
+}

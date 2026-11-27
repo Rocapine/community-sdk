@@ -1,6 +1,6 @@
 // Realtime per conversation (groups module): one private channel `conversation:<id>`
 // carrying database changes of its messages (RLS applied; a like is an UPDATE of
-// like_count) and the typing broadcast, authorised by the realtime.messages policies of
+// like_count), the typing broadcast and the `members` broadcast (groups/004), authorised by the realtime.messages policies of
 // messaging/001_messaging.sql. Every subscriber of a conversation shares the channel.
 
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
@@ -14,7 +14,12 @@ export const TYPING_THROTTLE_MS = 3000;
 // unsubscribe waits a moment: a StrictMode remount or a quick re-open reuses the channel.
 const RELEASE_DELAY_MS = 1000;
 
-export type ConversationHandlers = { onChange(): void; onTyping(userId: string): void };
+export type ConversationHandlers = {
+  onChange(): void;
+  onTyping(userId: string): void;
+  /** groups/004: someone joined, left or was removed (the member count changed). */
+  onMembers?(): void;
+};
 
 type Entry = {
   /** Null until opened (after auth, and after a previous channel of the topic closed). */
@@ -82,6 +87,9 @@ function open(cfg: ResolvedCommunityConfig, client: SupabaseClient, conversation
       )
       // messaging/004: a message hidden by moderation, which RLS keeps out of postgres_changes.
       .on("broadcast", { event: "changed" }, () => changed(entry))
+      .on("broadcast", { event: "members" }, () => {
+        for (const l of entry.listeners) l.onMembers?.();
+      })
       .on("broadcast", { event: "typing" }, ({ payload }) => {
         const userId = (payload as { userId?: unknown } | undefined)?.userId;
         if (typeof userId === "string") for (const l of entry.listeners) l.onTyping(userId);

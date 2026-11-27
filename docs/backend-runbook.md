@@ -561,7 +561,7 @@ supabase functions deploy
   attachment, `posts.attachment`): the CLI adds both.
 - Migrations, in the CLI's order: `messaging/001_messaging`, `002_push`,
   `003_settings_read`, `004_realtime_changed`, then `groups/001_groups`,
-  `002_translation`, `003_list_conversations`. With the inbox module,
+  `002_translation`, `003_list_conversations`, `004_members_changed`, `005_storage_sweep`. With the inbox module,
   `inbox/005_group_events` adds `notifications.conversation_id` and returns it from
   `list_notifications` (the center's group rows); inbox before or after groups both work.
 - **Push first.** Install `push` before (or with) messaging. `messaging/002_push` creates
@@ -622,14 +622,21 @@ without it they don't apply. `groups.requireAccount: "feed"` is client only (`fa
   (new and changed messages, filtered by the read policies; a like is an `UPDATE` of
   `messages.like_count`, and `message_likes` stays out). `messaging/004` broadcasts
   `changed` on the private channel `conversation:<id>` when a message is hidden, since
-  readers who lost access get no `postgres_changes`; typing uses the same channel. Its
-  policy on `realtime.messages` lets members only.
+  readers who lost access get no `postgres_changes`; typing uses the same channel.
+  `groups/004` broadcasts `members` there when a group's member count changes (a join, a
+  leave, a removal): open chats refresh their header, and a member just removed sees the
+  removed line at once (Realtime checks a private channel's policies when it is joined,
+  so they still get it). Its policies on `realtime.messages`: readers (previewers
+  included) listen, only members send typing.
 - **Storage.** `message-images` (private, 2 MB, JPEG/PNG/WebP,
   `<conversation>/<uid>/<uuid>.<ext>`; readers get signed URLs), `group-images` (public,
   approved images only, written by moderation) and `group-images-pending` (private,
-  `<uid>/<uuid>.<ext>`, copied to `group-images` on approval). No sweep removes orphaned
-  chat images yet (an upload whose send failed, an `eraseAll` deletion, a rejected group
-  image).
+  `<uid>/<uuid>.<ext>`, copied to `group-images` on approval). `daily-moderation`
+  removes, through `messaging_images_unreferenced()` (`groups/005`, service role only),
+  every file of a deleted group (its picture and its messages' images) and any upload
+  no row points at after a day (an image picked and never sent, an abandoned group form).
+  A file a group or message that isn't deleted still points at, or that a message's edit
+  history (`message_versions`) holds, is kept.
 - **Moderation.** The app calls `moderate-one` (`kind: "message"` or `"group"`) right
   after a send, a creation or an edit. `"post"` shows a message at once and hides it if
   flagged; `"pre"` and any image keep it pending until passed; `"reportOnly"` skips the

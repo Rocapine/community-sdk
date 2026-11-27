@@ -155,6 +155,7 @@ export const en: Record<string, string> = {
   "report.sentBody": "Your report was sent. Our team reviews every report.",
   "report.blockOfferBody":
     "Your report was sent. Our team reviews every report. Do you also want to block {name}?",
+  "report.done": "Done",
   "report.errorTitle": "Couldn't send report",
   "report.errorBody": "Please check your connection and try again.",
 

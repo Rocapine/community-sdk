@@ -6,7 +6,8 @@
 // core/007_username_moderation.sql): flagged or containing the app's name ->
 // blanked, i.e. back to the default name (core/009). Chat messages and group
 // fields (messaging/groups modules) the synchronous call missed go through the
-// same per-item logic as moderate-one (_shared/messaging.ts). Posts a Slack
+// same per-item logic as moderate-one (_shared/messaging.ts), and the files of deleted
+// groups and abandoned chat uploads are removed (groups/005). Posts a Slack
 // summary when there was something to check (no-op if SLACK_WEBHOOK_URL is
 // unset — see _shared/slack.ts). Never deletes rows. App criticism is not a
 // category (stays visible).
@@ -22,7 +23,12 @@ import {
   moderateItem,
   type ModerationResult,
 } from "../_shared/moderation.ts";
-import { fetchImagePaths, POST_IMAGES_BUCKET, postImageUrl } from "../_shared/images.ts";
+import {
+  fetchImagePaths,
+  POST_IMAGES_BUCKET,
+  postImageUrl,
+  sweepMessagingImages,
+} from "../_shared/images.ts";
 import {
   GROUP_COLUMNS,
   type GroupRow,
@@ -431,10 +437,12 @@ Deno.serve(async () => {
 
   const usernames = await sweepUsernames();
   const sweep = await sweepUnreferencedImages();
+  const chatSweep = await sweepMessagingImages(supabase);
   // Last, within what is left of a 120 s run: everything above is already written.
   const chat = await sweepChat(Math.max(0, startedAt + 120_000 - Date.now()));
-  const imagesSwept = sweep.removed;
+  const imagesSwept = sweep.removed + chatSweep.removed;
   if (sweep.error) imageErrors.push(`image sweep failed: ${sweep.error}`);
+  if (chatSweep.error) imageErrors.push(`chat image sweep failed: ${chatSweep.error}`);
   const allFailedBatches = failedBatches + usernames.failedBatches + chat.failed;
 
   // Quiet when there was nothing to check at all (a stray or duplicate call

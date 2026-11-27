@@ -164,6 +164,7 @@ export const de: Record<string, string> = {
   "report.sentBody": "Deine Meldung wurde gesendet. Unser Team prüft jede Meldung.",
   "report.blockOfferBody":
     "Deine Meldung wurde gesendet. Unser Team prüft jede Meldung. Möchtest du {name} auch blockieren?",
+  "report.done": "Fertig",
   "report.errorTitle": "Meldung konnte nicht gesendet werden",
   "report.errorBody": "Bitte überprüfe deine Verbindung und versuche es erneut.",
 

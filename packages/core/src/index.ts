@@ -271,6 +271,7 @@ export {
   useMessages,
   useMessagingBadge,
   useReadmitMember,
+  useRefreshGroupOnFocus,
   useRemoveMember,
   useSendMessage,
   useSetGroupNotify,

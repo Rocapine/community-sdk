@@ -145,6 +145,7 @@ export const cs: Record<string, string> = {
   "report.sentBody": "Nahlášení bylo odesláno. Náš tým prověřuje každé nahlášení.",
   "report.blockOfferBody":
     "Nahlášení bylo odesláno. Náš tým prověřuje každé nahlášení. Chceš {name} také zablokovat?",
+  "report.done": "Hotovo",
   "report.errorTitle": "Nahlášení se nepodařilo odeslat",
   "report.errorBody": "Zkontroluj připojení a zkus to znovu.",
 

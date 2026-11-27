@@ -135,6 +135,7 @@ export const sv: Record<string, string> = {
   "report.sentBody": "Din anmälan har skickats. Vårt team granskar varje anmälan.",
   "report.blockOfferBody":
     "Din anmälan har skickats. Vårt team granskar varje anmälan. Vill du också blockera {name}?",
+  "report.done": "Klar",
   "report.errorTitle": "Det gick inte att skicka anmälan",
   "report.errorBody": "Kontrollera din anslutning och försök igen.",
 

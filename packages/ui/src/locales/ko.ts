@@ -134,6 +134,7 @@ export const ko: Record<string, string> = {
   "report.sentTitle": "감사해요",
   "report.sentBody": "신고가 접수됐어요. 모든 신고를 팀에서 검토해요.",
   "report.blockOfferBody": "신고가 접수됐어요. 모든 신고를 팀에서 검토해요. {name}님도 차단할까요?",
+  "report.done": "완료",
   "report.errorTitle": "신고를 보내지 못했어요",
   "report.errorBody": "연결 상태를 확인하고 다시 시도해 주세요.",
 
