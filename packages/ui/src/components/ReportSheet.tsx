@@ -74,15 +74,21 @@ export function ReportSheet({
     setReason(null);
     setDetails("");
     setFailed(false);
-    setSent(null);
+    // A host clearing `target` as it closes keeps the confirmation while the sheet slides away.
+    if (target) setSent(null);
+    // Keyed on the target's identity only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target?.kind, target?.id]);
 
   const close = () => {
     setReason(null);
     setDetails("");
-    setSent(null);
     onClose();
   };
+  // Cleared on the next opening, not on close: the sheet keeps "sent" while it slides away.
+  useEffect(() => {
+    if (visible) setSent(null);
+  }, [visible]);
 
   const submit = () => {
     if (!target || !reason || report.isPending) return;
