@@ -15,7 +15,6 @@ declare
   m_img public.messages;
   conv2 uuid;
   rep uuid;
-  stand_in boolean := false;
   r record;
   n int;
 begin
@@ -293,23 +292,20 @@ begin
   if to_regclass('public.groups') is null then
     create table public.groups (conversation_id uuid primary key, status text not null);
     grant select on public.groups to authenticated;
-    stand_in := true;
   end if;
-  if stand_in then
-    insert into public.groups (conversation_id, status) values (conv, 'visible');
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform public.messaging_set_settings('{"groupsPreview": "readOnly"}');
-    perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
-    set local role authenticated;
-    assert public.can_read_conversation(conv), 'an outsider previews a visible group';
-    assert (select count(*) from public.messages where conversation_id = conv) > 0, 'and reads it';
-    reset role;
-    perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
-    set local role authenticated;
-    assert not public.can_read_conversation(conv), 'a removed member does not';
-    assert (select count(*) from public.messages where conversation_id = conv) = 0, 'nor reads it';
-    reset role;
-  end if;
+  insert into public.groups (conversation_id, status) values (conv, 'visible');
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"groupsPreview": "readOnly"}');
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.can_read_conversation(conv), 'an outsider previews a visible group';
+  assert (select count(*) from public.messages where conversation_id = conv) > 0, 'and reads it';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not public.can_read_conversation(conv), 'a removed member does not';
+  assert (select count(*) from public.messages where conversation_id = conv) = 0, 'nor reads it';
+  reset role;
 
   raise exception 'MESSAGING_TESTS_PASSED';
 end $$;

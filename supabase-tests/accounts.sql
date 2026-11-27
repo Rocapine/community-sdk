@@ -1,5 +1,5 @@
--- Account links and profile merge (accounts/001_accounts.sql, accounts/002_merge_and_delete.sql).
--- Run against a backend with core applied, after accounts/001 and 002:
+-- Account links and profile merge (accounts/001_accounts.sql, 002_merge_and_delete.sql, 003_merge_hooks.sql).
+-- Run against a backend with core applied, after accounts/001, 002 and 003:
 --   npx supabase db query --linked --yes -f supabase-tests/accounts.sql
 -- It creates two auth users (so two profiles), merges them and always rolls back by raising at the
 -- end: the run passed when the error message is exactly ACCOUNTS_TESTS_PASSED.
@@ -21,7 +21,10 @@ declare
     'reports.reporter_id', 'reports.reported_user_id', 'moderation_actions.target_user_id',
     'post_drafts.author_id', 'notifications.user_id', 'notifications.actor_id',
     'notification_seen.user_id', 'notification_reads.user_id', 'poll_votes.user_id',
-    'post_reactions.user_id', 'member_presence.user_id', 'push_tokens.user_id', 'push_devices.user_id'];
+    'post_reactions.user_id', 'member_presence.user_id', 'push_tokens.user_id', 'push_devices.user_id',
+    -- merge_messaging (groups module), called by merge_profiles since accounts/003.
+    'conversation_members.user_id', 'messages.author_id', 'message_likes.user_id', 'groups.created_by',
+    'group_removals.user_id'];
 begin
   insert into auth.users (id) values (m), (o), (x), (y);
   assert exists (select 1 from public.profiles where id = m), 'the auth trigger creates the profile';
