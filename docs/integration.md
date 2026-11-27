@@ -41,7 +41,8 @@ exact signatures, see the per-package READMEs.
    ```
 
    Drop any module you don't want (`core` is always implied; omitting the flag
-   installs every module). This copies migrations into `supabase/migrations/`
+   installs every module but `accounts`, group chats' `messaging`, `groups` and
+   `attachments` included). This copies migrations into `supabase/migrations/`
    and Edge Functions into `supabase/functions/`, and writes
    `community-sdk.json`. Nothing project-specific is written into the
    migrations: the same files deploy to a sandbox and to production.
@@ -284,8 +285,10 @@ stays off unless `modules.groups` is set; direct messages come later on the same
 
 **Backend.** `init --modules …,groups` (or `upgrade --add-modules groups`) also installs
 `messaging` (the chat core) and `attachments` (a group's share card is a post attachment).
-Install `push` and `inbox` **before** messaging when you want group pushes and the group
-events in the notification center. See [`backend-runbook.md`](backend-runbook.md#8-messaging-and-groups)
+`init` without `--modules` now installs `messaging`, `groups` and `attachments` too: the
+tables are there, the app shows nothing until it sets `modules.groups`. Install `push`
+**before** messaging for group pushes (a later `push` means re-running `messaging/002`);
+`inbox` works in either order (the group events in the center). See [`backend-runbook.md`](backend-runbook.md#8-messaging-and-groups)
 for the order, the functions and the settings.
 
 **Config.** Every value the backend enforces also lives in `messaging_settings`, set with
@@ -360,8 +363,11 @@ header there instead of `"messages"`. The SDK doesn't switch it for you: the hea
 config.
 
 **Pushes and badge.** Group pushes need the push module. A member follows a group with the
-bell in its conversation (off by default per group); `push_tokens.notify_group_messages`
-(default on) is the member-wide switch, not yet in `useNotificationPreferences`. Several
+bell in its conversation (off by default per group). The member-wide "Groups" switch for
+your settings screen is `notify_group_messages` (default on) in `useNotificationPreferences()`:
+`setPreference("notify_group_messages", false)`. It is read only with `modules.groups` on
+(`notificationPreferenceKeys(cfg)`); otherwise `preferences.notify_group_messages` is
+absent and setting it throws. Several
 messages from one group within a minute push once. A message push carries
 `data: { route: "/community", kind: "community_message", conversationId }`: route it with
 `onOpenMessages({ groupId: conversationId })`, and skip the banner in your foreground

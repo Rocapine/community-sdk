@@ -141,6 +141,7 @@ export async function searchGroups(
     isCreator: mine.has(r.group_id),
     myRole: null,
     creatorId: null,
+    removed: false,
   }));
 }
 
@@ -218,6 +219,7 @@ export async function fetchGroup(cfg: ResolvedCommunityConfig, id: string): Prom
     isCreator,
     myRole: active ? (member?.role ?? "member") : null,
     creatorId: g.created_by,
+    removed: member?.state === "removed",
   };
 }
 

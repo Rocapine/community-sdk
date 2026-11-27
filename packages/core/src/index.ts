@@ -165,6 +165,7 @@ export {
   fetchNotificationPreferences,
   setNotificationPreference,
   NOTIFICATION_PREFERENCE_KEYS,
+  notificationPreferenceKeys,
   uploadAvatar,
   uploadPostImage,
   POST_IMAGES_BUCKET,

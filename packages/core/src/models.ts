@@ -587,4 +587,6 @@ export type Group = {
   myRole: "member" | "creator" | null;
   /** Who created it (a group report names them); null in search results. */
   creatorId: string | null;
+  /** A manager removed me from it (until readmitted); false in search results. */
+  removed: boolean;
 };

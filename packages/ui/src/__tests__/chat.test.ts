@@ -90,7 +90,7 @@ describe("findOrLoadMessage", () => {
 });
 
 describe("closedReason (the composer's replacement line)", () => {
-  const group = (isMember: boolean) => ({ isMember }) as Group;
+  const group = (isMember: boolean, removed = false) => ({ isMember, removed }) as Group;
 
   it("shows the removed state on not_a_member", () => {
     expect(closedReason(group(true), "not_a_member", true)).toBe("removed");
@@ -101,6 +101,11 @@ describe("closedReason (the composer's replacement line)", () => {
     expect(closedReason(group(false), null, true)).toBe("removed");
     // A preview reader was never a member.
     expect(closedReason(group(false), null, false)).toBeNull();
+  });
+
+  it("shows the removed state to a removed member, in preview too", () => {
+    expect(closedReason(group(false, true), null, false)).toBe("removed");
+    expect(closedReason(group(false, true), null, true)).toBe("removed");
   });
 
   it("shows the deleted state for a gone group", () => {

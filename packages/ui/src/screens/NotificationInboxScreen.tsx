@@ -25,8 +25,8 @@
 //  - Groups module: `group_approved` / `group_field_rejected` open the group and
 //    `group_member_removed` its preview (nothing with `groups.preview: "none"`), through
 //    `onOpenMessages`, the feed's own prop (see `inboxRowTarget`).
-//  - Only the standard kinds (`like`/`comment`/`reaction`/`admin_post`)
-//    get a built-in row; anything else calls `renderInboxRow?.(item, null)`
+//  - Only the standard kinds (`like`/`comment`/`reply`/`reaction`/`admin_post` and
+//    the three group events) get a built-in row; anything else calls `renderInboxRow?.(item, null)`
 //    (mirrors `PostSlots`' `renderPostFooter?.(post, defaults) ?? defaults`
 //    pattern from `CommunityPost`, except the fallback here is `null` since
 //    there is no built-in row for an unknown kind to fall back to).

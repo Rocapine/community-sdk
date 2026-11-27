@@ -745,13 +745,28 @@ export function isProfileUnavailable(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === "PGRST116";
 }
 
+/** `notify_group_messages`: the member-wide switch for group pushes (messaging/002),
+ * read and written only with the groups module on: other backends lack the column. */
 export const NOTIFICATION_PREFERENCE_KEYS = [
   "notify_likes",
   "notify_comments",
   "notify_reactions",
+  "notify_group_messages",
 ] as const;
 export type NotificationPreferenceKey = (typeof NOTIFICATION_PREFERENCE_KEYS)[number];
-export type NotificationPreferences = Record<NotificationPreferenceKey, boolean>;
+export type NotificationPreferences = Record<
+  Exclude<NotificationPreferenceKey, "notify_group_messages">,
+  boolean
+> & { notify_group_messages?: boolean };
+
+/** The preference columns this config's backend has. */
+export function notificationPreferenceKeys(cfg: {
+  modules: { groups?: unknown };
+}): NotificationPreferenceKey[] {
+  return NOTIFICATION_PREFERENCE_KEYS.filter(
+    (k) => k !== "notify_group_messages" || !!cfg.modules.groups,
+  );
+}
 
 /** The caller's `push_tokens` preferences (push module); `null` while the device has no push row. */
 export async function fetchNotificationPreferences(
@@ -761,7 +776,7 @@ export async function fetchNotificationPreferences(
   const uid = await requireUid(cfg);
   const { data, error } = await client
     .from("push_tokens")
-    .select(NOTIFICATION_PREFERENCE_KEYS.join(","))
+    .select(notificationPreferenceKeys(cfg).join(","))
     .eq("user_id", uid)
     .maybeSingle();
   if (error) throw error;
@@ -773,6 +788,8 @@ export async function setNotificationPreference(
   key: NotificationPreferenceKey,
   enabled: boolean,
 ): Promise<void> {
+  if (!notificationPreferenceKeys(cfg).includes(key))
+    throw new Error(`${key} needs the groups module`);
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
   const { error } = await client

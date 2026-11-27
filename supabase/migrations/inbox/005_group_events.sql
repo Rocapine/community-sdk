@@ -14,9 +14,12 @@ begin
      and not exists (select 1 from pg_constraint
                      where conrelid = 'public.notifications'::regclass
                        and conname = 'notifications_conversation_id_fkey') then
+    -- Added unchecked, then checked: the check doesn't block writes to notifications.
     alter table public.notifications
       add constraint notifications_conversation_id_fkey
-      foreign key (conversation_id) references public.conversations(id) on delete cascade;
+      foreign key (conversation_id) references public.conversations(id) on delete cascade
+      not valid;
+    alter table public.notifications validate constraint notifications_conversation_id_fkey;
   end if;
 end $$;
 

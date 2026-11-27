@@ -348,7 +348,8 @@ begin
   where conversation_members.state <> 'removed';
   if v_was_active then
     perform public.group_recount_members(p_group);
-    -- conversation_id exists only when inbox was installed before this module.
+    -- conversation_id is added by inbox/005 or this file's INBOX block; it is missing
+    -- only on an inbox older than inbox/005 installed after this module.
     if exists (select 1 from pg_attribute
                where attrelid = to_regclass('public.notifications') and attname = 'conversation_id'
                  and not attisdropped) then
@@ -589,9 +590,12 @@ begin
     if not exists (select 1 from pg_constraint
                    where conrelid = 'public.notifications'::regclass
                      and conname = 'notifications_conversation_id_fkey') then
+      -- Added unchecked, then checked: the check doesn't block writes to notifications.
       alter table public.notifications
         add constraint notifications_conversation_id_fkey
-        foreign key (conversation_id) references public.conversations(id) on delete cascade;
+        foreign key (conversation_id) references public.conversations(id) on delete cascade
+        not valid;
+      alter table public.notifications validate constraint notifications_conversation_id_fkey;
     end if;
   end if;
 end $$;

@@ -644,7 +644,8 @@ without it they don't apply. `groups.requireAccount: "feed"` is client only (`fa
   after 90 days.
 - **Pushes.** `notify-message` pushes each member who follows the group (bell off by
   default per group) and has `notify_group_messages` on, at most once a minute per group
-  unless they read it since, never to blocked members. `COMMUNITY_PUSH_COPY` keys:
+  unless they read it since, never to blocked members. A message pushes at most once
+  (`messages.pushed_at`, stamped before sending): a failed Expo send is not retried. `COMMUNITY_PUSH_COPY` keys:
   `message.groupBody` (`pushPreview: "sender"`), `message.neutral` (`"none"`).
 
 ### Dashboard functions

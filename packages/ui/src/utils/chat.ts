@@ -106,6 +106,8 @@ export function closedReason(
 ): "removed" | "groupDeleted" | null {
   if (group === null || errorCode === "not_found") return "groupDeleted";
   if (errorCode === "not_a_member" || errorCode === "removed_from_group") return "removed";
+  // In preview too: a removed member can't read or rejoin it (no Join bar).
+  if (group?.removed) return "removed";
   if (expectMember && group && !group.isMember) return "removed";
   return null;
 }

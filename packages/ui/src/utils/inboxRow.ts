@@ -17,9 +17,6 @@ export function inboxRowText(
   };
 }
 
-/** Where tapping a row goes: its post, or its group (`group_*` kinds). A removed member
- * gets the group's preview (it says they were removed, or lets them join again once
- * readmitted); with `groups.preview: "none"` there is nothing to open. */
 /** The group events of the groups module (inbox/005 names their group). */
 export const GROUP_INBOX_KINDS: readonly string[] = [
   "group_approved",
@@ -27,6 +24,9 @@ export const GROUP_INBOX_KINDS: readonly string[] = [
   "group_member_removed",
 ];
 
+/** Where tapping a row goes: its post, or its group (`GROUP_INBOX_KINDS`). A removed
+ * member gets the group's preview (it says they were removed, or lets them join again
+ * once readmitted); with `groups.preview: "none"` there is nothing to open. */
 export function inboxRowTarget(
   item: InboxItem,
   groupsPreview: "readOnly" | "none",

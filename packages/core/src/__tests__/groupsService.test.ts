@@ -75,6 +75,32 @@ describe("fetchGroupOnlineCounts", () => {
 });
 
 describe("fetchGroup", () => {
+  it("tells a removed member they were removed", async () => {
+    const client = fakeClient({
+      tables: {
+        groups: {
+          data: {
+            conversation_id: "g1",
+            name: "Nom",
+            description: "Desc",
+            image_path: null,
+            status: "visible",
+            created_by: "other",
+            member_count: 3,
+            last_activity_at: "2026-11-27T10:00:00Z",
+          },
+          error: null,
+        },
+        conversation_members: { data: { state: "removed", role: "member" }, error: null },
+      },
+    });
+    expect(await fetchGroup(cfgWith(client), "g1")).toMatchObject({
+      removed: true,
+      isMember: false,
+      myRole: null,
+    });
+  });
+
   it("never selects the hidden columns, and shows its creator the review state", async () => {
     const client = fakeClient({
       tables: {
@@ -118,6 +144,7 @@ describe("fetchGroup", () => {
       creatorId: "uid1",
       myRole: "creator",
       isMember: true,
+      removed: false,
     });
   });
 
@@ -222,5 +249,28 @@ describe("fetchGroupRemovals", () => {
     });
     const removed = await fetchGroupRemovals(cfgWith(client), "g1", " an ");
     expect(removed).toEqual([{ userId: "u1", username: "Ana", removedAt: "2026-11-27T10:00:00Z" }]);
+  });
+});
+
+describe("notification preferences", () => {
+  it("reads and writes the group-message switch only with the groups module", async () => {
+    const { fetchNotificationPreferences, setNotificationPreference } = await import("../service");
+    const withGroups = fakeClient({ tables: { push_tokens: { data: null, error: null } } });
+    await fetchNotificationPreferences(cfgWith(withGroups));
+    expect(withGroups.queries.push_tokens[0].calls[0]).toEqual([
+      "select",
+      ["notify_likes,notify_comments,notify_reactions,notify_group_messages"],
+    ]);
+
+    const without = fakeClient({ tables: { push_tokens: { data: null, error: null } } });
+    const cfg = cfgWith(without, { groups: false });
+    await fetchNotificationPreferences(cfg);
+    expect(without.queries.push_tokens[0].calls[0]).toEqual([
+      "select",
+      ["notify_likes,notify_comments,notify_reactions"],
+    ]);
+    await expect(setNotificationPreference(cfg, "notify_group_messages", false)).rejects.toThrow(
+      "groups module",
+    );
   });
 });
