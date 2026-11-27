@@ -21,9 +21,12 @@ export function MessageMenu({
   actions,
   onClose,
   onDismissed,
+  title,
 }: {
   visible: boolean;
   actions: MessageMenuAction[];
+  /** A question above the actions, with a Cancel row under them (a confirmation). */
+  title?: string;
   onClose(): void;
   /** The sheet is fully gone: open the next sheet from here (iOS). */
   onDismissed?(): void;
@@ -67,6 +70,12 @@ export function MessageMenu({
             >
               <Text style={styles.label}>{t("menu.cancel")}</Text>
             </Pressable>
+          </View>
+        ) : title ? (
+          <View>
+            <Text style={styles.question}>{title}</Text>
+            {actions.map((a) => row(a))}
+            {row({ key: "cancel", label: t("menu.cancel"), onPress: () => {} })}
           </View>
         ) : (
           actions.map((a) => row(a))

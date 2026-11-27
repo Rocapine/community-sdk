@@ -108,6 +108,7 @@ describe("fetchGroup", () => {
       status: "pending",
       rejectedFields: ["name"],
       isCreator: true,
+      creatorId: "uid1",
       isMember: true,
     });
   });

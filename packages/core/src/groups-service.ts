@@ -136,6 +136,7 @@ export async function searchGroups(
     status: "visible",
     rejectedFields: [],
     isCreator: mine.has(r.group_id),
+    creatorId: null,
   }));
 }
 
@@ -208,6 +209,7 @@ export async function fetchGroup(cfg: ResolvedCommunityConfig, id: string): Prom
     status: g.status === "visible" ? "visible" : "pending",
     rejectedFields: r?.rejected_fields ?? [],
     isCreator,
+    creatorId: g.created_by,
   };
 }
 

@@ -37,7 +37,8 @@ const REASONS: ReportReason[] = ["spam", "harassment", "hate", "inappropriate", 
  * `ThreadSheet`, …) share one type instead of each redeclaring an identical
  * inline shape. */
 export type ReportTarget = {
-  kind: "post" | "comment" | "message";
+  /** `group`: `authorId` is its creator. */
+  kind: "post" | "comment" | "message" | "group";
   id: string;
   authorId: string;
   /** With a name, a harassment report offers to block the author too (never an admin). */
@@ -62,12 +63,15 @@ export function ReportSheet({
 
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [details, setDetails] = useState("");
+  // Inline as well as in the alert: react-native-web shows no system alert.
+  const [failed, setFailed] = useState(false);
 
   // A new target (report a different post/comment) starts from a clean form,
   // even if the host reuses the same sheet instance without a close in between.
   useEffect(() => {
     setReason(null);
     setDetails("");
+    setFailed(false);
   }, [target?.kind, target?.id]);
 
   const close = () => {
@@ -78,6 +82,7 @@ export function ReportSheet({
 
   const submit = () => {
     if (!target || !reason || report.isPending) return;
+    setFailed(false);
     const reported = target;
     const offerBlock = reason === "harassment" && !!reported.authorName && !reported.authorAdmin;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
@@ -87,6 +92,7 @@ export function ReportSheet({
         postId: target.kind === "post" ? target.id : undefined,
         commentId: target.kind === "comment" ? target.id : undefined,
         messageId: target.kind === "message" ? target.id : undefined,
+        groupId: target.kind === "group" ? target.id : undefined,
         reason,
         details,
       },
@@ -107,7 +113,10 @@ export function ReportSheet({
             ],
           );
         },
-        onError: () => Alert.alert(t("report.errorTitle"), t("report.errorBody")),
+        onError: () => {
+          setFailed(true);
+          Alert.alert(t("report.errorTitle"), t("report.errorBody"));
+        },
       },
     );
   };
@@ -154,6 +163,7 @@ export function ReportSheet({
         >
           <Text style={styles.ctaLabel}>{t("report.send")}</Text>
         </PressableScale>
+        {failed && <Text style={styles.error}>{t("report.errorBody")}</Text>}
       </SheetScrollView>
     </CommunitySheet>
   );
@@ -209,6 +219,12 @@ function makeStyles(theme: CommunityTheme) {
       marginTop: theme.spacing(4),
     },
     ctaDisabled: { opacity: 0.5 },
+    error: {
+      ...theme.typography.caption,
+      color: theme.colors.danger,
+      textAlign: "center",
+      marginTop: theme.spacing(2),
+    },
     ctaLabel: {
       ...theme.typography.label,
       fontFamily: theme.fonts.bold,

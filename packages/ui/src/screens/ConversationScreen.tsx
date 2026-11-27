@@ -51,6 +51,7 @@ import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../
 import type { CommunityTheme } from "../theme";
 import { Avatar } from "../components/Avatar";
 import { useKeyboardHeight } from "../components/ComposerSheet";
+import { GroupReviewNotice } from "../components/GroupFormSheet";
 import { ImageViewerHost } from "../components/ImageViewer";
 import { PressableScale, haptic } from "../components/PressableScale";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
@@ -520,6 +521,8 @@ function Conversation({
           </Pressable>
         )}
       </View>
+
+      <GroupReviewNotice group={group} />
 
       {isQueryLoading(messages) ? (
         <ActivityIndicator color={theme.colors.accent} style={styles.loader} />

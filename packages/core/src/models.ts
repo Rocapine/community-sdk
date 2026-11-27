@@ -572,4 +572,6 @@ export type Group = {
   status: "pending" | "visible";
   rejectedFields: string[];
   isCreator: boolean;
+  /** Who created it (a group report names them); null in search results. */
+  creatorId: string | null;
 };

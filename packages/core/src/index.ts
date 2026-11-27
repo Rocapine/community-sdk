@@ -263,6 +263,7 @@ export {
   useMarkConversationRead,
   useMessages,
   useMessagingBadge,
+  useReadmitMember,
   useRemoveMember,
   useSendMessage,
   useSetGroupNotify,

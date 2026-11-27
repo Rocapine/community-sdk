@@ -27,6 +27,7 @@ import {
   fetchGroupOnlineCounts,
   joinGroup,
   leaveGroup,
+  readmitMember,
   removeMember,
   searchGroups,
   setGroupNotify,
@@ -699,5 +700,17 @@ export function useRemoveMember() {
       void queryClient.invalidateQueries({ queryKey: groupMembersKey(groupId) });
       void queryClient.invalidateQueries({ queryKey: [...GROUPS_KEY, "group", groupId] });
     },
+  });
+}
+
+/** The creator lets a removed member back in (they may join again). */
+export function useReadmitMember() {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
+      readmitMember(cfg, groupId, userId),
+    onSuccess: (_d, { groupId }) =>
+      void queryClient.invalidateQueries({ queryKey: groupMembersKey(groupId) }),
   });
 }

@@ -71,6 +71,11 @@ export { ReportSheet } from "./components/ReportSheet";
 
 export { CommunityFeedScreen } from "./screens/CommunityFeedScreen";
 export { ConversationScreen, type ConversationScreenProps } from "./screens/ConversationScreen";
+export { MessagesScreen, type MessagesScreenProps } from "./screens/MessagesScreen";
+export { ExploreGroupsScreen, type ExploreGroupsScreenProps } from "./screens/ExploreGroupsScreen";
+export { GroupDetailsScreen, type GroupDetailsScreenProps } from "./screens/GroupDetailsScreen";
+export { GroupMembersScreen, type GroupMembersScreenProps } from "./screens/GroupMembersScreen";
+export { GroupFormSheet } from "./components/GroupFormSheet";
 export {
   DEFAULT_FEED_HEADER,
   type FeedHeaderBackground,
