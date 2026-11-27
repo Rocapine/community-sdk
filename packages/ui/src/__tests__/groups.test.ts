@@ -101,6 +101,7 @@ describe("groupErrorKey", () => {
     expect(groupErrorKey("group_full")).toBe("groups.error.groupFull");
     expect(groupErrorKey("removed_from_group")).toBe("groups.error.removed");
     expect(groupErrorKey("banned")).toBe("groups.error.banned");
+    expect(groupErrorKey("rate_limited")).toBe("groups.error.editLimit");
     expect(groupErrorKey("unknown")).toBe("groups.error.generic");
   });
 });

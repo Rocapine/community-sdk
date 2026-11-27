@@ -305,6 +305,7 @@ export const hu: Record<string, string> = {
   "groups.error.nameTooLong": "Ez a név túl hosszú.",
   "groups.error.descriptionTooLong": "Ez a leírás túl hosszú.",
   "groups.error.tooManyGroups": "Elérted a létrehozható csoportok számát.",
+  "groups.error.editLimit": "Túl sokszor módosítottad ezt a csoportot. Próbáld újra később.",
   "groups.error.tooManyJoined":
     "Elérted, hogy hány csoporthoz csatlakozhatsz. Lépj ki az egyikből, hogy egy másikhoz csatlakozhass.",
   "groups.error.groupFull": "Ez a csoport megtelt.",

@@ -302,6 +302,7 @@ export const ko: Record<string, string> = {
   "groups.error.nameTooLong": "이름이 너무 길어요.",
   "groups.error.descriptionTooLong": "설명이 너무 길어요.",
   "groups.error.tooManyGroups": "만들 수 있는 그룹 수에 도달했어요.",
+  "groups.error.editLimit": "이 그룹을 너무 여러 번 수정했어요. 나중에 다시 시도해 주세요.",
   "groups.error.tooManyJoined":
     "참여할 수 있는 그룹 수에 도달했어요. 다른 그룹에 참여하려면 그룹 하나에서 나가 주세요.",
   "groups.error.groupFull": "이 그룹은 인원이 가득 찼어요.",

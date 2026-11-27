@@ -41,10 +41,12 @@ Deno.serve(async (req) => {
 
   const { data: group } = await supabase
     .from("groups")
-    .select("name")
+    .select("name, status")
     .eq("conversation_id", conversationId)
     .maybeSingle();
   if (!group) return new Response("skip: not a group");
+  // A pending (its creator's own messages), hidden or deleted group pushes nobody.
+  if (group.status !== "visible") return new Response("skip: group not visible");
 
   const { data: claimed, error } = await supabase.rpc("claim_message_push", {
     p_message: message.id,

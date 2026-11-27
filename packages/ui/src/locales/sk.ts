@@ -319,6 +319,7 @@ export const sk: Record<string, string> = {
   "groups.error.nameTooLong": "Tento názov je príliš dlhý.",
   "groups.error.descriptionTooLong": "Tento popis je príliš dlhý.",
   "groups.error.tooManyGroups": "Je dosiahnutý limit skupín, ktoré môžeš vytvoriť.",
+  "groups.error.editLimit": "Táto skupina bola upravená príliš veľakrát. Skús to neskôr.",
   "groups.error.tooManyJoined":
     "Je dosiahnutý limit skupín, ku ktorým sa môžeš pridať. Ak sa chceš pridať k inej, z jednej odíď.",
   "groups.error.groupFull": "Táto skupina je plná.",

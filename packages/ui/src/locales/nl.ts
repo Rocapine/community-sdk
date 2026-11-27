@@ -304,6 +304,7 @@ export const nl: Record<string, string> = {
   "groups.error.nameTooLong": "Deze naam is te lang.",
   "groups.error.descriptionTooLong": "Deze beschrijving is te lang.",
   "groups.error.tooManyGroups": "Je hebt het aantal groepen bereikt dat je kunt maken.",
+  "groups.error.editLimit": "Je hebt deze groep te vaak gewijzigd. Probeer het later opnieuw.",
   "groups.error.tooManyJoined":
     "Je hebt het aantal groepen bereikt waarvan je lid kunt zijn. Verlaat er een om lid te worden van een andere.",
   "groups.error.groupFull": "Deze groep is vol.",

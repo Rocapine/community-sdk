@@ -300,6 +300,7 @@ export const da: Record<string, string> = {
   "groups.error.nameTooLong": "Navnet er for langt.",
   "groups.error.descriptionTooLong": "Beskrivelsen er for lang.",
   "groups.error.tooManyGroups": "Du har nået det antal grupper, du kan oprette.",
+  "groups.error.editLimit": "Du har ændret gruppen for mange gange. Prøv igen senere.",
   "groups.error.tooManyJoined":
     "Du har nået det antal grupper, du kan være med i. Forlad én for at blive medlem af en anden.",
   "groups.error.groupFull": "Gruppen er fuld.",

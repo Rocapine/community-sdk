@@ -308,6 +308,7 @@ export const ptBR: Record<string, string> = {
   "groups.error.nameTooLong": "Este nome é longo demais.",
   "groups.error.descriptionTooLong": "Esta descrição é longa demais.",
   "groups.error.tooManyGroups": "Você atingiu o número de grupos que pode criar.",
+  "groups.error.editLimit": "Você alterou este grupo vezes demais. Tente de novo mais tarde.",
   "groups.error.tooManyJoined":
     "Você atingiu o número de grupos de que pode participar. Saia de um para entrar em outro.",
   "groups.error.groupFull": "Este grupo está lotado.",

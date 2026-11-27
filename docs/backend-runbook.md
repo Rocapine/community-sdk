@@ -560,8 +560,10 @@ supabase functions deploy
 - `groups` brings `messaging` and `attachments` with it (a group's share card is a post
   attachment, `posts.attachment`): the CLI adds both.
 - Migrations, in the CLI's order: `messaging/001_messaging`, `002_push`,
-  `003_settings_read`, `004_realtime_changed`, then `groups/001_groups`,
-  `002_translation`, `003_list_conversations`, `004_members_changed`, `005_storage_sweep`. With the inbox module,
+  `003_settings_read`, `004_realtime_changed`, `005_review_fixes`, then `groups/001_groups`,
+  `002_translation`, `003_list_conversations`, `004_members_changed`, `005_storage_sweep`,
+  `006_review_fixes`. Each is applied once: re-running `messaging/001` after
+  `groups/003`, or `inbox/004` after `inbox/005`, fails (a changed return type). With the inbox module,
   `inbox/005_group_events` adds `notifications.conversation_id` and returns it from
   `list_notifications` (the center's group rows); inbox before or after groups both work.
 - **Push first.** Install `push` before (or with) messaging. `messaging/002_push` creates
@@ -636,7 +638,9 @@ without it they don't apply. `groups.requireAccount: "feed"` is client only (`fa
   every file of a deleted group (its picture and its messages' images) and any upload
   no row points at after a day (an image picked and never sent, an abandoned group form).
   A file a group or message that isn't deleted still points at, or that a message's edit
-  history (`message_versions`) holds, is kept.
+  history (`message_versions`) holds, is kept, and so is anything an open report points
+  at (`groups/006`: the reported message's image, now or in its history; a reported
+  group's pictures, even once deleted) until the report is resolved.
 - **Moderation.** The app calls `moderate-one` (`kind: "message"` or `"group"`) right
   after a send, a creation or an edit. `"post"` shows a message at once and hides it if
   flagged; `"pre"` and any image keep it pending until passed; `"reportOnly"` skips the
@@ -644,6 +648,12 @@ without it they don't apply. `groups.requireAccount: "feed"` is client only (`fa
   image pass; then the creator gets `group_approved` in the center, or
   `group_field_rejected` (its details screen says which field to change). Edits keep
   their history in `message_versions`.
+- **Limits on writes.** A member's sends and message edits share `ratePerMinute`
+  (`messaging/005`: an edit re-runs moderation); a group takes at most 5 edits per hour
+  from its creator (`groups/006`, in-app admins exempt; the app says "try again later").
+  A pending group takes messages from its creator only, and a hidden or deleted one from
+  nobody (`not_found`); `notify-message` pushes only for visible groups. A banned creator
+  no longer deletes other members' messages.
 - **Daily sweep.** `daily-moderation` (08:00 UTC) also runs the messages and groups left
   unmoderated for 5 minutes (the app's call failed), oldest first, in what remains of its
   2-minute budget, and adds the counts to its Slack summary. A `"pre"` message whose call

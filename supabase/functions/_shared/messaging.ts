@@ -79,19 +79,32 @@ export function messageModerationInput(
   return mode === "reportOnly" ? "" : (row.body ?? "");
 }
 
-// messaging_settings.moderation; null when it can't be read (the caller fails closed).
-export async function messagingMode(supabase: Admin): Promise<ModerationMode | null> {
+// Postgres' undefined_table (42P01) or PostgREST's "table not found" (PGRST205): the
+// install has no messaging / groups module.
+export const isMissingTable = (code: string | undefined) => code === "42P01" || code === "PGRST205";
+
+/** The backend's moderation mode. `installed: false` without the messaging module (no
+ * error logged); `mode: null` when the settings couldn't be read (callers fail closed). */
+export async function readMessagingMode(
+  supabase: Pick<Admin, "from">,
+): Promise<{ installed: boolean; mode: ModerationMode | null }> {
   const { data, error } = await supabase
     .from("messaging_settings")
     .select("settings")
     .eq("id", 1)
     .single();
   if (error) {
+    if (isMissingTable(error.code)) return { installed: false, mode: null };
     console.error("messaging_settings read failed", error.message);
-    return null;
+    return { installed: true, mode: null };
   }
   const mode = (data?.settings as { moderation?: string } | null)?.moderation ?? "post";
-  return mode === "pre" || mode === "reportOnly" ? mode : "post";
+  return { installed: true, mode: mode === "pre" || mode === "reportOnly" ? mode : "post" };
+}
+
+// messaging_settings.moderation; null when it can't be read (the caller fails closed).
+export async function messagingMode(supabase: Admin): Promise<ModerationMode | null> {
+  return (await readMessagingMode(supabase)).mode;
 }
 
 const FIELDS = [

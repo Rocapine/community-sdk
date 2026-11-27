@@ -321,6 +321,7 @@ export const hr: Record<string, string> = {
   "groups.error.nameTooLong": "Ovaj je naziv predugačak.",
   "groups.error.descriptionTooLong": "Ovaj je opis predugačak.",
   "groups.error.tooManyGroups": "Dosegnut je broj grupa koje možeš stvoriti.",
+  "groups.error.editLimit": "Ova je grupa promijenjena previše puta. Pokušaj ponovno kasnije.",
   "groups.error.tooManyJoined":
     "Dosegnut je broj grupa kojima se možeš pridružiti. Za pridruživanje novoj grupi napusti jednu.",
   "groups.error.groupFull": "Ova je grupa puna.",

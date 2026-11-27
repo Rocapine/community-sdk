@@ -321,6 +321,7 @@ export const uk: Record<string, string> = {
   "groups.error.nameTooLong": "Ця назва задовга.",
   "groups.error.descriptionTooLong": "Цей опис задовгий.",
   "groups.error.tooManyGroups": "Досягнуто ліміту груп, які ти можеш створити.",
+  "groups.error.editLimit": "Цю групу змінювали надто часто. Спробуй пізніше.",
   "groups.error.tooManyJoined":
     "Досягнуто ліміту груп, до яких ти можеш приєднатися. Вийди з однієї, щоб приєднатися до іншої.",
   "groups.error.groupFull": "Ця група заповнена.",

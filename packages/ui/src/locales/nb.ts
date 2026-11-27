@@ -301,6 +301,7 @@ export const nb: Record<string, string> = {
   "groups.error.nameTooLong": "Navnet er for langt.",
   "groups.error.descriptionTooLong": "Beskrivelsen er for lang.",
   "groups.error.tooManyGroups": "Du har nådd antallet grupper du kan opprette.",
+  "groups.error.editLimit": "Du har endret gruppen for mange ganger. Prøv igjen senere.",
   "groups.error.tooManyJoined":
     "Du har nådd antallet grupper du kan være med i. Forlat én for å bli med i en annen.",
   "groups.error.groupFull": "Gruppen er full.",

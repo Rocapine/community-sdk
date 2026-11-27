@@ -309,6 +309,7 @@ export const ptPT: Record<string, string> = {
   "groups.error.nameTooLong": "Este nome é demasiado longo.",
   "groups.error.descriptionTooLong": "Esta descrição é demasiado longa.",
   "groups.error.tooManyGroups": "Atingiste o número de grupos que podes criar.",
+  "groups.error.editLimit": "Alteraste este grupo demasiadas vezes. Tenta novamente mais tarde.",
   "groups.error.tooManyJoined":
     "Atingiste o número de grupos a que podes aderir. Sai de um para aderires a outro.",
   "groups.error.groupFull": "Este grupo está cheio.",

@@ -17,26 +17,37 @@ export interface ExpoPushMessage {
   collapseId?: string;
 }
 
+/** Per invocation: set once `unread_followed_messages_for` turns out not to exist (no
+ * messaging module), so the following badges of the same call skip it. */
+export type BadgeState = { followedMessagesMissing?: boolean };
+
 /** The app-icon badge for `uid`: unread inbox items plus the unread messages of the
  * groups they follow (messaging/002_push.sql), at least 1 since a push is being sent.
  * Either part counts 0 when its module is not installed or its query fails. */
 export async function unreadBadge(
   supabase: { from: (table: string) => any; rpc?: (fn: string, args: object) => any },
   uid: string,
+  state: BadgeState = {},
 ): Promise<number> {
   const [inbox, messages] = await Promise.all([
     unreadInbox(supabase, uid),
-    unreadFollowedMessages(supabase, uid),
+    unreadFollowedMessages(supabase, uid, state),
   ]);
   return Math.max(1, inbox + messages);
 }
 
+// Undefined function: Postgres 42883 or PostgREST's PGRST202.
+const isMissingFunction = (code: unknown) => code === "42883" || code === "PGRST202";
+
 async function unreadFollowedMessages(
   supabase: { rpc?: (fn: string, args: object) => any },
   uid: string,
+  state: BadgeState,
 ): Promise<number> {
+  if (state.followedMessagesMissing || !supabase.rpc) return 0;
   try {
-    const { data, error } = await supabase.rpc!("unread_followed_messages_for", { p_uid: uid });
+    const { data, error } = await supabase.rpc("unread_followed_messages_for", { p_uid: uid });
+    if (error && isMissingFunction(error.code)) state.followedMessagesMissing = true;
     return !error && typeof data === "number" ? data : 0;
   } catch {
     return 0;
@@ -104,8 +115,9 @@ export async function unreadBadges(
   concurrency = 20,
 ): Promise<Map<string, number>> {
   const badges = new Map<string, number>();
+  const state: BadgeState = {};
   await runPool([...new Set(uids)], concurrency, async (uid) => {
-    badges.set(uid, await unreadBadge(supabase, uid));
+    badges.set(uid, await unreadBadge(supabase, uid, state));
   });
   return badges;
 }

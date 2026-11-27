@@ -311,7 +311,7 @@ messaging: { homeLayout: "header" }, // shared chat options, below
 | `messaging.pushPreview`        | `"full"`     | Group push text: the message (`"full"`), "X sent a message" (`"sender"`), or a neutral line (`"none"`). Backend only.                                                                                                                       |
 | `messaging.onAccountDelete`    | `"keep"`     | What account deletion does to the member's messages: keep them, erase their DMs (`"eraseDms"`, later), or erase every message (`"eraseAll"`). Backend only.                                                                                 |
 | `messaging.maxLength`          | `2000`       | Characters per message (database cap 4000).                                                                                                                                                                                                 |
-| `messaging.ratePerMinute`      | `20`         | Messages per member per minute.                                                                                                                                                                                                             |
+| `messaging.ratePerMinute`      | `20`         | Messages and message edits per member per minute.                                                                                                                                                                                           |
 | `groups.preview`               | `"readOnly"` | A non-member reads a group before joining (`"readOnly"`), or joins first (`"none"`). Backend key `groupsPreview`.                                                                                                                           |
 | `groups.exploreLayout`         | `"list"`     | Explore: a compact list or `"cards"` with a banner.                                                                                                                                                                                         |
 | `groups.shareCardLayout`       | `"card"`     | A group's card in the feed: `"card"` or `"banner"`.                                                                                                                                                                                         |
@@ -322,6 +322,11 @@ messaging: { homeLayout: "header" }, // shared chat options, below
 | `groups.maxMembers`            | `null`       | Members per group; `null` = no limit.                                                                                                                                                                                                       |
 | `groups.nameMaxLength`         | `60`         | Name length (database cap 120).                                                                                                                                                                                                             |
 | `groups.descriptionMaxLength`  | `500`        | Description length (database cap 1000).                                                                                                                                                                                                     |
+
+Fixed limits, not settings: a group's creator edits it at most 5 times an hour (in-app
+admins exempt; `GroupFormSheet` says to try again later), and a group under review takes
+messages from its creator only, a hidden one from nobody (the chat says the group no
+longer exists).
 
 **Host adapter.** `host.onAccountRequired(reason)`, `reason` `"joinGroup"`, `"createGroup"`
 (or `"dm"` later): the SDK calls it when an action needs an app account the member hasn't

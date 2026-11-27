@@ -1,6 +1,6 @@
 -- Groups module (groups/001_groups.sql, 004_members_changed.sql, 005_storage_sweep.sql,
--- accounts/003_merge_hooks.sql).
--- Run against a backend with messaging/001 and groups/001…005 applied:
+-- 006_review_fixes.sql, messaging/005_review_fixes.sql, accounts/003_merge_hooks.sql).
+-- Run against a backend with messaging/001…005 and groups/001…006 applied:
 --   npx supabase db query --project-ref <ref> --linked --yes -f supabase-tests/groups.sql
 -- It creates five auth users (so five profiles: a creator, b, c members, x outsider, adm an
 -- in-app admin) and always rolls back by raising at the end: the run passed when the error
@@ -533,6 +533,10 @@ begin
     t uuid := gen_random_uuid();
     gs uuid;
     mid uuid;
+    rep_m uuid;
+    rep_g uuid;
+    pend text := a || '/' || gen_random_uuid() || '.jpg';
+    kept text[];
     listed text[];
   begin
     insert into auth.users (id) values (s), (t);
@@ -594,6 +598,29 @@ begin
         'message-images:' || gs || '/' || s || '/never-sent.jpg'
       ]) e), 'swept: deleted groups'' files and stale unreferenced uploads, got ' || listed::text;
 
+    -- groups/006: what an open report points at stays until the report is resolved: a
+    -- reported message's image (here in its earlier version) and a reported group's
+    -- pictures, live and pending, even once the group is deleted.
+    insert into public.messages (conversation_id, author_id, status)
+      values (g1, a, 'deleted') returning id into mid;
+    insert into public.message_versions (message_id, image_path) values (mid, g1 || '/' || a || '/reported.jpg');
+    update public.groups set pending_image_path = pend where conversation_id = g1;
+    insert into storage.objects (bucket_id, name, created_at) values
+      ('message-images', g1 || '/' || a || '/reported.jpg', now()),
+      ('group-images-pending', pend, now() - interval '2 days');
+    kept := array[g1 || '/' || a || '/reported.jpg', g1 || '/deleted-group.jpg', pend];
+    assert (select count(*) from public.messaging_images_unreferenced(100000) u where u.name = any (kept)) = 3,
+      'without a report, the deleted group''s files are swept';
+    insert into public.reports (reporter_id, reported_user_id, message_id, reason)
+      values (c, a, mid, 'spam') returning id into rep_m;
+    insert into public.reports (reporter_id, reported_user_id, group_id, reason)
+      values (c, a, g1, 'spam') returning id into rep_g;
+    assert (select count(*) from public.messaging_images_unreferenced(100000) u where u.name = any (kept)) = 0,
+      'an open report keeps its evidence';
+    update public.reports set status = 'resolved' where id in (rep_m, rep_g);
+    assert (select count(*) from public.messaging_images_unreferenced(100000) u where u.name = any (kept)) = 3,
+      'a resolved report lets the sweep go on';
+
     perform set_config('request.jwt.claims', json_build_object('sub', s, 'role', 'authenticated')::text, true);
     set local role authenticated;
     failed := false;
@@ -603,6 +630,82 @@ begin
     end;
     assert failed, 'authenticated must not list sweepable files';
     reset role;
+  end;
+
+  -- messaging/005: a group that isn't visible takes no message, except its creator's while
+  -- it is pending. groups/006: at most 5 edits per group per hour, admins exempt.
+  declare
+    u1 uuid := gen_random_uuid();
+    u2 uuid := gen_random_uuid();
+    gp uuid;
+  begin
+    insert into auth.users (id) values (u1), (u2);
+    perform set_config('request.jwt.claims', json_build_object('sub', u1, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    gp := public.create_group('Under review', 'd');
+    m := public.send_message(gp, 'while under review');
+    assert m.status = 'visible', 'the creator writes to their pending group';
+    reset role;
+    insert into public.conversation_members (conversation_id, user_id) values (gp, u2);
+    perform set_config('request.jwt.claims', json_build_object('sub', u2, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    begin
+      perform public.send_message(gp, 'hi');
+      assert false, 'only its creator writes to a pending group';
+    exception when raise_exception then
+      assert sqlerrm = 'not_found', 'got ' || sqlerrm;
+    end;
+    reset role;
+    update public.groups set status = 'visible' where conversation_id = gp;
+    perform set_config('request.jwt.claims', json_build_object('sub', u2, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.send_message(gp, 'visible now');
+    reset role;
+    update public.groups set status = 'hidden' where conversation_id = gp;
+    foreach gx in array array[u1, u2] loop
+      perform set_config('request.jwt.claims', json_build_object('sub', gx, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      begin
+        perform public.send_message(gp, 'hi');
+        assert false, 'a hidden group takes no message, not even its creator''s';
+      exception when raise_exception then
+        assert sqlerrm = 'not_found', 'got ' || sqlerrm;
+      end;
+      reset role;
+    end loop;
+    update public.groups set status = 'visible' where conversation_id = gp;
+
+    perform set_config('request.jwt.claims', json_build_object('sub', u1, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    for i in 1 .. 5 loop
+      perform public.edit_group(gp, 'Edit ' || i, null, null);
+    end loop;
+    begin
+      perform public.edit_group(gp, 'Edit 6', null, null);
+      assert false, 'a sixth edit within the hour is refused';
+    exception when raise_exception then
+      assert sqlerrm = 'rate_limited', 'got ' || sqlerrm;
+    end;
+    reset role;
+    assert (select pending_name from public.groups where conversation_id = gp) = 'Edit 5',
+      'the refused edit changed nothing';
+    perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.edit_group(gp, 'By the admin', null, null);
+    reset role;
+    assert (select count(*) from public.group_edits where group_id = gp) = 5, 'an admin''s edit is not counted';
+    update public.group_edits set at = now() - interval '61 minutes' where group_id = gp;
+    perform set_config('request.jwt.claims', json_build_object('sub', u1, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.edit_group(gp, 'An hour later', null, null);
+    failed := false;
+    begin
+      perform 1 from public.group_edits;
+    exception when insufficient_privilege then failed := true;
+    end;
+    assert failed, 'clients do not read the edit log';
+    reset role;
+    assert (select count(*) from public.group_edits where group_id = gp) = 1, 'older edits are dropped';
   end;
 
   -- Clients never call the dashboard and service functions; anon calls nothing.

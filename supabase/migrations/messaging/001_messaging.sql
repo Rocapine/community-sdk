@@ -14,7 +14,8 @@
 -- Account rules read `public.account_links` only when the accounts module is in.
 -- merge_messaging (called by accounts/003's merge_profiles) and messaging_on_account_delete
 -- (called by account-delete) live here: they serve groups and, later, DMs.
--- Requires core. Fully idempotent.
+-- Requires core. Idempotent on its own; re-running it after groups/003 (which changes
+-- list_conversations()' return type) is not supported: the CLI applies each template once.
 
 -- ============ TABLES ============
 create table if not exists public.conversations (

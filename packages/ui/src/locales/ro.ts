@@ -321,6 +321,8 @@ export const ro: Record<string, string> = {
   "groups.error.nameTooLong": "Numele este prea lung.",
   "groups.error.descriptionTooLong": "Descrierea este prea lungă.",
   "groups.error.tooManyGroups": "Ai atins numărul de grupuri pe care le poți crea.",
+  "groups.error.editLimit":
+    "Ai modificat acest grup de prea multe ori. Încearcă din nou mai târziu.",
   "groups.error.tooManyJoined":
     "Ai atins numărul de grupuri în care poți intra. Ieși dintr-unul ca să intri în altul.",
   "groups.error.groupFull": "Grupul este plin.",

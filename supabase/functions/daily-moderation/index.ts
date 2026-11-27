@@ -32,11 +32,12 @@ import {
 import {
   GROUP_COLUMNS,
   type GroupRow,
+  isMissingTable,
   MESSAGE_COLUMNS,
   type MessageRow,
   moderateGroup,
   moderateMessage,
-  messagingMode,
+  readMessagingMode,
 } from "../_shared/messaging.ts";
 import { containsAppName } from "../_shared/names.ts";
 import { postToSlack } from "../_shared/slack.ts";
@@ -169,9 +170,6 @@ async function sweepUnreferencedImages(): Promise<{ removed: number; error?: str
   return { removed: removed?.length ?? 0 };
 }
 
-// Undefined table: the install has no messaging / groups module.
-const isMissingTable = (code: string | undefined) => code === "42P01" || code === "PGRST205";
-
 // One page of a keyset walk: rows after `after` in (created_at, key) order.
 type Page<T> = PromiseLike<{ data: T[] | null; error: { code?: string } | null }>;
 const keysetAfter = (after: { created_at: string; key: string } | null, keyCol: string) =>
@@ -221,7 +219,9 @@ async function sweepChat(budgetMs: number): Promise<{
   const deadline = Date.now() + budgetMs;
   const cutoff = new Date(Date.now() - 5 * 60_000).toISOString();
 
-  const mode = await messagingMode(supabase);
+  const { installed, mode } = await readMessagingMode(supabase);
+  // No messaging module: nothing to sweep (and nothing worth an error in the logs).
+  if (!installed) return out;
   const messagesOk = await walk<MessageRow>(
     (after) => {
       let q = supabase

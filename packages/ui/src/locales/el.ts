@@ -310,6 +310,7 @@ export const el: Record<string, string> = {
   "groups.error.nameTooLong": "Αυτό το όνομα είναι πολύ μεγάλο.",
   "groups.error.descriptionTooLong": "Αυτή η περιγραφή είναι πολύ μεγάλη.",
   "groups.error.tooManyGroups": "Έφτασες τον αριθμό ομάδων που μπορείς να δημιουργήσεις.",
+  "groups.error.editLimit": "Άλλαξες αυτή την ομάδα πάρα πολλές φορές. Δοκίμασε ξανά αργότερα.",
   "groups.error.tooManyJoined":
     "Έφτασες τον αριθμό ομάδων στις οποίες μπορείς να συμμετέχεις. Αποχώρησε από μία για να μπεις σε άλλη.",
   "groups.error.groupFull": "Αυτή η ομάδα είναι πλήρης.",

@@ -295,3 +295,34 @@ Deno.test("unreadBadge: the inbox count alone when the messages RPC errors", asy
   );
   assertEquals(await unreadBadge(supabase, "u1"), 2);
 });
+
+Deno.test("unreadBadges: a missing messages RPC is called once per invocation", async () => {
+  const supabase = fakeSupabase(
+    { notification_seen: null, notifications: [{ id: "a" }], notification_reads: [] },
+    { unread_followed_messages_for: { data: null, error: { code: "PGRST202", message: "x" } } },
+  );
+  let calls = 0;
+  const rpc = supabase.rpc;
+  supabase.rpc = (name: string) => {
+    if (name === "unread_followed_messages_for") calls++;
+    return rpc(name);
+  };
+  const badges = await unreadBadges(supabase, ["u1", "u2", "u3"], 1);
+  assertEquals([...badges.values()], [1, 1, 1]);
+  assertEquals(calls, 1);
+});
+
+Deno.test("unreadBadges: a transient RPC error is retried for the next member", async () => {
+  const supabase = fakeSupabase(
+    { notification_seen: null, notifications: [], notification_reads: [] },
+    { unread_followed_messages_for: { data: null, error: { code: "57014", message: "timeout" } } },
+  );
+  let calls = 0;
+  const rpc = supabase.rpc;
+  supabase.rpc = (name: string) => {
+    if (name === "unread_followed_messages_for") calls++;
+    return rpc(name);
+  };
+  await unreadBadges(supabase, ["u1", "u2"], 1);
+  assertEquals(calls, 2);
+});

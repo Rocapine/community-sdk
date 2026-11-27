@@ -318,6 +318,7 @@ export const ru: Record<string, string> = {
   "groups.error.nameTooLong": "Это название слишком длинное.",
   "groups.error.descriptionTooLong": "Это описание слишком длинное.",
   "groups.error.tooManyGroups": "Достигнут лимит групп, которые ты можешь создать.",
+  "groups.error.editLimit": "Эту группу изменяли слишком часто. Попробуй позже.",
   "groups.error.tooManyJoined":
     "Достигнут лимит групп, в которых ты можешь состоять. Выйди из одной, чтобы вступить в другую.",
   "groups.error.groupFull": "Эта группа заполнена.",

@@ -1,4 +1,4 @@
--- Messaging core (messaging/001_messaging.sql).
+-- Messaging core (messaging/001_messaging.sql, 005_review_fixes.sql).
 -- Run against a backend with it applied:
 --   npx supabase db query --remote=<ref> --yes -f supabase-tests/messaging.sql
 -- It builds one group conversation between four existing profiles (a creator, b
@@ -223,6 +223,26 @@ begin
   perform public.delete_message(m_del.id);
   select * into m_del from public.messages where id = m_del.id;
   assert m_del.deleted_by = 'creator' and m_del.body is null, 'the creator deletes';
+  reset role;
+  -- messaging/005: a banned creator no longer deletes others' messages.
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  m_del := public.send_message(conv, 'not removed by a banned creator');
+  reset role;
+  update public.profiles set is_banned = true where id = a;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.delete_message(m_del.id);
+    assert false, 'a banned creator cannot delete another member''s message';
+  exception when raise_exception then
+    assert sqlerrm = 'forbidden', 'got ' || sqlerrm;
+  end;
+  reset role;
+  update public.profiles set is_banned = false where id = a;
+  assert (select status = 'visible' from public.messages where id = m_del.id), 'the message stays';
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
 
   -- A blocks B: B's messages disappear for A, unread included.
   insert into public.blocks (blocker_id, blocked_id) values (a, b);
@@ -254,6 +274,37 @@ begin
           where author_id = b and created_at > now() - interval '60 seconds') = 20,
     'exactly 20 went through';
   -- Parallel sends (the advisory lock in send_message) can't be shown in one transaction.
+
+  -- messaging/005: edits share that budget (sends plus edits of the last 60 s).
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.edit_message(m.id, 'edited again');
+    assert false, 'an edit past the per-minute budget is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'rate_limited', 'got ' || sqlerrm;
+  end;
+  reset role;
+  select (select count(*) from public.messages
+          where author_id = b and created_at > now() - interval '60 seconds')
+       + (select count(*) from public.message_versions v join public.messages mm on mm.id = v.message_id
+          where mm.author_id = b and v.replaced_at > now() - interval '60 seconds')
+    into n;
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings(jsonb_build_object('ratePerMinute', n + 1));
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  m := public.edit_message(m.id, 'edited');
+  assert m.body = 'edited', 'one edit fits in the budget left';
+  begin
+    perform public.edit_message(m.id, 'edited once more');
+    assert false, 'the next edit is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'rate_limited', 'got ' || sqlerrm;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"ratePerMinute": 20}');
 
   -- An admin account hides a message.
   update public.profiles set is_admin = true where id = x;

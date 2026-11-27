@@ -312,6 +312,7 @@ export const esES: Record<string, string> = {
   "groups.error.nameTooLong": "Este nombre es demasiado largo.",
   "groups.error.descriptionTooLong": "Esta descripción es demasiado larga.",
   "groups.error.tooManyGroups": "Has alcanzado el número de grupos que puedes crear.",
+  "groups.error.editLimit": "Has cambiado este grupo demasiadas veces. Inténtalo más tarde.",
   "groups.error.tooManyJoined":
     "Has alcanzado el número de grupos a los que puedes unirte. Sal de uno para unirte a otro.",
   "groups.error.groupFull": "Este grupo está completo.",

@@ -52,6 +52,8 @@ const ERROR_KEYS: Partial<Record<MessagingErrorCode, string>> = {
   group_full: "groups.error.groupFull",
   removed_from_group: "groups.error.removed",
   banned: "groups.error.banned",
+  // groups/006: an edit cooldown (5 per group per hour).
+  rate_limited: "groups.error.editLimit",
 };
 
 /** The copy for a failed create, edit or join. */

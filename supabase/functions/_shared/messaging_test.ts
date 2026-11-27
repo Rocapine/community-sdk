@@ -1,5 +1,10 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { groupFieldsToModerate, messageModerationInput, nextGroupState } from "./messaging.ts";
+import {
+  groupFieldsToModerate,
+  messageModerationInput,
+  nextGroupState,
+  readMessagingMode,
+} from "./messaging.ts";
 
 const newGroup = {
   name: null,
@@ -73,4 +78,55 @@ Deno.test("nextGroupState: a new group never goes visible without a name and a d
   assertEquals(nextGroupState({ ...newGroup, pending_description: null }, new Set()), {
     rejected_fields: ["description"],
   });
+});
+
+// messaging_settings read: one `.from().select().eq().single()` answering `result`.
+const settingsClient = (result: { data: unknown; error: unknown }) =>
+  ({
+    from: () => ({ select: () => ({ eq: () => ({ single: () => Promise.resolve(result) }) }) }),
+  }) as unknown as Parameters<typeof readMessagingMode>[0];
+
+Deno.test(
+  "readMessagingMode: no messaging module is 'not installed', without logging",
+  async () => {
+    const logged: unknown[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => logged.push(args);
+    try {
+      for (const code of ["42P01", "PGRST205"]) {
+        assertEquals(
+          await readMessagingMode(settingsClient({ data: null, error: { code, message: "x" } })),
+          { installed: false, mode: null },
+        );
+      }
+    } finally {
+      console.error = original;
+    }
+    assertEquals(logged.length, 0);
+  },
+);
+
+Deno.test("readMessagingMode: the mode, or null on any other error", async () => {
+  assertEquals(
+    await readMessagingMode(
+      settingsClient({ data: { settings: { moderation: "pre" } }, error: null }),
+    ),
+    { installed: true, mode: "pre" },
+  );
+  assertEquals(await readMessagingMode(settingsClient({ data: { settings: {} }, error: null })), {
+    installed: true,
+    mode: "post",
+  });
+  const original = console.error;
+  console.error = () => {};
+  try {
+    assertEquals(
+      await readMessagingMode(
+        settingsClient({ data: null, error: { code: "57014", message: "x" } }),
+      ),
+      { installed: true, mode: null },
+    );
+  } finally {
+    console.error = original;
+  }
 });
