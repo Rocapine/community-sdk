@@ -51,7 +51,14 @@ export function GroupMembersScreen(props: GroupMembersScreenProps) {
 }
 
 type Target = { member: GroupMember; name: string };
-type Row = { key: string; member?: GroupMember; removed?: boolean; section?: boolean };
+type Row = {
+  key: string;
+  member?: GroupMember;
+  removed?: boolean;
+  /** A removed member's username (group_removals), known before their profile is. */
+  username?: string | null;
+  section?: boolean;
+};
 
 function Members({ groupId, onOpenProfile, onBack }: GroupMembersScreenProps) {
   const t = useT();
@@ -87,6 +94,7 @@ function Members({ groupId, onOpenProfile, onBack }: GroupMembersScreenProps) {
       key: `removed-${r.userId}`,
       member: { userId: r.userId, role: "member", joinedAt: r.removedAt },
       removed: true,
+      username: r.username,
     }));
     return removed.length
       ? [...active, { key: "removed-section", section: true }, ...removed]
@@ -176,6 +184,7 @@ function Members({ groupId, onOpenProfile, onBack }: GroupMembersScreenProps) {
               meAdmin={meAdmin}
               manage={manage}
               removed={!!item.removed}
+              username={item.username ?? null}
               busy={busyId === item.member!.userId}
               onOpenProfile={onOpenProfile}
               onRemove={(name) => setConfirm({ member: item.member!, name })}
@@ -230,6 +239,7 @@ function MemberRow({
   meAdmin,
   manage,
   removed,
+  username,
   busy,
   onOpenProfile,
   onRemove,
@@ -240,6 +250,7 @@ function MemberRow({
   meAdmin: boolean;
   manage: boolean;
   removed: boolean;
+  username: string | null;
   busy: boolean;
   onOpenProfile(userId: string): void;
   onRemove(name: string): void;
@@ -249,7 +260,7 @@ function MemberRow({
   const theme = useCommunityTheme();
   const styles = useThemedStyles(makeStyles);
   const profile = useProfile(member.userId).data;
-  const name = profile?.name ?? "";
+  const name = profile?.name ?? username ?? "";
   // As remove_member allows: never myself, never an app admin unless I am one.
   // Not offered until the profile is known: never an empty name in the confirmation.
   const removable = !!profile && manage && member.userId !== me && (meAdmin || !profile.admin);

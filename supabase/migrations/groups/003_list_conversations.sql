@@ -2,7 +2,8 @@
 -- Groups module: list_conversations() also returns each group's live title, picture
 -- and status, so the Messages page draws its rows from one call instead of one
 -- group read per row. Live columns only: pending_* (a creator's unreviewed values)
--- never leave the table through here. Every column of messaging/001 stays, in order.
+-- never leave the table through here, and a group that isn't visible (pending, hidden)
+-- shows them to its creator only, as the groups table's read rule does. Every column of messaging/001 stays, in order.
 -- The return type changes, so the function is dropped and created again (a SQL body
 -- isn't a tracked dependency: unread_followed_messages keeps working). Requires
 -- messaging/001 and groups/001. Idempotent.
@@ -36,10 +37,15 @@ as $$
        limit 99
      ) u),
     cm.notify, cm.role,
-    g.name, g.image_path, g.status
+    case when gv.ok then g.name end,
+    case when gv.ok then g.image_path end,
+    case when gv.ok then g.status end
   from conversation_members cm
   join conversations c on c.id = cm.conversation_id
   left join groups g on g.conversation_id = c.id
+  cross join lateral (
+    select g.status = 'visible' or g.created_by = auth.uid() as ok
+  ) gv
   cross join b
   left join lateral (
     select m.id, m.body, m.author_id from messages m

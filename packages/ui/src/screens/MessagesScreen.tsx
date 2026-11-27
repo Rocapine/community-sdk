@@ -177,7 +177,9 @@ const GroupConversationRow = memo(function GroupConversationRow({
           <Text style={[styles.name, unread && styles.strong]} numberOfLines={1}>
             {name}
           </Text>
-          {c.groupStatus === "pending" && <Text style={styles.tag}>{t("groups.underReview")}</Text>}
+          {(c.groupStatus ?? pending?.status) === "pending" && (
+            <Text style={styles.tag}>{t("groups.underReview")}</Text>
+          )}
         </View>
         <Text style={[styles.preview, unread && styles.previewUnread]} numberOfLines={1}>
           {preview}
