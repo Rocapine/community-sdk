@@ -24,6 +24,9 @@ function makeStyles(theme: CommunityTheme) {
       ...theme.typography.caption,
       color: theme.colors.textMuted,
       paddingHorizontal: theme.spacing(4),
+      // Its own band between the list and the composer: a bubble cut at the list's edge
+      // never touches it.
+      paddingTop: theme.spacing(1.5),
       paddingBottom: theme.spacing(1.5),
     },
   });

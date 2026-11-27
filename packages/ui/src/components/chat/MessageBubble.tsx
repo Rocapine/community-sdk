@@ -371,7 +371,14 @@ export const MessageBubble = memo(function MessageBubble({
             <Text style={styles.likeCount}>{m.likeCount}</Text>
           </Pressable>
         )}
-        <Animated.View pointerEvents="none" style={[styles.heart, heartStyle]}>
+        {/* Decoration only: screen readers read the like from the pill and the actions. */}
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.heart, heartStyle]}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          aria-hidden
+        >
           <icons.like size={HEART} color={theme.colors.like} weight="fill" />
         </Animated.View>
       </Pressable>
