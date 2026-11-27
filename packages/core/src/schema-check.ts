@@ -77,6 +77,10 @@ async function checkMessagingSettings(cfg: ResolvedCommunityConfig): Promise<voi
     // Clients can't read the table: `messaging_client_settings()` (messaging/003) returns it.
     const { data, error } = await cfg.requireClient().rpc("messaging_client_settings");
     if (error) {
+      // Only a missing function means a missing migration; no session yet or a
+      // permission error says nothing about the backend.
+      const code = (error as { code?: string }).code;
+      if (code !== "42883" && code !== "PGRST202") return;
       console.warn(
         "[@rocapine/community-core] messaging_client_settings() is missing: run the messaging migrations (messaging/003_settings_read.sql).",
       );

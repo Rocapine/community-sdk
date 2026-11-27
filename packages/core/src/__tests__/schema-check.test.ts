@@ -167,10 +167,24 @@ describe("messaging settings check", () => {
   it("warns once that the migration is missing when the function is absent", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     await checkSchemaVersionUnguarded(
-      withGroups(async () => ({ data: null, error: { message: "function not found" } })),
+      withGroups(async () => ({
+        data: null,
+        error: { code: "PGRST202", message: "function not found" },
+      })),
     );
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0][0]).toContain("migration");
+  });
+
+  it("stays silent on another error (no session yet, permission)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await checkSchemaVersionUnguarded(
+      withGroups(async () => ({
+        data: null,
+        error: { code: "42501", message: "permission denied" },
+      })),
+    );
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("does not call the backend when groups is off", async () => {

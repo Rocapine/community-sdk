@@ -208,6 +208,43 @@ export {
 } from "./hooks";
 
 export {
+  MESSAGE_IMAGES_BUCKET,
+  MESSAGES_PAGE_SIZE,
+  MESSAGING_ERROR_CODES,
+  MessagingError,
+  deleteMessage,
+  editMessage,
+  fetchAccountLinked,
+  fetchConversations,
+  fetchMessages,
+  markConversationRead,
+  messageImageUrl,
+  sendMessage,
+  setMessageLike,
+  translateMessage,
+  unreadFollowedMessages,
+} from "./messaging-service";
+export type { MessagingErrorCode, SendMessageInput } from "./messaging-service";
+
+export {
+  GROUPS_PAGE_SIZE,
+  GROUP_MEMBERS_PAGE_SIZE,
+  createGroup,
+  deleteGroup,
+  editGroup,
+  fetchGroup,
+  fetchGroupMembers,
+  fetchGroupOnlineCounts,
+  joinGroup,
+  leaveGroup,
+  readmitMember,
+  removeMember,
+  searchGroups,
+  setGroupNotify,
+} from "./groups-service";
+export type { GroupMember } from "./groups-service";
+
+export {
   fetchInbox,
   isUnread,
   localizeExcerpts,

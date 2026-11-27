@@ -595,10 +595,11 @@ export async function createComment(
   return data.id as string;
 }
 
-/** Run synchronous moderation on a just-created pending post/comment. */
+/** Run synchronous moderation on a just-created pending post/comment, a sent
+ * message or a created/edited group (messaging). */
 export async function moderateOne(
   cfg: ResolvedCommunityConfig,
-  input: { kind: "post" | "comment"; id: string },
+  input: { kind: "post" | "comment" | "message" | "group"; id: string },
 ): Promise<ModerationVerdict> {
   const client = cfg.requireClient();
   const { data, error } = await client.functions.invoke("moderate-one", { body: input });
@@ -678,6 +679,10 @@ export interface ReportInput {
   reportedUserId: string;
   postId?: string;
   commentId?: string;
+  /** Groups module: a message, its author as `reportedUserId`. */
+  messageId?: string;
+  /** Groups module: a group, its creator as `reportedUserId`. */
+  groupId?: string;
   reason: ReportReason;
   details?: string;
 }
@@ -693,6 +698,9 @@ export async function reportContent(
     reported_user_id: input.reportedUserId,
     post_id: input.postId ?? null,
     comment_id: input.commentId ?? null,
+    // Only when set: backends without the messaging migrations lack the columns.
+    ...(input.messageId ? { message_id: input.messageId } : {}),
+    ...(input.groupId ? { group_id: input.groupId } : {}),
     reason: input.reason,
     details: input.details?.trim() || null,
   });
