@@ -72,3 +72,32 @@ export function lastMessagePreview(
     ? t("messages.you", { text })
     : t("messages.author", { name: authorName ?? "", text });
 }
+
+/** The host gate before joining: the screen's own `beforeJoinGroup`, else the feed's
+ * `beforeCompose` when `requireAccount: "feed"`, else none. */
+export function joinGate(
+  beforeJoinGroup: (() => Promise<boolean>) | undefined,
+  requireAccount: boolean | "feed",
+  beforeCompose: (() => Promise<boolean>) | undefined,
+): (() => Promise<boolean>) | undefined {
+  return beforeJoinGroup ?? (requireAccount === "feed" ? beforeCompose : undefined);
+}
+
+/** Joining, in order: the SDK's account check (`requireAccount: true` and no linked
+ * account ⇒ the host is asked, nothing else runs), then the host gate (a throw counts as
+ * "no"), then the join. */
+export async function guardedJoin(steps: {
+  accountMissing: boolean;
+  onAccountRequired(): void;
+  gate?: () => Promise<boolean>;
+  join(): void;
+}): Promise<"account" | "refused" | "joined"> {
+  if (steps.accountMissing) {
+    steps.onAccountRequired();
+    return "account";
+  }
+  const allowed = steps.gate ? await steps.gate().catch(() => false) : true;
+  if (!allowed) return "refused";
+  steps.join();
+  return "joined";
+}

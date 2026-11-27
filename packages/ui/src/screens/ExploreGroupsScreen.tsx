@@ -11,14 +11,12 @@
 // "feed"`, pass the feed's `beforeCompose`). Renders nothing when groups is off.
 import {
   COMMUNITY_EVENTS,
-  MessagingError,
   emitEvent,
   groupsSettings,
   useAccountLinked,
   useCommunityConfig,
   useGroupOnlineCounts,
   useGroupSearch,
-  useJoinGroup,
   type Group,
 } from "@rocapine/community-core";
 import { useEffect, useMemo, useState } from "react";
@@ -36,7 +34,8 @@ import type { CommunityTheme } from "../theme";
 import { GroupFormSheet } from "../components/GroupFormSheet";
 import { GroupRow } from "../components/GroupRow";
 import { ScreenBackground } from "../components/ScreenBackground";
-import { exploreRowTap, groupErrorKey, needsAccount } from "../utils/groups";
+import { useGuardedJoin } from "../components/GroupAttachment";
+import { exploreRowTap, needsAccount } from "../utils/groups";
 import { noFocusRing } from "../utils/noFocusRing";
 import { isQueryLoading } from "../utils/query";
 
@@ -89,9 +88,7 @@ function Explore({ onOpenGroup, onBack, beforeCreate, beforeJoinGroup }: Explore
   const groups = useMemo(() => search.data?.pages.flat() ?? [], [search.data]);
   const online = useGroupOnlineCounts(useMemo(() => groups.map((g) => g.id), [groups]));
 
-  const join = useJoinGroup();
-  const [joiningId, setJoiningId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { joiningId, error, join } = useGuardedJoin("explore", beforeJoinGroup);
   const [creating, setCreating] = useState(false);
   const [gating, setGating] = useState(false);
 
@@ -110,36 +107,19 @@ function Explore({ onOpenGroup, onBack, beforeCreate, beforeJoinGroup }: Explore
     }
   };
 
-  const joinGroup = async (g: Group) => {
-    if (joiningId || gating) return;
-    setError(null);
-    if (needsAccount(settings.requireAccount === true, accountLinked))
-      return cfg.host.onAccountRequired?.("joinGroup");
-    if (!(await gated(beforeJoinGroup))) return;
-    setJoiningId(g.id);
-    join.mutate(
-      { groupId: g.id, source: "explore" },
-      {
-        onSuccess: () => onOpenGroup(g.id, false),
-        onError: (e) => {
-          const code = e instanceof MessagingError ? e.code : "unknown";
-          if (code === "account_required") cfg.host.onAccountRequired?.("joinGroup");
-          else setError(t(groupErrorKey(code)));
-        },
-        onSettled: () => setJoiningId(null),
-      },
-    );
+  const joinGroup = (g: Group) => {
+    if (gating) return;
+    void join(g.id, () => onOpenGroup(g.id, false));
   };
 
   const tap = (g: Group) => {
     const action = exploreRowTap(g, settings.preview);
-    if (action === "join") void joinGroup(g);
+    if (action === "join") joinGroup(g);
     else onOpenGroup(g.id, action === "preview");
   };
 
   const startCreate = async () => {
     if (gating) return;
-    setError(null);
     if (needsAccount(settings.createRequiresAccount, accountLinked))
       return cfg.host.onAccountRequired?.("createGroup");
     if (await gated(beforeCreate)) setCreating(true);
@@ -230,7 +210,7 @@ function Explore({ onOpenGroup, onBack, beforeCreate, beforeJoinGroup }: Explore
             busy={joiningId === item.id}
             onPress={() => tap(item)}
             onAction={(action) =>
-              action === "open" ? onOpenGroup(item.id, false) : void joinGroup(item)
+              action === "open" ? onOpenGroup(item.id, false) : joinGroup(item)
             }
           />
         )}

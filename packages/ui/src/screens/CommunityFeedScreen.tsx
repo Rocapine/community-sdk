@@ -127,6 +127,8 @@ import { OnlinePill } from "../components/OnlinePill";
 import { haptic, PressableScale } from "../components/PressableScale";
 import { GroupLinkContext, type GroupLink } from "../components/GroupAttachment";
 import { GroupsHome } from "../components/GroupsHome";
+import { joinGate } from "../utils/groups";
+import { homeSegment, rememberHomeSegment, type HomeSegment } from "../utils/homeSegment";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
 import { ThreadSheet } from "./ThreadSheet";
@@ -154,6 +156,7 @@ export function CommunityFeedScreen({
   bottomChrome,
   onOpenMessages,
   onOpenExplore,
+  beforeJoinGroup,
 }: {
   onOpenProfile(userId: string, source?: ProfileSource): void;
   onOpenInbox?: () => void;
@@ -170,6 +173,10 @@ export function CommunityFeedScreen({
   /** Groups module: opens `ExploreGroupsScreen` (the Groups home's search and "See all").
    * The Groups home (`messaging.homeLayout: "segmented"`) needs it and `onOpenMessages`. */
   onOpenExplore?: () => void;
+  /** Groups module: host gate before joining from a group card or the Groups home, after
+   * the SDK's account check (same contract as `beforeCompose`). Absent ⇒ the feed's
+   * `beforeCompose` with `requireAccount: "feed"`, else none. */
+  beforeJoinGroup?: () => Promise<boolean>;
   /** Whether this screen is the one on display. A host whose navigator keeps
    * it mounted while hidden (tabs) passes its focus state, so new-post
    * polling stops while the user is on another tab. Defaults to `true`. */
@@ -230,19 +237,25 @@ export function CommunityFeedScreen({
     messagingSettings(cfg)?.homeLayout === "segmented" &&
     !!onOpenMessages &&
     !!onOpenExplore;
-  const [segment, setSegment] = useState<"feed" | "groups">("feed");
+  const [segment, setSegment] = useState<HomeSegment>(homeSegment);
   const onGroups = segmented && segment === "groups";
-  // `requireAccount: "feed"`: joining runs the feed's own gate.
-  const joinGate = groups?.requireAccount === "feed" ? beforeCompose : undefined;
+  // The SDK's account check, then this gate (see `joinGate`), then the join.
+  const gate = groups ? joinGate(beforeJoinGroup, groups.requireAccount, beforeCompose) : undefined;
+  // Stable against inline host callbacks: the cards below re-render only when one
+  // appears or goes away.
+  const latest = useRef({ onOpenMessages, gate });
+  latest.current = { onOpenMessages, gate };
+  const linked = !!groups && !!onOpenMessages;
+  const hasGate = !!gate;
   const groupLink = useMemo<GroupLink | null>(
     () =>
-      groups && onOpenMessages
+      linked
         ? {
-            openGroup: (groupId, preview) => onOpenMessages({ groupId, preview }),
-            beforeJoinGroup: joinGate,
+            openGroup: (groupId, preview) => latest.current.onOpenMessages?.({ groupId, preview }),
+            beforeJoinGroup: hasGate ? () => latest.current.gate!() : undefined,
           }
         : null,
-    [groups, onOpenMessages, joinGate],
+    [linked, hasGate],
   );
 
   const blockUser = useBlockUser();
@@ -330,6 +343,8 @@ export function CommunityFeedScreen({
   // iOS offsets the content with `contentInset`, so the pull-to-refresh
   // spinner sits under the top bar; Android pads the content instead.
   const [topHeight, setTopHeight] = useState(0);
+  // The bar's height on the Groups side (no topic tabs there).
+  const [groupsTop, setGroupsTop] = useState(0);
   const topH = useSharedValue(0);
   const hidden = useSharedValue(0);
   const lastY = useSharedValue(0);
@@ -389,12 +404,10 @@ export function CommunityFeedScreen({
   const pillStyle = useAnimatedStyle(() => ({ top: topH.value - hidden.value + 8 }));
   const myUid = useMyUid();
 
-  const chooseSegment = (next: "feed" | "groups") => {
+  const chooseSegment = (next: HomeSegment) => {
     if (next === segment) return;
     hidden.value = 0;
-    // The feed's list mounts again: zero the bar's height so its next layout lands the
-    // list on its first post (iOS content inset), as on the first open.
-    if (next === "feed") topH.value = 0;
+    rememberHomeSegment(next);
     setSegment(next);
     emitEvent(cfg, COMMUNITY_EVENTS.homeSegment, { segment: next });
   };
@@ -739,6 +752,9 @@ export function CommunityFeedScreen({
             ]}
             onLayout={(e) => {
               const h = e.nativeEvent.layout.height;
+              // The Groups side's shorter bar (no topic tabs) leaves the hidden feed's
+              // inset alone, so the feed comes back exactly where it was.
+              if (onGroups) return setGroupsTop(h);
               if (h === topH.value) return;
               const first = topH.value === 0;
               topH.value = h;
@@ -850,102 +866,98 @@ export function CommunityFeedScreen({
             </View>
           )}
 
-          {onGroups ? (
+          {onGroups && (
             <GroupsHome
-              topInset={topHeight}
+              topInset={groupsTop}
               bottomInset={chromeH}
               onOpenGroup={(groupId, preview) => onOpenMessages!({ groupId, preview })}
               onOpenExplore={onOpenExplore!}
-              beforeJoinGroup={joinGate}
+              beforeJoinGroup={gate}
               beforeCreate={beforeCompose}
             />
-          ) : (
-            <View style={styles.listWrap}>
-              {newCount > 0 && (
-                <Animated.View style={[styles.newPill, pillStyle]}>
-                  <PressableScale onPress={showNewPosts} style={styles.newPillButton}>
-                    <Text style={styles.newPillText}>
-                      {t("feed.newPosts", { count: newCount })}
-                    </Text>
-                  </PressableScale>
-                </Animated.View>
-              )}
-
-              <Animated.FlatList
-                ref={listRef}
-                onScroll={onListScroll}
-                scrollEventThrottle={16}
-                contentInset={insetsTop ? { top: topHeight } : undefined}
-                scrollIndicatorInsets={
-                  insetsTop ? { top: topHeight, bottom: chromeH } : { bottom: chromeH }
-                }
-                automaticallyAdjustContentInsets={false}
-                data={posts}
-                keyExtractor={(p: FeedPost) => p.id}
-                renderItem={renderItem}
-                ItemSeparatorComponent={RowSeparator}
-                ListEmptyComponent={
-                  isPending ? (
-                    <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
-                  ) : isError ? (
-                    <Text style={styles.stateText}>{t("feed.unreachableRetry")}</Text>
-                  ) : (
-                    <Text style={styles.stateText}>
-                      {searchActive
-                        ? t("feed.noSearchResults")
-                        : adminTopic
-                          ? t("feed.adminTopicEmpty")
-                          : t("feed.empty")}
-                    </Text>
-                  )
-                }
-                ListFooterComponent={
-                  hasNextPage ? (
-                    <PressableScale onPress={loadMore} style={styles.loadMore}>
-                      {isFetchingNextPage ? (
-                        <ActivityIndicator size="small" color={theme.colors.accent} />
-                      ) : (
-                        <Text style={styles.loadMoreText}>{t("feed.loadMore")}</Text>
-                      )}
-                    </PressableScale>
-                  ) : null
-                }
-                onEndReached={loadMore}
-                onEndReachedThreshold={0.4}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={pulling}
-                    onRefresh={pullToRefresh}
-                    tintColor={theme.colors.accent}
-                    progressViewOffset={topHeight}
-                  />
-                }
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-                // Room for the `+` button under the last post. The host's
-                // container clears the bottom safe area (and its tab bar).
-                contentContainerStyle={{
-                  paddingTop: insetsTop ? 0 : topHeight,
-                  paddingBottom: chromeH + FAB_SIZE + theme.spacing(8),
-                }}
-              />
-
-              {!searchOpen && canCompose && (
-                <Animated.View
-                  style={[styles.fab, { bottom: chromeH + theme.spacing(4) }, fabStyle]}
-                >
-                  <PressableScale
-                    onPress={openComposer}
-                    style={styles.fabButton}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("feed.compose")}
-                  >
-                    <icons.add size={26} color={theme.colors.textInverse} weight="bold" />
-                  </PressableScale>
-                </Animated.View>
-              )}
-            </View>
           )}
+          {/* Kept mounted (hidden) on the Groups side: the feed keeps its place. */}
+          <View style={[styles.listWrap, onGroups && styles.gone]}>
+            {newCount > 0 && (
+              <Animated.View style={[styles.newPill, pillStyle]}>
+                <PressableScale onPress={showNewPosts} style={styles.newPillButton}>
+                  <Text style={styles.newPillText}>{t("feed.newPosts", { count: newCount })}</Text>
+                </PressableScale>
+              </Animated.View>
+            )}
+
+            <Animated.FlatList
+              ref={listRef}
+              onScroll={onListScroll}
+              scrollEventThrottle={16}
+              contentInset={insetsTop ? { top: topHeight } : undefined}
+              scrollIndicatorInsets={
+                insetsTop ? { top: topHeight, bottom: chromeH } : { bottom: chromeH }
+              }
+              automaticallyAdjustContentInsets={false}
+              data={posts}
+              keyExtractor={(p: FeedPost) => p.id}
+              renderItem={renderItem}
+              ItemSeparatorComponent={RowSeparator}
+              ListEmptyComponent={
+                isPending ? (
+                  <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
+                ) : isError ? (
+                  <Text style={styles.stateText}>{t("feed.unreachableRetry")}</Text>
+                ) : (
+                  <Text style={styles.stateText}>
+                    {searchActive
+                      ? t("feed.noSearchResults")
+                      : adminTopic
+                        ? t("feed.adminTopicEmpty")
+                        : t("feed.empty")}
+                  </Text>
+                )
+              }
+              ListFooterComponent={
+                hasNextPage ? (
+                  <PressableScale onPress={loadMore} style={styles.loadMore}>
+                    {isFetchingNextPage ? (
+                      <ActivityIndicator size="small" color={theme.colors.accent} />
+                    ) : (
+                      <Text style={styles.loadMoreText}>{t("feed.loadMore")}</Text>
+                    )}
+                  </PressableScale>
+                ) : null
+              }
+              onEndReached={loadMore}
+              onEndReachedThreshold={0.4}
+              refreshControl={
+                <RefreshControl
+                  refreshing={pulling}
+                  onRefresh={pullToRefresh}
+                  tintColor={theme.colors.accent}
+                  progressViewOffset={topHeight}
+                />
+              }
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              // Room for the `+` button under the last post. The host's
+              // container clears the bottom safe area (and its tab bar).
+              contentContainerStyle={{
+                paddingTop: insetsTop ? 0 : topHeight,
+                paddingBottom: chromeH + FAB_SIZE + theme.spacing(8),
+              }}
+            />
+
+            {!searchOpen && canCompose && (
+              <Animated.View style={[styles.fab, { bottom: chromeH + theme.spacing(4) }, fabStyle]}>
+                <PressableScale
+                  onPress={openComposer}
+                  style={styles.fabButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("feed.compose")}
+                >
+                  <icons.add size={26} color={theme.colors.textInverse} weight="bold" />
+                </PressableScale>
+              </Animated.View>
+            )}
+          </View>
 
           <ThreadSheet
             postId={activePostId}
@@ -1060,8 +1072,8 @@ function HomeSegments({
   segment,
   onSelect,
 }: {
-  segment: "feed" | "groups";
-  onSelect: (segment: "feed" | "groups") => void;
+  segment: HomeSegment;
+  onSelect: (segment: HomeSegment) => void;
 }) {
   const t = useT();
   const styles = useThemedStyles(makeStyles);
@@ -1084,6 +1096,8 @@ function HomeSegments({
               onSelect(s);
             }}
             style={[styles.segment, on && styles.segmentOn]}
+            // 34pt tall: the slop takes the target to 44pt.
+            hitSlop={{ top: 5, bottom: 5 }}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
             accessibilityLabel={count > 0 ? `${label}, ${t("messages.unread", { count })}` : label}
@@ -1279,6 +1293,7 @@ function makeStyles(theme: CommunityTheme) {
       justifyContent: "center",
     },
     listWrap: { flex: 1, position: "relative" },
+    gone: { display: "none" },
     rowSeparator: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.hairline },
     spinner: { marginTop: theme.spacing(8) },
     stateText: {

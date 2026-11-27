@@ -115,9 +115,20 @@ function useStable<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) 
 export function ConversationScreen(props: ConversationScreenProps) {
   const cfg = useCommunityConfig();
   const { onOpenGroup, beforeJoinGroup } = props;
+  // Stable against inline host callbacks (see the feed's).
+  const latest = useRef({ onOpenGroup, beforeJoinGroup });
+  latest.current = { onOpenGroup, beforeJoinGroup };
+  const canOpen = !!onOpenGroup;
+  const hasGate = !!beforeJoinGroup;
   const groupLink = useMemo<GroupLink | null>(
-    () => (onOpenGroup ? { openGroup: onOpenGroup, beforeJoinGroup } : null),
-    [onOpenGroup, beforeJoinGroup],
+    () =>
+      canOpen
+        ? {
+            openGroup: (groupId, preview) => latest.current.onOpenGroup?.(groupId, preview),
+            beforeJoinGroup: hasGate ? () => latest.current.beforeJoinGroup!() : undefined,
+          }
+        : null,
+    [canOpen, hasGate],
   );
   if (!groupsSettings(cfg)) return null;
   return (

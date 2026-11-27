@@ -29,10 +29,14 @@ import {
   exploreRowTap,
   groupErrorKey,
   groupStats,
+  guardedJoin,
+  joinGate,
   lastMessagePreview,
   needsAccount,
   onlineLabel,
 } from "../utils/groups";
+
+import { homeSegment, rememberHomeSegment } from "../utils/homeSegment";
 
 const t = makeT("en");
 
@@ -113,6 +117,71 @@ describe("lastMessagePreview", () => {
   });
   it("keeps one line", () => {
     expect(lastMessagePreview(msg("a\nb"), "me", "Ana", t)).toBe("Ana: a b");
+  });
+});
+
+describe("joinGate", () => {
+  const own = async () => true;
+  const compose = async () => true;
+  it("takes the screen's beforeJoinGroup first", () => {
+    expect(joinGate(own, "feed", compose)).toBe(own);
+    expect(joinGate(own, true, compose)).toBe(own);
+  });
+  it('falls back to the feed\'s beforeCompose only with requireAccount "feed"', () => {
+    expect(joinGate(undefined, "feed", compose)).toBe(compose);
+    expect(joinGate(undefined, true, compose)).toBeUndefined();
+    expect(joinGate(undefined, false, compose)).toBeUndefined();
+  });
+});
+
+describe("guardedJoin", () => {
+  const run = (o: { accountMissing?: boolean; gate?: () => Promise<boolean> }) => {
+    const calls: string[] = [];
+    const result = guardedJoin({
+      accountMissing: o.accountMissing ?? false,
+      onAccountRequired: () => calls.push("account"),
+      gate: o.gate
+        ? async () => {
+            calls.push("gate");
+            return o.gate!();
+          }
+        : undefined,
+      join: () => calls.push("join"),
+    });
+    return result.then((r) => ({ r, calls }));
+  };
+
+  it("asks for an account first, without running the gate", async () => {
+    expect(await run({ accountMissing: true, gate: async () => true })).toEqual({
+      r: "account",
+      calls: ["account"],
+    });
+  });
+
+  it("runs the gate, then joins", async () => {
+    expect(await run({ gate: async () => true })).toEqual({ r: "joined", calls: ["gate", "join"] });
+    expect(await run({})).toEqual({ r: "joined", calls: ["join"] });
+  });
+
+  it("stops on a gate that says no or throws", async () => {
+    expect(await run({ gate: async () => false })).toEqual({ r: "refused", calls: ["gate"] });
+    expect(
+      await run({
+        gate: async () => {
+          throw new Error("x");
+        },
+      }),
+    ).toEqual({ r: "refused", calls: ["gate"] });
+  });
+});
+
+describe("homeSegment", () => {
+  it("is the feed until another segment is chosen, then kept for the session", () => {
+    expect(homeSegment()).toBe("feed");
+    rememberHomeSegment("groups");
+    expect(homeSegment()).toBe("groups");
+    rememberHomeSegment("feed");
+    expect(homeSegment()).toBe("feed");
   });
 });
 

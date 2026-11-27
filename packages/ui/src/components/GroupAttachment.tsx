@@ -34,6 +34,7 @@ import type { AttachmentVariant } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import {
   exploreRowAction,
+  guardedJoin,
   exploreRowTap,
   groupErrorKey,
   needsAccount,
@@ -53,11 +54,10 @@ export type GroupLink = {
 
 export const GroupLinkContext = createContext<GroupLink | null>(null);
 
-/** Joining from a card or a row, with Explore's rules: the SDK's account check
- * (`requireAccount: true`), then the host gate, then the join; a failure is a line of
- * copy (an Alert never shows on web). */
+/** Joining from Explore, a card or the Groups home, in `guardedJoin`'s order; a
+ * failure is a line of copy (an Alert never shows on web). */
 export function useGuardedJoin(
-  source: "share" | "explore",
+  source: "share" | "explore" | "preview",
   beforeJoinGroup?: () => Promise<boolean>,
 ) {
   const cfg = useCommunityConfig();
@@ -70,30 +70,32 @@ export function useGuardedJoin(
 
   const join = async (groupId: string, onJoined: () => void) => {
     if (busy.current) return;
-    setError(null);
-    if (needsAccount(groupsSettings(cfg)?.requireAccount === true, linked))
-      return cfg.host.onAccountRequired?.("joinGroup");
     busy.current = true;
+    setError(null);
     setJoiningId(groupId);
     const done = () => {
       busy.current = false;
       setJoiningId(null);
     };
-    // A gate that throws counts as "no".
-    const allowed = beforeJoinGroup ? await beforeJoinGroup().catch(() => false) : true;
-    if (!allowed) return done();
-    mutation.mutate(
-      { groupId, source },
-      {
-        onSuccess: onJoined,
-        onError: (e) => {
-          const code = e instanceof MessagingError ? e.code : "unknown";
-          if (code === "account_required") cfg.host.onAccountRequired?.("joinGroup");
-          else setError(t(groupErrorKey(code)));
-        },
-        onSettled: done,
-      },
-    );
+    const result = await guardedJoin({
+      accountMissing: needsAccount(groupsSettings(cfg)?.requireAccount === true, linked),
+      onAccountRequired: () => cfg.host.onAccountRequired?.("joinGroup"),
+      gate: beforeJoinGroup,
+      join: () =>
+        mutation.mutate(
+          { groupId, source },
+          {
+            onSuccess: onJoined,
+            onError: (e) => {
+              const code = e instanceof MessagingError ? e.code : "unknown";
+              if (code === "account_required") cfg.host.onAccountRequired?.("joinGroup");
+              else setError(t(groupErrorKey(code)));
+            },
+            onSettled: done,
+          },
+        ),
+    });
+    if (result !== "joined") done();
   };
   return { joiningId, error, join };
 }
@@ -169,6 +171,8 @@ export function GroupAttachment({
     <PressableScale
       onPress={press}
       disabled={!interactive || busy}
+      // 32pt (38pt wide) buttons: the slop takes the target to 44pt.
+      hitSlop={compact ? 6 : 3}
       haptic={action === "join" ? "medium" : "selection"}
       accessibilityRole="button"
       accessibilityLabel={`${label}, ${group.name}`}

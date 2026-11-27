@@ -168,6 +168,7 @@ export function GroupsHome({
         <Pressable
           onPress={() => void startCreate()}
           disabled={gating}
+          hitSlop={4}
           style={({ pressed }) => [styles.create, pressed && styles.pressed]}
           accessibilityRole="button"
         >
