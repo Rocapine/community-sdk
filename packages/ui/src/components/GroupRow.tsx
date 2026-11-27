@@ -37,7 +37,12 @@ export function GroupRow({
   const on = onlineLabel(online, t);
 
   const stats = (
-    <Text style={styles.stats} numberOfLines={1}>
+    // Its own label: VoiceOver would read the dot of "● 3 online" as a black circle.
+    <Text
+      style={styles.stats}
+      numberOfLines={1}
+      accessibilityLabel={[members, on].filter(Boolean).join(", ")}
+    >
       {members}
       {on && (
         <>

@@ -23,6 +23,13 @@ const pad = (n: number) => String(n).padStart(2, "0");
 export const localDay = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+/** Milliseconds from `now` to just past the next local midnight (DST-safe: built from
+ * the calendar date, not 24 h). */
+export function msUntilNextDay(now: Date): number {
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return next.getTime() - now.getTime() + 1000;
+}
+
 /** Messages cut into local days (`YYYY-MM-DD`), in the order given. */
 export function groupByDay<T extends { createdAt: string }>(
   messages: readonly T[],
@@ -118,6 +125,34 @@ export function swipeOffset(dx: number): number {
 export function swipeTriggered(dx: number): boolean {
   "worklet";
   return dx >= SWIPE_REPLY_AT;
+}
+
+/** The bubble's offset when the swipe arms (the reply icon is fully shown there). */
+export const SWIPE_ARMED_OFFSET = swipeOffset(SWIPE_REPLY_AT);
+
+export type Rect = { x: number; y: number; width: number; height: number };
+
+/** Whether a touch at (`x`, `y`) in the bubble lands on one of its own controls (the
+ * like pill, the quote, an attachment card), `slop` points around each: those taps are
+ * the control's, never half of a double tap. */
+export function hitsControl(
+  x: number,
+  y: number,
+  rects: readonly (Rect | null)[],
+  slop: number,
+): boolean {
+  "worklet";
+  for (const r of rects) {
+    if (
+      r &&
+      x >= r.x - slop &&
+      x <= r.x + r.width + slop &&
+      y >= r.y - slop &&
+      y <= r.y + r.height + slop
+    )
+      return true;
+  }
+  return false;
 }
 
 /** Whether a touch at `x` (from the screen's left edge) is left to the back swipe. */

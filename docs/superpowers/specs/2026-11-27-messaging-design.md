@@ -95,18 +95,18 @@ messaging?: MessagingConfig; // applies when groups or dms is on
 
 ### `MessagingConfig` (shared)
 
-| Option            | Values                                   | SDK default  | Meaning                                                                                       |
-| ----------------- | ---------------------------------------- | ------------ | --------------------------------------------------------------------------------------------- |
-| `moderation`      | `"pre"` \| `"post"` \| `"reportOnly"`    | `"post"`     | Text messages: held until AI approves / shown then AI-checked / never AI-checked.             |
-| `translation`     | `"off"` \| `"onDemand"`                  | `"onDemand"` | "Translate" in the message menu; cached per locale. Needs the translation module.             |
-| `typingIndicator` | boolean                                  | `true`       | "X is typing…" over Realtime broadcast, never stored.                                         |
-| `badge`           | `"followed"` \| `"all"` \| `"dot"`       | `"followed"` | Header badge: unread count of followed conversations + requests / of all / a dot.             |
-| `hubLayout`       | `"tabs"` \| `"unified"`                  | `"tabs"`     | Messages page: two tabs (Conversations / Groups) or one list sorted by last message.          |
-| `homeLayout`      | `"header"` \| `"segmented"`              | `"header"`   | Community home: groups reached from the header, or a "Feed \| Groups" selector (groups only). |
-| `pushPreview`     | `"full"` \| `"sender"` \| `"none"`       | `"full"`     | Push body: sender + text / sender only / neutral text.                                        |
-| `onAccountDelete` | `"keep"` \| `"eraseDms"` \| `"eraseAll"` | `"keep"`     | What the account-deletion path does with the member's messages (see "Account deletion").      |
-| `maxLength`       | number                                   | `2000`       | Characters per message (database cap 4000).                                                   |
-| `ratePerMinute`   | number                                   | `20`         | Messages a member may send per minute, all conversations together (enforced server-side).     |
+| Option            | Values                                   | SDK default  | Meaning                                                                                                     |
+| ----------------- | ---------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------- |
+| `moderation`      | `"pre"` \| `"post"` \| `"reportOnly"`    | `"post"`     | Text messages: held until AI approves / shown then AI-checked / never AI-checked.                           |
+| `translation`     | `"off"` \| `"onDemand"`                  | `"onDemand"` | "Translate" in the message menu; cached per locale. Needs the translation module.                           |
+| `typingIndicator` | boolean                                  | `true`       | "X is typing…" over Realtime broadcast, never stored.                                                       |
+| `badge`           | `"followed"` \| `"all"` \| `"dot"`       | `"followed"` | Header badge: unread count of followed conversations + requests / of all / a dot.                           |
+| `hubLayout`       | `"tabs"` \| `"unified"`                  | `"tabs"`     | Messages page: two tabs (Conversations / Groups) or one list sorted by last message.                        |
+| `homeLayout`      | `"header"` \| `"segmented"`              | `"header"`   | Community home: groups reached from the header, or a "Feed \| Groups" selector (groups only).               |
+| `pushPreview`     | `"full"` \| `"sender"` \| `"none"`       | `"full"`     | Push body: sender + text / sender only / neutral text.                                                      |
+| `onAccountDelete` | `"keep"` \| `"eraseDms"` \| `"eraseAll"` | `"keep"`     | What the account-deletion path does with the member's messages (see "Account deletion").                    |
+| `maxLength`       | number                                   | `2000`       | Characters per message (database cap 4000).                                                                 |
+| `ratePerMinute`   | number                                   | `20`         | Sends, edits and deletions of own messages per member per minute, all conversations together (server-side). |
 
 ### `GroupsConfig`
 
@@ -270,9 +270,10 @@ RPCs: `start_dm`, `accept_request`, `decline_request` (silent, writes `dm_declin
   (groups; hidden in a DM) on the run's first bubble only, the avatar on its last only
   (the others keep its space), and only the last bubble has the tail corner (bottom
   left for others, bottom right for mine). Bubbles of a run sit closer together.
-- Like: a small pill on the bubble with the count. A double tap (double click on web)
-  likes or unlikes, with a small heart pop (a plain fade under Reduce Motion). On a
-  photo, a single tap opens the viewer only once the double-tap window (250 ms) has
+- Like: a small pill on the bubble with the count. A double tap on the bubble (double
+  click on web; not on the avatar, and taps on the like pill, the quote or a card stay
+  theirs) likes or unlikes, with a small heart pop (a plain fade under Reduce Motion). On a
+  photo, a single tap opens the viewer only once the double-tap window (300 ms) has
   passed, so a double tap likes without opening it. Web bubbles take no text selection
   (a double click would select a word): Copy is in the menu.
 - Reply: a swipe right on a bubble (iOS and Android): it follows the finger a little

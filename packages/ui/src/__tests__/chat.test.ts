@@ -2,6 +2,7 @@ import type { Group } from "@rocapine/community-core";
 import { describe, expect, it, vi } from "vitest";
 import { makeT } from "../i18n";
 import {
+  SWIPE_ARMED_OFFSET,
   SWIPE_EDGE,
   SWIPE_MAX,
   SWIPE_REPLY_AT,
@@ -11,6 +12,8 @@ import {
   screenErrorCode,
   findOrLoadMessage,
   groupByDay,
+  hitsControl,
+  msUntilNextDay,
   quoteExcerpt,
   replyPreview,
   runFlags,
@@ -154,6 +157,11 @@ describe("swipe to reply", () => {
     expect(swipeTriggered(SWIPE_REPLY_AT)).toBe(true);
   });
 
+  it("shows the reply icon fully when it arms, before the bubble's maximum", () => {
+    expect(SWIPE_ARMED_OFFSET).toBe(swipeOffset(SWIPE_REPLY_AT));
+    expect(SWIPE_ARMED_OFFSET).toBeLessThanOrEqual(SWIPE_MAX);
+  });
+
   it("leaves touches at the left edge to the back swipe", () => {
     expect(startsAtEdge(0)).toBe(true);
     expect(startsAtEdge(SWIPE_EDGE - 1)).toBe(true);
@@ -258,5 +266,34 @@ describe("screenErrorCode", () => {
       expect(closedReason(undefined, screenErrorCode(action, "not_a_member"), true)).toBeNull();
       expect(closedReason(undefined, screenErrorCode(action, "not_found"), true)).toBeNull();
     }
+  });
+});
+
+describe("hitsControl (taps a double tap leaves to the bubble's controls)", () => {
+  const pill = { x: 10, y: 50, width: 30, height: 16 };
+  const quote = { x: 8, y: 6, width: 120, height: 40 };
+
+  it("hits a control, with the slop around it", () => {
+    expect(hitsControl(20, 55, [pill, null, null], 6)).toBe(true);
+    expect(hitsControl(45, 70, [pill, null, null], 6)).toBe(true);
+    expect(hitsControl(50, 20, [pill, quote], 0)).toBe(true);
+  });
+
+  it("misses elsewhere, and with no controls shown", () => {
+    expect(hitsControl(200, 55, [pill, quote], 6)).toBe(false);
+    expect(hitsControl(20, 55, [null, null, null], 6)).toBe(false);
+  });
+});
+
+describe("msUntilNextDay", () => {
+  it("waits until just past the next local midnight", () => {
+    const now = new Date(2026, 10, 27, 23, 59, 0);
+    expect(msUntilNextDay(now)).toBe(61_000);
+  });
+
+  it("counts calendar days across a DST change, not 24 h", () => {
+    const now = new Date(2026, 9, 24, 12);
+    const at = new Date(now.getTime() + msUntilNextDay(now) - 1000);
+    expect([at.getDate(), at.getHours(), at.getMinutes()]).toEqual([25, 0, 0]);
   });
 });

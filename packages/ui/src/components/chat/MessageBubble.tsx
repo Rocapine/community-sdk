@@ -3,14 +3,16 @@
 // name (groups) on its first bubble, the avatar and the tail corner on its last. A
 // reply quotes its target inside the bubble; likes sit in a pill on the bubble's edge.
 //
-// Gestures: a double tap (double click on web) likes or unlikes, with a small heart
-// pop; a photo's single tap opens the viewer only once that double tap has failed, so
-// a double tap on a photo never opens it. A swipe right (native only) replies — the bubble follows the finger a little, a
-// reply icon shows, a haptic marks the threshold. Vertical moves stay the list's, and
-// touches at the screen's left edge stay the system's back swipe. The menu (long
-// press, right click or the "…" on hover or focus on web) keeps Like and Reply, and
-// screen readers get both as actions. Web: no text selection in bubbles (a double click
-// would select a word); the menu's Copy copies the text.
+// Gestures: a double tap on the bubble (double click on web) likes or unlikes, with a
+// small heart pop; taps on the like pill, the quote or a card stay theirs. A photo's
+// single tap opens the viewer only once the double tap has failed, so a double tap on
+// a photo never opens it. A swipe right (native only) replies: the bubble follows the
+// finger a little, a reply icon shows, a haptic marks the threshold. Vertical moves
+// stay the list's (`touch-action: pan-y` on web), and touches at the screen's left
+// edge stay the system's back swipe. The menu (long press, right click or the "…" on
+// hover or focus on web) keeps Like and Reply, and screen readers get both as actions.
+// Web: no text selection in bubbles (a double click would select a word); the menu's
+// Copy copies the text.
 import {
   isOptimistic,
   messageImageUrl,
@@ -21,7 +23,7 @@ import {
 } from "@rocapine/community-core";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { memo, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -29,7 +31,7 @@ import {
   Text,
   View,
   type AccessibilityActionEvent,
-  type ViewStyle,
+  type LayoutChangeEvent,
 } from "react-native";
 import { Gesture, GestureDetector, type GestureType } from "react-native-gesture-handler";
 import Animated, {
@@ -46,8 +48,11 @@ import Animated, {
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../../ThemeProvider";
 import type { CommunityTheme } from "../../theme";
 import {
+  SWIPE_ARMED_OFFSET,
   SWIPE_MAX,
   formatClock,
+  hitsControl,
+  type Rect,
   startsAtEdge,
   swipeOffset,
   swipeTriggered,
@@ -65,9 +70,9 @@ const SIGNED_URL_STALE_MS = 50 * 60_000;
 const web = Platform.OS === "web";
 const HEART = 36;
 /** The double tap's window between taps (ms): a photo's single tap waits this long. */
-const DOUBLE_TAP_MS = 250;
-// Web: a double click must not select a word. React Native types `userSelect` on Text only.
-const NO_SELECT = { userSelect: "none" } as unknown as ViewStyle;
+const DOUBLE_TAP_MS = 300;
+/** The like pill's hitSlop, also around the controls a double tap leaves alone. */
+const CONTROL_SLOP = 6;
 
 // Memoized: the screen re-renders on every keystroke of the composer.
 export const MessageBubble = memo(function MessageBubble({
@@ -170,55 +175,92 @@ export const MessageBubble = memo(function MessageBubble({
   const tick = useCallback(() => haptic("light"), []);
   const canLike = !!onToggleLike;
   const canReply = !web && !!onReply;
+  // Where the bubble's own controls sit (layout relative to the bubble), so a tap on
+  // them never counts toward a double tap; null while not shown.
+  const pillRect = useSharedValue<Rect | null>(null);
+  const quoteRect = useSharedValue<Rect | null>(null);
+  const cardRect = useSharedValue<Rect | null>(null);
+  const showPill = m.likeCount > 0 && !gone;
+  const showQuote = !!m.replyTo && !gone;
+  const showCard = !!m.attachment && !gone;
+  useEffect(() => {
+    if (!showPill) pillRect.value = null;
+    if (!showQuote) quoteRect.value = null;
+    if (!showCard) cardRect.value = null;
+  }, [showPill, showQuote, showCard, pillRect, quoteRect, cardRect]);
+  const measure = (rect: typeof pillRect) => (e: LayoutChangeEvent) => {
+    rect.value = e.nativeEvent.layout;
+  };
   const doubleTap = useMemo(
     () =>
       Gesture.Tap()
         .numberOfTaps(2)
         .maxDelay(DOUBLE_TAP_MS)
         .enabled(canLike)
+        .onTouchesDown((e, manager) => {
+          "worklet";
+          const touch = e.changedTouches[0];
+          if (
+            touch &&
+            hitsControl(
+              touch.x,
+              touch.y,
+              [pillRect.value, quoteRect.value, cardRect.value],
+              CONTROL_SLOP,
+            )
+          )
+            manager.fail();
+        })
         .onEnd((_e, success) => {
           "worklet";
           if (success) runOnJS(like)();
         }),
-    [canLike, like],
+    [canLike, like, pillRect, quoteRect, cardRect],
   );
-  const gesture = useMemo(() => {
-    const pan = Gesture.Pan()
-      .enabled(canReply)
-      // Right only, past a few points; any vertical move first leaves it to the list.
-      .activeOffsetX(12)
-      .failOffsetX(-12)
-      .failOffsetY([-10, 10])
-      .onTouchesDown((e, manager) => {
-        "worklet";
-        const touch = e.changedTouches[0];
-        if (touch && startsAtEdge(touch.absoluteX)) manager.fail();
-      })
-      .onUpdate((e) => {
-        "worklet";
-        swipe.value = swipeOffset(e.translationX);
-        const on = swipeTriggered(e.translationX);
-        if (on !== armed.value) {
-          armed.value = on;
-          if (on) runOnJS(tick)();
-        }
-      })
-      .onEnd((e) => {
-        "worklet";
-        if (swipeTriggered(e.translationX)) runOnJS(reply)();
-      })
-      .onFinalize(() => {
-        "worklet";
-        armed.value = false;
-        swipe.value = reduceMotion
-          ? withTiming(0, { duration: 150 })
-          : withSpring(0, { damping: 20, stiffness: 260 });
-      });
-    return Gesture.Race(pan, doubleTap);
-  }, [doubleTap, canReply, reduceMotion, reply, tick, swipe, armed]);
+  const pan = useMemo(() => {
+    return (
+      Gesture.Pan()
+        .enabled(canReply)
+        // Right only, past a few points; any vertical move first leaves it to the list.
+        .activeOffsetX(12)
+        .failOffsetX(-12)
+        .failOffsetY([-10, 10])
+        .onTouchesDown((e, manager) => {
+          "worklet";
+          const touch = e.changedTouches[0];
+          if (touch && startsAtEdge(touch.absoluteX)) manager.fail();
+        })
+        .onUpdate((e) => {
+          "worklet";
+          swipe.value = swipeOffset(e.translationX);
+          const on = swipeTriggered(e.translationX);
+          if (on !== armed.value) {
+            armed.value = on;
+            if (on) runOnJS(tick)();
+          }
+        })
+        .onEnd((e, success) => {
+          "worklet";
+          if (success && swipeTriggered(e.translationX)) runOnJS(reply)();
+        })
+        .onFinalize(() => {
+          "worklet";
+          armed.value = false;
+          swipe.value = reduceMotion
+            ? withTiming(0, { duration: 150 })
+            : withSpring(0, { damping: 20, stiffness: 260 });
+        })
+    );
+  }, [canReply, reduceMotion, reply, tick, swipe, armed]);
   const swipeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: swipe.value }] }));
   const replyIconStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(swipe.value, [SWIPE_MAX / 3, SWIPE_MAX], [0, 1], "clamp"),
+    // Fully shown when the swipe arms (the haptic), not only at the bubble's maximum.
+    opacity: interpolate(
+      swipe.value,
+      [SWIPE_ARMED_OFFSET / 3, SWIPE_ARMED_OFFSET],
+      [0, 1],
+      "clamp",
+    ),
     transform: [{ scale: interpolate(swipe.value, [0, SWIPE_MAX], [0.6, 1], "clamp") }],
   }));
   const heartStyle = useAnimatedStyle(() => ({
@@ -242,90 +284,98 @@ export const MessageBubble = memo(function MessageBubble({
   const time = formatClock(m.createdAt, cfg.host.getLocale());
   const meta = m.editedAt && !gone ? `${time} · ${t("chat.edited")}` : time;
 
+  // The double tap covers the bubble only (not the avatar); `userSelect` and
+  // `touchAction` are web-only: no word selection, and vertical touch scrolling stays.
   const bubble = (
-    <Pressable
-      onLongPress={openMenu}
-      onFocus={focus}
-      onBlur={blur}
-      style={[
-        styles.bubble,
-        own ? styles.bubbleOwn : styles.bubbleOther,
-        web && NO_SELECT,
-        last && (own ? styles.tailOwn : styles.tailOther),
-        (isOptimistic(m) || m.status === "pending") && styles.sending,
-      ]}
-      accessibilityActions={a11yActions.length > 0 ? a11yActions : undefined}
-      onAccessibilityAction={onA11yAction}
-      {...contextMenu}
-    >
-      {showName && first && author && (
-        <Text style={styles.name} numberOfLines={1}>
-          {author.name}
-        </Text>
-      )}
-      {gone ? (
-        <Text style={[styles.body, styles.deleted, { color: textColor }]}>
-          {m.status === "hidden"
-            ? t("chat.hidden")
-            : m.deletedBy === "creator"
-              ? t("chat.deletedByCreator")
-              : t("chat.deleted")}
-        </Text>
-      ) : (
-        <>
-          {m.replyTo && (
-            <QuoteBlock
-              replyTo={m.replyTo}
-              color={textColor}
-              onPress={() => onPressQuote(m.replyTo!.id)}
+    <GestureDetector gesture={doubleTap} userSelect="none" touchAction="pan-y">
+      <Pressable
+        onLongPress={openMenu}
+        onFocus={focus}
+        onBlur={blur}
+        style={[
+          styles.bubble,
+          own ? styles.bubbleOwn : styles.bubbleOther,
+          last && (own ? styles.tailOwn : styles.tailOther),
+          (isOptimistic(m) || m.status === "pending") && styles.sending,
+        ]}
+        accessibilityActions={a11yActions.length > 0 ? a11yActions : undefined}
+        onAccessibilityAction={onA11yAction}
+        {...contextMenu}
+      >
+        {showName && first && author && (
+          <Text style={styles.name} numberOfLines={1}>
+            {author.name}
+          </Text>
+        )}
+        {gone ? (
+          <Text style={[styles.body, styles.deleted, { color: textColor }]}>
+            {m.status === "hidden"
+              ? t("chat.hidden")
+              : m.deletedBy === "creator"
+                ? t("chat.deletedByCreator")
+                : t("chat.deleted")}
+          </Text>
+        ) : (
+          <>
+            {m.replyTo && (
+              <View onLayout={measure(quoteRect)}>
+                <QuoteBlock
+                  replyTo={m.replyTo}
+                  color={textColor}
+                  onPress={() => onPressQuote(m.replyTo!.id)}
+                />
+              </View>
+            )}
+            {m.imagePath && <MessageImage message={m} doubleTap={canLike ? doubleTap : null} />}
+            {m.attachment && (
+              <View onLayout={measure(cardRect)}>
+                <AttachmentCard
+                  attachment={m.attachment}
+                  placement="message"
+                  variant="compact"
+                  onOpen={onOpenAttachment}
+                />
+              </View>
+            )}
+            {!!(translation ?? m.body) && (
+              <Text style={[styles.body, { color: textColor }]}>{translation ?? m.body}</Text>
+            )}
+            {translation !== undefined && (
+              <Text
+                style={[styles.meta, styles.link, { color: textColor }]}
+                onPress={() => onShowOriginal?.(m.id)}
+                accessibilityRole="button"
+              >
+                {t("translation.showOriginal")}
+              </Text>
+            )}
+          </>
+        )}
+        <Text style={[styles.meta, { color: textColor }]}>{meta}</Text>
+        {showPill && (
+          <Pressable
+            onPress={onToggleLike ? () => onToggleLike(m) : undefined}
+            onLayout={measure(pillRect)}
+            disabled={!onToggleLike}
+            hitSlop={CONTROL_SLOP}
+            style={[styles.like, own ? styles.likeOwn : styles.likeOther]}
+            accessibilityRole="button"
+            accessibilityLabel={`${t("a11y.like")} ${m.likeCount}`}
+            accessibilityState={{ selected: m.likedByMe }}
+          >
+            <icons.like
+              size={10}
+              color={m.likedByMe ? theme.colors.like : theme.colors.textMuted}
+              weight={m.likedByMe ? "fill" : "regular"}
             />
-          )}
-          {m.imagePath && <MessageImage message={m} doubleTap={canLike ? doubleTap : null} />}
-          {m.attachment && (
-            <AttachmentCard
-              attachment={m.attachment}
-              placement="message"
-              variant="compact"
-              onOpen={onOpenAttachment}
-            />
-          )}
-          {!!(translation ?? m.body) && (
-            <Text style={[styles.body, { color: textColor }]}>{translation ?? m.body}</Text>
-          )}
-          {translation !== undefined && (
-            <Text
-              style={[styles.meta, styles.link, { color: textColor }]}
-              onPress={() => onShowOriginal?.(m.id)}
-              accessibilityRole="button"
-            >
-              {t("translation.showOriginal")}
-            </Text>
-          )}
-        </>
-      )}
-      <Text style={[styles.meta, { color: textColor }]}>{meta}</Text>
-      {m.likeCount > 0 && !gone && (
-        <Pressable
-          onPress={onToggleLike ? () => onToggleLike(m) : undefined}
-          disabled={!onToggleLike}
-          hitSlop={6}
-          style={[styles.like, own ? styles.likeOwn : styles.likeOther]}
-          accessibilityRole="button"
-          accessibilityLabel={`${t("a11y.like")} ${m.likeCount}`}
-          accessibilityState={{ selected: m.likedByMe }}
-        >
-          <icons.like
-            size={10}
-            color={m.likedByMe ? theme.colors.like : theme.colors.textMuted}
-            weight={m.likedByMe ? "fill" : "regular"}
-          />
-          <Text style={styles.likeCount}>{m.likeCount}</Text>
-        </Pressable>
-      )}
-      <Animated.View pointerEvents="none" style={[styles.heart, heartStyle]}>
-        <icons.like size={HEART} color={theme.colors.like} weight="fill" />
-      </Animated.View>
-    </Pressable>
+            <Text style={styles.likeCount}>{m.likeCount}</Text>
+          </Pressable>
+        )}
+        <Animated.View pointerEvents="none" style={[styles.heart, heartStyle]}>
+          <icons.like size={HEART} color={theme.colors.like} weight="fill" />
+        </Animated.View>
+      </Pressable>
+    </GestureDetector>
   );
 
   const more =
@@ -385,13 +435,10 @@ export const MessageBubble = memo(function MessageBubble({
     <View style={rowStyle}>{content}</View>
   );
   return (
-    <GestureDetector gesture={gesture}>
+    <GestureDetector gesture={pan} touchAction="pan-y">
       <View
         collapsable={false}
-        style={[
-          first ? styles.runStart : styles.inRun,
-          m.likeCount > 0 && !gone ? styles.rowLiked : null,
-        ]}
+        style={[first ? styles.runStart : styles.inRun, showPill ? styles.rowLiked : null]}
       >
         {canReply && (
           <Animated.View pointerEvents="none" style={[styles.replyIcon, replyIconStyle]}>
@@ -454,7 +501,7 @@ function MessageImage({
       }
     : {};
   return (
-    <GestureDetector gesture={tap}>
+    <GestureDetector gesture={tap} touchAction="pan-y">
       <View
         accessible
         accessibilityRole="imagebutton"
@@ -462,7 +509,7 @@ function MessageImage({
         accessibilityActions={[{ name: "activate" }]}
         onAccessibilityAction={open}
         collapsable={false}
-        style={styles.imageWrap}
+        style={[styles.imageWrap, web && styles.pointer]}
         {...keyboard}
       >
         <Image
@@ -565,6 +612,7 @@ function makeStyles(theme: CommunityTheme) {
       alignSelf: "center",
     },
     imageWrap: { marginBottom: theme.spacing(1) },
+    pointer: { cursor: "pointer" },
     image: {
       width: IMAGE_WIDTH,
       maxWidth: "100%",

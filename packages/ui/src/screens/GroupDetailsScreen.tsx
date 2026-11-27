@@ -30,7 +30,7 @@ import { OnlineLabel } from "../components/OnlineLabel";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { ScreenBackground } from "../components/ScreenBackground";
 import { MessageMenu } from "../components/chat/MessageMenu";
-import { canManage } from "../utils/groups";
+import { canManage, onlineLabel } from "../utils/groups";
 import { isQueryLoading } from "../utils/query";
 import { ToggleRow } from "./ProfileEditSheet";
 
@@ -123,7 +123,16 @@ function Details({ groupId, onOpenMembers, onShare, onLeft, onBack }: GroupDetai
             placement="group"
           />
           <Text style={styles.name}>{group.name}</Text>
-          <Text style={styles.stats}>
+          {/* Its own label: VoiceOver would read the dot of "● 3 online" as a black circle. */}
+          <Text
+            style={styles.stats}
+            accessibilityLabel={[
+              t("chat.members", { count: group.memberCount }),
+              onlineLabel(online, t),
+            ]
+              .filter(Boolean)
+              .join(", ")}
+          >
             {t("chat.members", { count: group.memberCount })}
             {online > 0 && (
               <>

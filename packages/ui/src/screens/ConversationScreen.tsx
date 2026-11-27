@@ -2,9 +2,9 @@
 // group's header (picture, name, "● X online" when other members are, notifications
 // bell), the messages newest at the bottom in runs by author with a separator between
 // days, "X is typing…", and the composer. A double tap likes a message, a swipe right
-// replies to it (native), a long press opens its menu. `mode: "preview"` reads the group without joining: a "Join" bar
-// replaces the composer, and joining turns the screen into the member's chat in
-// place. A member removed, or a group deleted, sees a line instead of the composer.
+// replies to it (native), a long press opens its menu. `mode: "preview"` reads the
+// group without joining: a "Join" bar replaces the composer, and joining turns the
+// screen into the member's chat in place. A member removed, or a group deleted, sees a line instead of the composer.
 //
 // The host pads the top (like every screen); the screen pads the bottom (safe area,
 // keyboard). Renders nothing when the groups module is off.
@@ -73,6 +73,7 @@ import {
   findOrLoadMessage,
   groupByDay,
   localDay,
+  msUntilNextDay,
   replyPreview,
   runFlags,
   screenErrorCode,
@@ -449,6 +450,11 @@ function Conversation({
     });
     return () => sub.remove();
   }, [isFocused]);
+  // And at local midnight while the screen stays open (a timer per day).
+  useEffect(() => {
+    const timer = setTimeout(() => setToday(localDay(new Date())), msUntilNextDay(new Date()));
+    return () => clearTimeout(timer);
+  }, [today]);
   const rows = useMemo<Row[]>(
     () =>
       groupByDay(pages?.flat() ?? []).flatMap((g) => {
