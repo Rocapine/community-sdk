@@ -246,6 +246,16 @@ describe("runInit", () => {
     expect(fnDirs).not.toContain("notify-reaction");
   });
 
+  it("copies notify-message with messaging and push", async () => {
+    await runInit(baseOptions({ modules: ["core", "push", "groups"] }));
+    expect(fs.readdirSync(path.join(cwd, "supabase", "functions"))).toContain("notify-message");
+  });
+
+  it("does not copy notify-message without push", async () => {
+    await runInit(baseOptions({ modules: ["core", "groups"] }));
+    expect(fs.readdirSync(path.join(cwd, "supabase", "functions"))).not.toContain("notify-message");
+  });
+
   it("installs the translation module last, with its migrations and two functions", async () => {
     await runInit(baseOptions({ modules: ["core", "polls", "translation"] }));
     const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();

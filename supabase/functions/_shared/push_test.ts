@@ -95,8 +95,13 @@ Deno.test("unreadBadge: rows from a member blocked either way do not count", asy
 // A tiny chainable stand-in for the supabase-js query builder: each table
 // resolves to fixed rows, or to a function of its `eq` filters.
 type Rows = unknown | ((eq: Record<string, unknown>) => unknown);
-function fakeSupabase(tables: Record<string, Rows>) {
+function fakeSupabase(
+  tables: Record<string, Rows>,
+  rpcs: Record<string, { data: unknown; error: unknown }> = {},
+) {
   return {
+    rpc: (name: string) =>
+      Promise.resolve(rpcs[name] ?? { data: null, error: { message: "no rpc" } }),
     from(table: string) {
       const eq: Record<string, unknown> = {};
       const result = () => {
@@ -265,4 +270,28 @@ Deno.test("dropInvalidTokens: only the given tokens, in chunks of 100", async ()
     ],
   );
   assertEquals(calls.flatMap((c) => (c.op === "delete" ? c.tokens : [])).length, 250);
+});
+
+Deno.test("unreadBadge: adds the followed groups' unread messages to the inbox count", async () => {
+  const tables = {
+    notification_seen: null,
+    notifications: [{ id: "a" }, { id: "b" }],
+    notification_reads: [],
+  };
+  const ok = fakeSupabase(tables, { unread_followed_messages_for: { data: 3, error: null } });
+  assertEquals(await unreadBadge(ok, "u1"), 5);
+  // Inbox empty: the messages alone, not 1 + messages.
+  const messagesOnly = fakeSupabase(
+    { notification_seen: null, notifications: [], notification_reads: [] },
+    { unread_followed_messages_for: { data: 4, error: null } },
+  );
+  assertEquals(await unreadBadge(messagesOnly, "u1"), 4);
+});
+
+Deno.test("unreadBadge: the inbox count alone when the messages RPC errors", async () => {
+  const supabase = fakeSupabase(
+    { notification_seen: null, notifications: [{ id: "a" }, { id: "b" }], notification_reads: [] },
+    { unread_followed_messages_for: { data: null, error: { message: "does not exist" } } },
+  );
+  assertEquals(await unreadBadge(supabase, "u1"), 2);
 });

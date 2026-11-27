@@ -1,4 +1,4 @@
-// Locale-aware push copy for notify-comment / notify-like / notify-reaction.
+// Locale-aware push copy for notify-comment / notify-like / notify-reaction / notify-message.
 //
 // Every string below is a neutral built-in for each of the 23 locales the UI
 // package ships. An app with its own voice overrides ANY of them — per locale, per
@@ -15,7 +15,8 @@
 //                        "pl": { "one": "…", "few": "…", "many": "…" } }
 //   }'
 //
-// Placeholders: `{name}` (actor display name) and `{count}` (the number of
+// Placeholders: `{name}` (actor display name), `{sender}` (a message's author, in
+// message.groupBody) and `{count}` (the number of
 // OTHER people in a coalesced push). A `*.many` value is either a string or a
 // `{ one, few, many, other }` object picked by the CLDR plural category of
 // `{count}` for the recipient's locale (Polish needs all three; Ukrainian,
@@ -38,12 +39,16 @@ export type PushCopyKey =
   | "like.many"
   | "reaction.one"
   | "reaction.many"
-  | "photo";
+  | "photo"
+  | "message.groupBody"
+  | "message.neutral";
 
 const BUILTIN: Record<string, LocaleCopy> = {
   en: {
     fallbackName: "Someone",
     photo: "📷 Photo",
+    "message.groupBody": "{sender} sent a message",
+    "message.neutral": "You have a new message",
     "comment.title": "You received a comment",
     "reply.title": "You received a reply",
     "like.one": "{name} liked your post",
@@ -60,6 +65,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   "pt-PT": {
     fallbackName: "Alguém",
     photo: "📷 Foto",
+    "message.groupBody": "{sender} enviou uma mensagem",
+    "message.neutral": "Tens uma nova mensagem",
     "comment.title": "Recebeste um comentário",
     "reply.title": "Recebeste uma resposta",
     "like.one": "{name} gostou da tua publicação",
@@ -76,6 +83,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   "pt-BR": {
     fallbackName: "Alguém",
     photo: "📷 Foto",
+    "message.groupBody": "{sender} enviou uma mensagem",
+    "message.neutral": "Você tem uma nova mensagem",
     "comment.title": "Você recebeu um comentário",
     "reply.title": "Você recebeu uma resposta",
     "like.one": "{name} curtiu seu post",
@@ -92,6 +101,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   "es-ES": {
     fallbackName: "Alguien",
     photo: "📷 Foto",
+    "message.groupBody": "{sender} ha enviado un mensaje",
+    "message.neutral": "Tienes un mensaje nuevo",
     "comment.title": "Has recibido un comentario",
     "reply.title": "Has recibido una respuesta",
     "like.one": "A {name} le ha gustado tu publicación",
@@ -108,6 +119,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   "es-419": {
     fallbackName: "Alguien",
     photo: "📷 Foto",
+    "message.groupBody": "{sender} envió un mensaje",
+    "message.neutral": "Tienes un mensaje nuevo",
     "comment.title": "Recibiste un comentario",
     "reply.title": "Recibiste una respuesta",
     "like.one": "A {name} le gustó tu publicación",
@@ -124,6 +137,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   it: {
     fallbackName: "Qualcuno",
     photo: "📷 Foto",
+    "message.groupBody": "{sender} ha inviato un messaggio",
+    "message.neutral": "Hai un nuovo messaggio",
     "comment.title": "Hai ricevuto un commento",
     "reply.title": "Hai ricevuto una risposta",
     "like.one": "A {name} piace il tuo post",
@@ -140,6 +155,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   pl: {
     fallbackName: "Ktoś",
     photo: "📷 Zdjęcie",
+    "message.groupBody": "{sender} wysłał(a) wiadomość",
+    "message.neutral": "Masz nową wiadomość",
     "comment.title": "Masz nowy komentarz",
     "reply.title": "Masz nową odpowiedź",
     "like.one": "{name} polubił(a) twój post",
@@ -158,6 +175,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   fr: {
     fallbackName: "Quelqu'un",
     photo: "📷 Photo",
+    "message.groupBody": "{sender} a envoyé un message",
+    "message.neutral": "Tu as un nouveau message",
     "comment.title": "Tu as reçu un commentaire",
     "reply.title": "Tu as reçu une réponse",
     "like.one": "{name} a aimé ta publication",
@@ -174,6 +193,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   de: {
     fallbackName: "Jemand",
     photo: "📷 Foto",
+    "message.groupBody": "{sender} hat eine Nachricht gesendet",
+    "message.neutral": "Du hast eine neue Nachricht",
     "comment.title": "Du hast einen Kommentar erhalten",
     "reply.title": "Du hast eine Antwort erhalten",
     "like.one": "{name} gefällt dein Beitrag",
@@ -190,6 +211,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   "fr-vous": {
     fallbackName: "Quelqu'un",
     photo: "📷 Photo",
+    "message.groupBody": "{sender} a envoyé un message",
+    "message.neutral": "Vous avez un nouveau message",
     "comment.title": "Vous avez reçu un commentaire",
     "reply.title": "Vous avez reçu une réponse",
     "like.one": "{name} a aimé votre publication",
@@ -206,6 +229,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   ko: {
     fallbackName: "누군가",
     photo: "📷 사진",
+    "message.groupBody": "{sender}님이 메시지를 보냈어요",
+    "message.neutral": "새 메시지가 있어요",
     "comment.title": "새 댓글이 달렸어요",
     "reply.title": "새 답글이 달렸어요",
     "like.one": "{name}님이 내 게시글을 좋아해요",
@@ -222,6 +247,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   ro: {
     fallbackName: "Cineva",
     photo: "📷 Fotografie",
+    "message.groupBody": "{sender} a trimis un mesaj",
+    "message.neutral": "Ai un mesaj nou",
     "comment.title": "Ai primit un comentariu",
     "reply.title": "Ai primit un răspuns",
     "like.one": "{name} a apreciat postarea ta",
@@ -240,6 +267,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   uk: {
     fallbackName: "Хтось",
     photo: "📷 Фото",
+    "message.groupBody": "{sender} надіслав(ла) повідомлення",
+    "message.neutral": "У тебе нове повідомлення",
     "comment.title": "У тебе новий коментар",
     "reply.title": "У тебе нова відповідь",
     "like.one": "{name} вподобав(ла) твій допис",
@@ -258,6 +287,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   nl: {
     fallbackName: "Iemand",
     photo: "📷 Foto",
+    "message.groupBody": "{sender} heeft een bericht gestuurd",
+    "message.neutral": "Je hebt een nieuw bericht",
     "comment.title": "Je hebt een reactie ontvangen",
     "reply.title": "Je hebt een antwoord ontvangen",
     "like.one": "{name} vindt je post leuk",
@@ -274,6 +305,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   ru: {
     fallbackName: "Кто-то",
     photo: "📷 Фото",
+    "message.groupBody": "{sender} отправил(а) сообщение",
+    "message.neutral": "У тебя новое сообщение",
     "comment.title": "У тебя новый комментарий",
     "reply.title": "У тебя новый ответ",
     "like.one": "{name} оценил(а) твой пост",
@@ -292,6 +325,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   el: {
     fallbackName: "Κάποιος",
     photo: "📷 Φωτογραφία",
+    "message.groupBody": "{sender} έστειλε ένα μήνυμα",
+    "message.neutral": "Έχεις ένα νέο μήνυμα",
     "comment.title": "Έλαβες ένα σχόλιο",
     "reply.title": "Έλαβες μια απάντηση",
     "like.one": "{name} έκανε like στη δημοσίευσή σου",
@@ -308,6 +343,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   hu: {
     fallbackName: "Valaki",
     photo: "📷 Fotó",
+    "message.groupBody": "{sender} üzenetet küldött",
+    "message.neutral": "Új üzeneted érkezett",
     "comment.title": "Hozzászólást kaptál",
     "reply.title": "Választ kaptál",
     "like.one": "{name} kedvelte a bejegyzésedet",
@@ -324,6 +361,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   sv: {
     fallbackName: "Någon",
     photo: "📷 Foto",
+    "message.groupBody": "{sender} skickade ett meddelande",
+    "message.neutral": "Du har ett nytt meddelande",
     "comment.title": "Du har fått en kommentar",
     "reply.title": "Du har fått ett svar",
     "like.one": "{name} gillade ditt inlägg",
@@ -340,6 +379,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   nb: {
     fallbackName: "Noen",
     photo: "📷 Bilde",
+    "message.groupBody": "{sender} sendte en melding",
+    "message.neutral": "Du har en ny melding",
     "comment.title": "Du har fått en kommentar",
     "reply.title": "Du har fått et svar",
     "like.one": "{name} likte innlegget ditt",
@@ -356,6 +397,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   da: {
     fallbackName: "Nogen",
     photo: "📷 Foto",
+    "message.groupBody": "{sender} sendte en besked",
+    "message.neutral": "Du har en ny besked",
     "comment.title": "Du har fået en kommentar",
     "reply.title": "Du har fået et svar",
     "like.one": "{name} synes godt om dit opslag",
@@ -372,6 +415,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   hr: {
     fallbackName: "Netko",
     photo: "📷 Fotografija",
+    "message.groupBody": "{sender} je poslao/la poruku",
+    "message.neutral": "Imaš novu poruku",
     "comment.title": "Imaš novi komentar",
     "reply.title": "Imaš novi odgovor",
     "like.one": "{name} je lajkao/la tvoju objavu",
@@ -390,6 +435,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   sk: {
     fallbackName: "Niekto",
     photo: "📷 Fotka",
+    "message.groupBody": "{sender} poslal(a) správu",
+    "message.neutral": "Máš novú správu",
     "comment.title": "Máš nový komentár",
     "reply.title": "Máš novú odpoveď",
     "like.one": "{name} dal(a) like tvojmu príspevku",
@@ -408,6 +455,8 @@ const BUILTIN: Record<string, LocaleCopy> = {
   cs: {
     fallbackName: "Někdo",
     photo: "📷 Fotka",
+    "message.groupBody": "{sender} poslal(a) zprávu",
+    "message.neutral": "Máš novou zprávu",
     "comment.title": "Máš nový komentář",
     "reply.title": "Máš novou odpověď",
     "like.one": "{name} ocenil(a) tvůj příspěvek",
@@ -495,9 +544,12 @@ function pick(key: PushCopyKey, locale: string, exact: string | null | undefined
   return BUILTIN[locale][key] ?? BUILTIN.en[key];
 }
 
-function fill(template: string, params: { name?: string; count?: number }): string {
+type Params = { name?: string; sender?: string; count?: number };
+
+function fill(template: string, params: Params): string {
   return template
     .replace(/\{name\}/g, params.name ?? "")
+    .replace(/\{sender\}/g, params.sender ?? "")
     .replace(/\{count\}/g, params.count === undefined ? "" : String(params.count));
 }
 
@@ -507,10 +559,26 @@ export function excerptOrPhoto(content: string, photo: string): string {
   return content.length > 140 ? `${content.slice(0, 137)}...` : content;
 }
 
+/** A group message push body per `pushPreview`: `none` never names anyone, `sender`
+ * names the author only, `full` is "Sender: text" (120 chars, "📷 Photo" for an image). */
+export function groupMessageBody(
+  copy: ReturnType<typeof pushCopy>,
+  preview: string,
+  sender: string,
+  body: string | null,
+  hasImage: boolean,
+): string {
+  if (preview === "none") return copy.text("message.neutral");
+  const text = preview === "full" ? body?.trim() || (hasImage ? copy.text("photo") : "") : "";
+  if (!text) return copy.text("message.groupBody", { sender });
+  const line = `${sender}: ${text}`;
+  return line.length > 120 ? `${line.slice(0, 117)}...` : line;
+}
+
 /** Copy resolver for one recipient (`profiles.locale`). */
 export function pushCopy(recipientLocale: string | null | undefined) {
   const locale = resolveLocale(recipientLocale);
-  const text = (key: PushCopyKey, params: { name?: string; count?: number } = {}): string => {
+  const text = (key: PushCopyKey, params: Params = {}): string => {
     const value = pick(key, locale, recipientLocale);
     if (typeof value === "string") return fill(value, params);
     const category = pluralCategory(locale, params.count ?? 0);
