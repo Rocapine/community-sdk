@@ -12,6 +12,8 @@
 -- Group preview (`groupsPreview = 'readOnly'`) reads `public.groups`, which the
 -- groups module creates: until then can_read_conversation() only lets members in.
 -- Account rules read `public.account_links` only when the accounts module is in.
+-- merge_messaging (called by accounts/003's merge_profiles) and messaging_on_account_delete
+-- (called by account-delete) live here: they serve groups and, later, DMs.
 -- Requires core. Fully idempotent.
 
 -- ============ TABLES ============
@@ -751,6 +753,70 @@ create policy "message image read by readers" on storage.objects
     )
   );
 
+-- ============ PROFILE MERGE ============
+-- Called by merge_profiles (accounts/003). main keeps its row where both are members
+-- (the earliest joined_at, notify OR-ed, creator if either was); likes deduplicated
+-- with like_count kept in step. The groups module's tables are handled when installed
+-- (created groups, removals, recounted member counts).
+create or replace function public.merge_messaging(p_main uuid, p_other uuid)
+returns void
+language plpgsql volatile security definer set search_path = public
+as $$
+declare
+  v_convs uuid[];
+begin
+  select coalesce(array_agg(conversation_id), '{}') into v_convs
+  from conversation_members where user_id = p_other;
+
+  update conversation_members m set
+    joined_at = least(m.joined_at, o.joined_at),
+    notify = m.notify or o.notify,
+    role = case when 'creator' in (m.role, o.role) then 'creator' else m.role end
+  from conversation_members o
+  where m.user_id = p_main and o.user_id = p_other and o.conversation_id = m.conversation_id;
+  delete from conversation_members o where o.user_id = p_other
+    and exists (select 1 from conversation_members m where m.conversation_id = o.conversation_id and m.user_id = p_main);
+  update conversation_members set user_id = p_main where user_id = p_other;
+  update conversation_members set removed_by = p_main where removed_by = p_other;
+
+  update messages set author_id = p_main where author_id = p_other;
+
+  with dup as (
+    delete from message_likes o where o.user_id = p_other
+      and exists (select 1 from message_likes m where m.message_id = o.message_id and m.user_id = p_main)
+    returning o.message_id
+  )
+  update messages set like_count = greatest(like_count - 1, 0) where id in (select message_id from dup);
+  update message_likes set user_id = p_main where user_id = p_other;
+
+  if to_regclass('public.groups') is not null then
+    update groups set created_by = p_main where created_by = p_other;
+    delete from group_removals o where o.user_id = p_other
+      and exists (select 1 from group_removals m where m.group_id = o.group_id and m.user_id = p_main);
+    update group_removals set user_id = p_main where user_id = p_other;
+    update group_removals set removed_by = p_main where removed_by = p_other;
+    update groups g set member_count = (
+      select count(*) from conversation_members cm where cm.conversation_id = g.conversation_id and cm.state = 'active'
+    ) where g.conversation_id = any (v_convs);
+  end if;
+end;
+$$;
+
+-- ============ ACCOUNT DELETION ============
+-- Applied by account-delete before the profile is reset. keep: messages stay under the
+-- placeholder name; eraseAll: every message of the member is deleted; eraseDms: DMs
+-- arrive with the dms module (nothing yet).
+create or replace function public.messaging_on_account_delete(p_uid uuid)
+returns void
+language plpgsql volatile security definer set search_path = public
+as $$
+begin
+  if coalesce(public.messaging_setting('onAccountDelete') #>> '{}', 'keep') = 'eraseAll' then
+    delete from messages where author_id = p_uid;
+  end if;
+end;
+$$;
+
 -- ============ GRANTS ============
 revoke execute on function public.messaging_setting(text) from public, anon;
 revoke execute on function public.has_account_link(uuid) from public, anon, authenticated;
@@ -768,6 +834,8 @@ revoke execute on function public.list_conversations() from public, anon;
 revoke execute on function public.unread_followed_messages() from public, anon;
 revoke execute on function public.admin_message_context(uuid, int, int) from public, anon;
 revoke execute on function public.messaging_set_settings(jsonb) from public, anon;
+revoke execute on function public.merge_messaging(uuid, uuid) from public, anon, authenticated;
+revoke execute on function public.messaging_on_account_delete(uuid) from public, anon, authenticated;
 
 grant execute on function public.messaging_setting(text) to authenticated;
 grant execute on function public.my_account_linked() to authenticated;
@@ -783,3 +851,5 @@ grant execute on function public.unread_followed_messages() to authenticated;
 grant execute on function public.admin_message_context(uuid, int, int) to authenticated, service_role;
 grant execute on function public.messaging_set_settings(jsonb) to authenticated, service_role;
 grant execute on function public.messaging_is_dashboard_admin() to service_role;
+grant execute on function public.merge_messaging(uuid, uuid) to service_role;
+grant execute on function public.messaging_on_account_delete(uuid) to service_role;

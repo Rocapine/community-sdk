@@ -2,7 +2,8 @@
 -- Groups module: public group chats on the messaging core. Group metadata (live values,
 -- and the pending values of a creation or an edit until moderation approves them), its
 -- translations, removals, explore search, member lists, online counts, the dashboard's
--- transfer and live edit, the profile-merge and account-deletion hooks.
+-- transfer and live edit. The profile-merge and account-deletion hooks live in
+-- messaging/001 (they also serve DMs).
 --
 -- Clients read groups through RLS and write only through the security definer RPCs
 -- below. Limits come from `messaging_settings` (messaging/001). "Admin" in the app is
@@ -61,7 +62,11 @@ alter table public.group_translations enable row level security;
 alter table public.group_removals enable row level security;
 revoke all on public.groups, public.group_translations, public.group_removals
   from public, anon, authenticated;
-grant select on public.groups, public.group_translations, public.group_removals to authenticated;
+grant select on public.group_translations, public.group_removals to authenticated;
+-- pending_* and rejected_fields hold unmoderated values: only my_group_review() reads them.
+grant select (conversation_id, name, description, image_path, status, created_by, member_count,
+              last_activity_at, search, created_at)
+  on public.groups to authenticated;
 
 drop policy if exists "read visible or own groups" on public.groups;
 create policy "read visible or own groups" on public.groups
@@ -109,8 +114,21 @@ as $$
   where cm.user_id = p_uid and cm.state = 'active';
 $$;
 
--- Trims, checks the configured caps and the pending image folder. Returns the trimmed
--- name and description (null when empty).
+-- Group RPCs refuse any other kind of conversation (a DM).
+create or replace function public.group_assert_kind(p_group uuid)
+returns void
+language plpgsql stable security definer set search_path = public
+as $$
+begin
+  if exists (select 1 from conversations where id = p_group and kind <> 'group') then
+    raise exception 'not_a_group';
+  end if;
+end;
+$$;
+
+-- Trims, checks the configured caps and the pending image path (the caller's folder of
+-- group-images-pending, a random uuid name). Returns the trimmed name and description
+-- (null when empty).
 create or replace function public.group_check_fields(
   p_name text, p_description text, p_image_path text,
   out o_name text, out o_description text
@@ -127,7 +145,8 @@ begin
     raise exception 'description_too_long';
   end if;
   if p_image_path is not null
-     and p_image_path !~ ('^pending/' || auth.uid() || '/[A-Za-z0-9_-]+\.(jpg|jpeg|png|webp)$') then
+     and p_image_path !~ ('^' || auth.uid()
+       || '/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|jpeg|png|webp)$') then
     raise exception 'invalid_image_path';
   end if;
 end;
@@ -161,8 +180,11 @@ begin
   if v_name is null then
     raise exception 'name_required';
   end if;
-  -- One creation at a time per member, so parallel calls can't all pass the counts.
-  perform pg_advisory_xact_lock(hashtextextended('create_group:' || v_uid, 0));
+  if v_description is null then
+    raise exception 'description_required';
+  end if;
+  -- One create or join at a time per member, so parallel calls can't all pass the counts.
+  perform pg_advisory_xact_lock(hashtextextended('groups_member:' || v_uid, 0));
   if not public.current_user_admin()
      and (select count(*) from groups where created_by = v_uid and status <> 'deleted')
          >= coalesce((public.messaging_setting('maxCreatedPerMember'))::int, 3) then
@@ -191,6 +213,7 @@ declare
   v_name text;
   v_description text;
 begin
+  perform public.group_assert_kind(p_group);
   if not public.can_manage_group(p_group) then
     raise exception 'forbidden';
   end if;
@@ -202,9 +225,12 @@ begin
   if p_name is not null and v_name is null then
     raise exception 'name_required';
   end if;
+  if p_description is not null and v_description is null then
+    raise exception 'description_required';
+  end if;
   update groups set
     pending_name = coalesce(v_name, pending_name),
-    pending_description = case when p_description is null then pending_description else v_description end,
+    pending_description = coalesce(v_description, pending_description),
     pending_image_path = coalesce(p_image_path, pending_image_path),
     rejected_fields = '{}'
   where conversation_id = p_group and status <> 'deleted';
@@ -219,6 +245,7 @@ returns void
 language plpgsql volatile security definer set search_path = public
 as $$
 begin
+  perform public.group_assert_kind(p_group);
   if not public.can_manage_group(p_group) then
     raise exception 'forbidden';
   end if;
@@ -241,6 +268,7 @@ begin
   if v_uid is null then
     raise exception 'not_authenticated';
   end if;
+  perform public.group_assert_kind(p_group);
   -- The group row lock serialises joins, so maxMembers holds.
   select member_count into v_count from groups
   where conversation_id = p_group and status = 'visible' for update;
@@ -263,6 +291,7 @@ begin
   if jsonb_typeof(v_max) = 'number' and v_count >= v_max::int then
     raise exception 'group_full';
   end if;
+  perform pg_advisory_xact_lock(hashtextextended('groups_member:' || v_uid, 0));
   if public.group_joined_count(v_uid) >= coalesce((public.messaging_setting('maxJoinedPerMember'))::int, 50) then
     raise exception 'too_many_joined';
   end if;
@@ -281,6 +310,7 @@ returns void
 language plpgsql volatile security definer set search_path = public
 as $$
 begin
+  perform public.group_assert_kind(p_group);
   delete from conversation_members
   where conversation_id = p_group and user_id = auth.uid() and state = 'active';
   if found then
@@ -298,6 +328,7 @@ declare
   v_uid uuid := auth.uid();
   v_was_active boolean;
 begin
+  perform public.group_assert_kind(p_group);
   if not public.can_manage_group(p_group) or p_user = v_uid
      or (not public.current_user_admin()
          and coalesce((select is_admin from profiles where id = p_user), false)) then
@@ -317,8 +348,13 @@ begin
   where conversation_members.state <> 'removed';
   if v_was_active then
     perform public.group_recount_members(p_group);
-    if to_regclass('public.notifications') is not null then
+    -- conversation_id exists only when inbox was installed before this module.
+    if exists (select 1 from pg_attribute
+               where attrelid = to_regclass('public.notifications') and attname = 'conversation_id'
+                 and not attisdropped) then
       insert into notifications (user_id, kind, conversation_id) values (p_user, 'group_member_removed', p_group);
+    elsif to_regclass('public.notifications') is not null then
+      insert into notifications (user_id, kind) values (p_user, 'group_member_removed');
     end if;
   end if;
 end;
@@ -330,6 +366,7 @@ returns void
 language plpgsql volatile security definer set search_path = public
 as $$
 begin
+  perform public.group_assert_kind(p_group);
   if not public.can_manage_group(p_group) then
     raise exception 'forbidden';
   end if;
@@ -343,6 +380,7 @@ returns void
 language plpgsql volatile security definer set search_path = public
 as $$
 begin
+  perform public.group_assert_kind(p_group);
   update conversation_members set notify = coalesce(p_notify, false)
   where conversation_id = p_group and user_id = auth.uid() and state = 'active';
   if not found then
@@ -351,14 +389,17 @@ begin
 end;
 $$;
 
--- Visible groups, latest activity first, cursor on last_activity_at. The query matches
--- the original name and description, and their translation into p_locale, which is
--- returned when there is one.
+-- Visible groups, latest activity first; the keyset cursor is the last row's
+-- (last_activity_at, group_id). The query matches the original name and description,
+-- and their translation into p_locale, which is returned when there is one.
+-- An earlier draft of this file took a timestamp-only cursor.
+drop function if exists public.search_groups(text, text, int, timestamptz);
 create or replace function public.search_groups(
   p_query text default null,
   p_locale text default null,
   p_limit int default 30,
-  p_before timestamptz default null
+  p_before_activity timestamptz default null,
+  p_before_id uuid default null
 )
 returns table (
   group_id uuid,
@@ -384,11 +425,12 @@ as $$
   left join group_translations t on t.group_id = g.conversation_id and t.locale = p_locale
   where g.status = 'visible'
     and auth.uid() is not null
-    and (p_before is null or g.last_activity_at < p_before)
+    and (p_before_activity is null
+         or (g.last_activity_at, g.conversation_id) < (p_before_activity, p_before_id))
     and (q.tsq is null
          or g.search @@ q.tsq
          or to_tsvector('simple', coalesce(t.name, '') || ' ' || coalesce(t.description, '')) @@ q.tsq)
-  order by g.last_activity_at desc, g.conversation_id
+  order by g.last_activity_at desc, g.conversation_id desc
   limit least(greatest(coalesce(p_limit, 30), 1), 100);
 $$;
 
@@ -473,39 +515,68 @@ begin
 end;
 $$;
 
--- Writes the live values directly (null keeps a field), past moderation.
+-- Writes the live values directly (null keeps a field), past moderation. A changed
+-- name or description drops the translations (the pipeline writes them again).
 create or replace function public.admin_edit_group(p_group uuid, p_name text, p_description text, p_image_path text)
 returns void
 language plpgsql volatile security definer set search_path = public
 as $$
+declare
+  v_old public.groups;
+  v_new public.groups;
 begin
   if not public.messaging_is_dashboard_admin() then
     raise exception 'forbidden';
   end if;
-  update groups set
-    name = coalesce(nullif(btrim(p_name), ''), name),
-    description = case when p_description is null then description else nullif(btrim(p_description), '') end,
-    image_path = coalesce(p_image_path, image_path)
-  where conversation_id = p_group;
+  select * into v_old from groups where conversation_id = p_group for update;
   if not found then
     raise exception 'not_found';
+  end if;
+  update groups set
+    name = coalesce(nullif(btrim(p_name), ''), name),
+    description = coalesce(nullif(btrim(p_description), ''), description),
+    image_path = coalesce(p_image_path, image_path)
+  where conversation_id = p_group
+  returning * into v_new;
+  if (v_new.name, v_new.description) is distinct from (v_old.name, v_old.description) then
+    delete from group_translations where group_id = p_group;
   end if;
 end;
 $$;
 
+-- The creator's (or an in-app admin's) view of what waits for moderation.
+create or replace function public.my_group_review(p_group uuid)
+returns table (pending_name text, pending_description text, pending_image_path text,
+               rejected_fields text[], status text)
+language plpgsql stable security definer set search_path = public
+as $$
+begin
+  if not (public.current_user_admin()
+          or exists (select 1 from groups g where g.conversation_id = p_group and g.created_by = auth.uid())) then
+    raise exception 'forbidden';
+  end if;
+  return query
+  select g.pending_name, g.pending_description, g.pending_image_path, g.rejected_fields, g.status
+  from groups g where g.conversation_id = p_group;
+end;
+$$;
+
 -- ============ ACTIVITY ============
+-- A message counts once readers see it: inserted visible, or approved later.
 create or replace function public.groups_touch_activity()
 returns trigger
 language plpgsql security definer set search_path = public
 as $$
 begin
-  update groups set last_activity_at = now() where conversation_id = new.conversation_id;
+  if new.status = 'visible' and (tg_op = 'INSERT' or old.status <> 'visible') then
+    update groups set last_activity_at = now() where conversation_id = new.conversation_id;
+  end if;
   return new;
 end;
 $$;
 drop trigger if exists groups_touch_activity on public.messages;
 create trigger groups_touch_activity
-  after insert on public.messages
+  after insert or update of status on public.messages
   for each row execute function public.groups_touch_activity();
 
 -- ============ INBOX ============
@@ -535,86 +606,35 @@ create policy "report a readable group" on public.reports
   );
 
 -- ============ STORAGE ============
--- Public bucket: image_path only ever holds an approved image. A pending image lives
--- under `pending/<uid>/<uuid>.<ext>`, read through signed URLs by its uploader and by
--- moderation (service role), which moves it on approval.
+-- group-images (public) holds approved images only, written by moderation with the
+-- service role: no client policy. A pending image goes to the private
+-- group-images-pending bucket as `<uid>/<uuid>.<ext>`, read by its uploader through
+-- signed URLs and by moderation, which moves it on approval.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
   values ('group-images', 'group-images', true, 2097152,
           array['image/jpeg', 'image/png', 'image/webp'])
   on conflict (id) do nothing;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('group-images-pending', 'group-images-pending', false, 2097152,
+          array['image/jpeg', 'image/png', 'image/webp'])
+  on conflict (id) do nothing;
 
+-- An earlier draft of this file let members upload into group-images.
 drop policy if exists "group image upload to own pending folder" on storage.objects;
-create policy "group image upload to own pending folder" on storage.objects
+drop policy if exists "group image read by uploader" on storage.objects;
+
+drop policy if exists "pending group image upload by its owner" on storage.objects;
+create policy "pending group image upload by its owner" on storage.objects
   for insert to authenticated
   with check (
-    bucket_id = 'group-images'
-    and (storage.foldername(name))[1] = 'pending'
-    and (storage.foldername(name))[2] = auth.uid()::text
+    bucket_id = 'group-images-pending'
+    and name ~ ('^' || auth.uid()
+      || '/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|jpeg|png|webp)$')
   );
-drop policy if exists "group image read by uploader" on storage.objects;
-create policy "group image read by uploader" on storage.objects
+drop policy if exists "pending group image read by its owner" on storage.objects;
+create policy "pending group image read by its owner" on storage.objects
   for select to authenticated
-  using (bucket_id = 'group-images' and owner_id = auth.uid()::text);
-
--- ============ PROFILE MERGE ============
--- Called by merge_profiles (accounts/003). main keeps its row where both are members
--- (the earliest joined_at, notify OR-ed, creator if either was); likes deduplicated
--- with like_count kept in step; member counts recounted.
-create or replace function public.merge_messaging(p_main uuid, p_other uuid)
-returns void
-language plpgsql volatile security definer set search_path = public
-as $$
-declare
-  v_groups uuid[];
-begin
-  select coalesce(array_agg(conversation_id), '{}') into v_groups
-  from conversation_members where user_id = p_other;
-
-  update conversation_members m set
-    joined_at = least(m.joined_at, o.joined_at),
-    notify = m.notify or o.notify,
-    role = case when 'creator' in (m.role, o.role) then 'creator' else m.role end
-  from conversation_members o
-  where m.user_id = p_main and o.user_id = p_other and o.conversation_id = m.conversation_id;
-  delete from conversation_members o where o.user_id = p_other
-    and exists (select 1 from conversation_members m where m.conversation_id = o.conversation_id and m.user_id = p_main);
-  update conversation_members set user_id = p_main where user_id = p_other;
-  update conversation_members set removed_by = p_main where removed_by = p_other;
-
-  update messages set author_id = p_main where author_id = p_other;
-
-  with dup as (
-    delete from message_likes o where o.user_id = p_other
-      and exists (select 1 from message_likes m where m.message_id = o.message_id and m.user_id = p_main)
-    returning o.message_id
-  )
-  update messages set like_count = greatest(like_count - 1, 0) where id in (select message_id from dup);
-  update message_likes set user_id = p_main where user_id = p_other;
-
-  update groups set created_by = p_main where created_by = p_other;
-  delete from group_removals o where o.user_id = p_other
-    and exists (select 1 from group_removals m where m.group_id = o.group_id and m.user_id = p_main);
-  update group_removals set user_id = p_main where user_id = p_other;
-  update group_removals set removed_by = p_main where removed_by = p_other;
-
-  perform public.group_recount_members(g) from unnest(v_groups) g;
-end;
-$$;
-
--- ============ ACCOUNT DELETION ============
--- Applied by account-delete before the profile is reset. keep: messages stay under the
--- placeholder name; eraseAll: every message of the member is deleted; eraseDms: DMs
--- arrive with the dms module (nothing yet).
-create or replace function public.messaging_on_account_delete(p_uid uuid)
-returns void
-language plpgsql volatile security definer set search_path = public
-as $$
-begin
-  if coalesce(public.messaging_setting('onAccountDelete') #>> '{}', 'keep') = 'eraseAll' then
-    delete from messages where author_id = p_uid;
-  end if;
-end;
-$$;
+  using (bucket_id = 'group-images-pending' and owner_id = auth.uid()::text);
 
 -- ============ GRANTS ============
 revoke execute on function public.can_manage_group(uuid) from public, anon;
@@ -629,14 +649,14 @@ revoke execute on function public.leave_group(uuid) from public, anon;
 revoke execute on function public.remove_member(uuid, uuid) from public, anon;
 revoke execute on function public.readmit_member(uuid, uuid) from public, anon;
 revoke execute on function public.set_group_notify(uuid, boolean) from public, anon;
-revoke execute on function public.search_groups(text, text, int, timestamptz) from public, anon;
+revoke execute on function public.search_groups(text, text, int, timestamptz, uuid) from public, anon;
+revoke execute on function public.group_assert_kind(uuid) from public, anon, authenticated;
+revoke execute on function public.my_group_review(uuid) from public, anon;
 revoke execute on function public.list_conversation_members(uuid, text, int, int) from public, anon;
 revoke execute on function public.group_online_counts(uuid[]) from public, anon;
 revoke execute on function public.admin_transfer_group(uuid, uuid) from public, anon;
 revoke execute on function public.admin_edit_group(uuid, text, text, text) from public, anon;
 revoke execute on function public.groups_touch_activity() from public, anon, authenticated;
-revoke execute on function public.merge_messaging(uuid, uuid) from public, anon, authenticated;
-revoke execute on function public.messaging_on_account_delete(uuid) from public, anon, authenticated;
 
 grant execute on function public.can_manage_group(uuid) to authenticated;
 grant execute on function public.create_group(text, text, text) to authenticated;
@@ -647,10 +667,9 @@ grant execute on function public.leave_group(uuid) to authenticated;
 grant execute on function public.remove_member(uuid, uuid) to authenticated;
 grant execute on function public.readmit_member(uuid, uuid) to authenticated;
 grant execute on function public.set_group_notify(uuid, boolean) to authenticated;
-grant execute on function public.search_groups(text, text, int, timestamptz) to authenticated;
+grant execute on function public.search_groups(text, text, int, timestamptz, uuid) to authenticated;
+grant execute on function public.my_group_review(uuid) to authenticated;
 grant execute on function public.list_conversation_members(uuid, text, int, int) to authenticated;
 grant execute on function public.group_online_counts(uuid[]) to authenticated;
 grant execute on function public.admin_transfer_group(uuid, uuid) to authenticated, service_role;
 grant execute on function public.admin_edit_group(uuid, text, text, text) to authenticated, service_role;
-grant execute on function public.merge_messaging(uuid, uuid) to service_role;
-grant execute on function public.messaging_on_account_delete(uuid) to service_role;
