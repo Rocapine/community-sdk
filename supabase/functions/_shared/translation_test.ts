@@ -1,6 +1,9 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import {
   FILTERED,
+  groupToItem,
+  parseGroupTranslation,
+  parseTranslationResponse,
   hasTranslatableContent,
   normalizeForTranslation,
   targetChunks,
@@ -96,4 +99,32 @@ Deno.test("translateTargets: a locale filtered twice fails the item", async () =
     Promise.resolve(i.targets.includes("sk") ? FILTERED : ok(i.targets)),
   );
   assertEquals(result, null);
+});
+
+Deno.test("group: name and description go in one request and come back together", () => {
+  const item = groupToItem({ name: "Morning run", description: "We run at 6." });
+  assertEquals(item.content, "Morning run");
+  assertEquals(item.options, ["We run at 6."]);
+  const parsed = parseTranslationResponse(
+    {
+      source_locale: "en",
+      translations: { fr: { content: "Course du matin", options: ["On court à 6 h."] } },
+    },
+    ["en", "fr"],
+    item.options.length,
+  )!;
+  assertEquals(parseGroupTranslation(parsed, true), {
+    fr: { name: "Course du matin", description: "On court à 6 h." },
+  });
+});
+
+Deno.test("group: without a description there is no option and the description stays null", () => {
+  const item = groupToItem({ name: "Run", description: "  " });
+  assertEquals(item.options, []);
+  const parsed = parseTranslationResponse(
+    { source_locale: "en", translations: { fr: { content: "Course", options: [] } } },
+    ["fr"],
+    0,
+  )!;
+  assertEquals(parseGroupTranslation(parsed, false), { fr: { name: "Course", description: null } });
 });

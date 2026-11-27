@@ -1,4 +1,4 @@
-// Translate one published post or comment into every target locale. Called by
+// Translate one published post, comment or group (name and description) into every target locale. Called by
 // the pg_net triggers in translation/001 (anon key, untrusted body: only
 // `kind` and `id` are read, the row is re-read). Idempotent: an item that
 // already has every translation costs no API call.
@@ -10,7 +10,8 @@ const supabase = adminClient();
 
 Deno.serve(async (req) => {
   const body = (await req.json().catch(() => ({}))) as { kind?: unknown; id?: unknown };
-  const kind = body.kind === "post" || body.kind === "comment" ? body.kind : null;
+  const kind =
+    body.kind === "post" || body.kind === "comment" || body.kind === "group" ? body.kind : null;
   if (!kind || typeof body.id !== "string")
     return json({ status: "error", error: "bad request" }, 400);
 

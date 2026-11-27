@@ -54,6 +54,9 @@ export function functionsForModules(modules: readonly Module[]): string[] {
   if (modules.includes("push")) for (const f of PUSH_FUNCTIONS) set.add(f);
   if (modules.includes("reaction")) for (const f of REACTION_FUNCTIONS) set.add(f);
   if (modules.includes("translation")) for (const f of TRANSLATION_FUNCTIONS) set.add(f);
+  // On-demand message translation: needs the chat core and the translation module.
+  if (modules.includes("messaging") && modules.includes("translation"))
+    set.add("translate-message");
   if (modules.includes("accounts")) for (const f of ACCOUNTS_FUNCTIONS) set.add(f);
   // Group message pushes: needs both the chat core and push.
   if (modules.includes("messaging") && modules.includes("push")) set.add("notify-message");
