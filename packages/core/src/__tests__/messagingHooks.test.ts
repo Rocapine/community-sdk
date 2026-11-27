@@ -1,4 +1,9 @@
-import { MutationObserver, QueryClient, type InfiniteData } from "@tanstack/react-query";
+import {
+  InfiniteQueryObserver,
+  MutationObserver,
+  QueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { resolveConfig } from "../config";
 import { CONVERSATIONS_KEY, messagesKey } from "../keys";
@@ -9,6 +14,7 @@ import {
   messagesQueryOptions,
   messagingBadge,
   refreshNewestMessages,
+  type MessagesData,
   sendMessageMutationOptions,
   unreadMessagesQueryOptions,
 } from "../messaging-hooks";
@@ -218,4 +224,82 @@ it("conversations and the badge poll cheaply and key under community", () => {
   const o = conversationsQueryOptions(on());
   expect(o.queryKey).toEqual(CONVERSATIONS_KEY);
   expect(o.refetchIntervalInBackground).toBe(false);
+});
+
+const fullPage = (from: number) =>
+  Array.from({ length: MESSAGES_PAGE_SIZE }, (_, i) => msg(`m${from - i}`, at(from - i)));
+
+it("a refresh that doesn't reach the cache restarts the history (no hole)", async () => {
+  const cfg = on();
+  qc.setQueryData(messagesKey("c1"), {
+    pages: [fullPage(100), fullPage(60)],
+    pageParams: [undefined, { createdAt: at(61), id: "m61" }],
+  });
+  // 60 messages arrived during a long disconnect: the fresh page is m160..m121.
+  vi.mocked(service.fetchMessages).mockResolvedValue(fullPage(160));
+  await refreshNewestMessages(cfg, qc, "c1");
+  const d = qc.getQueryData<MessagesData>(messagesKey("c1"))!;
+  expect(d.pages).toHaveLength(1);
+  expect(d.pages[0]![0]!.id).toBe("m160");
+  expect(d.pageParams).toEqual([undefined]);
+  // Scrolling up loads from m121 on, the messages between are not skipped.
+  expect(messagesQueryOptions(cfg, "c1").getNextPageParam(d.pages[0]!, d.pages)).toEqual({
+    createdAt: at(121),
+    id: "m121",
+  });
+});
+
+it("a refresh while a page is loading waits for it instead of racing it", async () => {
+  vi.useFakeTimers();
+  const cfg = on();
+  let loaded!: (m: ChatMessage[]) => void;
+  vi.mocked(service.fetchMessages)
+    .mockResolvedValueOnce(fullPage(100))
+    .mockImplementationOnce(() => new Promise((r) => (loaded = r)))
+    .mockResolvedValue(fullPage(101));
+  const observer = new InfiniteQueryObserver(qc, messagesQueryOptions(cfg, "c1"));
+  const stop = observer.subscribe(() => {});
+  await vi.advanceTimersByTimeAsync(0);
+  void observer.fetchNextPage();
+  await vi.advanceTimersByTimeAsync(0);
+  await refreshNewestMessages(cfg, qc, "c1");
+  expect(service.fetchMessages).toHaveBeenCalledTimes(2); // not refreshed yet
+  loaded(fullPage(60));
+  await vi.advanceTimersByTimeAsync(200);
+  expect(service.fetchMessages).toHaveBeenCalledTimes(3);
+  const flat = qc.getQueryData<MessagesData>(messagesKey("c1"))!.pages.flat();
+  expect(flat[0]!.id).toBe("m101");
+  expect(flat[flat.length - 1]!.id).toBe("m21"); // the loaded page survived the refresh
+  stop();
+});
+
+it("sending before the first page loads doesn't cancel that load", async () => {
+  const cfg = on();
+  let loaded!: (m: ChatMessage[]) => void;
+  vi.mocked(service.fetchMessages).mockImplementationOnce(() => new Promise((r) => (loaded = r)));
+  vi.mocked(service.sendMessage).mockResolvedValue(msg("real", at(5)));
+  const observer = new InfiniteQueryObserver(qc, messagesQueryOptions(cfg, "c1"));
+  const stop = observer.subscribe(() => {});
+  await new MutationObserver(qc, sendMessageMutationOptions(cfg, qc)).mutate({
+    conversationId: "c1",
+    body: "hi",
+  });
+  loaded([msg("real", at(5)), msg("m1", at(1))]);
+  await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true));
+  expect(ids(observer.getCurrentResult().data)).toEqual([["real", "m1"]]);
+  stop();
+});
+
+it("optimistic ids are unique within the same millisecond", async () => {
+  const cfg = on();
+  qc.setQueryData(messagesKey("c1"), { pages: [[]], pageParams: [undefined] });
+  vi.mocked(service.sendMessage).mockReturnValue(new Promise(() => {}));
+  vi.spyOn(Date, "now").mockReturnValue(1);
+  const opts = sendMessageMutationOptions(cfg, qc);
+  void new MutationObserver(qc, opts).mutate({ conversationId: "c1", body: "a" });
+  void new MutationObserver(qc, opts).mutate({ conversationId: "c1", body: "b" });
+  await vi.waitFor(() => expect(service.sendMessage).toHaveBeenCalledTimes(2));
+  const page = qc.getQueryData<MessagesData>(messagesKey("c1"))!.pages[0]!;
+  expect(new Set(page.map((m) => m.id)).size).toBe(2);
+  vi.mocked(Date.now).mockRestore();
 });

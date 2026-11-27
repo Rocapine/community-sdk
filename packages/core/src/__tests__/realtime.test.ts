@@ -75,7 +75,7 @@ it("opens one private channel per conversation, authorised before it subscribes"
   expect(client.channel).toHaveBeenCalledTimes(1);
   expect(channels[0]!.topic).toBe("conversation:c1");
   expect(channels[0]!.opts).toEqual({ config: { private: true } });
-  expect(order).toEqual(["channel:conversation:c1", "setAuth:tok", "subscribe"]);
+  expect(order).toEqual(["setAuth:tok", "channel:conversation:c1", "subscribe"]);
   const changes = channels[0]!.bindings.filter((b) => b.type === "postgres_changes");
   expect(changes.map((b) => b.filter)).toEqual([
     { event: "*", schema: "public", table: "messages", filter: "conversation_id=eq.c1" },
@@ -183,4 +183,38 @@ it("does nothing when the groups module is off", async () => {
   await vi.advanceTimersByTimeAsync(0);
   expect(client.channel).not.toHaveBeenCalled();
   stop();
+});
+
+it("a moderation hide (broadcast `changed`, messaging/004) calls onChange", async () => {
+  const { cfg, channels } = setup();
+  const h = handlers();
+  const stop = subscribeConversation(cfg, "c1", h);
+  await vi.advanceTimersByTimeAsync(0);
+  channels[0]!.fire("broadcast", { event: "changed", payload: { id: "m2" } });
+  await vi.advanceTimersByTimeAsync(150);
+  expect(h.onChange).toHaveBeenCalledTimes(1);
+  expect(h.onTyping).not.toHaveBeenCalled();
+  stop();
+});
+
+it("re-opening while the old channel is closing waits for it, then opens a live one", async () => {
+  const { cfg, client, channels } = setup();
+  let closed!: (v: string) => void;
+  client.removeChannel.mockImplementationOnce(() => new Promise((r) => (closed = r)));
+  const stop = subscribeConversation(cfg, "c1", handlers());
+  await vi.advanceTimersByTimeAsync(0);
+  stop();
+  await vi.advanceTimersByTimeAsync(1000); // released: removeChannel in flight
+  expect(client.removeChannel).toHaveBeenCalledTimes(1);
+  const h = handlers();
+  const again = subscribeConversation(cfg, "c1", h);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.channel).toHaveBeenCalledTimes(1); // not on top of the closing one
+  closed("ok");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.channel).toHaveBeenCalledTimes(2);
+  channels[1]!.status!("SUBSCRIBED");
+  await vi.advanceTimersByTimeAsync(150);
+  expect(h.onChange).toHaveBeenCalledTimes(1);
+  again();
 });

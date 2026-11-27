@@ -59,7 +59,7 @@ import {
 import type { ChatMessage, Conversation, Group } from "./models";
 import { PRESENCE_POLL_MS } from "./presence-hooks";
 import { useCommunityConfig } from "./provider";
-import { sendTyping, subscribeConversation } from "./realtime";
+import { CHANGE_DEBOUNCE_MS, sendTyping, subscribeConversation } from "./realtime";
 
 export const TYPING_TTL_MS = 5000;
 // Like the inbox: the badge stays honest while the app is open, even without push.
@@ -173,15 +173,18 @@ const older = (a: ChatMessage, b: ChatMessage) =>
 
 /** Replaces the newest page with `fresh` (the conversation's newest page as the server
  * reads it now): rows it no longer returns (hidden, deleted by an admin) disappear,
- * changed ones update. Older pages keep only what is older than `fresh`; a message
- * still being sent stays on top. */
+ * changed ones update. Older pages keep only what is older than `fresh`, and only when
+ * `fresh` reaches the cache: after a long disconnect a full page of newer messages would
+ * leave a hole, so the history restarts from `fresh`. A message being sent stays on top. */
 export function mergeNewest(data: MessagesData, fresh: ChatMessage[]): MessagesData {
   const sending = (data.pages[0] ?? []).filter(isOptimistic);
   const oldest = fresh[fresh.length - 1];
   const complete = fresh.length < MESSAGES_PAGE_SIZE;
+  const cachedNewest = (data.pages[0] ?? []).find((m) => !isOptimistic(m));
+  const overlaps = !!oldest && !!cachedNewest && !older(cachedNewest, oldest);
   const pages = [[...sending, ...fresh]];
-  const pageParams = [data.pageParams[0]];
-  if (!complete && oldest)
+  const pageParams: (MessageCursor | undefined)[] = [undefined];
+  if (!complete && oldest && overlaps)
     data.pages.forEach((page, i) => {
       const rest = page.filter((m) => !isOptimistic(m) && older(m, oldest));
       if (rest.length > 0) {
@@ -201,6 +204,14 @@ export async function refreshNewestMessages(
 ): Promise<void> {
   const key = messagesKey(conversationId);
   if (!queryClient.getQueryData(key)) return; // the first load is still to come
+  // A page load in flight would overwrite the merge with the pages it started from: wait.
+  if (queryClient.isFetching({ queryKey: key }) > 0) {
+    setTimeout(
+      () => void refreshNewestMessages(cfg, queryClient, conversationId),
+      CHANGE_DEBOUNCE_MS,
+    );
+    return;
+  }
   let fresh: ChatMessage[];
   try {
     fresh = await fetchMessages(cfg, conversationId);
@@ -269,8 +280,9 @@ export function sendMessageMutationOptions(
   return {
     onMutate: async (draft) => {
       const key = messagesKey(draft.conversationId);
-      await queryClient.cancelQueries({ queryKey: key });
-      const tempId = `optimistic-${Date.now()}`;
+      // Cancelling the first load would leave the conversation empty: only a refetch.
+      if (queryClient.getQueryData(key)) await queryClient.cancelQueries({ queryKey: key });
+      const tempId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const target = draft.replyToId
         ? queryClient
             .getQueryData<MessagesData>(key)
@@ -388,8 +400,8 @@ export function useToggleMessageLike() {
       setMessageLike(cfg, messageId, liked),
     onMutate: async ({ conversationId, messageId, liked }) => {
       const key = messagesKey(conversationId);
-      await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<MessagesData>(key);
+      if (previous) await queryClient.cancelQueries({ queryKey: key });
       mapMessages(queryClient, conversationId, (m) =>
         m.id === messageId && m.likedByMe !== liked
           ? { ...m, likedByMe: liked, likeCount: Math.max(0, m.likeCount + (liked ? 1 : -1)) }
@@ -418,12 +430,13 @@ export function useTranslateMessage() {
   });
 }
 
-/** While mounted: marks the conversation read now, on each new message, and whenever
- * the app comes back to the foreground. */
-export function useMarkConversationRead(conversationId: string | null): void {
+/** While mounted and `active`: marks the conversation read now, on each new message, and
+ * whenever the app comes back to the foreground. `active`: the chat screen has the focus
+ * (pass the navigator's `useIsFocused()`), so a chat covered by another screen stays unread. */
+export function useMarkConversationRead(conversationId: string | null, active = true): void {
   const cfg = useCommunityConfig();
   const queryClient = useQueryClient();
-  const enabled = messagingEnabled(cfg) && !!conversationId;
+  const enabled = messagingEnabled(cfg) && !!conversationId && active;
   useEffect(() => {
     if (!enabled || !conversationId) return;
     const key = messagesKey(conversationId);

@@ -17,7 +17,8 @@ const RELEASE_DELAY_MS = 1000;
 export type ConversationHandlers = { onChange(): void; onTyping(userId: string): void };
 
 type Entry = {
-  channel: RealtimeChannel;
+  /** Null until opened (after auth, and after a previous channel of the topic closed). */
+  channel: RealtimeChannel | null;
   listeners: Set<ConversationHandlers>;
   uid: string | null;
   joined: boolean;
@@ -26,11 +27,12 @@ type Entry = {
   releaseTimer?: ReturnType<typeof setTimeout>;
 };
 
-const registries = new WeakMap<SupabaseClient, Map<string, Entry>>();
+type Registry = { open: Map<string, Entry>; closing: Map<string, Promise<unknown>> };
+const registries = new WeakMap<SupabaseClient, Registry>();
 
 function registry(client: SupabaseClient) {
   let r = registries.get(client);
-  if (!r) registries.set(client, (r = new Map()));
+  if (!r) registries.set(client, (r = { open: new Map(), closing: new Map() }));
   return r;
 }
 
@@ -42,23 +44,14 @@ function changed(entry: Entry) {
 }
 
 function open(cfg: ResolvedCommunityConfig, client: SupabaseClient, conversationId: string) {
-  const channel = client.channel(`conversation:${conversationId}`, { config: { private: true } });
-  const entry: Entry = { channel, listeners: new Set(), uid: null, joined: false, lastTypingAt: 0 };
-  channel
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "messages",
-        filter: `conversation_id=eq.${conversationId}`,
-      },
-      () => changed(entry),
-    )
-    .on("broadcast", { event: "typing" }, ({ payload }) => {
-      const userId = (payload as { userId?: unknown } | undefined)?.userId;
-      if (typeof userId === "string") for (const l of entry.listeners) l.onTyping(userId);
-    });
+  const entry: Entry = {
+    channel: null,
+    listeners: new Set(),
+    uid: null,
+    joined: false,
+    lastTypingAt: 0,
+  };
+  const reg = registry(client);
   void (async () => {
     try {
       entry.uid = await requireUid(cfg);
@@ -69,13 +62,36 @@ function open(cfg: ResolvedCommunityConfig, client: SupabaseClient, conversation
     } catch (e) {
       console.warn("[community] realtime auth failed", e);
     }
-    if (registry(client).get(conversationId) !== entry) return; // released meanwhile
-    channel.subscribe((status) => {
-      entry.joined = status === "SUBSCRIBED";
-      // Every (re)join refetches: what changed before the join, or while the socket was
-      // down (a sleeping web tab, a lost network), never arrives as an event.
-      if (entry.joined) changed(entry);
+    // client.channel(topic) hands back a channel of that topic still closing: wait for it.
+    await reg.closing.get(conversationId);
+    if (reg.open.get(conversationId) !== entry) return; // released meanwhile
+    const channel = client.channel(`conversation:${conversationId}`, {
+      config: { private: true },
     });
+    entry.channel = channel;
+    channel
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        () => changed(entry),
+      )
+      // messaging/004: a message hidden by moderation, which RLS keeps out of postgres_changes.
+      .on("broadcast", { event: "changed" }, () => changed(entry))
+      .on("broadcast", { event: "typing" }, ({ payload }) => {
+        const userId = (payload as { userId?: unknown } | undefined)?.userId;
+        if (typeof userId === "string") for (const l of entry.listeners) l.onTyping(userId);
+      })
+      .subscribe((status) => {
+        entry.joined = status === "SUBSCRIBED";
+        // Every (re)join refetches: what changed before the join, or while the socket was
+        // down (a sleeping web tab, a lost network), never arrives as an event.
+        if (entry.joined) changed(entry);
+      });
   })();
   return entry;
 }
@@ -89,9 +105,9 @@ export function subscribeConversation(
 ): () => void {
   if (!groupsSettings(cfg) || !cfg.supabase) return () => {};
   const client = cfg.supabase;
-  const channels = registry(client);
-  let entry = channels.get(conversationId);
-  if (!entry) channels.set(conversationId, (entry = open(cfg, client, conversationId)));
+  const reg = registry(client);
+  let entry = reg.open.get(conversationId);
+  if (!entry) reg.open.set(conversationId, (entry = open(cfg, client, conversationId)));
   clearTimeout(entry.releaseTimer);
   const own = entry;
   own.listeners.add(handlers);
@@ -100,10 +116,18 @@ export function subscribeConversation(
     if (own.listeners.size > 0) return;
     clearTimeout(own.releaseTimer);
     own.releaseTimer = setTimeout(() => {
-      if (own.listeners.size > 0 || channels.get(conversationId) !== own) return;
-      channels.delete(conversationId);
+      if (own.listeners.size > 0 || reg.open.get(conversationId) !== own) return;
+      reg.open.delete(conversationId);
       clearTimeout(own.changeTimer);
-      void client.removeChannel(own.channel);
+      own.joined = false;
+      if (!own.channel) return; // never opened
+      const closing = client
+        .removeChannel(own.channel)
+        .catch(() => {})
+        .finally(() => {
+          if (reg.closing.get(conversationId) === closing) reg.closing.delete(conversationId);
+        });
+      reg.closing.set(conversationId, closing);
     }, RELEASE_DELAY_MS);
   };
 }
@@ -112,8 +136,8 @@ export function subscribeConversation(
  * only on a joined channel (members only: the backend refuses anyone else's). */
 export function sendTyping(cfg: ResolvedCommunityConfig, conversationId: string): void {
   if (!cfg.supabase) return;
-  const entry = registry(cfg.supabase).get(conversationId);
-  if (!entry?.joined || !entry.uid) return;
+  const entry = registry(cfg.supabase).open.get(conversationId);
+  if (!entry?.channel || !entry.joined || !entry.uid) return;
   const now = Date.now();
   if (now - entry.lastTypingAt < TYPING_THROTTLE_MS) return;
   entry.lastTypingAt = now;
