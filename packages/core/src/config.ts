@@ -89,7 +89,81 @@ export type CommunityModules = {
   presence?:
     | { minCount?: number; collapseAfterMs?: number | false; appearance?: OnlineCountAppearance }
     | false;
+  /** Groups module (messaging): group chats. Needs the messaging migration. Absent
+   * or false ⇒ nothing changes. Values must equal the backend's `messaging_settings`
+   * (`schema-check` warns on a difference). */
+  groups?: Partial<GroupsConfig> | false;
 };
+
+/** Messaging options shared by group chats (and, later, DMs). Defaults in `messagingSettings`. */
+export type MessagingConfig = {
+  moderation: "pre" | "post" | "reportOnly";
+  translation: "off" | "onDemand";
+  typingIndicator: boolean;
+  badge: "followed" | "all" | "dot";
+  hubLayout: "tabs" | "unified";
+  homeLayout: "header" | "segmented";
+  pushPreview: "full" | "sender" | "none";
+  onAccountDelete: "keep" | "eraseDms" | "eraseAll";
+  maxLength: number;
+  ratePerMinute: number;
+};
+
+export type GroupsConfig = {
+  preview: "readOnly" | "none";
+  exploreLayout: "list" | "cards";
+  shareCardLayout: "card" | "banner";
+  /** `"feed"`: client-only, runs the feed's `beforeCompose` gate before joining or sending. */
+  requireAccount: boolean | "feed";
+  createRequiresAccount: boolean;
+  maxCreatedPerMember: number;
+  maxJoinedPerMember: number;
+  maxMembers: number | null;
+  nameMaxLength: number;
+  descriptionMaxLength: number;
+};
+
+export type ResolvedMessaging = MessagingConfig;
+export type ResolvedGroups = GroupsConfig;
+
+/** The messaging options with defaults, or null when no messaging module is on. */
+export function messagingSettings(cfg: {
+  modules: CommunityModules;
+  messaging?: Partial<MessagingConfig>;
+}): ResolvedMessaging | null {
+  if (!cfg.modules.groups) return null;
+  const m = cfg.messaging ?? {};
+  return {
+    moderation: m.moderation ?? "post",
+    translation: m.translation ?? "onDemand",
+    typingIndicator: m.typingIndicator ?? true,
+    badge: m.badge ?? "followed",
+    hubLayout: m.hubLayout ?? "tabs",
+    homeLayout: m.homeLayout ?? "header",
+    pushPreview: m.pushPreview ?? "full",
+    onAccountDelete: m.onAccountDelete ?? "keep",
+    maxLength: m.maxLength ?? 2000,
+    ratePerMinute: m.ratePerMinute ?? 20,
+  };
+}
+
+/** The groups module's options with defaults, or null when it is off. */
+export function groupsSettings(cfg: { modules: CommunityModules }): ResolvedGroups | null {
+  const g = cfg.modules.groups;
+  if (!g) return null;
+  return {
+    preview: g.preview ?? "readOnly",
+    exploreLayout: g.exploreLayout ?? "list",
+    shareCardLayout: g.shareCardLayout ?? "card",
+    requireAccount: g.requireAccount ?? "feed",
+    createRequiresAccount: g.createRequiresAccount ?? true,
+    maxCreatedPerMember: g.maxCreatedPerMember ?? 3,
+    maxJoinedPerMember: g.maxJoinedPerMember ?? 50,
+    maxMembers: g.maxMembers ?? null,
+    nameMaxLength: g.nameMaxLength ?? 60,
+    descriptionMaxLength: g.descriptionMaxLength ?? 500,
+  };
+}
 
 /** How the header's online count looks: a collapsing pill, or plain text. */
 export type OnlineCountAppearance = "pill" | "text";
@@ -160,6 +234,9 @@ export type CommunityHostAdapters = {
   /** A stable id for this install, keying this device's push row (`push_devices`).
    * `null` (default) skips the per-device push row. */
   getInstallId?: () => string | null;
+  /** Messaging: called when an action needs a signed-in host account (accounts
+   * module): `"dm"` to message, `"createGroup"` to create a group, `"joinGroup"` to join one. */
+  onAccountRequired?: (reason: "dm" | "createGroup" | "joinGroup") => void;
 };
 
 /**
@@ -206,6 +283,8 @@ export type CommunityConfig = {
   defaultName?: CommunityDefaultName;
   topics: CommunityTopicDef[];
   modules: CommunityModules;
+  /** Messaging options (group chats; DMs later). Needs `modules.groups`. */
+  messaging?: Partial<MessagingConfig>;
   host?: CommunityHostAdapters;
   feed?: CommunityFeedConfig;
   /** Characters a post may hold (the composer's cap and ring). Defaults to
@@ -235,8 +314,10 @@ export class CommunityDisabledError extends Error {
 }
 
 // getAccountProof stays optional: its absence keeps the anonymous-only behaviour.
-type RequiredCommunityHostAdapters = Required<Omit<CommunityHostAdapters, "getAccountProof">> &
-  Pick<CommunityHostAdapters, "getAccountProof">;
+type RequiredCommunityHostAdapters = Required<
+  Omit<CommunityHostAdapters, "getAccountProof" | "onAccountRequired">
+> &
+  Pick<CommunityHostAdapters, "getAccountProof" | "onAccountRequired">;
 
 export type ResolvedCommunityConfig = CommunityConfig & {
   host: RequiredCommunityHostAdapters;

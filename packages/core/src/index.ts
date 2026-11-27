@@ -19,9 +19,19 @@ export {
   topicLive,
   STREAK_BADGES,
   presenceSettings,
+  messagingSettings,
+  groupsSettings,
   pollLimits,
 } from "./config";
-export type { OnlineCountAppearance, PollLimits, PresenceSettings } from "./config";
+export type {
+  GroupsConfig,
+  MessagingConfig,
+  OnlineCountAppearance,
+  PollLimits,
+  PresenceSettings,
+  ResolvedGroups,
+  ResolvedMessaging,
+} from "./config";
 
 export {
   PRESENCE_HEARTBEAT_MS,
@@ -63,6 +73,9 @@ export type {
   MemberBadgeData,
   MemberBadges,
   PostAttachment,
+  Conversation,
+  ChatMessage,
+  Group,
   BadgePlacement,
   ThreadComment,
   PostImage,

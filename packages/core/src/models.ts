@@ -528,3 +528,46 @@ export function newestCreatedAt(posts: readonly { createdAt: string }[]): string
   }
   return newest;
 }
+
+/** A chat conversation (a group, later a DM) in the member's list. */
+export type Conversation = {
+  id: string;
+  kind: "dm" | "group";
+  lastMessageAt: string | null;
+  lastMessage: { id: string; body: string | null; authorId: string } | null;
+  unread: number;
+  notify: boolean;
+  role: "member" | "creator";
+};
+
+/** One message of a conversation. */
+export type ChatMessage = {
+  id: string;
+  conversationId: string;
+  authorId: string;
+  body: string | null;
+  imagePath: string | null;
+  attachment: PostAttachment | null;
+  replyTo: { id: string; authorId: string; body: string | null; deleted: boolean } | null;
+  status: "pending" | "visible" | "deleted";
+  deletedBy: "author" | "creator" | null;
+  editedAt: string | null;
+  createdAt: string;
+  likeCount: number;
+  likedByMe: boolean;
+};
+
+/** A group. `status` and `rejectedFields` are only known to its creator/admin
+ * (RPC `my_group_review`): "visible" and empty for everyone else. */
+export type Group = {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl: string | null;
+  memberCount: number;
+  lastActivityAt: string;
+  isMember: boolean;
+  status: "pending" | "visible";
+  rejectedFields: string[];
+  isCreator: boolean;
+};

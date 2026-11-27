@@ -114,3 +114,68 @@ describe("checkSchemaVersion (__DEV__ gate)", () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("messaging settings check", () => {
+  const withGroups = (rpc: unknown, groups: object | false = {}) =>
+    resolveConfig({
+      ...baseConfig,
+      modules: { ...baseConfig.modules, groups },
+      supabase: {
+        from: stubClient({ data: null, error: new Error("x") }).from,
+        rpc,
+      } as unknown as SupabaseClient,
+    });
+  const backend = {
+    moderation: "post",
+    translation: "onDemand",
+    pushPreview: "full",
+    onAccountDelete: "keep",
+    maxLength: 2000,
+    ratePerMinute: 20,
+    groupsPreview: "readOnly",
+    groupsRequireAccount: false,
+    groupsCreateRequiresAccount: true,
+    maxCreatedPerMember: 3,
+    maxJoinedPerMember: 50,
+    maxMembers: null,
+    nameMaxLength: 60,
+    descriptionMaxLength: 500,
+  };
+
+  it("is silent when the defaults match the backend", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await checkSchemaVersionUnguarded(withGroups(async () => ({ data: backend, error: null })));
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("warns maxLength when the backend says 2000 and the client 4000", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const cfg = resolveConfig({
+      ...baseConfig,
+      messaging: { maxLength: 4000 },
+      modules: { ...baseConfig.modules, groups: {} },
+      supabase: {
+        from: stubClient({ data: null, error: null }).from,
+        rpc: async () => ({ data: backend, error: null }),
+      } as unknown as SupabaseClient,
+    });
+    await checkSchemaVersionUnguarded(cfg);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain("maxLength");
+  });
+
+  it("warns once that the migration is missing when the function is absent", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await checkSchemaVersionUnguarded(
+      withGroups(async () => ({ data: null, error: { message: "function not found" } })),
+    );
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain("migration");
+  });
+
+  it("does not call the backend when groups is off", async () => {
+    const rpc = vi.fn();
+    await checkSchemaVersionUnguarded(withGroups(rpc, false));
+    expect(rpc).not.toHaveBeenCalled();
+  });
+});
