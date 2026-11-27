@@ -273,6 +273,7 @@ export const hr: Record<string, string> = {
   "chat.menu.report": "Prijavi",
   "chat.deleteTitle": "Izbrisati ovu poruku?",
   "chat.editing": "Uređuješ poruku",
+  "chat.reply.photo": "🖼️ Fotografija",
   "chat.removed": "Više nisi u ovoj grupi.",
   "chat.groupDeleted": "Ova grupa više ne postoji.",
   "chat.join": "Pridruži se",

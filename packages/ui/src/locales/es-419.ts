@@ -267,6 +267,7 @@ export const es419: Record<string, string> = {
   "chat.menu.report": "Reportar",
   "chat.deleteTitle": "¿Eliminar este mensaje?",
   "chat.editing": "Editando mensaje",
+  "chat.reply.photo": "🖼️ Foto",
   "chat.removed": "Ya no eres miembro de este grupo.",
   "chat.groupDeleted": "Este grupo ya no existe.",
   "chat.join": "Unirme",

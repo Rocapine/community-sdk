@@ -268,6 +268,7 @@ export const it: Record<string, string> = {
   "chat.menu.report": "Segnala",
   "chat.deleteTitle": "Eliminare questo messaggio?",
   "chat.editing": "Modifica del messaggio",
+  "chat.reply.photo": "🖼️ Foto",
   "chat.removed": "Non fai più parte di questo gruppo.",
   "chat.groupDeleted": "Questo gruppo non esiste più.",
   "chat.join": "Unisciti",

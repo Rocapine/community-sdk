@@ -271,6 +271,7 @@ export const sk: Record<string, string> = {
   "chat.menu.report": "Nahlásiť",
   "chat.deleteTitle": "Odstrániť túto správu?",
   "chat.editing": "Upravuješ správu",
+  "chat.reply.photo": "🖼️ Fotka",
   "chat.removed": "Už nie si v tejto skupine.",
   "chat.groupDeleted": "Táto skupina už neexistuje.",
   "chat.join": "Pridať sa",

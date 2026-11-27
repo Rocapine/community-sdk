@@ -4,11 +4,13 @@
 // reply quotes its target inside the bubble; likes sit in a pill on the bubble's edge.
 //
 // Gestures: a double tap (double click on web) likes or unlikes, with a small heart
-// pop; a swipe right (native only) replies — the bubble follows the finger a little, a
+// pop; a photo's single tap opens the viewer only once that double tap has failed, so
+// a double tap on a photo never opens it. A swipe right (native only) replies — the bubble follows the finger a little, a
 // reply icon shows, a haptic marks the threshold. Vertical moves stay the list's, and
 // touches at the screen's left edge stay the system's back swipe. The menu (long
 // press, right click or the "…" on hover or focus on web) keeps Like and Reply, and
-// screen readers get both as actions.
+// screen readers get both as actions. Web: no text selection in bubbles (a double click
+// would select a word); the menu's Copy copies the text.
 import {
   isOptimistic,
   messageImageUrl,
@@ -27,8 +29,9 @@ import {
   Text,
   View,
   type AccessibilityActionEvent,
+  type ViewStyle,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Gesture, GestureDetector, type GestureType } from "react-native-gesture-handler";
 import Animated, {
   interpolate,
   runOnJS,
@@ -61,6 +64,10 @@ const IMAGE_WIDTH = 220;
 const SIGNED_URL_STALE_MS = 50 * 60_000;
 const web = Platform.OS === "web";
 const HEART = 36;
+/** The double tap's window between taps (ms): a photo's single tap waits this long. */
+const DOUBLE_TAP_MS = 250;
+// Web: a double click must not select a word. React Native types `userSelect` on Text only.
+const NO_SELECT = { userSelect: "none" } as unknown as ViewStyle;
 
 // Memoized: the screen re-renders on every keystroke of the composer.
 export const MessageBubble = memo(function MessageBubble({
@@ -163,14 +170,19 @@ export const MessageBubble = memo(function MessageBubble({
   const tick = useCallback(() => haptic("light"), []);
   const canLike = !!onToggleLike;
   const canReply = !web && !!onReply;
+  const doubleTap = useMemo(
+    () =>
+      Gesture.Tap()
+        .numberOfTaps(2)
+        .maxDelay(DOUBLE_TAP_MS)
+        .enabled(canLike)
+        .onEnd((_e, success) => {
+          "worklet";
+          if (success) runOnJS(like)();
+        }),
+    [canLike, like],
+  );
   const gesture = useMemo(() => {
-    const doubleTap = Gesture.Tap()
-      .numberOfTaps(2)
-      .enabled(canLike)
-      .onEnd((_e, success) => {
-        "worklet";
-        if (success) runOnJS(like)();
-      });
     const pan = Gesture.Pan()
       .enabled(canReply)
       // Right only, past a few points; any vertical move first leaves it to the list.
@@ -203,7 +215,7 @@ export const MessageBubble = memo(function MessageBubble({
           : withSpring(0, { damping: 20, stiffness: 260 });
       });
     return Gesture.Race(pan, doubleTap);
-  }, [canLike, canReply, reduceMotion, like, reply, tick, swipe, armed]);
+  }, [doubleTap, canReply, reduceMotion, reply, tick, swipe, armed]);
   const swipeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: swipe.value }] }));
   const replyIconStyle = useAnimatedStyle(() => ({
     opacity: interpolate(swipe.value, [SWIPE_MAX / 3, SWIPE_MAX], [0, 1], "clamp"),
@@ -238,6 +250,7 @@ export const MessageBubble = memo(function MessageBubble({
       style={[
         styles.bubble,
         own ? styles.bubbleOwn : styles.bubbleOther,
+        web && NO_SELECT,
         last && (own ? styles.tailOwn : styles.tailOther),
         (isOptimistic(m) || m.status === "pending") && styles.sending,
       ]}
@@ -267,7 +280,7 @@ export const MessageBubble = memo(function MessageBubble({
               onPress={() => onPressQuote(m.replyTo!.id)}
             />
           )}
-          {m.imagePath && <MessageImage message={m} />}
+          {m.imagePath && <MessageImage message={m} doubleTap={canLike ? doubleTap : null} />}
           {m.attachment && (
             <AttachmentCard
               attachment={m.attachment}
@@ -277,9 +290,7 @@ export const MessageBubble = memo(function MessageBubble({
             />
           )}
           {!!(translation ?? m.body) && (
-            <Text style={[styles.body, { color: textColor }]} selectable={web}>
-              {translation ?? m.body}
-            </Text>
+            <Text style={[styles.body, { color: textColor }]}>{translation ?? m.body}</Text>
           )}
           {translation !== undefined && (
             <Text
@@ -394,8 +405,15 @@ export const MessageBubble = memo(function MessageBubble({
 });
 
 /** A message's photo: the local file while sending, else a signed URL (private
- * bucket). Opens full-screen on tap. */
-function MessageImage({ message }: { message: ChatMessage }) {
+ * bucket). Opens full-screen on a single tap, once the bubble's `doubleTap` failed
+ * (a double tap likes instead); screen readers and the web keyboard open it at once. */
+function MessageImage({
+  message,
+  doubleTap,
+}: {
+  message: ChatMessage;
+  doubleTap: GestureType | null;
+}) {
   const cfg = useCommunityConfig();
   const t = useT();
   const styles = useThemedStyles(makeStyles);
@@ -410,20 +428,51 @@ function MessageImage({ message }: { message: ChatMessage }) {
   }).data;
   const url = local ? path : signed;
   const [size, setSize] = useState({ width: 1, height: 1 });
+  const latestOpen = useRef<(() => void) | undefined>(undefined);
+  latestOpen.current = url ? () => openImage({ url, ...size }) : undefined;
+  const open = useCallback(() => latestOpen.current?.(), []);
+  const tap = useMemo(() => {
+    const single = Gesture.Tap().onEnd((_e, success) => {
+      "worklet";
+      if (success) runOnJS(open)();
+    });
+    // The bubble's double tap sits in the outer detector: Exclusive(doubleTap, single)
+    // across detectors.
+    return doubleTap ? single.requireExternalGestureToFail(doubleTap) : single;
+  }, [doubleTap, open]);
+  // Web keyboard: Enter or Space opens it (a focusable View, no Pressable whose click
+  // would open on a double click's first click). Typed loosely: react-native-web hands
+  // the DOM keyboard event, not React Native's.
+  const keyboard: object = web
+    ? {
+        focusable: true,
+        onKeyDown: (e: { key: string; preventDefault(): void }) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          open();
+        },
+      }
+    : {};
   return (
-    <Pressable
-      onPress={url ? () => openImage({ url, ...size }) : undefined}
-      accessibilityRole="imagebutton"
-      accessibilityLabel={t("a11y.openImage")}
-      style={styles.imageWrap}
-    >
-      <Image
-        source={url ? { uri: url } : null}
-        style={[styles.image, { aspectRatio: imageRatio(size) }]}
-        contentFit="cover"
-        onLoad={(e) => setSize({ width: e.source.width, height: e.source.height })}
-      />
-    </Pressable>
+    <GestureDetector gesture={tap}>
+      <View
+        accessible
+        accessibilityRole="imagebutton"
+        accessibilityLabel={t("a11y.openImage")}
+        accessibilityActions={[{ name: "activate" }]}
+        onAccessibilityAction={open}
+        collapsable={false}
+        style={styles.imageWrap}
+        {...keyboard}
+      >
+        <Image
+          source={url ? { uri: url } : null}
+          style={[styles.image, { aspectRatio: imageRatio(size) }]}
+          contentFit="cover"
+          onLoad={(e) => setSize({ width: e.source.width, height: e.source.height })}
+        />
+      </View>
+    </GestureDetector>
   );
 }
 

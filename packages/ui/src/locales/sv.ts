@@ -257,6 +257,7 @@ export const sv: Record<string, string> = {
   "chat.menu.report": "Anmäl",
   "chat.deleteTitle": "Radera meddelandet?",
   "chat.editing": "Redigerar meddelandet",
+  "chat.reply.photo": "🖼️ Foto",
   "chat.removed": "Du är inte längre med i den här gruppen.",
   "chat.groupDeleted": "Den här gruppen finns inte längre.",
   "chat.join": "Gå med",

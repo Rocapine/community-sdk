@@ -270,6 +270,7 @@ export const frVous: Record<string, string> = {
   "chat.menu.report": "Signaler",
   "chat.deleteTitle": "Supprimer ce message ?",
   "chat.editing": "Modification du message",
+  "chat.reply.photo": "🖼️ Photo",
   "chat.removed": "Vous ne faites plus partie de ce groupe.",
   "chat.groupDeleted": "Ce groupe n'existe plus.",
   "chat.join": "Rejoindre",

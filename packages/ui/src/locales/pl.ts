@@ -299,6 +299,7 @@ export const pl: Record<string, string> = {
   "chat.menu.report": "Zgłoś",
   "chat.deleteTitle": "Usunąć tę wiadomość?",
   "chat.editing": "Edytujesz wiadomość",
+  "chat.reply.photo": "🖼️ Zdjęcie",
   "chat.removed": "Nie należysz już do tej grupy.",
   "chat.groupDeleted": "Ta grupa już nie istnieje.",
   "chat.join": "Dołącz",

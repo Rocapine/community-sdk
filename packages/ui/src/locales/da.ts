@@ -255,6 +255,7 @@ export const da: Record<string, string> = {
   "chat.menu.report": "Anmeld",
   "chat.deleteTitle": "Slet denne besked?",
   "chat.editing": "Redigerer beskeden",
+  "chat.reply.photo": "🖼️ Foto",
   "chat.removed": "Du er ikke længere medlem af denne gruppe.",
   "chat.groupDeleted": "Denne gruppe findes ikke længere.",
   "chat.join": "Bliv medlem",

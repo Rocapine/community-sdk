@@ -46,7 +46,7 @@ export function ChatComposer({
   onPickImage?(): void;
   onRemoveImage(): void;
   /** "Replying to Marc" / "Editing message", with a cancel button; `detail`, one
-   * ellipsized line under it (the replied message's first line, or "📷 Photo"). */
+   * ellipsized line under it (the replied message's first line, or "🖼️ Photo"). */
   banner: { title: string; detail?: string | null } | null;
   onCancelBanner(): void;
   error: string | null;

@@ -88,14 +88,15 @@ export function runFlags(items: readonly { authorId: string }[]): {
 }
 
 /** The line under "Replying to Ana": the replied message's first line (the composer
- * ellipsizes it), "📷 Photo" for a photo alone, null for an attachment alone. */
+ * ellipsizes it), "🖼️ Photo" (`chat.reply.photo`) for a photo alone, null for an
+ * attachment alone. */
 export function replyPreview(
   m: { body: string | null; imagePath: string | null },
   t: TFn,
 ): string | null {
   const first = (m.body ?? "").trim().split("\n")[0]!.trim();
   if (first) return first;
-  return m.imagePath ? t("image.photo") : null;
+  return m.imagePath ? t("chat.reply.photo") : null;
 }
 
 // Swipe-to-reply (native only). Worklets: they run in the pan's callbacks.

@@ -274,6 +274,7 @@ export const ro: Record<string, string> = {
   "chat.menu.report": "Raportează",
   "chat.deleteTitle": "Ștergi acest mesaj?",
   "chat.editing": "Editezi mesajul",
+  "chat.reply.photo": "🖼️ Fotografie",
   "chat.removed": "Nu mai faci parte din acest grup.",
   "chat.groupDeleted": "Acest grup nu mai există.",
   "chat.join": "Alătură-te",

@@ -257,6 +257,7 @@ export const nb: Record<string, string> = {
   "chat.menu.report": "Rapporter",
   "chat.deleteTitle": "Slette meldingen?",
   "chat.editing": "Redigerer meldingen",
+  "chat.reply.photo": "🖼️ Bilde",
   "chat.removed": "Du er ikke lenger medlem av denne gruppen.",
   "chat.groupDeleted": "Denne gruppen finnes ikke lenger.",
   "chat.join": "Bli med",

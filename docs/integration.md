@@ -393,7 +393,8 @@ online (`groups/007` leaves the reader out of every "online" count), and only wh
 
 **Web.** The screens run on react-native-web: a message's menu opens on right click or
 the "…" shown on hover and focus (long press on touch), a double click likes, Reply is in
-the menu (no swipe), and message text is selectable.
+the menu (no swipe), and the menu's Copy copies a message (bubbles take no text selection,
+so a double click doesn't select a word).
 
 **Analytics.** New `COMMUNITY_EVENTS`: `messagesOpened`, `conversationOpened`,
 `messageSent`, `messageLiked`, `messageTranslated`, `messageEdited`, `messageDeleted`,

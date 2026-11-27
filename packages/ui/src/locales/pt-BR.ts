@@ -264,6 +264,7 @@ export const ptBR: Record<string, string> = {
   "chat.menu.report": "Denunciar",
   "chat.deleteTitle": "Excluir esta mensagem?",
   "chat.editing": "Editando mensagem",
+  "chat.reply.photo": "🖼️ Foto",
   "chat.removed": "Você não faz mais parte deste grupo.",
   "chat.groupDeleted": "Este grupo não existe mais.",
   "chat.join": "Participar",

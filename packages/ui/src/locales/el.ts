@@ -265,6 +265,7 @@ export const el: Record<string, string> = {
   "chat.menu.report": "Αναφορά",
   "chat.deleteTitle": "Διαγραφή αυτού του μηνύματος;",
   "chat.editing": "Επεξεργασία μηνύματος",
+  "chat.reply.photo": "🖼️ Φωτογραφία",
   "chat.removed": "Δεν είσαι πια μέλος αυτής της ομάδας.",
   "chat.groupDeleted": "Αυτή η ομάδα δεν υπάρχει πια.",
   "chat.join": "Συμμετοχή",

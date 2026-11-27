@@ -265,6 +265,7 @@ export const ptPT: Record<string, string> = {
   "chat.menu.report": "Denunciar",
   "chat.deleteTitle": "Eliminar esta mensagem?",
   "chat.editing": "A editar a mensagem",
+  "chat.reply.photo": "🖼️ Foto",
   "chat.removed": "Já não fazes parte deste grupo.",
   "chat.groupDeleted": "Este grupo já não existe.",
   "chat.join": "Aderir",

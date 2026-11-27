@@ -131,8 +131,9 @@ describe("replyPreview (under 'Replying to …')", () => {
   });
 
   it("says Photo for a photo alone, and keeps the text of a captioned one", () => {
-    expect(replyPreview({ body: null, imagePath: "c/u/x.jpg" }, t)).toBe("📷 Photo");
-    expect(replyPreview({ body: "  ", imagePath: "c/u/x.jpg" }, t)).toBe("📷 Photo");
+    expect(replyPreview({ body: null, imagePath: "c/u/x.jpg" }, t)).toBe("🖼️ Photo");
+    expect(replyPreview({ body: "  ", imagePath: "c/u/x.jpg" }, t)).toBe("🖼️ Photo");
+    expect(replyPreview({ body: null, imagePath: "c/u/x.jpg" }, makeT("fr"))).toBe("🖼️ Photo");
     expect(replyPreview({ body: "look", imagePath: "c/u/x.jpg" }, t)).toBe("look");
   });
 

@@ -271,7 +271,10 @@ RPCs: `start_dm`, `accept_request`, `decline_request` (silent, writes `dm_declin
   (the others keep its space), and only the last bubble has the tail corner (bottom
   left for others, bottom right for mine). Bubbles of a run sit closer together.
 - Like: a small pill on the bubble with the count. A double tap (double click on web)
-  likes or unlikes, with a small heart pop (a plain fade under Reduce Motion).
+  likes or unlikes, with a small heart pop (a plain fade under Reduce Motion). On a
+  photo, a single tap opens the viewer only once the double-tap window (250 ms) has
+  passed, so a double tap likes without opening it. Web bubbles take no text selection
+  (a double click would select a word): Copy is in the menu.
 - Reply: a swipe right on a bubble (iOS and Android): it follows the finger a little
   (half the travel, at most 48 pt), a reply icon fades in, a light haptic marks the
   64 pt threshold, and it springs back (no spring under Reduce Motion). Vertical moves
@@ -281,7 +284,8 @@ RPCs: `start_dm`, `accept_request`, `decline_request` (silent, writes `dm_declin
   Translate, Edit / Delete (own), Report, and Delete for the creator / admin. Screen
   readers get "Like" / "Unlike" and "Reply" as actions on each bubble, plus the menu.
 - Above the composer while replying: "Replying to <name>" and under it the replied
-  message's first line, on one ellipsized line, or "📷 Photo" for a photo alone.
+  message's first line, on one ellipsized line, or "🖼️ Photo" for a photo alone
+  (`chat.reply.photo`; "📷 Photo" elsewhere stays).
 - Reply: a quote block inside the bubble with `@handle` and the first two lines of the
   quoted message, ending in "…"; tapping it scrolls to the original. The quote always
   shows the current text, or "Message deleted".

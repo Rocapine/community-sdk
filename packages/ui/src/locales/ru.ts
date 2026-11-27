@@ -270,6 +270,7 @@ export const ru: Record<string, string> = {
   "chat.menu.report": "Пожаловаться",
   "chat.deleteTitle": "Удалить это сообщение?",
   "chat.editing": "Редактирование сообщения",
+  "chat.reply.photo": "🖼️ Фото",
   "chat.removed": "Ты больше не в этой группе.",
   "chat.groupDeleted": "Этой группы больше нет.",
   "chat.join": "Вступить",

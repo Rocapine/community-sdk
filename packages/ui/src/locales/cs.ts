@@ -270,6 +270,7 @@ export const cs: Record<string, string> = {
   "chat.menu.report": "Nahlásit",
   "chat.deleteTitle": "Smazat tuto zprávu?",
   "chat.editing": "Upravuješ zprávu",
+  "chat.reply.photo": "🖼️ Fotka",
   "chat.removed": "Už nejsi v této skupině.",
   "chat.groupDeleted": "Tato skupina už neexistuje.",
   "chat.join": "Přidat se",

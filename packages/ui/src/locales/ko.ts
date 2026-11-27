@@ -258,6 +258,7 @@ export const ko: Record<string, string> = {
   "chat.menu.report": "신고",
   "chat.deleteTitle": "이 메시지를 삭제할까요?",
   "chat.editing": "메시지 수정 중",
+  "chat.reply.photo": "🖼️ 사진",
   "chat.removed": "더 이상 이 그룹의 멤버가 아니에요.",
   "chat.groupDeleted": "이 그룹은 더 이상 없어요.",
   "chat.join": "참여하기",

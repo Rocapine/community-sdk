@@ -273,6 +273,7 @@ export const uk: Record<string, string> = {
   "chat.menu.report": "Поскаржитися",
   "chat.deleteTitle": "Видалити це повідомлення?",
   "chat.editing": "Редагування повідомлення",
+  "chat.reply.photo": "🖼️ Фото",
   "chat.removed": "Ти більше не в цій групі.",
   "chat.groupDeleted": "Цієї групи більше не існує.",
   "chat.join": "Приєднатися",

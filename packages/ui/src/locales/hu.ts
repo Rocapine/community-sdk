@@ -260,6 +260,7 @@ export const hu: Record<string, string> = {
   "chat.menu.report": "Jelentés",
   "chat.deleteTitle": "Törlöd ezt az üzenetet?",
   "chat.editing": "Üzenet szerkesztése",
+  "chat.reply.photo": "🖼️ Fotó",
   "chat.removed": "Már nem vagy tagja ennek a csoportnak.",
   "chat.groupDeleted": "Ez a csoport már nem létezik.",
   "chat.join": "Csatlakozás",
