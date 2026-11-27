@@ -532,12 +532,105 @@ describe("host transitions during a running account check", () => {
     const cfg = resolveConfig(config(f.client, { getAccountProof: async () => proof }));
     const pending = ensureIdentity(cfg);
     await flush();
-    await accountSignedIn(cfg);
+    const signingIn = accountSignedIn(cfg);
+    await flush();
     d.release();
-    expect(await pending).toBeNull();
-    expect(f.setSessions).toEqual([{ access_token: "new-b-at", refresh_token: "new-b-rt" }]);
+    await signingIn;
+    // The check finishes first, then the sign-in switches from its session to the new account.
+    expect(await pending).toBe("a-uid");
+    expect(f.setSessions).toEqual([
+      { access_token: "new-a-at", refresh_token: "new-a-rt" },
+      { access_token: "new-b-at", refresh_token: "new-b-rt" },
+    ]);
+    expect(f.invokes[1].headers).toEqual({ Authorization: "Bearer a-at" });
     expect(await ensureIdentity(cfg)).toBe("b-uid");
     expect(f.invokes).toHaveLength(2);
+  });
+
+  it("a sign-in during a check opening the same account waits for it: nothing minted twice", async () => {
+    const d = deferredFirst(
+      { data: opened(HASH_A), error: null },
+      { data: { profile_id: "a-uid", subject_hash: HASH_A }, error: null },
+    );
+    const f = fakeClient(null, d.answer);
+    const cfg = resolveConfig(config(f.client, { getAccountProof: async () => proof }));
+    const pending = ensureIdentity(cfg);
+    await flush();
+    const signingIn = accountSignedIn(cfg);
+    await flush();
+    expect(f.invokes).toHaveLength(1); // no second call while the first one runs
+    d.release();
+    await signingIn;
+    expect(await pending).toBe("a-uid");
+    // The second call carries the session the check opened: account-session confirms it,
+    // before its rate limit, and mints nothing.
+    expect(f.invokes[1].headers).toEqual({ Authorization: "Bearer a-at" });
+    expect(f.setSessions).toEqual([{ access_token: "new-a-at", refresh_token: "new-a-rt" }]);
+    expect(await ensureIdentity(cfg)).toBe("a-uid");
+    expect(f.invokes).toHaveLength(2);
+  });
+
+  it("an ensureIdentity during accountSignedIn waits for it instead of calling account-session", async () => {
+    const d = deferredFirst({ data: opened(HASH_A), error: null }, { data: null, error: null });
+    const f = fakeClient(null, d.answer);
+    const cfg = resolveConfig(config(f.client, { getAccountProof: async () => proof }));
+    const signingIn = accountSignedIn(cfg);
+    await flush();
+    const pending = ensureIdentity(cfg);
+    await flush();
+    expect(f.invokes).toHaveLength(1);
+    d.release();
+    await signingIn;
+    expect(await pending).toBe("a-uid");
+    expect(f.invokes).toHaveLength(1);
+    expect(f.setSessions).toEqual([{ access_token: "new-a-at", refresh_token: "new-a-rt" }]);
+  });
+
+  it("an ensureIdentity during a failed accountSignedIn still resolves", async () => {
+    const d = deferredFirst(
+      { data: null, error: httpError(503) },
+      { data: null, error: httpError(503) },
+    );
+    const f = fakeClient(null, d.answer);
+    const cfg = resolveConfig(config(f.client, { getAccountProof: async () => proof }));
+    const signingIn = accountSignedIn(cfg);
+    await flush();
+    const pending = ensureIdentity(cfg);
+    d.release();
+    await expect(signingIn).rejects.toThrow();
+    expect(await pending).toBeNull();
+  });
+
+  it("a sign-in while the check signs in anonymously converts that anonymous profile", async () => {
+    let signedIn = false;
+    const f = fakeClient(null, () => ({ data: opened(HASH_A), error: null }));
+    const auth = f.client.auth as unknown as {
+      getSession: () => Promise<unknown>;
+      signInAnonymously: () => Promise<unknown>;
+    };
+    let session: FakeSession | null = null;
+    auth.getSession = async () => ({ data: { session }, error: null });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    auth.signInAnonymously = async () => {
+      await gate;
+      session = { access_token: "fresh-anon-at", user: { id: "fresh-anon-uid", email: null } };
+      return { data: { user: session.user }, error: null };
+    };
+    const cfg = resolveConfig(
+      config(f.client, { getAccountProof: async () => (signedIn ? proof : null) }),
+    );
+    const pending = ensureIdentity(cfg);
+    await flush();
+    signedIn = true;
+    const signingIn = accountSignedIn(cfg);
+    await flush();
+    release();
+    await signingIn;
+    expect(await pending).toBe("fresh-anon-uid");
+    // Its anonymous session is the bearer: account-session merges that profile, none is left behind.
+    expect(f.invokes).toHaveLength(1);
+    expect(f.invokes[0].headers).toEqual({ Authorization: "Bearer fresh-anon-at" });
   });
 
   /** Holds the first setSession until `release`; later ones run at once. */
@@ -595,13 +688,35 @@ describe("host transitions during a running account check", () => {
     await flush();
     release();
     await signingIn;
-    expect(await pending).toBeNull();
+    // The check lands first (its answer was right when it started), then the sign-in switches.
+    expect(await pending).toBe("a-uid");
     expect(f.setSessions).toEqual([
       { access_token: "new-a-at", refresh_token: "new-a-rt" },
       { access_token: "new-b-at", refresh_token: "new-b-rt" },
     ]);
     expect(await ensureIdentity(cfg)).toBe("b-uid");
     expect(f.invokes).toHaveLength(2);
+  });
+
+  it("a check that never settles holds a sign-in for 15 s at most, then the sign-in wins", async () => {
+    const f = fakeClient(null, ((call: Invoke) =>
+      f.invokes.length === 1
+        ? new Promise(() => {}) // the check's call never answers
+        : { data: opened(HASH_B), error: null }) as unknown as (call: Invoke) => InvokeAnswer);
+    const cfg = resolveConfig(config(f.client, { getAccountProof: async () => proof }));
+    const pending = ensureIdentity(cfg);
+    await flush();
+    vi.useFakeTimers();
+    try {
+      const signingIn = accountSignedIn(cfg);
+      await vi.advanceTimersByTimeAsync(15_000);
+      await signingIn;
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(f.setSessions).toEqual([{ access_token: "new-b-at", refresh_token: "new-b-rt" }]);
+    expect(await ensureIdentity(cfg)).toBe("b-uid");
+    void pending;
   });
 
   it("a setSession that never settles holds a sign-out for 5 s at most", async () => {

@@ -165,8 +165,11 @@ All three take the resolved config (`resolveConfig(config)`):
   anonymous profile is converted into it (first device) or merged into it (its
   posts, comments, likes… move over). Rejects, keeping the current session,
   when there is no proof or the backend refused or failed: call it again later.
-  Of two concurrent calls the first rejects ("identity changed"): call again later
-  (the backend also answers one new session per account per 10 s). A no-op,
+  It waits for a check the SDK is already running (at most 15 s), and
+  `ensureIdentity()` waits for it, so the two never call `account-session` side
+  by side (the backend answers one new session per account per 10 s). Of two
+  concurrent `accountSignedIn()` calls the first rejects ("identity changed"):
+  call again later. A no-op,
   calling nothing, when the device is already on the account session this
   launch checked.
 - `accountSignedOut(cfg)`: deletes this device's push row, signs out locally;

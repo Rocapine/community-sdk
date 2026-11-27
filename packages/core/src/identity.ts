@@ -21,6 +21,11 @@ const RETRY_MS = 60_000;
 let epoch = 0;
 // The setSession being applied: auth-js does not serialize it with signOut, so transitions await it.
 let adopting: Promise<unknown> | null = null;
+// The running accountSignedIn(): ensureIdentity() waits for it rather than calling account-session
+// beside it (answered 429, or a second profile session minted for nothing).
+let signingIn: Promise<void> | null = null;
+// How long accountSignedIn() waits for a bootstrap already running before overriding it.
+const BOOTSTRAP_WAIT_MS = 15_000;
 
 function assertCurrent(start: number): void {
   if (epoch !== start) throw new Error("identity changed during the account check");
@@ -46,6 +51,16 @@ export async function adoptionSettled(): Promise<void> {
   if (!settled) gaveUpOn = pending;
 }
 
+/** Waits for `p` to settle, at most `ms`. */
+async function settledWithin(p: Promise<unknown>, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    p.catch(() => undefined),
+    new Promise<void>((r) => (timer = setTimeout(r, ms))),
+  ]);
+  clearTimeout(timer);
+}
+
 /**
  * Resolve the community user id, signing in anonymously on first use.
  * Never rejects: resolves to null when offline, when anonymous sign-ins are
@@ -55,6 +70,10 @@ export async function adoptionSettled(): Promise<void> {
  */
 export function ensureIdentity(cfg: ResolvedCommunityConfig): Promise<string | null> {
   if (!cfg.supabase) return Promise.resolve(null);
+  if (signingIn) {
+    const again = () => ensureIdentity(cfg);
+    return signingIn.then(again, again);
+  }
   if (retryAfter && Date.now() >= retryAfter) {
     retryAfter = 0;
     inFlight = null; // re-run the account check that failed
@@ -340,13 +359,26 @@ async function signOutLocally(cfg: ResolvedCommunityConfig): Promise<void> {
  * current session) when the host has no proof or the backend refused or failed:
  * call it again later.
  */
-export async function accountSignedIn(cfg: ResolvedCommunityConfig): Promise<void> {
+export function accountSignedIn(cfg: ResolvedCommunityConfig): Promise<void> {
+  const run: Promise<void> = openAccount(cfg).finally(() => {
+    if (signingIn === run) signingIn = null;
+  });
+  signingIn = run;
+  return run;
+}
+
+async function openAccount(cfg: ResolvedCommunityConfig): Promise<void> {
   const client = cfg.requireClient();
   // Already on the account session this launch checked: nothing to open (no call, no 429).
   // A switch to another account is accountSignedOut() first, which drops that check.
   const current = (await client.auth.getSession()).data.session;
   if (!adopting && accountCheck && accountHash(current) === accountCheck.subjectHash) return;
-  // Any bootstrap already running is stale from here on.
+  // A bootstrap already running (opening the account, or signing in anonymously) lands first:
+  // calling beside it is answered 429, and the session it then reads is the one to convert or
+  // confirm, so no anonymous profile or minted session is left behind. Bounded: a hung one is
+  // overridden below. It never rejects (ensureIdentity catches).
+  if (inFlight) await settledWithin(inFlight, BOOTSTRAP_WAIT_MS);
+  // Any bootstrap still running is stale from here on.
   const start = ++epoch;
   inFlight = null;
   await adoptionSettled();
