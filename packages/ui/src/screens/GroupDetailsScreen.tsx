@@ -26,10 +26,11 @@ import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../
 import type { CommunityTheme } from "../theme";
 import { Avatar } from "../components/Avatar";
 import { GroupFormSheet, GroupReviewNotice } from "../components/GroupFormSheet";
+import { OnlineLabel } from "../components/OnlineLabel";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { ScreenBackground } from "../components/ScreenBackground";
 import { MessageMenu } from "../components/chat/MessageMenu";
-import { canManage, groupStats } from "../utils/groups";
+import { canManage } from "../utils/groups";
 import { isQueryLoading } from "../utils/query";
 import { ToggleRow } from "./ProfileEditSheet";
 
@@ -122,7 +123,15 @@ function Details({ groupId, onOpenMembers, onShare, onLeft, onBack }: GroupDetai
             placement="group"
           />
           <Text style={styles.name}>{group.name}</Text>
-          <Text style={styles.stats}>{groupStats(group.memberCount, online, t)}</Text>
+          <Text style={styles.stats}>
+            {t("chat.members", { count: group.memberCount })}
+            {online > 0 && (
+              <>
+                {" · "}
+                <OnlineLabel count={online} />
+              </>
+            )}
+          </Text>
           {!!group.description && <Text style={styles.description}>{group.description}</Text>}
         </View>
         <GroupReviewNotice group={group} />
@@ -130,7 +139,7 @@ function Details({ groupId, onOpenMembers, onShare, onLeft, onBack }: GroupDetai
 
         <View style={styles.list}>
           {member && (
-            <View style={styles.row}>
+            <View style={styles.toggleRow}>
               <ToggleRow
                 label={t("chat.notify")}
                 value={conversation?.notify ?? false}
@@ -344,10 +353,26 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(4),
       paddingVertical: theme.spacing(1),
     },
+    // A column, so the switch row spans the width: its label and switch then center
+    // on one line, like the other rows.
+    toggleRow: {
+      justifyContent: "center",
+      minHeight: 48,
+      paddingHorizontal: theme.spacing(4),
+      paddingVertical: theme.spacing(1),
+    },
     divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.hairline },
     pressed: { backgroundColor: theme.colors.hairline },
     rowLabel: { flex: 1, ...theme.typography.body, color: theme.colors.textPrimary },
     rowValue: { ...theme.typography.body, color: theme.colors.textMuted },
-    chevron: { ...theme.typography.title, color: theme.colors.textFaint },
+    // The body's font at a larger size, its line box no taller than the label's: the
+    // title's serif sat the "›" off the row's center.
+    chevron: {
+      ...theme.typography.body,
+      fontSize: 22,
+      lineHeight: 22,
+      includeFontPadding: false,
+      color: theme.colors.textFaint,
+    },
   });
 }

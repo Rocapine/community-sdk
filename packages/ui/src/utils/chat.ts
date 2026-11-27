@@ -1,5 +1,6 @@
-// Pure helpers of the chat screen (groups module): reply quotes, day separators,
-// jumping to a quoted message, and the line that replaces the composer.
+// Pure helpers of the chat screen (groups module): reply quotes and previews, day
+// separators, runs of bubbles, the swipe to reply, jumping to a quoted message, and the
+// line that replaces the composer.
 import type { Group, MessagingErrorCode } from "@rocapine/community-core";
 import type { TFn } from "../i18n";
 
@@ -22,28 +23,106 @@ const pad = (n: number) => String(n).padStart(2, "0");
 export const localDay = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-/** Messages cut into local days, in the order given. `day`: "today", "yesterday" or
- * the local date (`YYYY-MM-DD`). */
+/** Messages cut into local days (`YYYY-MM-DD`), in the order given. */
 export function groupByDay<T extends { createdAt: string }>(
   messages: readonly T[],
-  now: number,
 ): Array<{ day: string; items: T[] }> {
-  const today = new Date(now);
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const labels: Record<string, string> = {
-    [localDay(today)]: "today",
-    [localDay(yesterday)]: "yesterday",
-  };
   const groups: Array<{ day: string; items: T[] }> = [];
   for (const m of messages) {
-    const key = localDay(new Date(m.createdAt));
-    const day = labels[key] ?? key;
+    const day = localDay(new Date(m.createdAt));
     const last = groups[groups.length - 1];
     if (last?.day === day) last.items.push(m);
     else groups.push({ day, items: [m] });
   }
   return groups;
+}
+
+const ymd = (day: string) => day.split("-").map(Number) as [number, number, number];
+const DAY_MS = 86_400_000;
+const dayFormats = new Map<string, Intl.DateTimeFormat>();
+function formatDay(date: Date, locale: string, opts: Intl.DateTimeFormatOptions): string {
+  const key = `${locale}|${JSON.stringify(opts)}`;
+  let f = dayFormats.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, opts);
+    dayFormats.set(key, f);
+  }
+  return f.format(date);
+}
+
+/** A day separator's label, `day` and `today` as `YYYY-MM-DD`: "Today", "Yesterday",
+ * the weekday within the last 6 days ("mardi"), else "mer. 18 nov." (the year added
+ * when it isn't this year), in the reader's locale. The ISO day for a bad locale. */
+export function dayLabel(day: string, today: string, locale: string, t: TFn): string {
+  const [y, m, d] = ymd(day);
+  const [ty, tm, td] = ymd(today);
+  // Calendar days apart, whatever the DST shifts in between.
+  const ago = Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(y, m - 1, d)) / DAY_MS);
+  if (ago <= 0) return t("chat.today");
+  if (ago === 1) return t("chat.yesterday");
+  const date = new Date(y, m - 1, d, 12);
+  try {
+    if (ago < 7) return formatDay(date, locale, { weekday: "long" });
+    return formatDay(date, locale, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      ...(y === ty ? {} : { year: "numeric" }),
+    });
+  } catch {
+    return day;
+  }
+}
+
+/** For each message of one day, newest first: whether it opens (`first`, the oldest)
+ * or closes (`last`, the newest) its run of consecutive messages by one author. The
+ * bubble shows the name on the first, the avatar and the tail on the last. */
+export function runFlags(items: readonly { authorId: string }[]): {
+  first: boolean;
+  last: boolean;
+}[] {
+  return items.map((m, i) => ({
+    last: items[i - 1]?.authorId !== m.authorId,
+    first: items[i + 1]?.authorId !== m.authorId,
+  }));
+}
+
+/** The line under "Replying to Ana": the replied message's first line (the composer
+ * ellipsizes it), "📷 Photo" for a photo alone, null for an attachment alone. */
+export function replyPreview(
+  m: { body: string | null; imagePath: string | null },
+  t: TFn,
+): string | null {
+  const first = (m.body ?? "").trim().split("\n")[0]!.trim();
+  if (first) return first;
+  return m.imagePath ? t("image.photo") : null;
+}
+
+// Swipe-to-reply (native only). Worklets: they run in the pan's callbacks.
+/** The finger travel (pt) that triggers a reply. */
+export const SWIPE_REPLY_AT = 64;
+/** How far the bubble follows the finger, at most (pt). */
+export const SWIPE_MAX = 48;
+/** Touches starting this close to the screen's left edge belong to the system's back
+ * swipe (iOS). */
+export const SWIPE_EDGE = 24;
+
+/** The bubble's offset for a finger travel `dx`: right only, half the travel, capped. */
+export function swipeOffset(dx: number): number {
+  "worklet";
+  return Math.min(SWIPE_MAX, Math.max(0, dx) * 0.5);
+}
+
+/** Whether releasing at `dx` replies. */
+export function swipeTriggered(dx: number): boolean {
+  "worklet";
+  return dx >= SWIPE_REPLY_AT;
+}
+
+/** Whether a touch at `x` (from the screen's left edge) is left to the back swipe. */
+export function startsAtEdge(x: number): boolean {
+  "worklet";
+  return x < SWIPE_EDGE;
 }
 
 /** The index of message `id` across `pages`, loading older pages until it shows up.

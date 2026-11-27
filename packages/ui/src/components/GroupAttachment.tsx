@@ -42,6 +42,7 @@ import {
 } from "../utils/groups";
 import { ModalHandoffContext } from "../utils/modalHandoff";
 import { Avatar } from "./Avatar";
+import { OnlineLabel } from "./OnlineLabel";
 import { PressableScale } from "./PressableScale";
 
 /** Where a group card (or the feed's Groups home) opens a group. */
@@ -107,7 +108,7 @@ export function GroupAttachment({
 }: {
   groupId: string;
   variant: AttachmentVariant;
-  /** False in the composer: a preview of the card, nothing to tap. */
+  /** False in the composer: a preview of the card, nothing to tap and no button. */
   interactive: boolean;
 }) {
   const cfg = useCommunityConfig();
@@ -149,8 +150,9 @@ export function GroupAttachment({
     else open(to === "preview");
   };
   const tappable = interactive && !!link;
-  // Without a place to open it, a member's card has no button.
-  const showButton = !interactive || action === "join" || !!link;
+  // The composer's preview has no button; without a place to open it, neither has a
+  // member's card.
+  const showButton = interactive && (action === "join" || !!link);
   const busy = joiningId === group.id;
 
   const members = t("chat.members", { count: group.memberCount });
@@ -161,7 +163,7 @@ export function GroupAttachment({
       {on && (
         <>
           {" · "}
-          <Text style={styles.online}>{on}</Text>
+          <OnlineLabel count={online} />
         </>
       )}
     </Text>
@@ -329,7 +331,6 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textPrimary,
     },
     stats: { ...theme.typography.caption, color: theme.colors.textFaint, marginTop: 2 },
-    online: { color: theme.colors.success },
     description: {
       ...theme.typography.meta,
       color: theme.colors.textSecondary,

@@ -1,6 +1,6 @@
 // The chat's input bar: an optional photo button, the field, send. Above it, the
-// message being answered or edited (with a cancel button), the picked photo and the
-// last send error. The screen owns the state.
+// message being answered ("Replying to Ana" over its first line) or edited, with a
+// cancel button, the picked photo and the last send error. The screen owns the state.
 import type { LocalImage } from "@rocapine/community-core";
 import { Image } from "expo-image";
 import type { Ref } from "react";
@@ -45,8 +45,9 @@ export function ChatComposer({
   /** Absent: no photo button. */
   onPickImage?(): void;
   onRemoveImage(): void;
-  /** "Replying to Marc" / "Editing message", with a cancel button. */
-  banner: string | null;
+  /** "Replying to Marc" / "Editing message", with a cancel button; `detail`, one
+   * ellipsized line under it (the replied message's first line, or "📷 Photo"). */
+  banner: { title: string; detail?: string | null } | null;
   onCancelBanner(): void;
   error: string | null;
   canSend: boolean;
@@ -60,9 +61,16 @@ export function ChatComposer({
     <View style={styles.root}>
       {banner && (
         <View style={styles.banner}>
-          <Text style={styles.bannerText} numberOfLines={1}>
-            {banner}
-          </Text>
+          <View style={styles.bannerText}>
+            <Text style={styles.bannerTitle} numberOfLines={1}>
+              {banner.title}
+            </Text>
+            {!!banner.detail && (
+              <Text style={styles.bannerDetail} numberOfLines={1}>
+                {banner.detail}
+              </Text>
+            )}
+          </View>
           <Pressable
             onPress={onCancelBanner}
             hitSlop={10}
@@ -148,7 +156,19 @@ function makeStyles(theme: CommunityTheme) {
       gap: theme.spacing(1.5),
     },
     banner: { flexDirection: "row", alignItems: "center", gap: theme.spacing(2) },
-    bannerText: { flex: 1, ...theme.typography.caption, color: theme.colors.textMuted },
+    bannerText: {
+      flex: 1,
+      borderLeftWidth: 3,
+      borderLeftColor: theme.colors.accent,
+      paddingLeft: theme.spacing(2),
+    },
+    bannerTitle: {
+      ...theme.typography.caption,
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      color: theme.colors.accent,
+    },
+    bannerDetail: { ...theme.typography.caption, color: theme.colors.textMuted },
     error: { ...theme.typography.caption, color: theme.colors.danger },
     thumbWrap: { alignSelf: "flex-start" },
     thumb: { width: THUMB, height: THUMB, borderRadius: theme.radius.sm },

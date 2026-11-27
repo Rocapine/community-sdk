@@ -28,7 +28,6 @@ import {
   exploreRowAction,
   exploreRowTap,
   groupErrorKey,
-  groupStats,
   guardedJoin,
   joinGate,
   lastMessagePreview,
@@ -47,14 +46,6 @@ describe("onlineLabel", () => {
   it("counts the members online", () => {
     expect(onlineLabel(1, t)).toBe("1 online");
     expect(onlineLabel(17, t)).toBe("17 online");
-  });
-});
-
-describe("groupStats", () => {
-  it("adds the online count only above 0", () => {
-    expect(groupStats(128, 4, t)).toBe("128 members · 4 online");
-    expect(groupStats(31, 0, t)).toBe("31 members");
-    expect(groupStats(1, 0, t)).toBe("1 member");
   });
 });
 

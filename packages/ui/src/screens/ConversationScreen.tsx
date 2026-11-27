@@ -1,7 +1,8 @@
 // A group conversation (groups module; DMs later), validated mockup "bubbles": the
-// group's header (picture, name, "N members · X online", notifications bell), the
-// messages newest at the bottom with a separator between days, "X is typing…", and
-// the composer. `mode: "preview"` reads the group without joining: a "Join" bar
+// group's header (picture, name, "● X online" when other members are, notifications
+// bell), the messages newest at the bottom in runs by author with a separator between
+// days, "X is typing…", and the composer. A double tap likes a message, a swipe right
+// replies to it (native), a long press opens its menu. `mode: "preview"` reads the group without joining: a "Join" bar
 // replaces the composer, and joining turns the screen into the member's chat in
 // place. A member removed, or a group deleted, sees a line instead of the composer.
 //
@@ -48,6 +49,7 @@ import {
   View,
   type TextInputInstance,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
@@ -63,6 +65,7 @@ import { ChatComposer } from "../components/chat/ChatComposer";
 import { DaySeparator } from "../components/chat/DaySeparator";
 import { MessageBubble } from "../components/chat/MessageBubble";
 import { MessageMenu, type MessageMenuAction } from "../components/chat/MessageMenu";
+import { OnlineLabel } from "../components/OnlineLabel";
 import { TypingLine } from "../components/chat/TypingLine";
 import {
   canDeleteMessage,
@@ -70,12 +73,14 @@ import {
   findOrLoadMessage,
   groupByDay,
   localDay,
+  replyPreview,
+  runFlags,
   screenErrorCode,
   sendErrorKey,
   type ChatAction,
 } from "../utils/chat";
 import { canCopy, copyText } from "../utils/clipboard";
-import { groupErrorKey, needsAccount } from "../utils/groups";
+import { groupErrorKey, needsAccount, onlineLabel } from "../utils/groups";
 import { imagesSupported, pickImage } from "../utils/postImage";
 import { isQueryLoading } from "../utils/query";
 
@@ -103,7 +108,14 @@ export type ConversationScreenProps = {
   isFocused?: boolean;
 };
 
-type Row = { key: string; message?: ChatMessage; day?: string };
+type Row = {
+  key: string;
+  message?: ChatMessage;
+  day?: string;
+  /** The message opens / closes its run (`runFlags`). */
+  first?: boolean;
+  last?: boolean;
+};
 
 /** A callback whose identity never changes but that always runs the latest closure,
  * so memoized rows don't re-render on each keystroke. */
@@ -334,10 +346,12 @@ function Conversation({
   };
 
   const startReply = (m: ChatMessage) => {
+    if (editing) setText("");
     setEditing(null);
     setReplyTo(m);
     inputRef.current?.focus();
   };
+  const reply = useStable(startReply);
   const startEdit = (m: ChatMessage) => {
     setReplyTo(null);
     setImage(null);
@@ -437,13 +451,15 @@ function Conversation({
   }, [isFocused]);
   const rows = useMemo<Row[]>(
     () =>
-      groupByDay(pages?.flat() ?? [], Date.now()).flatMap((g) => [
-        ...g.items.map((m) => ({ key: m.id, message: m })),
-        // Inverted list: the day's separator comes after its oldest message.
-        { key: `day-${g.day}`, day: g.day },
-      ]),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `today` refreshes the labels
-    [pages, today],
+      groupByDay(pages?.flat() ?? []).flatMap((g) => {
+        const runs = runFlags(g.items);
+        return [
+          ...g.items.map((m, i) => ({ key: m.id, message: m, ...runs[i] })),
+          // Inverted list: the day's separator comes after its oldest message.
+          { key: `day-${g.day}`, day: g.day },
+        ];
+      }),
+    [pages],
   );
   const loadOlder = () => {
     if (messages.hasNextPage && !messages.isFetchingNextPage) void messages.fetchNextPage();
@@ -475,7 +491,7 @@ function Conversation({
   const openAttachment = useStable((a: PostAttachment) => onOpenAttachment?.(a));
   const renderRow = useCallback(
     ({ item }: { item: Row }) => {
-      if (item.day) return <DaySeparator day={item.day} />;
+      if (item.day) return <DaySeparator day={item.day} today={today} />;
       const m = item.message!;
       const usable = !isOptimistic(m) && m.status !== "deleted" && m.status !== "hidden";
       return (
@@ -483,38 +499,41 @@ function Conversation({
           message={m}
           own={m.authorId === myUid}
           showName={kind === "group" && m.authorId !== myUid}
+          first={!!item.first}
+          last={!!item.last}
           translation={translations[m.id]}
           onShowOriginal={showOriginal}
           onMenu={usable ? openMenu : undefined}
           onToggleLike={usable && active ? like : undefined}
+          onReply={usable && active ? reply : undefined}
           onOpenProfile={openProfile}
           onPressQuote={pressQuote}
           onOpenAttachment={onOpenAttachment ? openAttachment : undefined}
         />
       );
     },
-    [myUid, kind, translations, active, !!onOpenAttachment],
+    [myUid, kind, translations, active, today, !!onOpenAttachment],
   );
 
   // ---- header ----
   const notify = conversation?.notify ?? false;
-  const subtitle = group
-    ? [
-        t("chat.members", { count: group.memberCount }),
-        ...(online > 0 ? [t("chat.online", { count: online })] : []),
-      ].join(" · ")
-    : null;
+  // Other members online only (groups/007 leaves me out), and nothing at 0.
+  const onlineText = group ? onlineLabel(online, t) : null;
   const errorText = errorCode && !closed ? t(sendErrorKey(errorCode)) : null;
   const canSend = (text.trim().length > 0 || (image !== null && !editing)) && !gating && !preparing;
   const banner = editing
-    ? t("chat.editing")
+    ? { title: t("chat.editing") }
     : replyTo
-      ? t("thread.replyingTo", { name: replyName ?? "" })
+      ? {
+          title: t("thread.replyingTo", { name: replyName ?? "" }),
+          detail: replyPreview(replyTo, t),
+        }
       : null;
   const bottomPad = keyboardHeight > 0 ? theme.spacing(2) : insets.bottom + theme.spacing(2);
 
   return (
-    <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
+    // The bubbles' gestures need a gesture root; the host may not have one.
+    <GestureHandlerRootView style={[styles.root, { paddingBottom: keyboardHeight }]}>
       <ScreenBackground />
       <View style={styles.header}>
         <Pressable
@@ -530,6 +549,7 @@ function Conversation({
           disabled={!onOpenGroupDetails || !group}
           style={styles.headerInfo}
           accessibilityRole={onOpenGroupDetails ? "button" : undefined}
+          accessibilityLabel={[group?.name, onlineText].filter(Boolean).join(", ") || undefined}
         >
           {group && (
             <Avatar
@@ -544,11 +564,7 @@ function Conversation({
             <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
               {group?.name ?? ""}
             </Text>
-            {subtitle && (
-              <Text style={styles.subtitle} numberOfLines={1}>
-                {subtitle}
-              </Text>
-            )}
+            <OnlineLabel count={group ? online : 0} style={styles.subtitle} />
           </View>
         </Pressable>
         {active && kind === "group" && (
@@ -666,7 +682,7 @@ function Conversation({
         target={reportTarget}
         onClose={() => setReportTarget(null)}
       />
-    </View>
+    </GestureHandlerRootView>
   );
 }
 

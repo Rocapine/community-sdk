@@ -262,17 +262,36 @@ RPCs: `start_dm`, `accept_request`, `decline_request` (silent, writes `dm_declin
 
 ### Chat screen (validated mockup: bubbles)
 
-- My messages on the right in the accent colour, others on the left with avatar and name.
-  In a DM the name above the bubble is hidden.
-- Like: a small pill on the bubble with the count. Long-press menu: Like, Reply, Copy,
-  Translate, Edit / Delete (own), Report, and Delete for the creator / admin.
+- Header: the group's picture and name, and under it "● N online" in the success green
+  (the presence dot's color) when N > 0, N being the other members online (the reader is
+  never counted, `groups/007`). No member count: it lives in the group's details.
+- My messages on the right in the accent colour, others on the left. Consecutive
+  messages by one author on one day (nobody in between) form a run: the author's name
+  (groups; hidden in a DM) on the run's first bubble only, the avatar on its last only
+  (the others keep its space), and only the last bubble has the tail corner (bottom
+  left for others, bottom right for mine). Bubbles of a run sit closer together.
+- Like: a small pill on the bubble with the count. A double tap (double click on web)
+  likes or unlikes, with a small heart pop (a plain fade under Reduce Motion).
+- Reply: a swipe right on a bubble (iOS and Android): it follows the finger a little
+  (half the travel, at most 48 pt), a reply icon fades in, a light haptic marks the
+  64 pt threshold, and it springs back (no spring under Reduce Motion). Vertical moves
+  stay the list's, and a touch starting within 24 pt of the screen's left edge is left
+  to the system's back swipe. Web has no swipe: Reply is in the menu.
+- Menu: long press (right click or the "…" on hover or focus on web): Like, Reply, Copy,
+  Translate, Edit / Delete (own), Report, and Delete for the creator / admin. Screen
+  readers get "Like" / "Unlike" and "Reply" as actions on each bubble, plus the menu.
+- Above the composer while replying: "Replying to <name>" and under it the replied
+  message's first line, on one ellipsized line, or "📷 Photo" for a photo alone.
 - Reply: a quote block inside the bubble with `@handle` and the first two lines of the
   quoted message, ending in "…"; tapping it scrolls to the original. The quote always
   shows the current text, or "Message deleted".
 - Edited messages carry a discreet "edited".
 - Images in the bubble, opened full-screen on tap. App attachments use
   `renderAttachment`; the group attachment uses its compact strip.
-- A day separator between days; "X is typing…" above the composer.
+- A day separator between days, relative and in the reader's locale (Intl): "Today",
+  "Yesterday" (from the locale files), the weekday within the last 6 days ("mardi"), else
+  the short weekday, day and month ("mer. 18 nov."), with the year when it isn't this
+  one. "X is typing…" above the composer.
 
 ### Messages page (validated mockup: tabs, unified optional)
 

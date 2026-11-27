@@ -311,7 +311,7 @@ messaging: { homeLayout: "header" }, // shared chat options, below
 | `messaging.pushPreview`        | `"full"`     | Group push text: the message (`"full"`), "X sent a message" (`"sender"`), or a neutral line (`"none"`). Backend only.                                                                                                                       |
 | `messaging.onAccountDelete`    | `"keep"`     | What account deletion does to the member's messages: keep them, erase their DMs (`"eraseDms"`, later), or erase every message (`"eraseAll"`). Backend only.                                                                                 |
 | `messaging.maxLength`          | `2000`       | Characters per message (database cap 4000).                                                                                                                                                                                                 |
-| `messaging.ratePerMinute`      | `20`         | Messages and message edits per member per minute.                                                                                                                                                                                           |
+| `messaging.ratePerMinute`      | `20`         | Messages and message edits per member per minute, one shared budget (an edit uses a send's place, `messaging/006`).                                                                                                                         |
 | `groups.preview`               | `"readOnly"` | A non-member reads a group before joining (`"readOnly"`), or joins first (`"none"`). Backend key `groupsPreview`.                                                                                                                           |
 | `groups.exploreLayout`         | `"list"`     | Explore: a compact list or `"cards"` with a banner.                                                                                                                                                                                         |
 | `groups.shareCardLayout`       | `"card"`     | A group's card in the feed: `"card"` or `"banner"`.                                                                                                                                                                                         |
@@ -385,8 +385,15 @@ removed from a group (inbox module).
 iOS and Android (new native build). Without it there is no Copy; web uses the browser
 clipboard.
 
+**Chat gestures.** A double tap on a message likes or unlikes it; a swipe right replies
+(iOS and Android; touches at the screen's left edge stay the back swipe). The long press
+menu keeps Like and Reply, and screen readers get both as actions. `ConversationScreen`
+brings its own `GestureHandlerRootView`. The header shows "● N online", the other members
+online (`groups/007` leaves the reader out of every "online" count), and only when N > 0.
+
 **Web.** The screens run on react-native-web: a message's menu opens on right click or
-the "…" shown on hover and focus (long press on touch), and message text is selectable.
+the "…" shown on hover and focus (long press on touch), a double click likes, Reply is in
+the menu (no swipe), and message text is selectable.
 
 **Analytics.** New `COMMUNITY_EVENTS`: `messagesOpened`, `conversationOpened`,
 `messageSent`, `messageLiked`, `messageTranslated`, `messageEdited`, `messageDeleted`,

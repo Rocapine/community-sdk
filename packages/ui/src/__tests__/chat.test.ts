@@ -2,13 +2,22 @@ import type { Group } from "@rocapine/community-core";
 import { describe, expect, it, vi } from "vitest";
 import { makeT } from "../i18n";
 import {
+  SWIPE_EDGE,
+  SWIPE_MAX,
+  SWIPE_REPLY_AT,
   canDeleteMessage,
   closedReason,
+  dayLabel,
   screenErrorCode,
   findOrLoadMessage,
   groupByDay,
   quoteExcerpt,
+  replyPreview,
+  runFlags,
   sendErrorKey,
+  startsAtEdge,
+  swipeOffset,
+  swipeTriggered,
 } from "../utils/chat";
 
 const t = makeT("en");
@@ -37,22 +46,117 @@ describe("groupByDay", () => {
     id: `${d}-${h}-${min}`,
     createdAt: new Date(y, m - 1, d, h, min).toISOString(),
   });
-  const now = new Date(2026, 10, 27, 12).getTime();
 
-  it("splits at local midnight and labels today and yesterday", () => {
-    const groups = groupByDay(
-      [at(2026, 11, 27, 0, 5), at(2026, 11, 26, 23, 55), at(2026, 11, 26, 8), at(2026, 11, 20, 9)],
-      now,
-    );
+  it("splits at local midnight", () => {
+    const groups = groupByDay([
+      at(2026, 11, 27, 0, 5),
+      at(2026, 11, 26, 23, 55),
+      at(2026, 11, 26, 8),
+      at(2026, 11, 20, 9),
+    ]);
     expect(groups.map((g) => [g.day, g.items.length])).toEqual([
-      ["today", 1],
-      ["yesterday", 2],
+      ["2026-11-27", 1],
+      ["2026-11-26", 2],
       ["2026-11-20", 1],
     ]);
   });
 
   it("returns nothing for no messages", () => {
-    expect(groupByDay([], now)).toEqual([]);
+    expect(groupByDay([])).toEqual([]);
+  });
+});
+
+describe("dayLabel", () => {
+  const today = "2026-11-27"; // a Friday
+  const fr = makeT("fr");
+
+  it("says Today and Yesterday from the locale files", () => {
+    expect(dayLabel("2026-11-27", today, "en", t)).toBe("Today");
+    expect(dayLabel("2026-11-26", today, "en", t)).toBe("Yesterday");
+    expect(dayLabel("2026-11-27", today, "fr", fr)).toBe("Aujourd'hui");
+    expect(dayLabel("2026-11-26", today, "fr", fr)).toBe("Hier");
+  });
+
+  it("names the weekday within the last 6 days", () => {
+    expect(dayLabel("2026-11-24", today, "fr", fr)).toBe("mardi");
+    expect(dayLabel("2026-11-21", today, "en", t)).toBe("Saturday");
+  });
+
+  it("writes the short date from 7 days ago, without this year", () => {
+    expect(dayLabel("2026-11-18", today, "fr", fr)).toBe("mer. 18 nov.");
+    expect(dayLabel("2026-11-20", today, "en", t)).toBe("Fri, Nov 20");
+  });
+
+  it("adds the year of another year", () => {
+    expect(dayLabel("2025-12-31", "2026-01-10", "fr", fr)).toBe("mer. 31 déc. 2025");
+    expect(dayLabel("2025-12-31", "2026-01-05", "fr", fr)).toBe("mercredi");
+    expect(dayLabel("2025-12-31", "2026-01-01", "en", t)).toBe("Yesterday");
+  });
+
+  it("counts calendar days across a DST change", () => {
+    // Europe moves its clocks on 25 Oct 2026.
+    expect(dayLabel("2026-10-25", "2026-10-26", "en", t)).toBe("Yesterday");
+  });
+
+  it("falls back to the ISO day for a bad locale", () => {
+    expect(dayLabel("2026-11-02", today, "not a locale!", t)).toBe("2026-11-02");
+  });
+});
+
+describe("runFlags (newest first, one day)", () => {
+  const msgs = (...authors: string[]) => authors.map((authorId) => ({ authorId }));
+
+  it("puts the avatar and the tail on a run's last (newest), the name on its first", () => {
+    // Oldest to newest: A, A, A, B, A — newest first below.
+    expect(runFlags(msgs("a", "b", "a", "a", "a"))).toEqual([
+      { first: true, last: true }, // the lone newest A
+      { first: true, last: true }, // B between two runs of A
+      { first: false, last: true }, // the newest of the run of three: avatar, tail
+      { first: false, last: false }, // the middle: neither
+      { first: true, last: false }, // the oldest: the name
+    ]);
+  });
+
+  it("makes a lone message both first and last", () => {
+    expect(runFlags(msgs("a"))).toEqual([{ first: true, last: true }]);
+    expect(runFlags([])).toEqual([]);
+  });
+});
+
+describe("replyPreview (under 'Replying to …')", () => {
+  it("keeps the first line only", () => {
+    expect(replyPreview({ body: "  first line \nsecond\nthird", imagePath: null }, t)).toBe(
+      "first line",
+    );
+  });
+
+  it("says Photo for a photo alone, and keeps the text of a captioned one", () => {
+    expect(replyPreview({ body: null, imagePath: "c/u/x.jpg" }, t)).toBe("📷 Photo");
+    expect(replyPreview({ body: "  ", imagePath: "c/u/x.jpg" }, t)).toBe("📷 Photo");
+    expect(replyPreview({ body: "look", imagePath: "c/u/x.jpg" }, t)).toBe("look");
+  });
+
+  it("has no line for an attachment alone", () => {
+    expect(replyPreview({ body: null, imagePath: null }, t)).toBeNull();
+  });
+});
+
+describe("swipe to reply", () => {
+  it("follows the finger rightwards only, at half speed, capped", () => {
+    expect(swipeOffset(-40)).toBe(0);
+    expect(swipeOffset(20)).toBe(10);
+    expect(swipeOffset(1000)).toBe(SWIPE_MAX);
+  });
+
+  it("replies from the threshold on", () => {
+    expect(swipeTriggered(SWIPE_REPLY_AT - 1)).toBe(false);
+    expect(swipeTriggered(SWIPE_REPLY_AT)).toBe(true);
+  });
+
+  it("leaves touches at the left edge to the back swipe", () => {
+    expect(startsAtEdge(0)).toBe(true);
+    expect(startsAtEdge(SWIPE_EDGE - 1)).toBe(true);
+    expect(startsAtEdge(SWIPE_EDGE)).toBe(false);
   });
 });
 

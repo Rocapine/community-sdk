@@ -10,6 +10,7 @@ import type { CommunityTheme } from "../theme";
 import { exploreRowAction, onlineLabel } from "../utils/groups";
 import { initialOf } from "../utils/initial";
 import { Avatar } from "./Avatar";
+import { OnlineLabel } from "./OnlineLabel";
 import { PressableScale } from "./PressableScale";
 
 export function GroupRow({
@@ -41,7 +42,7 @@ export function GroupRow({
       {on && (
         <>
           {" · "}
-          <Text style={styles.online}>{on}</Text>
+          <OnlineLabel count={online} />
         </>
       )}
     </Text>
@@ -149,7 +150,6 @@ function makeStyles(theme: CommunityTheme) {
     },
     description: { ...theme.typography.meta, color: theme.colors.textMuted },
     stats: { ...theme.typography.caption, color: theme.colors.textFaint, marginTop: 2 },
-    online: { color: theme.colors.success },
     button: {
       minWidth: 72,
       minHeight: 32,

@@ -2,16 +2,10 @@
 import type { Conversation, Group, MessagingErrorCode } from "@rocapine/community-core";
 import type { TFn } from "../i18n";
 
-/** "X online", or null at 0: presence is shown, absence never. */
+/** "X online", or null at 0: presence is shown, absence never. The count leaves me
+ * out (groups/007): `group_online_counts` counts the other members. */
 export function onlineLabel(count: number, t: TFn): string | null {
   return count > 0 ? t("chat.online", { count }) : null;
-}
-
-/** "N members · X online" (the online part only above 0). */
-export function groupStats(memberCount: number, online: number, t: TFn): string {
-  const on = onlineLabel(online, t);
-  const members = t("chat.members", { count: memberCount });
-  return on ? `${members} · ${on}` : members;
 }
 
 /** An Explore row's button. */
