@@ -165,6 +165,24 @@ describe("fetchMessages", () => {
     expect(calls.filter(([m]) => m === "order").map(([, a]) => a[0])).toEqual(["created_at", "id"]);
   });
 
+  it("keeps a hidden message hidden (never a creator's placeholder)", async () => {
+    const client = fakeClient({
+      tables: {
+        messages: {
+          data: [
+            messageRow({ id: "h", status: "hidden", deleted_by: "admin" }),
+            messageRow({ id: "d", status: "deleted", deleted_by: "creator", body: null }),
+          ],
+          error: null,
+        },
+        message_likes: { data: [], error: null },
+      },
+    });
+    const [hidden, deleted] = await fetchMessages(cfgWith(client), "c1");
+    expect([hidden!.status, hidden!.deletedBy]).toEqual(["hidden", null]);
+    expect([deleted!.status, deleted!.deletedBy]).toEqual(["deleted", "creator"]);
+  });
+
   it("sends no cursor on the first page", async () => {
     const client = fakeClient({ tables: { messages: { data: [], error: null } } });
     await fetchMessages(cfgWith(client), "c1");

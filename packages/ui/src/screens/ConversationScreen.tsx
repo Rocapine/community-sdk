@@ -12,6 +12,7 @@ import {
   MessagingError,
   emitEvent,
   groupsSettings,
+  isOptimistic,
   messagingSettings,
   useCommunityConfig,
   useConversations,
@@ -34,9 +35,10 @@ import {
   type MessagingErrorCode,
   type PostAttachment,
 } from "@rocapine/community-core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   Pressable,
   StyleSheet,
@@ -55,10 +57,19 @@ import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { ScreenBackground } from "../components/ScreenBackground";
 import { ChatComposer } from "../components/chat/ChatComposer";
 import { DaySeparator } from "../components/chat/DaySeparator";
-import { MessageBubble, isOptimisticMessage } from "../components/chat/MessageBubble";
+import { MessageBubble } from "../components/chat/MessageBubble";
 import { MessageMenu, type MessageMenuAction } from "../components/chat/MessageMenu";
 import { TypingLine } from "../components/chat/TypingLine";
-import { closedReason, findOrLoadMessage, groupByDay, sendErrorKey } from "../utils/chat";
+import {
+  canDeleteMessage,
+  closedReason,
+  findOrLoadMessage,
+  groupByDay,
+  localDay,
+  screenErrorCode,
+  sendErrorKey,
+  type ChatAction,
+} from "../utils/chat";
 import { canCopy, copyText } from "../utils/clipboard";
 import { imagesSupported, pickImage } from "../utils/postImage";
 import { isQueryLoading } from "../utils/query";
@@ -82,6 +93,14 @@ export type ConversationScreenProps = {
 };
 
 type Row = { key: string; message?: ChatMessage; day?: string };
+
+/** A callback whose identity never changes but that always runs the latest closure,
+ * so memoized rows don't re-render on each keystroke. */
+function useStable<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
+  const ref = useRef(fn);
+  ref.current = fn;
+  return useCallback((...args: A) => ref.current(...args), []);
+}
 
 export function ConversationScreen(props: ConversationScreenProps) {
   const cfg = useCommunityConfig();
@@ -122,7 +141,7 @@ function Conversation({
     useGroupOnlineCounts(kind === "group" ? [conversationId] : [])[conversationId] ?? 0;
 
   const [joined, setJoined] = useState(false);
-  const member = mode === "member" || joined;
+  const member = mode === "member" || joined || !!group?.isMember;
   const [errorCode, setErrorCode] = useState<MessagingErrorCode | null>(null);
   const closed = closedReason(group, errorCode, mode === "member");
   const active = member && !closed;
@@ -130,7 +149,8 @@ function Conversation({
   // Closed: no more reads nor Realtime.
   const messages = useMessages(closed ? null : conversationId);
   useMarkConversationRead(active ? conversationId : null, isFocused);
-  const { typingUserIds, notifyTyping } = useTyping(active ? conversationId : null);
+  // Previewers see who is typing too; only members type (the composer).
+  const { typingUserIds, notifyTyping } = useTyping(closed ? null : conversationId);
 
   useEffect(() => {
     emitEvent(cfg, COMMUNITY_EVENTS.conversationOpened, { conversationId, kind });
@@ -162,7 +182,8 @@ function Conversation({
   const setNotify = useSetGroupNotify();
 
   const listRef = useRef<FlatList<Row>>(null);
-  const fail = (e: unknown) => setErrorCode(e instanceof MessagingError ? e.code : "unknown");
+  const fail = (action: ChatAction) => (e: unknown) =>
+    setErrorCode(screenErrorCode(action, e instanceof MessagingError ? e.code : "unknown"));
   const gate = async () => {
     if (!beforeSend) return true;
     setGating(true);
@@ -204,7 +225,7 @@ function Conversation({
         { conversationId, messageId: target.id, body },
         {
           onError: (e) => {
-            fail(e);
+            fail("edit")(e);
             if (!latest.current.text.trim()) {
               setEditing(target);
               setText(body);
@@ -234,7 +255,7 @@ function Conversation({
       {
         // The draft comes back, unless a new one was started meanwhile.
         onError: (e) => {
-          fail(e);
+          fail("send")(e);
           if (latest.current.text.trim() || latest.current.image) return;
           setText(body);
           setImage(sentImage);
@@ -253,7 +274,7 @@ function Conversation({
         onError: (e) => {
           if (e instanceof MessagingError && e.code === "account_required")
             cfg.host.onAccountRequired?.("joinGroup");
-          else fail(e);
+          else fail("join")(e);
         },
       },
     );
@@ -276,22 +297,25 @@ function Conversation({
     setEditing(null);
     setReplyTo(null);
   };
-  const like = (m: ChatMessage) => {
+  const like = useStable((m: ChatMessage) => {
     haptic("light");
-    toggleLike.mutate({ conversationId, messageId: m.id, liked: !m.likedByMe });
-  };
+    toggleLike.mutate(
+      { conversationId, messageId: m.id, liked: !m.likedByMe },
+      { onError: fail("like") },
+    );
+  });
 
   // ---- menu ----
-  const [menuFor, setMenuFor] = useState<ChatMessage | null>(null);
+  const [menuFor, setMenuFor] = useState<{ m: ChatMessage; authorAdmin: boolean } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const pendingReport = useRef<ReportTarget | null>(null);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [copyOn] = useState(canCopy);
   const translateOn = settings.translation === "onDemand" && !!cfg.modules.translation;
-  const moderator = conversation?.role === "creator" || !!group?.isCreator || !!me?.admin;
+  const creator = conversation?.role === "creator" || !!group?.isCreator;
 
-  const menuActions = (m: ChatMessage): MessageMenuAction[] => {
+  const menuActions = (m: ChatMessage, authorAdmin: boolean): MessageMenuAction[] => {
     const own = m.authorId === myUid;
     const actions: MessageMenuAction[] = [];
     if (active) {
@@ -311,18 +335,22 @@ function Conversation({
         onPress: () =>
           translate.mutate(
             { conversationId, messageId: m.id },
-            { onSuccess: (body) => setTranslations((p) => ({ ...p, [m.id]: body })) },
+            {
+              onSuccess: (body) => setTranslations((p) => ({ ...p, [m.id]: body })),
+              onError: fail("translate"),
+            },
           ),
       });
     if (active && own && m.body && m.status === "visible")
       actions.push({ key: "edit", label: t("chat.menu.edit"), onPress: () => startEdit(m) });
-    if (active && (own || moderator))
+    if (active && canDeleteMessage({ own, meAdmin: !!me?.admin, creator, authorAdmin }))
       actions.push({
         key: "delete",
         label: t("chat.menu.delete"),
         destructive: true,
         confirm: t("chat.deleteTitle"),
-        onPress: () => deleteMessage.mutate({ conversationId, messageId: m.id }),
+        onPress: () =>
+          deleteMessage.mutate({ conversationId, messageId: m.id }, { onError: fail("delete") }),
       });
     if (!own)
       actions.push({
@@ -335,14 +363,25 @@ function Conversation({
       });
     return actions;
   };
-  const openMenu = (m: ChatMessage) => {
-    if (menuActions(m).length === 0) return;
-    setMenuFor(m);
+  const openMenu = useStable((m: ChatMessage, authorAdmin: boolean) => {
+    if (menuActions(m, authorAdmin).length === 0) return;
+    setMenuFor({ m, authorAdmin });
     setMenuOpen(true);
-  };
+  });
 
   // ---- list ----
   const pages = messages.data?.pages;
+  // "Today" / "Yesterday" move at midnight: re-read the day on focus and on return
+  // to the foreground.
+  const [today, setToday] = useState(() => localDay(new Date()));
+  useEffect(() => {
+    const refresh = () => setToday(localDay(new Date()));
+    refresh();
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") refresh();
+    });
+    return () => sub.remove();
+  }, [isFocused]);
   const rows = useMemo<Row[]>(
     () =>
       groupByDay(pages?.flat() ?? [], Date.now()).flatMap((g) => [
@@ -350,14 +389,15 @@ function Conversation({
         // Inverted list: the day's separator comes after its oldest message.
         { key: `day-${g.day}`, day: g.day },
       ]),
-    [pages],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `today` refreshes the labels
+    [pages, today],
   );
   const loadOlder = () => {
     if (messages.hasNextPage && !messages.isFetchingNextPage) void messages.fetchNextPage();
   };
 
   const [jumpTo, setJumpTo] = useState<string | null>(null);
-  const jump = async (id: string) => {
+  const jump = useStable(async (id: string) => {
     let more = messages.hasNextPage;
     const found = await findOrLoadMessage(id, messages.data?.pages ?? [], async () => {
       if (!more) return null;
@@ -366,7 +406,7 @@ function Conversation({
       return r.data?.pages ?? null;
     });
     if (found !== null) setJumpTo(id);
-  };
+  });
   useEffect(() => {
     if (!jumpTo) return;
     const index = rows.findIndex((r) => r.message?.id === jumpTo);
@@ -374,25 +414,34 @@ function Conversation({
     setJumpTo(null);
   }, [jumpTo, rows]);
 
-  const renderRow = ({ item }: { item: Row }) => {
-    if (item.day) return <DaySeparator day={item.day} />;
-    const m = item.message!;
-    const usable = !isOptimisticMessage(m) && m.status !== "deleted";
-    return (
-      <MessageBubble
-        message={m}
-        own={m.authorId === myUid}
-        showName={kind === "group" && m.authorId !== myUid}
-        translation={translations[m.id]}
-        onShowOriginal={() => setTranslations(({ [m.id]: _gone, ...rest }) => rest)}
-        onMenu={usable ? openMenu : undefined}
-        onToggleLike={usable && active ? like : undefined}
-        onOpenProfile={onOpenProfile}
-        onPressQuote={(id) => void jump(id)}
-        onOpenAttachment={onOpenAttachment}
-      />
-    );
-  };
+  const showOriginal = useStable((id: string) =>
+    setTranslations(({ [id]: _gone, ...rest }) => rest),
+  );
+  const pressQuote = useStable((id: string) => void jump(id));
+  const openProfile = useStable(onOpenProfile);
+  const openAttachment = useStable((a: PostAttachment) => onOpenAttachment?.(a));
+  const renderRow = useCallback(
+    ({ item }: { item: Row }) => {
+      if (item.day) return <DaySeparator day={item.day} />;
+      const m = item.message!;
+      const usable = !isOptimistic(m) && m.status !== "deleted" && m.status !== "hidden";
+      return (
+        <MessageBubble
+          message={m}
+          own={m.authorId === myUid}
+          showName={kind === "group" && m.authorId !== myUid}
+          translation={translations[m.id]}
+          onShowOriginal={showOriginal}
+          onMenu={usable ? openMenu : undefined}
+          onToggleLike={usable && active ? like : undefined}
+          onOpenProfile={openProfile}
+          onPressQuote={pressQuote}
+          onOpenAttachment={onOpenAttachment ? openAttachment : undefined}
+        />
+      );
+    },
+    [myUid, kind, translations, active, !!onOpenAttachment],
+  );
 
   // ---- header ----
   const notify = conversation?.notify ?? false;
@@ -453,7 +502,10 @@ function Conversation({
           <Pressable
             onPress={() => {
               haptic("selection");
-              setNotify.mutate({ groupId: conversationId, notify: !notify });
+              setNotify.mutate(
+                { groupId: conversationId, notify: !notify },
+                { onError: fail("notify") },
+              );
             }}
             style={styles.headerButton}
             accessibilityRole="switch"
@@ -543,7 +595,7 @@ function Conversation({
 
       <MessageMenu
         visible={menuOpen}
-        actions={menuFor ? menuActions(menuFor) : []}
+        actions={menuFor ? menuActions(menuFor.m, menuFor.authorAdmin) : []}
         onClose={() => setMenuOpen(false)}
         onDismissed={() => {
           // A sheet opens only once the menu's Modal is gone (iOS).

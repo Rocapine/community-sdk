@@ -2,7 +2,9 @@ import type { Group } from "@rocapine/community-core";
 import { describe, expect, it, vi } from "vitest";
 import { makeT } from "../i18n";
 import {
+  canDeleteMessage,
   closedReason,
+  screenErrorCode,
   findOrLoadMessage,
   groupByDay,
   quoteExcerpt,
@@ -117,5 +119,37 @@ describe("sendErrorKey", () => {
     expect(sendErrorKey("message_too_long")).toBe("chat.error.tooLong");
     expect(sendErrorKey("rate_limited")).toBe("chat.error.rateLimited");
     expect(sendErrorKey("unknown")).toBe("chat.error.generic");
+  });
+});
+
+describe("canDeleteMessage (the menu's Delete entry)", () => {
+  const rule = (over: Partial<Parameters<typeof canDeleteMessage>[0]>) =>
+    canDeleteMessage({ own: false, meAdmin: false, creator: false, authorAdmin: false, ...over });
+
+  it("offers my own message, and any as an app admin", () => {
+    expect(rule({ own: true })).toBe(true);
+    expect(rule({ meAdmin: true, authorAdmin: true })).toBe(true);
+  });
+
+  it("offers the creator others' messages, never an app admin's", () => {
+    expect(rule({ creator: true })).toBe(true);
+    expect(rule({ creator: true, authorAdmin: true })).toBe(false);
+  });
+
+  it("offers nothing to a plain member on others", () => {
+    expect(rule({})).toBe(false);
+  });
+});
+
+describe("screenErrorCode", () => {
+  it("lets only a send or a join close the screen", () => {
+    expect(closedReason(undefined, screenErrorCode("send", "not_a_member"), true)).toBe("removed");
+    expect(closedReason(undefined, screenErrorCode("join", "not_found"), false)).toBe(
+      "groupDeleted",
+    );
+    for (const action of ["edit", "delete", "like", "translate", "notify"] as const) {
+      expect(closedReason(undefined, screenErrorCode(action, "not_a_member"), true)).toBeNull();
+      expect(closedReason(undefined, screenErrorCode(action, "not_found"), true)).toBeNull();
+    }
   });
 });

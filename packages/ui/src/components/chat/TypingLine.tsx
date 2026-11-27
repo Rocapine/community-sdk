@@ -9,7 +9,8 @@ export function TypingLine({ userIds }: { userIds: string[] }) {
   const styles = useThemedStyles(makeStyles);
   const name = useProfile(userIds[0] ?? null).data?.name;
   if (userIds.length === 0 || (userIds.length === 1 && !name)) return null;
-  const text = userIds.length > 1 ? t("chat.typing.many") : t("chat.typing.one", { name: name! });
+  const text =
+    userIds.length > 1 ? t("chat.typing.several") : t("chat.typing.one", { name: name! });
   return (
     <Text style={styles.typing} numberOfLines={1} accessibilityLiveRegion="polite">
       {text}

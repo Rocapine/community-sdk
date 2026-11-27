@@ -9,6 +9,7 @@ import { resolveConfig } from "../config";
 import { CONVERSATIONS_KEY, messagesKey } from "../keys";
 import {
   accountLinkedQueryOptions,
+  afterDelete,
   conversationsQueryOptions,
   createTypingTracker,
   messagesQueryOptions,
@@ -302,4 +303,23 @@ it("optimistic ids are unique within the same millisecond", async () => {
   const page = qc.getQueryData<MessagesData>(messagesKey("c1"))!.pages[0]!;
   expect(new Set(page.map((m) => m.id)).size).toBe(2);
   vi.mocked(Date.now).mockRestore();
+});
+
+it("afterDelete leaves what delete_message leaves, per role", () => {
+  const mine = msg("m1", at(1), { authorId: "me" });
+  const theirs = msg("m2", at(2), { authorId: "u2" });
+  expect(afterDelete(mine, "me", false)).toMatchObject({
+    status: "deleted",
+    deletedBy: "author",
+    body: null,
+  });
+  // An app admin deleting their own message is the author.
+  expect(afterDelete(mine, "me", true)).toMatchObject({ status: "deleted", deletedBy: "author" });
+  // A group creator on another's: the creator's placeholder.
+  expect(afterDelete(theirs, "me", false)).toMatchObject({
+    status: "deleted",
+    deletedBy: "creator",
+  });
+  // An app admin on another's: hidden, gone from the list.
+  expect(afterDelete(theirs, "me", true)).toBeNull();
 });

@@ -549,7 +549,9 @@ export type ChatMessage = {
   imagePath: string | null;
   attachment: PostAttachment | null;
   replyTo: { id: string; authorId: string; body: string | null; deleted: boolean } | null;
-  status: "pending" | "visible" | "deleted";
+  /** `hidden`: removed by moderation or an app admin; only its author still reads it. */
+  status: "pending" | "visible" | "hidden" | "deleted";
+  /** Who left the "deleted" placeholder (`status: "deleted"` only). */
   deletedBy: "author" | "creator" | null;
   editedAt: string | null;
   createdAt: string;

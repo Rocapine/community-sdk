@@ -4,6 +4,7 @@
 // The menu opens on a long press, a right click (web) or the "…" shown on hover or
 // focus (web).
 import {
+  isOptimistic,
   messageImageUrl,
   useCommunityConfig,
   useProfile,
@@ -12,10 +13,11 @@ import {
 } from "@rocapine/community-core";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { useContext, useState } from "react";
+import { memo, useContext, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../../ThemeProvider";
 import type { CommunityTheme } from "../../theme";
+import { formatClock } from "../../utils/chat";
 import { imageRatio } from "../../utils/postImage";
 import { AttachmentCard } from "../AttachmentCard";
 import { Avatar } from "../Avatar";
@@ -28,9 +30,8 @@ const IMAGE_WIDTH = 220;
 const SIGNED_URL_STALE_MS = 50 * 60_000;
 const web = Platform.OS === "web";
 
-export const isOptimisticMessage = (m: ChatMessage) => m.id.startsWith("optimistic-");
-
-export function MessageBubble({
+// Memoized: the screen re-renders on every keystroke of the composer.
+export const MessageBubble = memo(function MessageBubble({
   message: m,
   own,
   showName,
@@ -48,9 +49,10 @@ export function MessageBubble({
   showName: boolean;
   /** The on-demand translation, shown in place of the text. */
   translation?: string;
-  onShowOriginal?(): void;
-  /** Absent: no menu (a message being sent, or deleted). */
-  onMenu?(m: ChatMessage): void;
+  onShowOriginal?(messageId: string): void;
+  /** Absent: no menu (a message being sent, or gone). `authorAdmin`: the author is
+   * an app admin (a group's creator can't delete their messages). */
+  onMenu?(m: ChatMessage, authorAdmin: boolean): void;
   /** Absent: the like pill only shows the count. */
   onToggleLike?(m: ChatMessage): void;
   onOpenProfile(userId: string): void;
@@ -64,12 +66,25 @@ export function MessageBubble({
   const styles = useThemedStyles(makeStyles);
   const author = useProfile(own ? null : m.authorId).data;
   const [hover, setHover] = useState(false);
-  const deleted = m.status === "deleted";
+  // Web keyboard: the "…" shows while the bubble or the "…" itself has the focus. A
+  // blur hides it one tick later, so focus can move from one to the other.
+  const [focused, setFocused] = useState(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const focus = () => {
+    clearTimeout(blurTimer.current);
+    setFocused(true);
+  };
+  const blur = () => {
+    blurTimer.current = setTimeout(() => setFocused(false), 0);
+  };
+  const gone = m.status === "deleted" || m.status === "hidden";
   const textColor = own ? theme.colors.textInverse : theme.colors.textPrimary;
-  const openMenu = onMenu
+  const authorAdmin = author?.admin ?? false;
+  const showMenu = onMenu ? () => onMenu(m, authorAdmin) : undefined;
+  const openMenu = showMenu
     ? () => {
         haptic("light");
-        onMenu(m);
+        showMenu();
       }
     : undefined;
   // Web only: the browser's own menu gives way to ours.
@@ -78,33 +93,27 @@ export function MessageBubble({
       ? {
           onContextMenu: (e: { preventDefault(): void }) => {
             e.preventDefault();
-            onMenu(m);
+            showMenu!();
           },
         }
       : {};
 
-  let time = "";
-  try {
-    time = new Date(m.createdAt).toLocaleTimeString(cfg.host.getLocale(), {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    // An invalid host locale: no time rather than a crash.
-  }
-  const meta = m.editedAt && !deleted ? `${time} · ${t("chat.edited")}` : time;
+  const time = formatClock(m.createdAt, cfg.host.getLocale());
+  const meta = m.editedAt && !gone ? `${time} · ${t("chat.edited")}` : time;
 
   const bubble = (
     <Pressable
       onLongPress={openMenu}
-      onFocus={() => setHover(true)}
-      onBlur={() => setHover(false)}
+      onFocus={focus}
+      onBlur={blur}
       style={[
         styles.bubble,
         own ? styles.bubbleOwn : styles.bubbleOther,
-        (isOptimisticMessage(m) || m.status === "pending") && styles.sending,
+        (isOptimistic(m) || m.status === "pending") && styles.sending,
       ]}
-      accessibilityActions={onMenu ? [{ name: "longpress" }] : undefined}
+      accessibilityActions={
+        onMenu ? [{ name: "longpress", label: t("chat.menu.more") }] : undefined
+      }
       onAccessibilityAction={openMenu}
       {...contextMenu}
     >
@@ -113,9 +122,13 @@ export function MessageBubble({
           {author.name}
         </Text>
       )}
-      {deleted ? (
+      {gone ? (
         <Text style={[styles.body, styles.deleted, { color: textColor }]}>
-          {m.deletedBy === "creator" ? t("chat.deletedByCreator") : t("chat.deleted")}
+          {m.status === "hidden"
+            ? t("chat.hidden")
+            : m.deletedBy === "creator"
+              ? t("chat.deletedByCreator")
+              : t("chat.deleted")}
         </Text>
       ) : (
         <>
@@ -143,7 +156,7 @@ export function MessageBubble({
           {translation !== undefined && (
             <Text
               style={[styles.meta, styles.link, { color: textColor }]}
-              onPress={onShowOriginal}
+              onPress={() => onShowOriginal?.(m.id)}
               accessibilityRole="button"
             >
               {t("translation.showOriginal")}
@@ -152,7 +165,7 @@ export function MessageBubble({
         </>
       )}
       <Text style={[styles.meta, { color: textColor }]}>{meta}</Text>
-      {m.likeCount > 0 && !deleted && (
+      {m.likeCount > 0 && !gone && (
         <Pressable
           onPress={onToggleLike ? () => onToggleLike(m) : undefined}
           disabled={!onToggleLike}
@@ -174,9 +187,11 @@ export function MessageBubble({
   );
 
   const more =
-    web && onMenu && hover ? (
+    web && showMenu && (hover || focused) ? (
       <Pressable
-        onPress={() => onMenu(m)}
+        onPress={showMenu}
+        onFocus={focus}
+        onBlur={blur}
         style={styles.more}
         accessibilityRole="button"
         accessibilityLabel={t("a11y.more")}
@@ -188,7 +203,7 @@ export function MessageBubble({
   const rowStyle = [
     styles.row,
     own ? styles.rowOwn : null,
-    m.likeCount > 0 && !deleted ? styles.rowLiked : null,
+    m.likeCount > 0 && !gone ? styles.rowLiked : null,
   ];
   const content = (
     <>
@@ -210,9 +225,10 @@ export function MessageBubble({
           />
         </Pressable>
       )}
-      {own && more}
+      {/* The "…" follows the bubble in focus order; an own row is reversed, so it
+          sits on the bubble's left. */}
       {bubble}
-      {!own && more}
+      {more}
     </>
   );
   // Web: the row tracks the hover, so the "…" stays while the pointer moves onto it.
@@ -229,7 +245,7 @@ export function MessageBubble({
   ) : (
     <View style={rowStyle}>{content}</View>
   );
-}
+});
 
 /** A message's photo: the local file while sending, else a signed URL (private
  * bucket). Opens full-screen on tap. */
@@ -239,7 +255,7 @@ function MessageImage({ message }: { message: ChatMessage }) {
   const styles = useThemedStyles(makeStyles);
   const openImage = useContext(ImageViewerContext);
   const path = message.imagePath!;
-  const local = isOptimisticMessage(message);
+  const local = isOptimistic(message);
   const signed = useQuery({
     queryKey: ["community", "messageImage", path],
     queryFn: () => messageImageUrl(cfg, path),
@@ -274,7 +290,7 @@ function makeStyles(theme: CommunityTheme) {
       paddingHorizontal: theme.spacing(3),
       marginVertical: theme.spacing(0.75),
     },
-    rowOwn: { justifyContent: "flex-end" },
+    rowOwn: { flexDirection: "row-reverse" },
     // Room for the like pill hanging under the bubble.
     rowLiked: { marginBottom: theme.spacing(3) },
     bubble: {

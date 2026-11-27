@@ -18,7 +18,9 @@ export function quoteExcerpt(body: string | null, deleted: boolean, t: TFn): str
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const localDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+/** A date's local day, `YYYY-MM-DD`. */
+export const localDay = (d: Date) =>
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 /** Messages cut into local days, in the order given. `day`: "today", "yesterday" or
  * the local date (`YYYY-MM-DD`). */
@@ -58,6 +60,40 @@ export async function findOrLoadMessage<T extends { id: string }>(
     const next = await loadOlder();
     if (!next || next.length <= current.length) return null;
     current = next;
+  }
+}
+
+/** Whether I may delete this message, as `delete_message` allows: my own; any as an app
+ * admin; another member's as the group's creator, unless its author is an app admin. */
+export function canDeleteMessage(p: {
+  own: boolean;
+  meAdmin: boolean;
+  creator: boolean;
+  authorAdmin: boolean;
+}): boolean {
+  return p.own || p.meAdmin || (p.creator && !p.authorAdmin);
+}
+
+export type ChatAction = "send" | "join" | "edit" | "delete" | "like" | "translate" | "notify";
+
+/** The error code the screen keeps: only a failed send or join may close the
+ * conversation (removed, group gone); any other failure is a passing generic error. */
+export function screenErrorCode(action: ChatAction, code: MessagingErrorCode): MessagingErrorCode {
+  return action === "send" || action === "join" ? code : "unknown";
+}
+
+const clocks = new Map<string, Intl.DateTimeFormat>();
+/** "17:02" in the host's locale; one formatter per locale. Empty for a bad locale. */
+export function formatClock(iso: string, locale: string): string {
+  try {
+    let f = clocks.get(locale);
+    if (!f) {
+      f = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" });
+      clocks.set(locale, f);
+    }
+    return f.format(new Date(iso));
+  } catch {
+    return "";
   }
 }
 

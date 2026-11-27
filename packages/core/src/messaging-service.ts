@@ -205,9 +205,12 @@ function mapMessageRow(r: MessageRow, likedByMe: boolean): ChatMessage {
           deleted: !reply || reply.status === "deleted" || reply.status === "hidden",
         }
       : null,
-    // Only the author reads a hidden (removed or rejected) message: shown as gone.
-    status: r.status === "hidden" ? "deleted" : r.status,
-    deletedBy: r.deleted_by === "author" || r.deleted_by === "creator" ? r.deleted_by : null,
+    // Only the author reads a hidden (removed or rejected) message.
+    status: r.status,
+    deletedBy:
+      r.status === "deleted" && (r.deleted_by === "author" || r.deleted_by === "creator")
+        ? r.deleted_by
+        : null,
     editedAt: r.edited_at,
     createdAt: r.created_at,
     likeCount: r.like_count,

@@ -176,16 +176,6 @@ describe("locale catalogs", () => {
       expect(contractKeys(catalog)).toEqual(enKeys);
     });
   }
-
-  // `chat.typing.many` is a key of its own (several people typing), not a plural
-  // refinement: the contract filter above skips it, so check it here.
-  it("every catalog has the chat copy", () => {
-    for (const catalog of [...Object.values(catalogs), frVous]) {
-      expect(catalog["chat.typing.many"]).toBeTruthy();
-      expect(catalog["chat.placeholder"]).toBeTruthy();
-      expect(catalog["chat.members.other"]).toBeTruthy();
-    }
-  });
 });
 
 describe("pluralCategory", () => {

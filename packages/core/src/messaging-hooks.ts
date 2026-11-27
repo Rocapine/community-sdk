@@ -301,7 +301,7 @@ export function sendMessageMutationOptions(
               id: draft.replyToId,
               authorId: target?.authorId ?? "",
               body: target?.status === "visible" ? target.body : null,
-              deleted: !!target && target.status === "deleted",
+              deleted: !!target && (target.status === "deleted" || target.status === "hidden"),
             }
           : null,
         status: "visible",
@@ -363,6 +363,21 @@ export function useEditMessage() {
   });
 }
 
+/** What a delete leaves, as `delete_message` does it: my own message ⇒ the author's
+ * placeholder; an app admin on another's ⇒ hidden, gone from the list (null); a group
+ * creator on another's ⇒ the creator's placeholder. */
+export function afterDelete(m: ChatMessage, me: string, meAdmin: boolean): ChatMessage | null {
+  if (m.authorId !== me && meAdmin) return null;
+  return {
+    ...m,
+    status: "deleted",
+    body: null,
+    imagePath: null,
+    attachment: null,
+    deletedBy: m.authorId === me ? "author" : "creator",
+  };
+}
+
 /** Deletes my message, or another's as the group creator / an admin. */
 export function useDeleteMessage() {
   const cfg = useCommunityConfig();
@@ -370,17 +385,9 @@ export function useDeleteMessage() {
   return useMutation({
     mutationFn: ({ messageId }: MessageRef) => deleteMessage(cfg, messageId),
     onSuccess: (_data, { conversationId, messageId }) => {
-      const me = ownAuthorFields(queryClient).authorId;
+      const { authorId: me, authorAdmin } = ownAuthorFields(queryClient);
       mapMessages(queryClient, conversationId, (m) => {
-        if (m.id === messageId)
-          return {
-            ...m,
-            status: "deleted",
-            body: null,
-            imagePath: null,
-            attachment: null,
-            deletedBy: m.authorId === me ? "author" : "creator",
-          };
+        if (m.id === messageId) return afterDelete(m, me, authorAdmin);
         if (m.replyTo?.id === messageId)
           return { ...m, replyTo: { ...m.replyTo, body: null, deleted: true } };
         return m;
