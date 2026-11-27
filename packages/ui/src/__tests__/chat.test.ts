@@ -2,26 +2,28 @@ import type { Group } from "@rocapine/community-core";
 import { describe, expect, it, vi } from "vitest";
 import { makeT } from "../i18n";
 import {
-  SWIPE_ARMED_OFFSET,
-  SWIPE_EDGE,
-  SWIPE_MAX,
-  SWIPE_REPLY_AT,
   canDeleteMessage,
   closedReason,
   dayLabel,
   screenErrorCode,
   findOrLoadMessage,
   groupByDay,
-  hitsControl,
   msUntilNextDay,
   quoteExcerpt,
   replyPreview,
   runFlags,
   sendErrorKey,
+} from "../utils/chat";
+import {
+  SWIPE_ARMED_OFFSET,
+  SWIPE_EDGE,
+  SWIPE_MAX,
+  SWIPE_REPLY_AT,
+  hitsControl,
   startsAtEdge,
   swipeOffset,
   swipeTriggered,
-} from "../utils/chat";
+} from "../utils/chatGestures";
 
 const t = makeT("en");
 

@@ -47,16 +47,16 @@ import Animated, {
 } from "react-native-reanimated";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../../ThemeProvider";
 import type { CommunityTheme } from "../../theme";
+import { formatClock } from "../../utils/chat";
 import {
   SWIPE_ARMED_OFFSET,
   SWIPE_MAX,
-  formatClock,
   hitsControl,
   type Rect,
   startsAtEdge,
   swipeOffset,
   swipeTriggered,
-} from "../../utils/chat";
+} from "../../utils/chatGestures";
 import { imageRatio } from "../../utils/postImage";
 import { AttachmentCard } from "../AttachmentCard";
 import { Avatar } from "../Avatar";

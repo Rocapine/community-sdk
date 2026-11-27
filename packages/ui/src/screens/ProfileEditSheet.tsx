@@ -494,6 +494,8 @@ export function ToggleRow({
     <View style={styles.toggleRow}>
       <Text style={styles.toggleLabel}>{label}</Text>
       <Switch
+        // iOS's Switch defaults to `alignSelf: "flex-start"`: it sat at the row's top.
+        style={styles.toggleSwitch}
         value={on}
         onValueChange={(next) => {
           haptic("selection");
@@ -612,6 +614,7 @@ function makeStyles(theme: CommunityTheme) {
       gap: theme.spacing(3),
       minHeight: 44,
     },
+    toggleSwitch: { alignSelf: "center" },
     toggleLabel: {
       flex: 1,
       ...theme.typography.body,

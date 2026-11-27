@@ -106,61 +106,6 @@ export function replyPreview(
   return m.imagePath ? t("chat.reply.photo") : null;
 }
 
-// Swipe-to-reply (native only). Worklets: they run in the pan's callbacks.
-/** The finger travel (pt) that triggers a reply. */
-export const SWIPE_REPLY_AT = 64;
-/** How far the bubble follows the finger, at most (pt). */
-export const SWIPE_MAX = 48;
-/** Touches starting this close to the screen's left edge belong to the system's back
- * swipe (iOS). */
-export const SWIPE_EDGE = 24;
-
-/** The bubble's offset for a finger travel `dx`: right only, half the travel, capped. */
-export function swipeOffset(dx: number): number {
-  "worklet";
-  return Math.min(SWIPE_MAX, Math.max(0, dx) * 0.5);
-}
-
-/** Whether releasing at `dx` replies. */
-export function swipeTriggered(dx: number): boolean {
-  "worklet";
-  return dx >= SWIPE_REPLY_AT;
-}
-
-/** The bubble's offset when the swipe arms (the reply icon is fully shown there). */
-export const SWIPE_ARMED_OFFSET = swipeOffset(SWIPE_REPLY_AT);
-
-export type Rect = { x: number; y: number; width: number; height: number };
-
-/** Whether a touch at (`x`, `y`) in the bubble lands on one of its own controls (the
- * like pill, the quote, an attachment card), `slop` points around each: those taps are
- * the control's, never half of a double tap. */
-export function hitsControl(
-  x: number,
-  y: number,
-  rects: readonly (Rect | null)[],
-  slop: number,
-): boolean {
-  "worklet";
-  for (const r of rects) {
-    if (
-      r &&
-      x >= r.x - slop &&
-      x <= r.x + r.width + slop &&
-      y >= r.y - slop &&
-      y <= r.y + r.height + slop
-    )
-      return true;
-  }
-  return false;
-}
-
-/** Whether a touch at `x` (from the screen's left edge) is left to the back swipe. */
-export function startsAtEdge(x: number): boolean {
-  "worklet";
-  return x < SWIPE_EDGE;
-}
-
 /** The index of message `id` across `pages`, loading older pages until it shows up.
  * `loadOlder` resolves to every page after the load, or null when the history ends. */
 export async function findOrLoadMessage<T extends { id: string }>(
