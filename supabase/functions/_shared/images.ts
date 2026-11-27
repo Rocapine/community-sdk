@@ -6,15 +6,32 @@ import { adminClient, SUPABASE_URL } from "./client.ts";
 type Admin = ReturnType<typeof adminClient>;
 
 export const POST_IMAGES_BUCKET = "post-images";
+export const MESSAGE_IMAGES_BUCKET = "message-images";
+export const GROUP_IMAGES_BUCKET = "group-images";
+export const GROUP_IMAGES_PENDING_BUCKET = "group-images-pending";
 
 export function postImageUrl(path: string): string {
   return `${SUPABASE_URL}/storage/v1/object/public/${POST_IMAGES_BUCKET}/${path}`;
 }
 
+// A 10-minute URL to an object of a private bucket, for OpenAI to fetch. Null when
+// it can't be signed (missing object, storage error): the caller fails closed.
+export async function signedImageUrl(bucket: string, path: string): Promise<string | null> {
+  const { data, error } = await adminClient().storage.from(bucket).createSignedUrl(path, 600);
+  if (error || !data) {
+    console.error("signed url failed", bucket, path, error?.message);
+    return null;
+  }
+  return data.signedUrl;
+}
+
+export const messageImageUrl = (path: string) => signedImageUrl(MESSAGE_IMAGES_BUCKET, path);
+
 // Postgres' undefined_column (42703) or PostgREST's own "column not found"
 // (PGRST204): the install has no images module. Any other error is a transient
 // failure, never "no image".
-const isMissingColumn = (code: string | undefined) => code === "42703" || code === "PGRST204";
+export const isMissingColumn = (code: string | undefined) =>
+  code === "42703" || code === "PGRST204";
 
 // Separate select (never part of a wider one) so an install without the images
 // module keeps its text-only behavior: only a missing column means "no image".

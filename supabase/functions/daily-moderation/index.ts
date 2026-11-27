@@ -4,7 +4,9 @@
 // moderate-one call failed), clean 'visible' -> just stamp. Also sweeps
 // not-yet-checked usernames (profiles.username is client-writable, see
 // core/007_username_moderation.sql): flagged or containing the app's name ->
-// blanked, i.e. back to the default name (core/009). Posts a Slack
+// blanked, i.e. back to the default name (core/009). Chat messages and group
+// fields (messaging/groups modules) the synchronous call missed go through the
+// same per-item logic as moderate-one (_shared/messaging.ts). Posts a Slack
 // summary when there was something to check (no-op if SLACK_WEBHOOK_URL is
 // unset — see _shared/slack.ts). Never deletes rows. App criticism is not a
 // category (stays visible).
@@ -21,6 +23,14 @@ import {
   type ModerationResult,
 } from "../_shared/moderation.ts";
 import { fetchImagePaths, POST_IMAGES_BUCKET, postImageUrl } from "../_shared/images.ts";
+import {
+  GROUP_COLUMNS,
+  type GroupRow,
+  MESSAGE_COLUMNS,
+  type MessageRow,
+  moderateGroup,
+  moderateMessage,
+} from "../_shared/messaging.ts";
 import { containsAppName } from "../_shared/names.ts";
 import { postToSlack } from "../_shared/slack.ts";
 
@@ -150,6 +160,63 @@ async function sweepUnreferencedImages(): Promise<{ removed: number; error?: str
     return { removed: 0, error: removeError.message };
   }
   return { removed: removed?.length ?? 0 };
+}
+
+// Undefined table: the install has no messaging / groups module.
+const isMissingTable = (code: string | undefined) => code === "42P01" || code === "PGRST205";
+
+/** Messages and groups left unmoderated for 5 minutes (the client's moderate-one call
+ * failed or never came), oldest first, capped per run, a few in parallel. A group
+ * waiting for its creator's fix (rejected_fields set) is skipped. Groups have no
+ * "submitted at", so a fresh edit of an old group may race moderate-one: the guarded
+ * writes keep that safe. */
+async function sweepChat(): Promise<{
+  messages: number;
+  messagesHidden: number;
+  groups: number;
+  groupsRejected: number;
+  failed: number;
+}> {
+  const out = { messages: 0, messagesHidden: 0, groups: 0, groupsRejected: 0, failed: 0 };
+  const cutoff = new Date(Date.now() - 5 * 60_000).toISOString();
+  const { data: messages, error: mErr } = await supabase
+    .from("messages")
+    .select(MESSAGE_COLUMNS)
+    .is("moderated_at", null)
+    .in("status", ["pending", "visible"])
+    .lt("created_at", cutoff)
+    .order("created_at")
+    .limit(500);
+  if (mErr && !isMissingTable(mErr.code)) out.failed++;
+  const { data: groups, error: gErr } = await supabase
+    .from("groups")
+    .select(GROUP_COLUMNS)
+    .or("pending_name.not.is.null,pending_description.not.is.null,pending_image_path.not.is.null")
+    .neq("status", "deleted")
+    .eq("rejected_fields", "{}")
+    .lt("created_at", cutoff)
+    .order("created_at")
+    .limit(200);
+  if (gErr && !isMissingTable(gErr.code)) out.failed++;
+
+  const msgs = (messages ?? []) as MessageRow[];
+  for (let i = 0; i < msgs.length; i += 5) {
+    const verdicts = await Promise.all(
+      msgs.slice(i, i + 5).map((m) => moderateMessage(supabase, m)),
+    );
+    for (const v of verdicts) {
+      if (v.error) out.failed++;
+      else out.messages++;
+      if (v.status === "rejected") out.messagesHidden++;
+    }
+  }
+  for (const g of (groups ?? []) as GroupRow[]) {
+    const v = await moderateGroup(supabase, g);
+    if (v.error) out.failed++;
+    else out.groups++;
+    if (!v.error && v.rejected.length > 0) out.groupsRejected++;
+  }
+  return out;
 }
 
 Deno.serve(async () => {
@@ -309,16 +376,19 @@ Deno.serve(async () => {
   }
 
   const usernames = await sweepUsernames();
+  const chat = await sweepChat();
   const sweep = await sweepUnreferencedImages();
   const imagesSwept = sweep.removed;
   if (sweep.error) imageErrors.push(`image sweep failed: ${sweep.error}`);
-  const allFailedBatches = failedBatches + usernames.failedBatches;
+  const allFailedBatches = failedBatches + usernames.failedBatches + chat.failed;
 
   // Quiet when there was nothing to check at all (a stray or duplicate call
   // finds every item already stamped): no Slack noise, no API cost.
   if (
     totalItems === 0 &&
     usernames.checked === 0 &&
+    chat.messages === 0 &&
+    chat.groups === 0 &&
     allFailedBatches === 0 &&
     imagesSwept === 0 &&
     imageErrors.length === 0
@@ -329,6 +399,8 @@ Deno.serve(async () => {
         hidden: 0,
         usernames_checked: 0,
         usernames_blanked: 0,
+        messages_checked: 0,
+        groups_checked: 0,
         failed_batches: 0,
       }),
     );
@@ -351,7 +423,11 @@ Deno.serve(async () => {
     usernames.checked > 0
       ? ` Usernames: ${usernames.blanked.length}/${usernames.checked} blanked.`
       : "";
-  const sweepSummary = imagesSwept > 0 ? ` Images swept: ${imagesSwept}.` : "";
+  // Counts only: chat text never goes to Slack from here.
+  const chatSummary =
+    (chat.messages > 0 ? ` Messages: ${chat.messagesHidden}/${chat.messages} hidden.` : "") +
+    (chat.groups > 0 ? ` Groups: ${chat.groupsRejected}/${chat.groups} with rejected fields.` : "");
+  const sweepSummary = chatSummary + (imagesSwept > 0 ? ` Images swept: ${imagesSwept}.` : "");
   let summaryText: string;
   if (allFailedBatches > 0) {
     const uncheckedCount = totalItems - processed.length;
@@ -359,7 +435,12 @@ Deno.serve(async () => {
       `Daily moderation: WARNING, ${allFailedBatches} batch(es) failed to reach the moderation API ` +
       `(${uncheckedCount} of ${totalItems} items were not checked and will be retried). ` +
       `${flagged.length} items hidden.${usernameSummary}${sweepSummary}`;
-  } else if (flagged.length === 0 && usernames.blanked.length === 0) {
+  } else if (
+    flagged.length === 0 &&
+    usernames.blanked.length === 0 &&
+    chat.messagesHidden === 0 &&
+    chat.groupsRejected === 0
+  ) {
     summaryText = `Daily moderation: ${processed.length} items checked, nothing to report.${usernameSummary}${sweepSummary}`;
   } else {
     summaryText =
@@ -377,6 +458,10 @@ Deno.serve(async () => {
       hidden: flagged.length,
       usernames_checked: usernames.checked,
       usernames_blanked: usernames.blanked.length,
+      messages_checked: chat.messages,
+      messages_hidden: chat.messagesHidden,
+      groups_checked: chat.groups,
+      groups_rejected: chat.groupsRejected,
       failed_batches: allFailedBatches,
     }),
   );

@@ -9,9 +9,21 @@
 // moderate someone else's pending item. Every status write is guarded with
 // `status = 'pending'` so a row the author deleted mid-flight is never
 // resurrected.
+//
+// Chat (messaging/groups modules): `kind: "message"` (author or service) and
+// `kind: "group"` (creator, in-app admin or service) run the shared logic of
+// _shared/messaging.ts.
 
 import { adminClient, callerUserId, isServiceCaller, json, preflight } from "../_shared/client.ts";
 import { fetchImagePath, POST_IMAGES_BUCKET, postImageUrl } from "../_shared/images.ts";
+import {
+  GROUP_COLUMNS,
+  type GroupRow,
+  MESSAGE_COLUMNS,
+  type MessageRow,
+  moderateGroup,
+  moderateMessage,
+} from "../_shared/messaging.ts";
 import { assertModerationConfigured, moderateItem } from "../_shared/moderation.ts";
 import { postToSlack } from "../_shared/slack.ts";
 
@@ -23,11 +35,42 @@ Deno.serve(async (req) => {
   const pre = preflight(req);
   if (pre) return pre;
   const { kind, id } = (await req.json().catch(() => ({}))) as {
-    kind?: "post" | "comment";
+    kind?: "post" | "comment" | "message" | "group";
     id?: string;
   };
-  if ((kind !== "post" && kind !== "comment") || !id) {
+  if (!kind || !["post", "comment", "message", "group"].includes(kind) || !id) {
     return json({ status: "error", error: "bad request" }, 400);
+  }
+  const forbidden = () => json({ status: "error", error: "forbidden" }, 403);
+
+  if (kind === "message") {
+    const { data } = await supabase.from("messages").select(MESSAGE_COLUMNS).eq("id", id).single();
+    const m = data as MessageRow | null;
+    if (!m) return json({ status: "error", error: "not found" });
+    if (!isServiceCaller(req) && (await callerUserId(req)) !== m.author_id) return forbidden();
+    return json(await moderateMessage(supabase, m));
+  }
+  if (kind === "group") {
+    const { data } = await supabase
+      .from("groups")
+      .select(GROUP_COLUMNS)
+      .eq("conversation_id", id)
+      .single();
+    const g = data as GroupRow | null;
+    if (!g) return json({ status: "error", error: "not found" });
+    if (!isServiceCaller(req)) {
+      const uid = await callerUserId(req);
+      if (!uid) return forbidden();
+      if (uid !== g.created_by) {
+        const { data: me } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", uid)
+          .single();
+        if (me?.is_admin !== true) return forbidden();
+      }
+    }
+    return json(await moderateGroup(supabase, g));
   }
   const table = kind === "post" ? "posts" : "comments";
 
