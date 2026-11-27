@@ -6,8 +6,8 @@
 -- Clients read through RLS and write only through the security definer RPCs below,
 -- which check membership, bans, blocks, the length cap, the rate limit and the
 -- moderation mode. The limits live in `messaging_settings` (one row), set with
--- messaging_set_settings(jsonb) from the service role, the SQL editor or a dashboard
--- admin; the app's config must carry the same values.
+-- messaging_set_settings(jsonb) from the service role or the SQL editor; the app's
+-- config must carry the same values.
 --
 -- Group preview (`groupsPreview = 'readOnly'`) reads `public.groups`, which the
 -- groups module creates: until then can_read_conversation() only lets members in.
@@ -57,13 +57,18 @@ create table if not exists public.messages (
   moderated_at timestamptz,              -- null = not yet seen by the AI
   edited_at timestamptz,
   lang text,
+  like_count int not null default 0,     -- kept by set_message_like
   created_at timestamptz not null default now()
 );
+-- Databases that ran an earlier draft of this file.
+alter table public.messages add column if not exists like_count int not null default 0;
 create index if not exists messages_conversation_idx
   on public.messages (conversation_id, created_at desc);
 create index if not exists messages_author_idx on public.messages (author_id, created_at desc);
 create index if not exists messages_moderation_idx
   on public.messages (created_at) where moderated_at is null;
+create index if not exists messages_image_path_idx
+  on public.messages (image_path) where image_path is not null;
 
 create table if not exists public.message_likes (
   message_id uuid not null references public.messages(id) on delete cascade,
@@ -166,25 +171,20 @@ as $$
   select auth.uid() is not null and public.has_account_link(auth.uid());
 $$;
 
--- The dashboard: the service role, a direct database session (no JWT, e.g. the SQL
--- editor), or a signed-in user whose email is in admin_users.
+-- The dashboard: the service role, or a direct database session that carries no
+-- JWT (the SQL editor). API requests always connect as `authenticator` with a JWT,
+-- so neither branch opens to a signed-in member. In-app admin powers use
+-- profiles.is_admin (current_user_admin()) instead.
 create or replace function public.messaging_is_dashboard_admin()
 returns boolean
 language sql stable security definer set search_path = public
 as $$
-  select coalesce(auth.role(), 'service_role') = 'service_role'
-    or exists (
-      select 1 from admin_users a where lower(a.email) = lower(auth.jwt() ->> 'email')
-    );
+  select coalesce(auth.role(), '') = 'service_role'
+    or (auth.jwt() is null and session_user <> 'authenticator');
 $$;
 
--- An app admin: the dashboard, or an admin account (profiles.is_admin).
-create or replace function public.messaging_is_admin()
-returns boolean
-language sql stable security definer set search_path = public
-as $$
-  select public.messaging_is_dashboard_admin() or public.current_user_admin();
-$$;
+-- An earlier draft of this file had a second admin helper.
+drop function if exists public.messaging_is_admin();
 
 create or replace function public.is_conversation_member(p_conversation uuid)
 returns boolean
@@ -196,8 +196,8 @@ as $$
   );
 $$;
 
--- An active member, or anyone signed in on a visible group while groups are
--- previewable. `groups` is the groups module's table: absent, only members read.
+-- An active member, or anyone signed in (and not removed from it) on a visible
+-- group while groups are previewable. `groups` is the groups module's table: absent, only members read.
 create or replace function public.can_read_conversation(p_conversation uuid)
 returns boolean
 language plpgsql stable security definer set search_path = public
@@ -210,6 +210,11 @@ begin
   end if;
   if public.is_conversation_member(p_conversation) then
     return true;
+  end if;
+  -- A removed member doesn't keep reading as a previewer.
+  if exists (select 1 from conversation_members
+             where conversation_id = p_conversation and user_id = auth.uid() and state = 'removed') then
+    return false;
   end if;
   if to_regclass('public.groups') is null
      or coalesce(public.messaging_setting('groupsPreview') #>> '{}', 'readOnly') <> 'readOnly'
@@ -314,6 +319,8 @@ begin
   ) then
     raise exception 'invalid_reply';
   end if;
+  -- One sender at a time per author, so parallel calls can't all pass the count.
+  perform pg_advisory_xact_lock(hashtextextended(v_uid::text, 0));
   if (select count(*) from messages
       where author_id = v_uid and created_at > now() - interval '60 seconds')
      >= coalesce((public.messaging_setting('ratePerMinute'))::int, 20) then
@@ -386,8 +393,8 @@ begin
 end;
 $$;
 
--- The author deletes (placeholder "Message deleted"); an admin hides (status
--- hidden, the row kept for the dashboard); a group's creator deletes others'
+-- The author deletes (placeholder "Message deleted"); an admin account
+-- (profiles.is_admin) hides (status hidden, the row kept for the dashboard); a group's creator deletes others'
 -- messages, never an admin account's ("Deleted by the group's creator").
 create or replace function public.delete_message(p_message uuid)
 returns void
@@ -407,7 +414,7 @@ begin
 
   if v_msg.author_id = v_uid then
     v_by := 'author';
-  elsif public.messaging_is_admin() then
+  elsif public.current_user_admin() then
     update messages set status = 'hidden', deleted_by = 'admin' where id = p_message;
     return;
   elsif v_kind = 'group'
@@ -437,7 +444,8 @@ end;
 $$;
 
 -- Liking needs a visible message the caller reads, as an active member; unliking
--- always works.
+-- always works. like_count moves only when a like row is really added or removed,
+-- so a like reaches Realtime subscribers as an UPDATE of the message.
 create or replace function public.set_message_like(p_message uuid, p_liked boolean)
 returns void
 language plpgsql volatile security definer set search_path = public
@@ -450,6 +458,9 @@ begin
   end if;
   if not p_liked then
     delete from message_likes where message_id = p_message and user_id = v_uid;
+    if found then
+      update messages set like_count = greatest(like_count - 1, 0) where id = p_message;
+    end if;
     return;
   end if;
   if public.current_user_banned() then
@@ -466,6 +477,9 @@ begin
   end if;
   insert into message_likes (message_id, user_id) values (p_message, v_uid)
   on conflict do nothing;
+  if found then
+    update messages set like_count = like_count + 1 where id = p_message;
+  end if;
 end;
 $$;
 
@@ -576,10 +590,18 @@ $$;
 
 -- Merges the given keys into the settings, e.g.
 -- select public.messaging_set_settings('{"moderation": "pre"}');
+-- Every key is checked; an unknown key or a bad value raises invalid_setting:<key>
+-- (a module adding a key extends this list).
 create or replace function public.messaging_set_settings(p_settings jsonb)
 returns void
 language plpgsql volatile security definer set search_path = public
 as $$
+declare
+  k text;
+  v jsonb;
+  v_int numeric;
+  v_str text;
+  v_ok boolean;
 begin
   if not public.messaging_is_dashboard_admin() then
     raise exception 'forbidden';
@@ -587,21 +609,63 @@ begin
   if jsonb_typeof(p_settings) is distinct from 'object' then
     raise exception 'invalid_settings';
   end if;
+  for k, v in select * from jsonb_each(p_settings) loop
+    -- Nested cases: SQL doesn't promise to short-circuit AND before a cast.
+    v_int := case when jsonb_typeof(v) = 'number' then
+               case when v::numeric = trunc(v::numeric) and v::numeric between 1 and 2147483647
+                 then v::numeric end end;
+    v_str := case when jsonb_typeof(v) = 'string' then v #>> '{}' end;
+    v_ok := case
+      when k = 'maxLength' then v_int <= 4000
+      when k in ('ratePerMinute', 'maxCreatedPerMember', 'maxJoinedPerMember') then v_int is not null
+      when k = 'nameMaxLength' then v_int <= 120
+      when k = 'descriptionMaxLength' then v_int <= 1000
+      when k = 'maxMembers' then jsonb_typeof(v) = 'null' or v_int is not null
+      when k = 'moderation' then v_str in ('pre', 'post', 'reportOnly')
+      when k = 'translation' then v_str in ('off', 'onDemand')
+      when k = 'pushPreview' then v_str in ('full', 'sender', 'none')
+      when k = 'onAccountDelete' then v_str in ('keep', 'eraseDms', 'eraseAll')
+      when k = 'groupsPreview' then v_str in ('readOnly', 'none')
+      when k in ('groupsRequireAccount', 'groupsCreateRequiresAccount') then jsonb_typeof(v) = 'boolean'
+      else false
+    end;
+    if not coalesce(v_ok, false) then
+      raise exception 'invalid_setting:%', k;
+    end if;
+  end loop;
   update messaging_settings set settings = settings || p_settings where id = 1;
 end;
 $$;
 
 -- ============ REPORTS ============
--- A member reports a message they can read, naming its author. The target check
--- accepts a message (the groups module adds a group target).
+-- A member reports a message they can read, naming its author.
 alter table public.reports
   add column if not exists message_id uuid references public.messages(id) on delete set null;
 create index if not exists reports_message_idx on public.reports (message_id)
   where message_id is not null;
+-- A report needs a target when it is made, not forever: a target deleted later
+-- (`on delete set null`, e.g. a deleted conversation) leaves the report for the
+-- record. So the old CHECK becomes an insert trigger. group_id is read through
+-- to_jsonb so this works before the groups module adds the column.
 alter table public.reports drop constraint if exists reports_check;
 alter table public.reports drop constraint if exists reports_target_check;
-alter table public.reports add constraint reports_target_check
-  check (num_nonnulls(post_id, comment_id, message_id) >= 1);
+create or replace function public.reports_require_target()
+returns trigger
+language plpgsql
+as $$
+declare
+  r jsonb := to_jsonb(new);
+begin
+  if num_nonnulls(r ->> 'post_id', r ->> 'comment_id', r ->> 'message_id', r ->> 'group_id') = 0 then
+    raise exception 'report_without_target' using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists reports_require_target on public.reports;
+create trigger reports_require_target
+  before insert on public.reports
+  for each row execute function public.reports_require_target();
 
 drop policy if exists "report a readable message" on public.reports;
 create policy "report a readable message" on public.reports
@@ -615,8 +679,9 @@ create policy "report a readable message" on public.reports
   );
 
 -- ============ REALTIME ============
--- New and changed messages and likes reach subscribers through postgres_changes,
--- filtered by the read policies above.
+-- New and changed messages reach subscribers through postgres_changes, filtered by
+-- the read policies above; a like is an UPDATE of like_count. message_likes stays
+-- out: Realtime can't filter DELETE events by RLS, so unlikes would reach anyone.
 do $$
 begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
@@ -624,9 +689,10 @@ begin
                    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'messages') then
       alter publication supabase_realtime add table public.messages;
     end if;
-    if not exists (select 1 from pg_publication_tables
-                   where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'message_likes') then
-      alter publication supabase_realtime add table public.message_likes;
+    -- An earlier draft of this file published it.
+    if exists (select 1 from pg_publication_tables
+               where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'message_likes') then
+      alter publication supabase_realtime drop table public.message_likes;
     end if;
   end if;
 end $$;
@@ -651,8 +717,9 @@ create policy "messaging: members send on conversation channels" on realtime.mes
   );
 
 -- ============ STORAGE ============
--- Private bucket: `<conversation_id>/<uid>/<uuid>.<ext>`. Clients get signed URLs
--- for conversations they read. No UPDATE/DELETE policies: removal is done by the
+-- Private bucket: `<conversation_id>/<uid>/<uuid>.<ext>`. The uploader reads their
+-- own files; anyone else only the image of a visible message they can read (not a
+-- pending, hidden or deleted one). No UPDATE/DELETE policies: removal is done by the
 -- Edge Functions with the service role.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
   values ('message-images', 'message-images', false, 2097152,
@@ -674,9 +741,14 @@ create policy "message image read by readers" on storage.objects
   for select to authenticated
   using (
     bucket_id = 'message-images'
-    and case when (storage.foldername(name))[1] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-      then public.can_read_conversation(((storage.foldername(name))[1])::uuid)
-      else false end
+    and (
+      owner_id = auth.uid()::text
+      or exists (
+        select 1 from public.messages m
+        where m.image_path = storage.objects.name and m.status = 'visible'
+          and public.can_read_conversation(m.conversation_id)
+      )
+    )
   );
 
 -- ============ GRANTS ============
@@ -684,7 +756,7 @@ revoke execute on function public.messaging_setting(text) from public, anon;
 revoke execute on function public.has_account_link(uuid) from public, anon, authenticated;
 revoke execute on function public.my_account_linked() from public, anon;
 revoke execute on function public.messaging_is_dashboard_admin() from public, anon, authenticated;
-revoke execute on function public.messaging_is_admin() from public, anon, authenticated;
+revoke execute on function public.reports_require_target() from public, anon, authenticated;
 revoke execute on function public.is_conversation_member(uuid) from public, anon;
 revoke execute on function public.can_read_conversation(uuid) from public, anon;
 revoke execute on function public.send_message(uuid, text, uuid, text, text, text) from public, anon;
@@ -711,4 +783,3 @@ grant execute on function public.unread_followed_messages() to authenticated;
 grant execute on function public.admin_message_context(uuid, int, int) to authenticated, service_role;
 grant execute on function public.messaging_set_settings(jsonb) to authenticated, service_role;
 grant execute on function public.messaging_is_dashboard_admin() to service_role;
-grant execute on function public.messaging_is_admin() to service_role;

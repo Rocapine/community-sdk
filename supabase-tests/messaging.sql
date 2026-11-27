@@ -12,6 +12,10 @@ declare
   m public.messages;
   m_ro public.messages;
   m_del public.messages;
+  m_img public.messages;
+  conv2 uuid;
+  rep uuid;
+  stand_in boolean := false;
   r record;
   n int;
 begin
@@ -64,10 +68,31 @@ begin
   set local role authenticated;
   m_ro := public.send_message(conv, 'report only');
   assert m_ro.status = 'visible' and m_ro.moderated_at is not null, 'reportOnly: visible, moderated_at set';
-  m_del := public.send_message(conv, 'with image', null, conv || '/' || b || '/photo.jpg');
-  assert m_del.status = 'pending' and m_del.moderated_at is null, 'an image: pending';
+  m_img := public.send_message(conv, 'with image', null, conv || '/' || b || '/photo.jpg');
+  assert m_img.status = 'pending' and m_img.moderated_at is null, 'an image: pending';
   reset role;
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  begin
+    perform public.messaging_set_settings('{"maxLength": 5000}');
+    assert false, 'maxLength above the 4000 cap is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'invalid_setting:maxLength', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.messaging_set_settings('{"moderation": "later"}');
+    assert false, 'an unknown moderation mode is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'invalid_setting:moderation', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.messaging_set_settings('{"maxlength": 100}');
+    assert false, 'an unknown key is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'invalid_setting:maxlength', 'got ' || sqlerrm;
+  end;
+  perform public.messaging_set_settings('{"maxMembers": null, "groupsRequireAccount": false}');
+  -- No JWT at all: a direct database session (the SQL editor) may set them too.
+  perform set_config('request.jwt.claims', '', true);
   perform public.messaging_set_settings('{"moderation": "pre"}');
   perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
   set local role authenticated;
@@ -108,8 +133,47 @@ begin
   select * into r from public.list_conversations() l where l.conversation_id = conv;
   assert r.unread = 2 and r.role = 'creator', 'two unread for A, the creator';
   perform public.set_message_like(m.id, true);
+  perform public.set_message_like(m.id, true);
   assert (select count(*) from public.message_likes where message_id = m.id) = 1, 'A liked';
+  assert (select like_count from public.messages where id = m.id) = 1, 'counted once';
+  perform public.set_message_like(m.id, false);
+  perform public.set_message_like(m.id, false);
+  assert (select like_count from public.messages where id = m.id) = 0, 'uncounted once';
+  perform public.set_message_like(m.id, true);
+  -- A reports B's message.
+  insert into public.reports (reporter_id, reported_user_id, message_id, reason)
+    values (a, b, m.id, 'spam');
   reset role;
+
+  -- Message images: the uploader reads their file; others only once the message is visible.
+  insert into storage.objects (bucket_id, name, owner_id)
+    values ('message-images', m_img.image_path, b::text);
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from storage.objects where name = m_img.image_path) = 0,
+    'a pending image stays private';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from storage.objects where name = m_img.image_path) = 1, 'its uploader reads it';
+  reset role;
+  update public.messages set status = 'visible' where id = m_img.id;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from storage.objects where name = m_img.image_path) = 1,
+    'a visible image is readable by members';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from storage.objects where name = m_img.image_path) = 0, 'not by outsiders';
+  begin
+    insert into public.reports (reporter_id, reported_user_id, message_id, reason)
+      values (x, b, m.id, 'spam');
+    assert false, 'an outsider cannot report a message they cannot read';
+  exception when insufficient_privilege then null;
+  end;
+  reset role;
+  update public.messages set status = 'hidden' where id = m_img.id;
 
   -- B edits: the old version is kept, translations dropped, edited_at set.
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
@@ -175,7 +239,8 @@ begin
   perform public.messaging_set_settings('{"ratePerMinute": 20}');
   perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
   set local role authenticated;
-  select count(*) into n from public.messages where author_id = b;
+  select count(*) into n from public.messages
+  where author_id = b and created_at > now() - interval '60 seconds';
   for i in n + 1 .. 20 loop
     perform public.send_message(conv, 'msg ' || i);
   end loop;
@@ -186,7 +251,65 @@ begin
     assert sqlerrm = 'rate_limited', 'got ' || sqlerrm;
   end;
   reset role;
-  assert (select count(*) from public.messages where author_id = b) = 20, 'exactly 20 went through';
+  assert (select count(*) from public.messages
+          where author_id = b and created_at > now() - interval '60 seconds') = 20,
+    'exactly 20 went through';
+  -- Parallel sends (the advisory lock in send_message) can't be shown in one transaction.
+
+  -- An admin account hides a message.
+  update public.profiles set is_admin = true where id = x;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.delete_message(m.id);
+  reset role;
+  assert (select status = 'hidden' and deleted_by = 'admin' and body = 'edited'
+          from public.messages where id = m.id), 'the admin hides, the text stays for the dashboard';
+  update public.profiles set is_admin = false where id = x;
+
+  -- A report outlives its target; a report without one is refused.
+  insert into public.conversations (kind) values ('group') returning id into conv2;
+  insert into public.conversation_members (conversation_id, user_id) values (conv2, a), (conv2, c);
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  m_del := public.send_message(conv2, 'reported');
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  insert into public.reports (reporter_id, reported_user_id, message_id, reason)
+    values (c, a, m_del.id, 'harassment');
+  begin
+    insert into public.reports (reporter_id, reported_user_id, reason) values (c, a, 'spam');
+    assert false, 'a report needs a target';
+  exception when check_violation then null;
+  end;
+  reset role;
+  select id into rep from public.reports where message_id = m_del.id;
+  delete from public.conversations where id = conv2;
+  assert (select message_id is null from public.reports where id = rep),
+    'deleting the conversation keeps the report';
+
+  -- A removed member doesn't read a previewable group. Before the groups module, a
+  -- stand-in table plays public.groups for this transaction.
+  if to_regclass('public.groups') is null then
+    create table public.groups (conversation_id uuid primary key, status text not null);
+    grant select on public.groups to authenticated;
+    stand_in := true;
+  end if;
+  if stand_in then
+    insert into public.groups (conversation_id, status) values (conv, 'visible');
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.messaging_set_settings('{"groupsPreview": "readOnly"}');
+    perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    assert public.can_read_conversation(conv), 'an outsider previews a visible group';
+    assert (select count(*) from public.messages where conversation_id = conv) > 0, 'and reads it';
+    reset role;
+    perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    assert not public.can_read_conversation(conv), 'a removed member does not';
+    assert (select count(*) from public.messages where conversation_id = conv) = 0, 'nor reads it';
+    reset role;
+  end if;
 
   raise exception 'MESSAGING_TESTS_PASSED';
 end $$;
