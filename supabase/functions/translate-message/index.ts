@@ -9,7 +9,7 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { adminClient, callerUserId, json, preflight, SUPABASE_URL } from "../_shared/client.ts";
-import { ENGINE, TARGET_LOCALES, translateItem } from "../_shared/translation.ts";
+import { ENGINE, hasLetters, TARGET_LOCALES, translateItem } from "../_shared/translation.ts";
 
 const supabase = adminClient();
 
@@ -45,6 +45,10 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!msg || msg.status !== "visible" || !msg.body?.trim()) {
     return json({ error: "not found" }, 404);
+  }
+  // "👍": nothing to translate, no call and no cache row.
+  if (!hasLetters(msg.body)) {
+    return json({ body: msg.body });
   }
 
   const { data: cached } = await supabase

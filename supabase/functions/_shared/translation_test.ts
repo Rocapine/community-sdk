@@ -1,7 +1,9 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import {
   FILTERED,
+  groupsMissingLocales,
   groupToItem,
+  hasLetters,
   parseGroupTranslation,
   parseTranslationResponse,
   hasTranslatableContent,
@@ -127,4 +129,18 @@ Deno.test("group: without a description there is no option and the description s
     0,
   )!;
   assertEquals(parseGroupTranslation(parsed, false), { fr: { name: "Course", description: null } });
+});
+
+Deno.test("hasLetters: emoji and numbers alone are not translatable", () => {
+  assertEquals(["👍", "10/10 !!", "🙏🙏"].map(hasLetters), [false, false, false]);
+  assertEquals(["ok 👍", "Amén", "祈り"].map(hasLetters), [true, true, true]);
+});
+
+Deno.test("groupsMissingLocales: a group missing any target is listed, order kept", () => {
+  const rows = [
+    { group_id: "a", locale: "fr" },
+    { group_id: "a", locale: "de" },
+    { group_id: "b", locale: "fr" },
+  ];
+  assertEquals(groupsMissingLocales(["c", "b", "a"], rows, ["fr", "de"]), ["c", "b"]);
 });

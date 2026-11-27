@@ -73,6 +73,11 @@ export function hasTranslatableContent(content: string): boolean {
   return content.trim().length > 0;
 }
 
+/** Emoji, digits and punctuation alone ("👍", "10/10") have nothing to translate. */
+export function hasLetters(text: string): boolean {
+  return /\p{L}/u.test(text);
+}
+
 export function languageOf(locale: string): string {
   return locale.split("-")[0].toLowerCase();
 }
@@ -160,6 +165,18 @@ export function parseGroupTranslation(
       { name: t.content, description: hasDescription ? t.options[0] : null },
     ]),
   );
+}
+
+/** Ids of the groups lacking at least one target locale, in the order given. */
+export function groupsMissingLocales(
+  groupIds: string[],
+  rows: { group_id: string; locale: string }[],
+  targets: string[],
+): string[] {
+  const have = new Map<string, Set<string>>();
+  for (const r of rows)
+    (have.get(r.group_id) ?? have.set(r.group_id, new Set()).get(r.group_id)!).add(r.locale);
+  return groupIds.filter((id) => targets.some((l) => !have.get(id)?.has(l)));
 }
 
 /** Folds compatibility characters (math-styled letters, full-width forms) to plain text. */
