@@ -43,7 +43,7 @@ export const POST_IMAGES_BUCKET = "post-images";
  * don't have these columns and PostgREST would reject the whole select. */
 const IMAGE_COLUMNS = "image_path, image_width, image_height";
 
-async function requireUid(cfg: ResolvedCommunityConfig): Promise<string> {
+export async function requireUid(cfg: ResolvedCommunityConfig): Promise<string> {
   const uid = await ensureIdentity(cfg);
   if (!uid) throw new Error("You appear to be offline. Please try again.");
   return uid;

@@ -6,9 +6,9 @@
 import type { PostgrestError } from "@supabase/supabase-js";
 
 import type { ResolvedCommunityConfig } from "./config";
-import { ensureIdentity } from "./identity";
 import type { ChatMessage, Conversation, PostAttachment } from "./models";
-import { moderateOne } from "./service";
+import { moderateOne, requireUid } from "./service";
+import { cacheSignedUrl, cachedSignedUrl } from "./signed-urls";
 
 export const MESSAGE_IMAGES_BUCKET = "message-images";
 export const MESSAGES_PAGE_SIZE = 40;
@@ -77,12 +77,6 @@ export async function callRpc<T>(
 
 export function requireGroups(cfg: ResolvedCommunityConfig): void {
   if (!cfg.modules.groups) throw new Error("groups module is not enabled");
-}
-
-export async function requireUid(cfg: ResolvedCommunityConfig): Promise<string> {
-  const uid = await ensureIdentity(cfg);
-  if (!uid) throw new Error("You appear to be offline. Please try again.");
-  return uid;
 }
 
 /** A v4 uuid; storage paths require one (Hermes may lack `crypto.randomUUID`). */
@@ -253,11 +247,13 @@ async function fetchMessage(cfg: ResolvedCommunityConfig, uid: string, id: strin
   return message!;
 }
 
-/** A page of a conversation, newest first; `before` is the oldest loaded `createdAt`. */
+/** A page of a conversation, newest first (`created_at desc, id desc`). `before`:
+ * the oldest loaded message (keyset cursor), so messages sharing a timestamp
+ * across a page boundary are neither skipped nor repeated. */
 export async function fetchMessages(
   cfg: ResolvedCommunityConfig,
   conversationId: string,
-  opts: { before?: string; limit?: number } = {},
+  opts: { before?: { createdAt: string; id: string }; limit?: number } = {},
 ): Promise<ChatMessage[]> {
   requireGroups(cfg);
   const uid = await requireUid(cfg);
@@ -266,7 +262,11 @@ export async function fetchMessages(
     .from("messages")
     .select(MESSAGE_SELECT)
     .eq("conversation_id", conversationId);
-  if (opts.before) query = query.lt("created_at", opts.before);
+  if (opts.before) {
+    // (created_at, id) < (before); quoted: timestamps hold PostgREST's reserved `.` and `:`.
+    const at = `"${opts.before.createdAt}"`;
+    query = query.or(`created_at.lt.${at},and(created_at.eq.${at},id.lt.${opts.before.id})`);
+  }
   const { data, error } = await query
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
@@ -308,7 +308,7 @@ export async function sendMessage(
     attachment &&
     !(cfg.modules.attachments && cfg.modules.attachments.types.includes(attachment.type))
   )
-    throw new Error("attachment type not enabled");
+    throw new MessagingError("invalid_attachment", "attachment type not enabled");
   const uid = await requireUid(cfg);
   let imagePath: string | null = null;
   if (input.imageUri) {
@@ -384,18 +384,18 @@ export async function translateMessage(
 // Signed URLs live 60 min; reused for 50 so a cached one never expires on screen.
 const SIGNED_URL_TTL_S = 3600;
 const SIGNED_URL_REUSE_MS = 50 * 60_000;
-const signedUrls = new Map<string, { url: string; until: number }>();
-
-/** A signed URL of a message image (private bucket), cached 50 minutes. */
+/** A signed URL of a message image (private bucket), cached 50 minutes per member
+ * (the cache is cleared on every identity change). */
 export async function messageImageUrl(cfg: ResolvedCommunityConfig, path: string): Promise<string> {
   requireGroups(cfg);
-  const cached = signedUrls.get(path);
-  if (cached && cached.until > Date.now()) return cached.url;
+  const key = `${await requireUid(cfg)}:${path}`;
+  const cached = cachedSignedUrl(key);
+  if (cached) return cached;
   const { data, error } = await cfg
     .requireClient()
     .storage.from(MESSAGE_IMAGES_BUCKET)
     .createSignedUrl(path, SIGNED_URL_TTL_S);
   if (error) throw error;
-  signedUrls.set(path, { url: data.signedUrl, until: Date.now() + SIGNED_URL_REUSE_MS });
+  cacheSignedUrl(key, data.signedUrl, SIGNED_URL_REUSE_MS);
   return data.signedUrl;
 }

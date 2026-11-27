@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetIdentity } from "../identity";
-import { MessagingError, sendMessage } from "../messaging-service";
+import { fetchMessages, MessagingError, messageImageUrl, sendMessage } from "../messaging-service";
 import { reportContent } from "../service";
 import { cfgWith, fakeClient, rpcArgs } from "./fakeSupabase";
 
@@ -72,12 +72,30 @@ describe("sendMessage", () => {
       rpc: () => ({ data: { id: "m1", status: "pending", moderated_at: null }, error: null }),
       tables: { messages: { data: messageRow(), error: null } },
     });
-    const message = await sendMessage(cfgWith(client), { conversationId: "c1", body: "hi" });
-    expect(client.functions.invoke).toHaveBeenCalledWith("moderate-one", {
-      body: { kind: "message", id: "m1" },
+    let release = () => {};
+    client.functions.invoke.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ data: { status: "published" }, error: null });
+        }),
+    );
+    let settled = false;
+    const sending = sendMessage(cfgWith(client), { conversationId: "c1", body: "hi" }).then((m) => {
+      settled = true;
+      return m;
     });
-    // Read back after the verdict.
-    expect(client.order.indexOf('fn:moderate-one:{"kind":"message","id":"m1"}')).toBe(1);
+    await vi.waitFor(() =>
+      expect(client.functions.invoke).toHaveBeenCalledWith("moderate-one", {
+        body: { kind: "message", id: "m1" },
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    // Still waiting on the verdict: no read-back yet, not resolved.
+    expect(settled).toBe(false);
+    expect(client.order).not.toContain("from:messages");
+    release();
+    const message = await sending;
+    expect(client.order).toContain("from:messages");
     expect(message.status).toBe("visible");
   });
 
@@ -119,6 +137,58 @@ describe("sendMessage", () => {
       sendMessage(cfgWith(client, { groups: false }), { conversationId: "c1", body: "hi" }),
     ).rejects.toThrow("groups module is not enabled");
     expect(client.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendMessage attachment", () => {
+  it("refuses a type the app doesn't attach with MessagingError('invalid_attachment')", async () => {
+    const client = fakeClient({});
+    const err = await sendMessage(cfgWith(client), {
+      conversationId: "c1",
+      attachment: { type: "video", id: "v1" },
+    }).catch((e: unknown) => e);
+    expect((err as MessagingError).code).toBe("invalid_attachment");
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("fetchMessages", () => {
+  it("pages with a (created_at, id) keyset, so equal timestamps cross a page boundary", async () => {
+    const client = fakeClient({ tables: { messages: { data: [], error: null } } });
+    const at = "2026-11-27T10:00:00.123+00:00";
+    await fetchMessages(cfgWith(client), "c1", { before: { createdAt: at, id: "m5" } });
+    const calls = client.queries.messages![0]!.calls;
+    expect(calls).toContainEqual([
+      "or",
+      [`created_at.lt."${at}",and(created_at.eq."${at}",id.lt.m5)`],
+    ]);
+    expect(calls.filter(([m]) => m === "order").map(([, a]) => a[0])).toEqual(["created_at", "id"]);
+  });
+
+  it("sends no cursor on the first page", async () => {
+    const client = fakeClient({ tables: { messages: { data: [], error: null } } });
+    await fetchMessages(cfgWith(client), "c1");
+    expect(client.queries.messages![0]!.calls.map(([m]) => m)).not.toContain("or");
+  });
+});
+
+describe("messageImageUrl", () => {
+  it("caches per member and drops the cache on an identity change", async () => {
+    const client = fakeClient({});
+    const signed = vi.fn(async (path: string) => ({
+      data: { signedUrl: `https://signed/${path}?n=${signed.mock.calls.length}` },
+      error: null,
+    }));
+    client.storage.from.mockImplementation(() => ({ createSignedUrl: signed }) as never);
+    const cfg = cfgWith(client);
+    const first = await messageImageUrl(cfg, "c1/u/a.jpg");
+    expect(await messageImageUrl(cfg, "c1/u/a.jpg")).toBe(first);
+    expect(signed).toHaveBeenCalledTimes(1);
+
+    resetIdentity();
+    client.auth.getSession.mockResolvedValue({ data: { session: { user: { id: "uid2" } } } });
+    expect(await messageImageUrl(cfg, "c1/u/a.jpg")).not.toBe(first);
+    expect(signed).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -45,6 +45,7 @@ export function fakeClient(opts: {
       return opts.rpc?.(fn, args) ?? { data: null, error: null };
     }),
     from: vi.fn((table: string) => {
+      order.push(`from:${table}`);
       const q = fakeQuery(opts.tables?.[table] ?? { data: [], error: null });
       (queries[table] ??= []).push(q);
       return q;

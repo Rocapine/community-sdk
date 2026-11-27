@@ -5,9 +5,9 @@
 
 import type { ResolvedCommunityConfig } from "./config";
 import { readerLocale } from "./locale";
-import { callRpc, requireGroups, requireUid, uploadJpeg, uuid } from "./messaging-service";
+import { callRpc, requireGroups, uploadJpeg, uuid } from "./messaging-service";
 import type { Group } from "./models";
-import { moderateOne } from "./service";
+import { moderateOne, requireUid } from "./service";
 
 export const GROUP_IMAGES_BUCKET = "group-images";
 export const GROUP_IMAGES_PENDING_BUCKET = "group-images-pending";
