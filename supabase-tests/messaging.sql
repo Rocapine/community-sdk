@@ -1,4 +1,5 @@
--- Messaging core (messaging/001_messaging.sql, 005_review_fixes.sql).
+-- Messaging core (messaging/001_messaging.sql, 005_review_fixes.sql,
+-- 006_rate_and_lock_order.sql).
 -- Run against a backend with it applied:
 --   npx supabase db query --remote=<ref> --yes -f supabase-tests/messaging.sql
 -- It builds one group conversation between four existing profiles (a creator, b
@@ -253,13 +254,17 @@ begin
   assert r.last_author_id = a, 'the last message shown is A''s';
   reset role;
 
-  -- The rate limit: ratePerMinute messages within 60 s, not one more.
+  -- The rate limit: ratePerMinute sends and edits within 60 s (messaging/006 counts
+  -- B's earlier edits too), not one more.
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
   perform public.messaging_set_settings('{"ratePerMinute": 20}');
+  select (select count(*) from public.messages
+          where author_id = b and created_at > now() - interval '60 seconds')
+       + (select count(*) from public.message_versions v join public.messages mm on mm.id = v.message_id
+          where mm.author_id = b and v.replaced_at > now() - interval '60 seconds')
+    into n;
   perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
   set local role authenticated;
-  select count(*) into n from public.messages
-  where author_id = b and created_at > now() - interval '60 seconds';
   for i in n + 1 .. 20 loop
     perform public.send_message(conv, 'msg ' || i);
   end loop;
@@ -271,8 +276,10 @@ begin
   end;
   reset role;
   assert (select count(*) from public.messages
-          where author_id = b and created_at > now() - interval '60 seconds') = 20,
-    'exactly 20 went through';
+          where author_id = b and created_at > now() - interval '60 seconds')
+       + (select count(*) from public.message_versions v join public.messages mm on mm.id = v.message_id
+          where mm.author_id = b and v.replaced_at > now() - interval '60 seconds') = 20,
+    'exactly 20 sends and edits went through';
   -- Parallel sends (the advisory lock in send_message) can't be shown in one transaction.
 
   -- messaging/005: edits share that budget (sends plus edits of the last 60 s).
@@ -302,6 +309,35 @@ begin
   exception when raise_exception then
     assert sqlerrm = 'rate_limited', 'got ' || sqlerrm;
   end;
+  reset role;
+  -- messaging/006: and edits consume the send budget. The budget left after the edit
+  -- above is 0; one more allowed: the send takes it, so the next edit is refused.
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings(jsonb_build_object('ratePerMinute', n + 2));
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.send_message(conv, 'fits in the shared budget');
+  begin
+    perform public.send_message(conv, 'one send too many');
+    assert false, 'a send past the budget the edits used is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'rate_limited', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.edit_message(m.id, 'edit too many');
+    assert false, 'and so is the next edit';
+  exception when raise_exception then
+    assert sqlerrm = 'rate_limited', 'got ' || sqlerrm;
+  end;
+  reset role;
+  -- messaging/006: edit_message now locks per author before the row; an edit with room
+  -- in the budget still goes through (the lock order itself needs two sessions).
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings(jsonb_build_object('ratePerMinute', n + 10));
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  m := public.edit_message(m.id, 'edited');
+  assert m.body = 'edited' and m.edited_at is not null, 'edits still work';
   reset role;
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
   perform public.messaging_set_settings('{"ratePerMinute": 20}');

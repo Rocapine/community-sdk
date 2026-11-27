@@ -560,9 +560,10 @@ supabase functions deploy
 - `groups` brings `messaging` and `attachments` with it (a group's share card is a post
   attachment, `posts.attachment`): the CLI adds both.
 - Migrations, in the CLI's order: `messaging/001_messaging`, `002_push`,
-  `003_settings_read`, `004_realtime_changed`, `005_review_fixes`, then `groups/001_groups`,
-  `002_translation`, `003_list_conversations`, `004_members_changed`, `005_storage_sweep`,
-  `006_review_fixes`. Each is applied once: re-running `messaging/001` after
+  `003_settings_read`, `004_realtime_changed`, `005_review_fixes`,
+  `006_rate_and_lock_order`, then `groups/001_groups`, `002_translation`,
+  `003_list_conversations`, `004_members_changed`, `005_storage_sweep`,
+  `006_review_fixes`, `007_online_others`. Each is applied once: re-running `messaging/001` after
   `groups/003`, or `inbox/004` after `inbox/005`, fails (a changed return type). With the inbox module,
   `inbox/005_group_events` adds `notifications.conversation_id` and returns it from
   `list_notifications` (the center's group rows); inbox before or after groups both work.

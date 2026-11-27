@@ -1,6 +1,7 @@
 -- Groups module (groups/001_groups.sql, 004_members_changed.sql, 005_storage_sweep.sql,
--- 006_review_fixes.sql, messaging/005_review_fixes.sql, accounts/003_merge_hooks.sql).
--- Run against a backend with messaging/001…005 and groups/001…006 applied:
+-- 006_review_fixes.sql, 007_online_others.sql, messaging/005_review_fixes.sql,
+-- accounts/003_merge_hooks.sql).
+-- Run against a backend with messaging/001…006 and groups/001…007 applied:
 --   npx supabase db query --project-ref <ref> --linked --yes -f supabase-tests/groups.sql
 -- It creates five auth users (so five profiles: a creator, b, c members, x outsider, adm an
 -- in-app admin) and always rolls back by raising at the end: the run passed when the error
@@ -275,6 +276,12 @@ begin
     set local role authenticated;
     assert (select online from public.group_online_counts(array[g1]) o where o.group_id = g1) = 2,
       'X counts B and the admin';
+    reset role;
+    -- groups/007: the admin, online in g1, counts the others only (B), never itself.
+    perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    assert (select online from public.group_online_counts(array[g1]) o where o.group_id = g1) = 1,
+      'the admin counts B, not itself';
     reset role;
   end if;
   delete from public.blocks where blocker_id = a and blocked_id = b;

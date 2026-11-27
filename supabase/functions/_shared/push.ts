@@ -106,7 +106,9 @@ async function unreadInbox(
   }
 }
 
-/** `unreadBadge` for each distinct user, `concurrency` at a time (broadcast-post).
+/** `unreadBadge` for each distinct user, `concurrency` at a time (broadcast-post). The
+ * first user goes alone: it finds out whether `unread_followed_messages_for` exists,
+ * so a host without messaging makes one failing call per run, not one per worker.
  * shortcut: 5 queries per user, fine for a few thousand members; past ~20k, move
  * the count into one SQL function per page. */
 export async function unreadBadges(
@@ -116,7 +118,10 @@ export async function unreadBadges(
 ): Promise<Map<string, number>> {
   const badges = new Map<string, number>();
   const state: BadgeState = {};
-  await runPool([...new Set(uids)], concurrency, async (uid) => {
+  const [first, ...rest] = [...new Set(uids)];
+  if (first === undefined) return badges;
+  badges.set(first, await unreadBadge(supabase, first, state));
+  await runPool(rest, concurrency, async (uid) => {
     badges.set(uid, await unreadBadge(supabase, uid, state));
   });
   return badges;

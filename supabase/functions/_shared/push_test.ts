@@ -312,6 +312,28 @@ Deno.test("unreadBadges: a missing messages RPC is called once per invocation", 
   assertEquals(calls, 1);
 });
 
+Deno.test("unreadBadges: the missing messages RPC is probed once, even fanned out", async () => {
+  const supabase = fakeSupabase(
+    { notification_seen: null, notifications: [{ id: "a" }], notification_reads: [] },
+    { unread_followed_messages_for: { data: null, error: { code: "42883", message: "x" } } },
+  );
+  let calls = 0;
+  const rpc = supabase.rpc;
+  supabase.rpc = (name: string) => {
+    if (name === "unread_followed_messages_for") calls++;
+    return rpc(name);
+  };
+  const uids = Array.from({ length: 50 }, (_, i) => `u${i}`);
+  const badges = await unreadBadges(supabase, uids, 20);
+  assertEquals(badges.size, 50);
+  assertEquals(calls, 1);
+});
+
+Deno.test("unreadBadges: no recipients, no calls", async () => {
+  const supabase = fakeSupabase({});
+  assertEquals((await unreadBadges(supabase, [])).size, 0);
+});
+
 Deno.test("unreadBadges: a transient RPC error is retried for the next member", async () => {
   const supabase = fakeSupabase(
     { notification_seen: null, notifications: [], notification_reads: [] },
