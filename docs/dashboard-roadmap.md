@@ -42,8 +42,9 @@ From the team (2026-11-04):
 - **2026-11-13 — Communities and access (brick 13):** the dashboard opens to every Rocapinian,
   per app. Anyone can add an app (its Supabase URL and secret key, checked before saving) and
   becomes its Owner; each person sees only the apps they were given, as Viewer, Editor or Owner,
-  enforced by the Worker. The dashboard admins, Guillaume and Stan, are a list in the Worker's
-  config and manage every app. The registry moves from the `COMMUNITIES` var and Worker secrets to
+  enforced by the Worker. The dashboard admins are a list in the Worker's config and manage
+  every app: Guillaume alone since 2026-11-27 (Stan is an Owner of Unchaind, added like everyone
+  else). The registry moves from the `COMMUNITIES` var and Worker secrets to
   D1, with each key encrypted. Design: [2026-11-12-community-dashboard-access-design.md](superpowers/specs/2026-11-12-community-dashboard-access-design.md).
 - **2026-11-11 — Team accounts, all equal:** every account the team manages is a house account
   (`is_house`, kept out of the stats; the app cannot read it) and the only difference is the Admin

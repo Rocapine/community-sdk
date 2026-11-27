@@ -23,7 +23,7 @@ that today:
 - Each person sees only the apps they were given, with a role per app. Every rule is enforced by the
   Worker on every request. The browser only hides what the role can't do.
 - The owner of an app manages who has access to it, from the dashboard.
-- The dashboard admins (Guillaume and Stan to start with) can see and manage every app.
+- The dashboard admins (Guillaume only, as of 2026-11-27) can see and manage every app.
 
 ## Non-goals
 
@@ -62,7 +62,8 @@ that today:
     its access list.
 - **Dashboard admins**: a list of emails in the Worker's config (a `DASHBOARD_ADMINS` var). They are
   Owner of every app, see every app, and are the only ones who can delete an app. A var, not a
-  table, so access can always be repaired with a deploy. At launch there are two: Guillaume and Stan.
+  table, so access can always be repaired with a deploy. At launch there were two, Guillaume and Stan; since 2026-11-27 Guillaume alone, and Stan is an
+  Owner of Unchaind through an access row, added to each app like everyone else.
 - **Who can add an app** (my call): any Rocapinian. They become its Owner. An app nobody added stays
   invisible to everyone but the dashboard admins.
 - **An app's id** (my call) is the slug in its URLs. It is derived from the name, can be edited while
@@ -96,8 +97,8 @@ that today:
   Worker then reads only D1. `COMMUNITIES` and the `SUPABASE_KEY_*` secrets are removed after a
   check, in the same PR or right after it. The builder picks the mechanism (an admin-only route, a
   script).
-- **Access at cutover:** Unchaind gets no access rows. The only people on it are Guillaume and Stan,
-  who reach it as dashboard admins. Nobody else sees anything until an Owner or an admin adds them.
+- **Access at cutover:** Unchaind gets no access rows. The only people on it are the dashboard
+  admins. Nobody else sees anything until an Owner or an admin adds them.
 
 ### Adding a community
 
