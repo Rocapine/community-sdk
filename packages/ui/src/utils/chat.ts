@@ -98,17 +98,16 @@ export function formatClock(iso: string, locale: string): string {
 }
 
 /** Why the composer gives way to a line, or null. `group`: undefined while loading,
- * null when gone. `expectMember`: the reader was a member (not a preview). */
+ * null when gone. Not a member without a removal (left, or readmitted) is no line: the
+ * screen offers Join. */
 export function closedReason(
   group: Group | null | undefined,
   errorCode: MessagingErrorCode | null,
-  expectMember: boolean,
 ): "removed" | "groupDeleted" | null {
   if (group === null || errorCode === "not_found") return "groupDeleted";
   if (errorCode === "not_a_member" || errorCode === "removed_from_group") return "removed";
   // In preview too: a removed member can't read or rejoin it (no Join bar).
   if (group?.removed) return "removed";
-  if (expectMember && group && !group.isMember) return "removed";
   return null;
 }
 

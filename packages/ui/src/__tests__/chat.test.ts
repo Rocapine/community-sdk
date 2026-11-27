@@ -93,29 +93,26 @@ describe("closedReason (the composer's replacement line)", () => {
   const group = (isMember: boolean, removed = false) => ({ isMember, removed }) as Group;
 
   it("shows the removed state on not_a_member", () => {
-    expect(closedReason(group(true), "not_a_member", true)).toBe("removed");
-    expect(closedReason(group(true), "removed_from_group", true)).toBe("removed");
+    expect(closedReason(group(true), "not_a_member")).toBe("removed");
+    expect(closedReason(group(true), "removed_from_group")).toBe("removed");
   });
 
-  it("shows the removed state when the group says I'm not a member any more", () => {
-    expect(closedReason(group(false), null, true)).toBe("removed");
-    // A preview reader was never a member.
-    expect(closedReason(group(false), null, false)).toBeNull();
+  it("no line for a reader who isn't a member without a removal (left, readmitted): Join", () => {
+    expect(closedReason(group(false), null)).toBeNull();
   });
 
-  it("shows the removed state to a removed member, in preview too", () => {
-    expect(closedReason(group(false, true), null, false)).toBe("removed");
-    expect(closedReason(group(false, true), null, true)).toBe("removed");
+  it("shows the removed state to a removed member, opened as a member or a preview", () => {
+    expect(closedReason(group(false, true), null)).toBe("removed");
   });
 
   it("shows the deleted state for a gone group", () => {
-    expect(closedReason(null, null, true)).toBe("groupDeleted");
-    expect(closedReason(group(true), "not_found", true)).toBe("groupDeleted");
+    expect(closedReason(null, null)).toBe("groupDeleted");
+    expect(closedReason(group(true), "not_found")).toBe("groupDeleted");
   });
 
   it("stays open otherwise (and while the group loads)", () => {
-    expect(closedReason(group(true), null, true)).toBeNull();
-    expect(closedReason(undefined, "rate_limited", true)).toBeNull();
+    expect(closedReason(group(true), null)).toBeNull();
+    expect(closedReason(undefined, "rate_limited")).toBeNull();
   });
 });
 

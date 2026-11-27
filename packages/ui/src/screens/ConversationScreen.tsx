@@ -171,7 +171,9 @@ function Conversation({
     useGroupOnlineCounts(kind === "group" ? [conversationId] : [])[conversationId] ?? 0;
 
   const [joined, setJoined] = useState(false);
-  const member = mode === "member" || joined || !!group?.isMember;
+  // A loaded group decides: a member-mode screen of a group I'm out of (left,
+  // readmitted, a stale list) offers Join.
+  const member = joined || (group ? group.isMember : mode === "member");
   const [errorCode, setErrorCode] = useState<MessagingErrorCode | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const accountLinked = useAccountLinked();
@@ -183,7 +185,11 @@ function Conversation({
     if (group?.isMember)
       setErrorCode((c) => (c === "not_a_member" || c === "removed_from_group" ? null : c));
   }, [group?.isMember]);
-  const closed = closedReason(group, errorCode, mode === "member");
+  // A join made here no longer counts once I'm removed (a readmission then offers Join).
+  useEffect(() => {
+    if (group?.removed) setJoined(false);
+  }, [group?.removed]);
+  const closed = closedReason(group, errorCode);
   const active = member && !closed;
 
   // Closed: no more reads nor Realtime.
@@ -320,7 +326,7 @@ function Conversation({
           if (code === "account_required") cfg.host.onAccountRequired?.("joinGroup");
           // A removed member or a deleted group closes the screen; any other failure
           // (full, limit reached…) says why on the join bar.
-          else if (closedReason(group, code, false)) fail("join")(e);
+          else if (closedReason(group, code)) fail("join")(e);
           else setJoinError(t(groupErrorKey(code)));
         },
       },

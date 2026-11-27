@@ -6,7 +6,13 @@ import {
 } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { resolveConfig } from "../config";
-import { CONVERSATIONS_KEY, groupKey, groupMembersKey, messagesKey } from "../keys";
+import {
+  CONVERSATIONS_KEY,
+  GROUPS_SEARCH_KEY,
+  groupKey,
+  groupMembersKey,
+  messagesKey,
+} from "../keys";
 import {
   accountLinkedQueryOptions,
   afterDelete,
@@ -325,17 +331,18 @@ it("afterDelete leaves what delete_message leaves, per role", () => {
   expect(afterDelete(theirs, "me", true)).toBeNull();
 });
 
-it("invalidateGroup marks the group, its members and my conversations stale, nothing else", async () => {
+it("invalidateGroup marks the group, its members, my conversations and the search stale, nothing else", async () => {
   const keys = [
     groupKey("g1", "fr"),
     groupKey("g1"),
     [...groupMembersKey("g1"), ""],
     CONVERSATIONS_KEY,
+    [...GROUPS_SEARCH_KEY, "runners"],
     groupKey("g2"),
     messagesKey("g1"),
   ];
   for (const k of keys) qc.setQueryData(k, { v: 1 });
   await invalidateGroup(qc, "g1");
   const stale = keys.map((k) => qc.getQueryState(k)!.isInvalidated);
-  expect(stale).toEqual([true, true, true, true, false, false]);
+  expect(stale).toEqual([true, true, true, true, true, false, false]);
 });

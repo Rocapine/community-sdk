@@ -613,12 +613,12 @@ const invalidateGroups = (queryClient: QueryClient) =>
     queryClient.invalidateQueries({ queryKey: UNREAD_MESSAGES_KEY }),
   ]);
 
-/** One group, its members and my conversations (its row says whether I'm in). A fetch
- * already running is kept, not restarted. */
+/** One group, its members, and the lists that say whether I'm in it (my conversations,
+ * Explore's search). A fetch already running is kept, not restarted. */
 export const invalidateGroup = (queryClient: QueryClient, id: string) =>
   Promise.all(
-    [[...GROUPS_KEY, "group", id], groupMembersKey(id), CONVERSATIONS_KEY].map((queryKey) =>
-      queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false }),
+    [[...GROUPS_KEY, "group", id], groupMembersKey(id), GROUPS_SEARCH_KEY, CONVERSATIONS_KEY].map(
+      (queryKey) => queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false }),
     ),
   );
 
