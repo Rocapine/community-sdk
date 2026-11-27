@@ -3,7 +3,9 @@
 // follows the group, except the author, members blocked either way, members whose
 // group-message switch is off, and members pushed for this group in the last 60 s
 // who haven't read it since. claim_message_push picks and stamps them in one
-// statement, so three quick messages push once.
+// statement, so three quick messages push once, and claims the message itself
+// (messages.pushed_at), so a message pushes at most once, edits included. A host that
+// adds `push` after `messaging` must re-run messaging/002_push.sql.
 //
 // Security: reachable with the public anon key (the trigger calls it that way), so
 // the body is UNTRUSTED. Only `record.id` is used; the message is re-read and must
@@ -51,32 +53,34 @@ Deno.serve(async (req) => {
     console.error("notify-message: claim failed", error.message);
     return new Response("error: claim failed", { status: 500 });
   }
-  const uids = (claimed ?? []) as string[];
-  if (uids.length === 0) return new Response("ok: 0 recipient(s)");
+  const recipients = (claimed ?? []) as { user_id: string; locale: string | null }[];
+  if (recipients.length === 0) return new Response("ok: 0 recipient(s)");
 
-  const [{ data: settings }, { data: author }, { data: translations }, { data: profiles }] =
-    await Promise.all([
-      supabase.from("messaging_settings").select("settings").eq("id", 1).maybeSingle(),
-      supabase.from("profiles").select("username").eq("id", message.author_id).maybeSingle(),
-      supabase.from("group_translations").select("locale, name").eq("group_id", conversationId),
-      supabase.from("profiles").select("id, locale").in("id", uids),
-    ]);
+  const [{ data: settings }, { data: author }, { data: translations }] = await Promise.all([
+    supabase.from("messaging_settings").select("settings").eq("id", 1).maybeSingle(),
+    supabase.from("profiles").select("username").eq("id", message.author_id).maybeSingle(),
+    supabase.from("group_translations").select("locale, name").eq("group_id", conversationId),
+  ]);
   const preview: string = settings?.settings?.pushPreview ?? "full";
   const names = new Map(
     ((translations ?? []) as { locale: string; name: string | null }[])
       .filter((t) => t.name)
       .map((t) => [t.locale, t.name as string]),
   );
-  const localeOf = new Map(
-    ((profiles ?? []) as { id: string; locale: string | null }[]).map((p) => [p.id, p.locale]),
+
+  const reachable: { user_id: string; locale: string | null; tokens: string[] }[] = [];
+  await runPool(recipients, 10, async (r) => {
+    const { tokens } = await recipientTokens(supabase, r.user_id);
+    if (tokens.length > 0) reachable.push({ ...r, tokens });
+  });
+  // Badges only for the members a push actually reaches.
+  const badges = await unreadBadges(
+    supabase,
+    reachable.map((r) => r.user_id),
   );
-  const badges = await unreadBadges(supabase, uids);
 
   const messages: ExpoPushMessage[] = [];
-  await runPool(uids, 10, async (uid) => {
-    const { tokens } = await recipientTokens(supabase, uid);
-    if (tokens.length === 0) return;
-    const locale = localeOf.get(uid) ?? null;
+  for (const { user_id, locale, tokens } of reachable) {
     const copy = pushCopy(locale);
     const target = resolveTargetLocale(locale, [...names.keys()]);
     const title = (target && names.get(target)) || group.name || "";
@@ -88,14 +92,14 @@ Deno.serve(async (req) => {
         title,
         body,
         data: { route: "/community", kind: "community_message", conversationId },
-        badge: badges.get(uid),
+        badge: badges.get(user_id),
         threadId: conversationId,
         collapseId: conversationId,
       });
     }
-  });
+  }
 
   const { invalidTokens } = await sendExpoPushBatch(messages);
   await dropInvalidTokens(supabase, invalidTokens);
-  return new Response(`ok: ${uids.length} recipient(s), ${messages.length} device(s)`);
+  return new Response(`ok: ${recipients.length} recipient(s), ${messages.length} device(s)`);
 });
