@@ -786,8 +786,19 @@ export function useReport() {
     onSuccess: (_data, input) => {
       emitEvent(cfg, COMMUNITY_EVENTS.userReported, {
         reason: input.reason,
-        contentType: input.postId ? "post" : "comment",
+        contentType: input.postId
+          ? "post"
+          : input.commentId
+            ? "comment"
+            : input.messageId
+              ? "message"
+              : "group",
       });
+      if (input.messageId)
+        emitEvent(cfg, COMMUNITY_EVENTS.messageReported, {
+          messageId: input.messageId,
+          reason: input.reason,
+        });
     },
   });
 }

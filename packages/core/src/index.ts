@@ -245,6 +245,36 @@ export {
 export type { GroupMember } from "./groups-service";
 
 export {
+  TYPING_TTL_MS,
+  createTypingTracker,
+  messagingBadge,
+  useAccountLinked,
+  useConversations,
+  useCreateGroup,
+  useDeleteMessage,
+  useEditGroup,
+  useEditMessage,
+  useGroup,
+  useGroupMembers,
+  useGroupOnlineCounts,
+  useGroupSearch,
+  useJoinGroup,
+  useLeaveGroup,
+  useMarkConversationRead,
+  useMessages,
+  useMessagingBadge,
+  useRemoveMember,
+  useSendMessage,
+  useSetGroupNotify,
+  useToggleMessageLike,
+  useTranslateMessage,
+  useTyping,
+} from "./messaging-hooks";
+export type { MessagesData, SendMessageContext } from "./messaging-hooks";
+export { sendTyping, subscribeConversation } from "./realtime";
+export type { ConversationHandlers } from "./realtime";
+
+export {
   fetchInbox,
   isUnread,
   localizeExcerpts,
