@@ -68,6 +68,7 @@ describe("runInit", () => {
       "inbox",
       "inbox",
       "inbox",
+      "inbox",
     ]);
   });
 

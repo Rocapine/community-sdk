@@ -209,6 +209,10 @@ export const de: Record<string, string> = {
   "inbox.reacted": "{name} hat auf deinen Beitrag reagiert",
   "inbox.news": "Neuigkeiten von {name}",
   "inbox.newsFromTeam": "Neuigkeiten vom Team",
+  "inbox.groupApproved": "Deine Gruppe wurde freigegeben. Jetzt können alle sie finden.",
+  "inbox.groupFieldRejected":
+    "Ein Teil deiner Gruppe wurde nicht angenommen. Tippe, um ihn zu ändern.",
+  "inbox.groupMemberRemoved": "Du wurdest aus einer Gruppe entfernt.",
   "inbox.supportReply": "Das Support-Team hat dir geantwortet",
 
   "translation.translatedFrom": "Übersetzt aus dem {language}",

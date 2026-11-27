@@ -179,6 +179,9 @@ export const ko: Record<string, string> = {
   "inbox.reacted": "{name}님이 내 게시글에 반응했어요",
   "inbox.news": "{name}의 소식",
   "inbox.newsFromTeam": "팀의 소식",
+  "inbox.groupApproved": "그룹이 승인됐어요. 이제 누구나 찾을 수 있어요.",
+  "inbox.groupFieldRejected": "그룹의 일부가 승인되지 않았어요. 눌러서 수정해 주세요.",
+  "inbox.groupMemberRemoved": "그룹에서 내보내졌어요.",
   "inbox.supportReply": "지원팀이 답변했어요",
 
   "translation.translatedFrom": "{language}에서 번역됨",

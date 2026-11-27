@@ -188,6 +188,9 @@ export const es419: Record<string, string> = {
   "inbox.reacted": "{name} reaccionó a tu publicación",
   "inbox.news": "Novedades de {name}",
   "inbox.newsFromTeam": "Novedades del equipo",
+  "inbox.groupApproved": "Tu grupo fue aprobado. Ya todos pueden encontrarlo.",
+  "inbox.groupFieldRejected": "Una parte de tu grupo no fue aceptada. Toca para cambiarla.",
+  "inbox.groupMemberRemoved": "Te quitaron de un grupo.",
   "inbox.supportReply": "El equipo de soporte te respondió",
 
   "translation.translatedFrom": "Traducido del {language}",

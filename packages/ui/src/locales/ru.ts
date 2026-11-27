@@ -189,6 +189,9 @@ export const ru: Record<string, string> = {
   "inbox.reacted": "{name} отреагировал(а) на твой пост",
   "inbox.news": "Новости от {name}",
   "inbox.newsFromTeam": "Новости от команды",
+  "inbox.groupApproved": "Твоя группа одобрена. Теперь её могут найти все.",
+  "inbox.groupFieldRejected": "Часть твоей группы не принята. Нажми, чтобы изменить.",
+  "inbox.groupMemberRemoved": "Тебя удалили из группы.",
   "inbox.supportReply": "Команда поддержки ответила тебе",
 
   "translation.translatedFrom": "Переведено с {language}",

@@ -199,6 +199,9 @@ export const en: Record<string, string> = {
   "inbox.reacted": "{name} reacted to your post",
   "inbox.news": "News from {name}",
   "inbox.newsFromTeam": "News from the team",
+  "inbox.groupApproved": "Your group was approved. Everyone can find it now.",
+  "inbox.groupFieldRejected": "Part of your group wasn't accepted. Tap to change it.",
+  "inbox.groupMemberRemoved": "You were removed from a group.",
   "inbox.supportReply": "The support team replied to you",
 
   "translation.translatedFrom": "Translated from {language}",

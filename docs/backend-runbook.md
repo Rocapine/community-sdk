@@ -345,6 +345,10 @@ least the public anon key. On top of that:
   row; both only ever translate visible items that still miss a locale, and
   paid calls are bounded by the `attempt` claim row (one API call per item per
   6 h, whoever calls).
+- `translate-message` (messaging + translation) needs a member's JWT and reads the
+  message with that member's own client first, so RLS decides who may translate what;
+  `moderate-one` with `kind: "message"` accepts the author or the service role, with
+  `kind: "group"` the creator, an in-app admin or the service role.
 - `account-session` accepts anyone with a valid account proof; the device's
   own session, when sent as the bearer, only decides which anonymous profile
   is converted or merged. `account-delete` accepts a valid proof, or the
@@ -537,3 +541,115 @@ Expect, in order (wait 10 s between two calls for the same account that open a s
 8. **Clean up:** delete every test auth user (`auth.admin.deleteUser`, which
    also removes their profiles and posts) and the Appwrite user
    (`DELETE $AW/users/$U`).
+
+## 8. Messaging and groups
+
+Group chats (`modules.groups` in the app). `messaging` is the chat core (conversations,
+members, messages, likes, edit history, the translation cache and the settings), shared
+with direct messages later; `groups` adds public groups on it.
+
+### Install and order
+
+```bash
+npx @rocapine/community upgrade --add-modules groups   # or init --modules …,groups
+supabase db push
+supabase db query --linked "select public.messaging_set_settings('{\"moderation\": \"post\"}');"  # your values, see below
+supabase functions deploy
+```
+
+- `groups` brings `messaging` and `attachments` with it (a group's share card is a post
+  attachment, `posts.attachment`): the CLI adds both.
+- Migrations, in the CLI's order: `messaging/001_messaging`, `002_push`,
+  `003_settings_read`, `004_realtime_changed`, then `groups/001_groups`,
+  `002_translation`, `003_list_conversations`. With the inbox module,
+  `inbox/005_group_events` adds `notifications.conversation_id` and returns it from
+  `list_notifications` (the center's group rows); inbox before or after groups both work.
+- **Push first.** Install `push` before (or with) messaging. `messaging/002_push` creates
+  the group-push trigger, `claim_message_push` and `push_tokens.notify_group_messages`
+  only when `push_tokens` exists. **A host that adds push after messaging must re-run
+  `messaging/002_push.sql`** (`supabase db query --linked -f supabase/migrations/<ts>_community_messaging_push.sql`)
+  once push is in; until then there are no group pushes.
+- **Apply `messaging/002` before deploying `notify-message`**: the function calls
+  `claim_message_push`, which that file creates. `db push` then `functions deploy`, in
+  that order.
+- **Functions.** No new secret: `OPENAI_API_KEY` moderates messages and groups, the
+  translation secrets translate them. Deploy everything (`_shared/` changed under all of
+  them): `moderate-one` and `daily-moderation` (messages and group fields),
+  `translate-one` (group names and descriptions), `report-to-slack` (message and group
+  reports), `account-delete` (`onAccountDelete`), the `notify-*` senders and
+  `broadcast-post` (the badge adds followed messages), plus the new `notify-message`
+  (messaging + push) and `translate-message` (messaging + translation). Keep
+  `verify_jwt` as for the other functions (on): `notify-message` is called by its trigger
+  with the anon key from Vault and re-reads the message; `translate-message` takes the
+  member's JWT and reads the message with the caller's own client (RLS proves access).
+
+### Settings (`messaging_set_settings`)
+
+The backend enforces only its own copy, one row in `messaging_settings`, which clients
+can't read or write. Set it from the SQL editor or the service role (a dashboard):
+
+```sql
+select public.messaging_set_settings('{"moderation": "pre", "maxMembers": 200}');
+```
+
+It merges the keys given; an unknown key or a bad value raises `invalid_setting:<key>`.
+**Keep it equal to the app's config**: dev builds warn at startup when they differ
+(`messaging_client_settings()`). Keys and defaults:
+
+| Backend key                   | App option                             | Default      |
+| ----------------------------- | -------------------------------------- | ------------ |
+| `moderation`                  | `messaging.moderation`                 | `"post"`     |
+| `translation`                 | `messaging.translation`                | `"onDemand"` |
+| `pushPreview`                 | `messaging.pushPreview`                | `"full"`     |
+| `onAccountDelete`             | `messaging.onAccountDelete`            | `"keep"`     |
+| `maxLength`                   | `messaging.maxLength` (≤ 4000)         | `2000`       |
+| `ratePerMinute`               | `messaging.ratePerMinute`              | `20`         |
+| `groupsPreview`               | `groups.preview`                       | `"readOnly"` |
+| `groupsRequireAccount`        | `groups.requireAccount === true`       | `false`      |
+| `groupsCreateRequiresAccount` | `groups.createRequiresAccount`         | `true`       |
+| `maxCreatedPerMember`         | `groups.maxCreatedPerMember`           | `3`          |
+| `maxJoinedPerMember`          | `groups.maxJoinedPerMember`            | `50`         |
+| `maxMembers`                  | `groups.maxMembers` (`null`: any)      | `null`       |
+| `nameMaxLength`               | `groups.nameMaxLength` (≤ 120)         | `60`         |
+| `descriptionMaxLength`        | `groups.descriptionMaxLength` (≤ 1000) | `500`        |
+
+The account rules read `account_links` only when the accounts module is installed;
+without it they don't apply. `groups.requireAccount: "feed"` is client only (`false` here).
+
+### Realtime, storage, moderation
+
+- **Realtime.** `messaging/001` adds `messages` to the `supabase_realtime` publication
+  (new and changed messages, filtered by the read policies; a like is an `UPDATE` of
+  `messages.like_count`, and `message_likes` stays out). `messaging/004` broadcasts
+  `changed` on the private channel `conversation:<id>` when a message is hidden, since
+  readers who lost access get no `postgres_changes`; typing uses the same channel. Its
+  policy on `realtime.messages` lets members only.
+- **Storage.** `message-images` (private, 2 MB, JPEG/PNG/WebP,
+  `<conversation>/<uid>/<uuid>.<ext>`; readers get signed URLs), `group-images` (public,
+  approved images only, written by moderation) and `group-images-pending` (private,
+  `<uid>/<uuid>.<ext>`, copied to `group-images` on approval). No sweep removes orphaned
+  chat images yet (an upload whose send failed, an `eraseAll` deletion, a rejected group
+  image).
+- **Moderation.** The app calls `moderate-one` (`kind: "message"` or `"group"`) right
+  after a send, a creation or an edit. `"post"` shows a message at once and hides it if
+  flagged; `"pre"` and any image keep it pending until passed; `"reportOnly"` skips the
+  AI. A group stays pending (visible to its creator only) until its name, description and
+  image pass; then the creator gets `group_approved` in the center, or
+  `group_field_rejected` (its details screen says which field to change). Edits keep
+  their history in `message_versions`.
+- **Daily sweep.** `daily-moderation` (08:00 UTC) also runs the messages and groups left
+  unmoderated for 5 minutes (the app's call failed), oldest first, in what remains of its
+  2-minute budget, and adds the counts to its Slack summary. A `"pre"` message whose call
+  failed therefore waits for it. `notifications-purge` drops group events with the rest
+  after 90 days.
+- **Pushes.** `notify-message` pushes each member who follows the group (bell off by
+  default per group) and has `notify_group_messages` on, at most once a minute per group
+  unless they read it since, never to blocked members. `COMMUNITY_PUSH_COPY` keys:
+  `message.groupBody` (`pushPreview: "sender"`), `message.neutral` (`"none"`).
+
+### Dashboard functions
+
+`admin_message_context(message, before, after)` (a flagged message and its neighbours),
+`admin_edit_group`, `admin_transfer_group` and `messaging_set_settings` answer only the
+service role or the SQL editor (`messaging_is_dashboard_admin()`, fail-closed); in-app
+admin powers stay `profiles.is_admin`. Reports carry `message_id` or `group_id`.

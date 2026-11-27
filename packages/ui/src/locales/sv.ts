@@ -179,6 +179,9 @@ export const sv: Record<string, string> = {
   "inbox.reacted": "{name} reagerade på ditt inlägg",
   "inbox.news": "Nyheter från {name}",
   "inbox.newsFromTeam": "Nyheter från teamet",
+  "inbox.groupApproved": "Din grupp har godkänts. Nu kan alla hitta den.",
+  "inbox.groupFieldRejected": "En del av din grupp godkändes inte. Tryck för att ändra den.",
+  "inbox.groupMemberRemoved": "Du har tagits bort från en grupp.",
   "inbox.supportReply": "Supportteamet har svarat dig",
 
   "translation.translatedFrom": "Översatt från {language}",

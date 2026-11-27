@@ -581,11 +581,18 @@ create trigger groups_touch_activity
 
 -- ============ INBOX ============
 -- group_approved, group_field_rejected and group_member_removed name their group.
+-- inbox/005 may have added the column first, without its key (no conversations yet).
 do $$
 begin
   if to_regclass('public.notifications') is not null then
-    alter table public.notifications
-      add column if not exists conversation_id uuid references public.conversations(id) on delete cascade;
+    alter table public.notifications add column if not exists conversation_id uuid;
+    if not exists (select 1 from pg_constraint
+                   where conrelid = 'public.notifications'::regclass
+                     and conname = 'notifications_conversation_id_fkey') then
+      alter table public.notifications
+        add constraint notifications_conversation_id_fkey
+        foreign key (conversation_id) references public.conversations(id) on delete cascade;
+    end if;
   end if;
 end $$;
 

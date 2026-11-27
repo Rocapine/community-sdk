@@ -189,6 +189,9 @@ export const esES: Record<string, string> = {
   "inbox.reacted": "{name} ha reaccionado a tu publicación",
   "inbox.news": "Noticias de {name}",
   "inbox.newsFromTeam": "Noticias del equipo",
+  "inbox.groupApproved": "Tu grupo se ha aprobado. Ya todo el mundo puede encontrarlo.",
+  "inbox.groupFieldRejected": "Una parte de tu grupo no se ha aceptado. Toca para cambiarla.",
+  "inbox.groupMemberRemoved": "Te han quitado de un grupo.",
   "inbox.supportReply": "El equipo de soporte te ha respondido",
 
   "translation.translatedFrom": "Traducido del {language}",

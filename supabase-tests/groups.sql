@@ -190,6 +190,13 @@ begin
     assert sqlerrm = 'removed_from_group', 'got ' || sqlerrm;
   end;
   assert not public.can_read_conversation(g1), 'nor previews the group';
+  -- inbox/005: the center names the group.
+  if exists (select 1 from pg_proc where proname = 'list_notifications'
+             and pg_get_function_result(oid) like '%conversation_id%') then
+    assert (select count(*) from public.list_notifications(50) x
+            where x.kind = 'group_member_removed' and x.conversation_id = g1) = 1,
+      'B''s center names the group';
+  end if;
   reset role;
   perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
   set local role authenticated;

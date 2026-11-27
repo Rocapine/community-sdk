@@ -190,6 +190,9 @@ export const sk: Record<string, string> = {
   "inbox.reacted": "{name} zareagoval(a) na tvoj príspevok",
   "inbox.news": "Novinky od {name}",
   "inbox.newsFromTeam": "Novinky od tímu",
+  "inbox.groupApproved": "Tvoja skupina bola schválená. Teraz ju môže nájsť každý.",
+  "inbox.groupFieldRejected": "Časť tvojej skupiny nebola prijatá. Ťukni a zmeň ju.",
+  "inbox.groupMemberRemoved": "Z jednej skupiny ťa odstránili.",
   "inbox.supportReply": "Tím podpory ti odpovedal",
 
   "translation.translatedFrom": "Preložené z {language}",

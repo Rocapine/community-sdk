@@ -190,6 +190,10 @@ export const frVous: Record<string, string> = {
   "inbox.reacted": "{name} a réagi à votre publication",
   "inbox.news": "Actualités de {name}",
   "inbox.newsFromTeam": "Actualités de l'équipe",
+  "inbox.groupApproved": "Votre groupe a été validé. Tout le monde peut le trouver.",
+  "inbox.groupFieldRejected":
+    "Une partie de votre groupe n'a pas été acceptée. Touchez pour la modifier.",
+  "inbox.groupMemberRemoved": "Vous ne faites plus partie d'un groupe.",
   "inbox.supportReply": "L'équipe support vous a répondu",
 
   "translation.translatedFrom": "Traduit {language}",

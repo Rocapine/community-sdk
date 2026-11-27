@@ -177,6 +177,9 @@ export const da: Record<string, string> = {
   "inbox.reacted": "{name} reagerede på dit opslag",
   "inbox.news": "Nyt fra {name}",
   "inbox.newsFromTeam": "Nyt fra holdet",
+  "inbox.groupApproved": "Din gruppe er godkendt. Nu kan alle finde den.",
+  "inbox.groupFieldRejected": "En del af din gruppe blev ikke godkendt. Tryk for at rette den.",
+  "inbox.groupMemberRemoved": "Du er blevet fjernet fra en gruppe.",
   "inbox.supportReply": "Supporten har svaret dig",
 
   "translation.translatedFrom": "Oversat fra {language}",

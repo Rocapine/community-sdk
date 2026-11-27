@@ -192,6 +192,9 @@ export const hr: Record<string, string> = {
   "inbox.reacted": "{name} je reagirao/la na tvoju objavu",
   "inbox.news": "Novosti od {name}",
   "inbox.newsFromTeam": "Novosti od tima",
+  "inbox.groupApproved": "Tvoja grupa je odobrena. Sada je svi mogu pronaći.",
+  "inbox.groupFieldRejected": "Dio tvoje grupe nije prihvaćen. Dodirni da ga promijeniš.",
+  "inbox.groupMemberRemoved": "Uklonjeno ti je članstvo u jednoj grupi.",
   "inbox.supportReply": "Tim podrške ti je odgovorio",
 
   "translation.translatedFrom": "Prevedeno {language}",

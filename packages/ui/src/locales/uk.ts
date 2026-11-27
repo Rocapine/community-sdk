@@ -191,6 +191,9 @@ export const uk: Record<string, string> = {
   "inbox.reacted": "{name} відреагував(ла) на твій допис",
   "inbox.news": "Новини від {name}",
   "inbox.newsFromTeam": "Новини від команди",
+  "inbox.groupApproved": "Твою групу схвалено. Тепер її можуть знайти всі.",
+  "inbox.groupFieldRejected": "Частину твоєї групи не прийнято. Торкнись, щоб змінити.",
+  "inbox.groupMemberRemoved": "Тебе вилучено з групи.",
   "inbox.supportReply": "Команда підтримки відповіла тобі",
 
   "translation.translatedFrom": "Перекладено з {language}",

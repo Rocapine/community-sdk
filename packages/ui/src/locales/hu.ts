@@ -182,6 +182,9 @@ export const hu: Record<string, string> = {
   "inbox.reacted": "{name} reagált a bejegyzésedre",
   "inbox.news": "Hírek tőle: {name}",
   "inbox.newsFromTeam": "Hírek a csapattól",
+  "inbox.groupApproved": "A csoportodat jóváhagytuk. Most már bárki megtalálhatja.",
+  "inbox.groupFieldRejected": "A csoportod egy részét nem fogadtuk el. Koppints a módosításhoz.",
+  "inbox.groupMemberRemoved": "Eltávolítottak egy csoportból.",
   "inbox.supportReply": "Az ügyfélszolgálat válaszolt neked",
 
   "translation.translatedFrom": "Fordítás {language}",

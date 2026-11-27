@@ -186,6 +186,10 @@ export const el: Record<string, string> = {
   "inbox.reacted": "{name} αντέδρασε στη δημοσίευσή σου",
   "inbox.news": "Νέα από {name}",
   "inbox.newsFromTeam": "Νέα από την ομάδα",
+  "inbox.groupApproved": "Η ομάδα σου εγκρίθηκε. Τώρα μπορούν όλοι να τη βρουν.",
+  "inbox.groupFieldRejected":
+    "Ένα μέρος της ομάδας σου δεν έγινε δεκτό. Πάτησε για να το αλλάξεις.",
+  "inbox.groupMemberRemoved": "Αφαιρέθηκες από μια ομάδα.",
   "inbox.supportReply": "Η ομάδα υποστήριξης σού απάντησε",
 
   "translation.translatedFrom": "Μετάφραση από {language}",

@@ -191,6 +191,10 @@ export const ro: Record<string, string> = {
   "inbox.reacted": "{name} a reacționat la postarea ta",
   "inbox.news": "Noutăți de la {name}",
   "inbox.newsFromTeam": "Noutăți de la echipă",
+  "inbox.groupApproved": "Grupul tău a fost aprobat. Acum îl poate găsi oricine.",
+  "inbox.groupFieldRejected":
+    "O parte din grupul tău nu a fost acceptată. Atinge pentru a o schimba.",
+  "inbox.groupMemberRemoved": "Nu mai faci parte dintr-un grup.",
   "inbox.supportReply": "Echipa de asistență ți-a răspuns",
 
   "translation.translatedFrom": "Tradus din {language}",

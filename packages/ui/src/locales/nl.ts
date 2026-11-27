@@ -180,6 +180,10 @@ export const nl: Record<string, string> = {
   "inbox.reacted": "{name} heeft op je post gereageerd",
   "inbox.news": "Nieuws van {name}",
   "inbox.newsFromTeam": "Nieuws van het team",
+  "inbox.groupApproved": "Je groep is goedgekeurd. Iedereen kan hem nu vinden.",
+  "inbox.groupFieldRejected":
+    "Een deel van je groep is niet geaccepteerd. Tik om het aan te passen.",
+  "inbox.groupMemberRemoved": "Je bent uit een groep verwijderd.",
   "inbox.supportReply": "Het supportteam heeft je geantwoord",
 
   "translation.translatedFrom": "Vertaald uit het {language}",

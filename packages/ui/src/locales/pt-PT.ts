@@ -186,6 +186,9 @@ export const ptPT: Record<string, string> = {
   "inbox.reacted": "{name} reagiu à tua publicação",
   "inbox.news": "Notícias de {name}",
   "inbox.newsFromTeam": "Notícias da equipa",
+  "inbox.groupApproved": "O teu grupo foi aprovado. Agora todos o podem encontrar.",
+  "inbox.groupFieldRejected": "Uma parte do teu grupo não foi aceite. Toca para a alterar.",
+  "inbox.groupMemberRemoved": "Já não fazes parte de um grupo.",
   "inbox.supportReply": "A equipa de apoio respondeu-te",
 
   "translation.translatedFrom": "Traduzido do {language}",

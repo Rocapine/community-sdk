@@ -79,6 +79,41 @@ export default function ConfigTab() {
         />
       </Section>
 
+      <Section title="Groups">
+        <Row label="Groups module">
+          <Switch
+            value={settings.groups.enabled}
+            onValueChange={(enabled) => update({ groups: { ...settings.groups, enabled } })}
+          />
+        </Row>
+        <Text style={styles.hint}>Home (messaging.homeLayout)</Text>
+        <Chips
+          options={["header", "segmented"] as const}
+          value={settings.groups.homeLayout}
+          onChange={(homeLayout) => update({ groups: { ...settings.groups, homeLayout } })}
+        />
+        <Text style={styles.hint}>Messages page (messaging.hubLayout)</Text>
+        <Chips
+          options={["tabs", "unified"] as const}
+          value={settings.groups.hubLayout}
+          onChange={(hubLayout) => update({ groups: { ...settings.groups, hubLayout } })}
+        />
+        <Text style={styles.hint}>Explore (groups.exploreLayout)</Text>
+        <Chips
+          options={["list", "cards"] as const}
+          value={settings.groups.exploreLayout}
+          onChange={(exploreLayout) => update({ groups: { ...settings.groups, exploreLayout } })}
+        />
+        <Text style={styles.hint}>Share card (groups.shareCardLayout)</Text>
+        <Chips
+          options={["card", "banner"] as const}
+          value={settings.groups.shareCardLayout}
+          onChange={(shareCardLayout) =>
+            update({ groups: { ...settings.groups, shareCardLayout } })
+          }
+        />
+      </Section>
+
       <Section title="Attachments">
         <Row label="Attachments module">
           <Switch

@@ -179,6 +179,9 @@ export const nb: Record<string, string> = {
   "inbox.reacted": "{name} reagerte på innlegget ditt",
   "inbox.news": "Nytt fra {name}",
   "inbox.newsFromTeam": "Nytt fra teamet",
+  "inbox.groupApproved": "Gruppen din er godkjent. Nå kan alle finne den.",
+  "inbox.groupFieldRejected": "En del av gruppen din ble ikke godkjent. Trykk for å endre den.",
+  "inbox.groupMemberRemoved": "Du er fjernet fra en gruppe.",
   "inbox.supportReply": "Kundestøtte har svart deg",
 
   "translation.translatedFrom": "Oversatt fra {language}",
