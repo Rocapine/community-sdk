@@ -95,17 +95,18 @@ messaging?: MessagingConfig; // applies when groups or dms is on
 
 ### `MessagingConfig` (shared)
 
-| Option            | Values                                   | SDK default  | Meaning                                                                                   |
-| ----------------- | ---------------------------------------- | ------------ | ----------------------------------------------------------------------------------------- |
-| `moderation`      | `"pre"` \| `"post"` \| `"reportOnly"`    | `"post"`     | Text messages: held until AI approves / shown then AI-checked / never AI-checked.         |
-| `translation`     | `"off"` \| `"onDemand"`                  | `"onDemand"` | "Translate" in the message menu; cached per locale. Needs the translation module.         |
-| `typingIndicator` | boolean                                  | `true`       | "X is typing…" over Realtime broadcast, never stored.                                     |
-| `badge`           | `"followed"` \| `"all"` \| `"dot"`       | `"followed"` | Header badge: unread count of followed conversations + requests / of all / a dot.         |
-| `hubLayout`       | `"tabs"` \| `"unified"`                  | `"tabs"`     | Messages page: two tabs (Conversations / Groups) or one list sorted by last message.      |
-| `pushPreview`     | `"full"` \| `"sender"` \| `"none"`       | `"full"`     | Push body: sender + text / sender only / neutral text.                                    |
-| `onAccountDelete` | `"keep"` \| `"eraseDms"` \| `"eraseAll"` | `"keep"`     | What the account-deletion path does with the member's messages (see "Account deletion").  |
-| `maxLength`       | number                                   | `2000`       | Characters per message (database cap 4000).                                               |
-| `ratePerMinute`   | number                                   | `20`         | Messages a member may send per minute, all conversations together (enforced server-side). |
+| Option            | Values                                   | SDK default  | Meaning                                                                                       |
+| ----------------- | ---------------------------------------- | ------------ | --------------------------------------------------------------------------------------------- |
+| `moderation`      | `"pre"` \| `"post"` \| `"reportOnly"`    | `"post"`     | Text messages: held until AI approves / shown then AI-checked / never AI-checked.             |
+| `translation`     | `"off"` \| `"onDemand"`                  | `"onDemand"` | "Translate" in the message menu; cached per locale. Needs the translation module.             |
+| `typingIndicator` | boolean                                  | `true`       | "X is typing…" over Realtime broadcast, never stored.                                         |
+| `badge`           | `"followed"` \| `"all"` \| `"dot"`       | `"followed"` | Header badge: unread count of followed conversations + requests / of all / a dot.             |
+| `hubLayout`       | `"tabs"` \| `"unified"`                  | `"tabs"`     | Messages page: two tabs (Conversations / Groups) or one list sorted by last message.          |
+| `homeLayout`      | `"header"` \| `"segmented"`              | `"header"`   | Community home: groups reached from the header, or a "Feed \| Groups" selector (groups only). |
+| `pushPreview`     | `"full"` \| `"sender"` \| `"none"`       | `"full"`     | Push body: sender + text / sender only / neutral text.                                        |
+| `onAccountDelete` | `"keep"` \| `"eraseDms"` \| `"eraseAll"` | `"keep"`     | What the account-deletion path does with the member's messages (see "Account deletion").      |
+| `maxLength`       | number                                   | `2000`       | Characters per message (database cap 4000).                                                   |
+| `ratePerMinute`   | number                                   | `20`         | Messages a member may send per minute, all conversations together (enforced server-side).     |
 
 ### `GroupsConfig`
 
@@ -288,6 +289,23 @@ RPCs: `start_dm`, `accept_request`, `decline_request` (silent, writes `dm_declin
 `FeedHeaderItem` gains `"messages"` (the combined page), `"dms"` and `"groups"` (the page
 opened on that tab). Each shows the badge per `messaging.badge`. Filtered out when its
 module is off, like `"inbox"`.
+
+### Community home layout (validated mockup: selector below the header)
+
+`messaging.homeLayout` decides where groups live on the community home (decided 27 Nov
+2026, so that an app can give groups more weight, and A/B test it):
+
+- `"header"` (default): the feed screen as today; groups are reached through the
+  header's `"messages"` or `"groups"` item.
+- `"segmented"` (groups module on): a full-width "Feed | Groups" selector sits right under
+  the header, above the topic tabs. "Feed" shows the feed unchanged. "Groups" shows, in
+  this order: a search field (opening Explore), "My groups" with their unread counts (muted
+  ones in grey), "To discover" with a few active groups the member hasn't joined and
+  "See all", and "Create a group". The "Groups" segment carries the unread count of
+  followed groups. The header then uses `"dms"`, and the Messages page shows DMs and
+  requests only (no Groups tab). The selected segment is kept for the session.
+- The screen reports which segment is open through `onEvent` (`community_home_segment
+{segment}`), so an app can compare the layouts.
 
 ### Groups
 
