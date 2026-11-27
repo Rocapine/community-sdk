@@ -26,9 +26,11 @@ import { cs } from "../locales/cs";
 import {
   canManage,
   exploreRowAction,
+  exploreRowTap,
   groupErrorKey,
   groupStats,
   lastMessagePreview,
+  needsAccount,
   onlineLabel,
 } from "../utils/groups";
 
@@ -59,11 +61,30 @@ describe("exploreRowAction", () => {
   });
 });
 
+describe("exploreRowTap", () => {
+  it("opens my group, previews another, or joins it when previews are off", () => {
+    expect(exploreRowTap({ isMember: true }, "none")).toBe("open");
+    expect(exploreRowTap({ isMember: false }, "readOnly")).toBe("preview");
+    expect(exploreRowTap({ isMember: false }, "none")).toBe("join");
+  });
+});
+
 describe("canManage", () => {
-  it("is the creator or an app admin", () => {
-    expect(canManage({ isCreator: true }, false)).toBe(true);
-    expect(canManage({ isCreator: false }, true)).toBe(true);
-    expect(canManage({ isCreator: false }, false)).toBe(false);
+  it("is the active creator or an app admin, as can_manage_group", () => {
+    expect(canManage({ myRole: "creator" }, false)).toBe(true);
+    expect(canManage({ myRole: "member" }, true)).toBe(true);
+    expect(canManage({ myRole: "member" }, false)).toBe(false);
+    // The creator who left (or was replaced) no longer manages it.
+    expect(canManage({ myRole: null }, false)).toBe(false);
+  });
+});
+
+describe("needsAccount", () => {
+  it("asks the host only when the rule is on and no account is linked", () => {
+    expect(needsAccount(true, false)).toBe(true);
+    expect(needsAccount(true, true)).toBe(false);
+    expect(needsAccount(true, null)).toBe(false);
+    expect(needsAccount(false, false)).toBe(false);
   });
 });
 
@@ -74,6 +95,8 @@ describe("groupErrorKey", () => {
     expect(groupErrorKey("too_many_groups")).toBe("groups.error.tooManyGroups");
     expect(groupErrorKey("too_many_joined")).toBe("groups.error.tooManyJoined");
     expect(groupErrorKey("group_full")).toBe("groups.error.groupFull");
+    expect(groupErrorKey("removed_from_group")).toBe("groups.error.removed");
+    expect(groupErrorKey("banned")).toBe("groups.error.banned");
     expect(groupErrorKey("unknown")).toBe("groups.error.generic");
   });
 });
@@ -127,6 +150,12 @@ const KEYS = [
   "groups.error.tooManyJoined",
   "groups.error.groupFull",
   "groups.error.generic",
+  "groups.error.removed",
+  "groups.error.banned",
+  "groups.review.hidden",
+  "groups.details.delete",
+  "groups.details.deleteConfirm",
+  "groups.members.removed",
   "groups.review.pending",
   "groups.review.rejected.name",
   "groups.review.rejected.description",
@@ -179,7 +208,8 @@ describe("groups copy", () => {
     });
   }
 
-  it("never promises approval while a group is under review", () => {
-    expect(en["groups.review.pending"]).not.toMatch(/once|when|approved/i);
+  it("never promises approval while a group is under review or hidden", () => {
+    for (const key of ["groups.review.pending", "groups.review.hidden"])
+      expect(en[key]).not.toMatch(/once|when|approved|will appear/i);
   });
 });

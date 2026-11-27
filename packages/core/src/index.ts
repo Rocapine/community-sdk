@@ -76,6 +76,7 @@ export type {
   Conversation,
   ChatMessage,
   Group,
+  GroupStatus,
   BadgePlacement,
   ThreadComment,
   PostImage,
@@ -235,6 +236,7 @@ export {
   fetchGroup,
   fetchGroupMembers,
   fetchGroupOnlineCounts,
+  fetchGroupRemovals,
   joinGroup,
   leaveGroup,
   readmitMember,
@@ -242,7 +244,7 @@ export {
   searchGroups,
   setGroupNotify,
 } from "./groups-service";
-export type { GroupMember } from "./groups-service";
+export type { GroupMember, GroupRemoval } from "./groups-service";
 
 export {
   TYPING_TTL_MS,
@@ -251,12 +253,14 @@ export {
   useAccountLinked,
   useConversations,
   useCreateGroup,
+  useDeleteGroup,
   useDeleteMessage,
   useEditGroup,
   useEditMessage,
   useGroup,
   useGroupMembers,
   useGroupOnlineCounts,
+  useGroupRemovals,
   useGroupSearch,
   useJoinGroup,
   useLeaveGroup,

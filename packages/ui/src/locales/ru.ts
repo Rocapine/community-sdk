@@ -337,4 +337,11 @@ export const ru: Record<string, string> = {
   "groups.members.removeConfirm": "Удалить {name} из группы?",
   "groups.members.readmit": "Вернуть",
   "groups.members.empty": "Участники не найдены.",
+  "groups.error.removed": "Тебя удалили из этой группы.",
+  "groups.error.banned": "Твой аккаунт сейчас не может этого сделать.",
+  "groups.review.hidden":
+    "Модераторы скрыли эту группу: другие её не видят. Напиши в поддержку, если считаешь, что это ошибка.",
+  "groups.details.delete": "Удалить группу",
+  "groups.details.deleteConfirm": "Удалить эту группу для всех?",
+  "groups.members.removed": "Удалённые",
 };

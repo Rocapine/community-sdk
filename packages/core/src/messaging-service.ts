@@ -6,7 +6,7 @@
 import type { PostgrestError } from "@supabase/supabase-js";
 
 import type { ResolvedCommunityConfig } from "./config";
-import type { ChatMessage, Conversation, PostAttachment } from "./models";
+import type { ChatMessage, Conversation, GroupStatus, PostAttachment } from "./models";
 import { moderateOne, requireUid } from "./service";
 import { cacheSignedUrl, cachedSignedUrl } from "./signed-urls";
 
@@ -105,6 +105,19 @@ export async function uploadJpeg(
   if (error) throw error;
 }
 
+export const GROUP_IMAGES_BUCKET = "group-images";
+
+/** A live group picture's public URL. */
+export function groupImageUrl(cfg: ResolvedCommunityConfig, path: string | null): string | null {
+  if (!path) return null;
+  return cfg.requireClient().storage.from(GROUP_IMAGES_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+/** A group status row value as the client model knows it. */
+export function toGroupStatus(status: string | null): GroupStatus | null {
+  return status === "visible" || status === "pending" || status === "hidden" ? status : null;
+}
+
 // ============ CONVERSATIONS ============
 
 type ConversationRow = {
@@ -117,6 +130,10 @@ type ConversationRow = {
   unread: number;
   notify: boolean;
   role: "member" | "creator";
+  // groups/003; absent on a backend still on messaging/001's list_conversations.
+  title?: string | null;
+  image_path?: string | null;
+  group_status?: string | null;
 };
 
 /** The member's active conversations, latest activity first. */
@@ -134,6 +151,9 @@ export async function fetchConversations(cfg: ResolvedCommunityConfig): Promise<
     unread: r.unread,
     notify: r.notify,
     role: r.role,
+    title: r.title ?? null,
+    imageUrl: groupImageUrl(cfg, r.image_path ?? null),
+    groupStatus: toGroupStatus(r.group_status ?? null),
   }));
 }
 

@@ -328,4 +328,11 @@ export const el: Record<string, string> = {
   "groups.members.removeConfirm": "Να αφαιρεθεί το μέλος {name} από την ομάδα;",
   "groups.members.readmit": "Επανένταξη",
   "groups.members.empty": "Δεν βρέθηκε κανένα μέλος.",
+  "groups.error.removed": "Αφαιρέθηκες από αυτή την ομάδα.",
+  "groups.error.banned": "Ο λογαριασμός σου δεν μπορεί να το κάνει αυτό αυτή τη στιγμή.",
+  "groups.review.hidden":
+    "Οι συντονιστές απέκρυψαν αυτή την ομάδα: οι άλλοι δεν τη βλέπουν. Επικοινώνησε με την υποστήριξη αν πιστεύεις ότι είναι λάθος.",
+  "groups.details.delete": "Διαγραφή ομάδας",
+  "groups.details.deleteConfirm": "Διαγραφή αυτής της ομάδας για όλους;",
+  "groups.members.removed": "Αφαιρέθηκαν",
 };

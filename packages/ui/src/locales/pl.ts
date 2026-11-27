@@ -365,4 +365,11 @@ export const pl: Record<string, string> = {
   "groups.members.removeConfirm": "Usunąć {name} z grupy?",
   "groups.members.readmit": "Przywróć",
   "groups.members.empty": "Nie znaleziono członków.",
+  "groups.error.removed": "Usunięto cię z tej grupy.",
+  "groups.error.banned": "Twoje konto nie może teraz tego zrobić.",
+  "groups.review.hidden":
+    "Moderacja ukryła tę grupę: inni jej nie widzą. Skontaktuj się z pomocą, jeśli uważasz, że to błąd.",
+  "groups.details.delete": "Usuń grupę",
+  "groups.details.deleteConfirm": "Usunąć tę grupę dla wszystkich?",
+  "groups.members.removed": "Usunięci",
 };

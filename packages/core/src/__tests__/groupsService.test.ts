@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createGroup, fetchGroup, fetchGroupOnlineCounts, searchGroups } from "../groups-service";
+import {
+  createGroup,
+  fetchGroup,
+  fetchGroupOnlineCounts,
+  fetchGroupRemovals,
+  searchGroups,
+} from "../groups-service";
+import { fetchConversations } from "../messaging-service";
 import { resetIdentity } from "../identity";
 import { cfgWith, fakeClient, rpcArgs } from "./fakeSupabase";
 
@@ -84,7 +91,7 @@ describe("fetchGroup", () => {
           },
           error: null,
         },
-        conversation_members: { data: { state: "active" }, error: null },
+        conversation_members: { data: { state: "active", role: "creator" }, error: null },
       },
       rpc: () => ({
         data: [
@@ -109,7 +116,34 @@ describe("fetchGroup", () => {
       rejectedFields: ["name"],
       isCreator: true,
       creatorId: "uid1",
+      myRole: "creator",
       isMember: true,
+    });
+  });
+
+  it("keeps a moderator-hidden group hidden, never pending (R13)", async () => {
+    const client = fakeClient({
+      tables: {
+        groups: {
+          data: {
+            conversation_id: "g1",
+            name: "Live",
+            description: "D",
+            image_path: null,
+            status: "hidden",
+            created_by: "other",
+            member_count: 4,
+            last_activity_at: "2026-11-27T10:00:00Z",
+          },
+          error: null,
+        },
+        conversation_members: { data: { state: "removed", role: "creator" }, error: null },
+      },
+    });
+    expect(await fetchGroup(cfgWith(client), "g1")).toMatchObject({
+      status: "hidden",
+      isMember: false,
+      myRole: null,
     });
   });
 
@@ -137,5 +171,56 @@ describe("createGroup", () => {
       "rpc:create_group",
       'fn:moderate-one:{"kind":"group","id":"g1"}',
     ]);
+  });
+});
+
+describe("fetchConversations", () => {
+  it("maps a group's live title, picture and status (groups/003)", async () => {
+    const row = {
+      conversation_id: "g1",
+      kind: "group",
+      last_message_at: null,
+      last_message_id: null,
+      last_body: null,
+      last_author_id: null,
+      unread: 2,
+      notify: false,
+      role: "member",
+    };
+    const client = fakeClient({
+      rpc: () => ({
+        data: [
+          { ...row, title: "Nom", image_path: "g1/a.jpg", group_status: "hidden" },
+          { ...row, conversation_id: "g2" },
+        ],
+        error: null,
+      }),
+    });
+    const [a, b] = await fetchConversations(cfgWith(client));
+    expect(a).toMatchObject({
+      title: "Nom",
+      imageUrl: "https://cdn/group-images/g1/a.jpg",
+      groupStatus: "hidden",
+    });
+    // An older backend (messaging/001 only) answers without the new columns.
+    expect(b).toMatchObject({ title: null, imageUrl: null, groupStatus: null });
+  });
+});
+
+describe("fetchGroupRemovals", () => {
+  it("reads the group's removals and filters them by username", async () => {
+    const client = fakeClient({
+      tables: {
+        group_removals: {
+          data: [
+            { user_id: "u1", removed_at: "2026-11-27T10:00:00Z", profiles: { username: "Ana" } },
+            { user_id: "u2", removed_at: "2026-11-26T10:00:00Z", profiles: { username: "Marc" } },
+          ],
+          error: null,
+        },
+      },
+    });
+    const removed = await fetchGroupRemovals(cfgWith(client), "g1", " an ");
+    expect(removed).toEqual([{ userId: "u1", username: "Ana", removedAt: "2026-11-27T10:00:00Z" }]);
   });
 });

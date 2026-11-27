@@ -320,4 +320,11 @@ export const sv: Record<string, string> = {
   "groups.members.removeConfirm": "Ta bort {name} från gruppen?",
   "groups.members.readmit": "Släpp in igen",
   "groups.members.empty": "Ingen medlem hittades.",
+  "groups.error.removed": "Du har tagits bort från gruppen.",
+  "groups.error.banned": "Ditt konto kan inte göra det just nu.",
+  "groups.review.hidden":
+    "Moderatorerna har dolt gruppen: andra ser den inte. Kontakta supporten om du tror att det är ett misstag.",
+  "groups.details.delete": "Radera grupp",
+  "groups.details.deleteConfirm": "Radera den här gruppen för alla?",
+  "groups.members.removed": "Borttagna",
 };

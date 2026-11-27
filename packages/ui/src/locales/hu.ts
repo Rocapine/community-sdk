@@ -324,4 +324,11 @@ export const hu: Record<string, string> = {
   "groups.members.removeConfirm": "Eltávolítod a csoportból: {name}?",
   "groups.members.readmit": "Visszavétel",
   "groups.members.empty": "Nem található tag.",
+  "groups.error.removed": "Eltávolítottak ebből a csoportból.",
+  "groups.error.banned": "A fiókod most nem teheti ezt meg.",
+  "groups.review.hidden":
+    "A moderátorok elrejtették ezt a csoportot: mások nem látják. Ha szerinted ez tévedés, fordulj az ügyfélszolgálathoz.",
+  "groups.details.delete": "Csoport törlése",
+  "groups.details.deleteConfirm": "Mindenki számára törlöd ezt a csoportot?",
+  "groups.members.removed": "Eltávolítva",
 };

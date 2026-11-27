@@ -322,4 +322,11 @@ export const nl: Record<string, string> = {
   "groups.members.removeConfirm": "{name} uit de groep verwijderen?",
   "groups.members.readmit": "Weer toelaten",
   "groups.members.empty": "Geen lid gevonden.",
+  "groups.error.removed": "Je bent uit deze groep verwijderd.",
+  "groups.error.banned": "Je account kan dit nu niet doen.",
+  "groups.review.hidden":
+    "De moderatie heeft deze groep verborgen: anderen zien hem niet. Neem contact op met support als je denkt dat dit een vergissing is.",
+  "groups.details.delete": "Groep verwijderen",
+  "groups.details.deleteConfirm": "Deze groep voor iedereen verwijderen?",
+  "groups.members.removed": "Verwijderd",
 };

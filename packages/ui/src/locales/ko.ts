@@ -321,4 +321,11 @@ export const ko: Record<string, string> = {
   "groups.members.removeConfirm": "{name}님을 그룹에서 내보낼까요?",
   "groups.members.readmit": "재참여 허용",
   "groups.members.empty": "멤버를 찾을 수 없어요.",
+  "groups.error.removed": "이 그룹에서 내보내졌어요.",
+  "groups.error.banned": "지금은 내 계정으로 이 작업을 할 수 없어요.",
+  "groups.review.hidden":
+    "운영진이 이 그룹을 숨겼어요. 다른 사람에게는 보이지 않아요. 잘못되었다고 생각되면 고객 지원에 문의해 주세요.",
+  "groups.details.delete": "그룹 삭제",
+  "groups.details.deleteConfirm": "모두에게서 이 그룹을 삭제할까요?",
+  "groups.members.removed": "내보낸 멤버",
 };

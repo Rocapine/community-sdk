@@ -338,4 +338,11 @@ export const sk: Record<string, string> = {
   "groups.members.removeConfirm": "Odstrániť {name} zo skupiny?",
   "groups.members.readmit": "Prijať späť",
   "groups.members.empty": "Nenašiel sa žiadny člen.",
+  "groups.error.removed": "Z tejto skupiny ťa odstránili.",
+  "groups.error.banned": "Tvoj účet to teraz nemôže urobiť.",
+  "groups.review.hidden":
+    "Moderátori túto skupinu skryli: ostatní ju nevidia. Ak si myslíš, že ide o omyl, kontaktuj podporu.",
+  "groups.details.delete": "Odstrániť skupinu",
+  "groups.details.deleteConfirm": "Odstrániť túto skupinu pre všetkých?",
+  "groups.members.removed": "Odstránení",
 };

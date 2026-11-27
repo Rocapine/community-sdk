@@ -19,9 +19,27 @@ export function exploreRowAction(group: Pick<Group, "isMember">): "join" | "open
   return group.isMember ? "open" : "join";
 }
 
-/** The group's creator and the app admins edit it and remove members. */
-export function canManage(group: Pick<Group, "isCreator">, isAdmin: boolean): boolean {
-  return group.isCreator || isAdmin;
+/** Tapping an Explore row: open my group, preview another one, or join it straight
+ * away when previews are off (`groups.preview: "none"`). */
+export function exploreRowTap(
+  group: Pick<Group, "isMember">,
+  preview: "readOnly" | "none",
+): "open" | "preview" | "join" {
+  if (group.isMember) return "open";
+  return preview === "none" ? "join" : "preview";
+}
+
+/** As the server's `can_manage_group`: an app admin, or the group's creator while still
+ * an active member with that role (not who `created_by` names after a transfer). */
+export function canManage(group: Pick<Group, "myRole">, isAdmin: boolean): boolean {
+  return group.myRole === "creator" || isAdmin;
+}
+
+/** The SDK's own account check before joining (`requireAccount: true`) or creating
+ * (`createRequiresAccount`): true when the host must ask for an account first. Unknown
+ * (`null`, or no accounts module) lets the backend decide. */
+export function needsAccount(rule: boolean, linked: boolean | null): boolean {
+  return rule && linked === false;
 }
 
 const ERROR_KEYS: Partial<Record<MessagingErrorCode, string>> = {
@@ -32,6 +50,8 @@ const ERROR_KEYS: Partial<Record<MessagingErrorCode, string>> = {
   too_many_groups: "groups.error.tooManyGroups",
   too_many_joined: "groups.error.tooManyJoined",
   group_full: "groups.error.groupFull",
+  removed_from_group: "groups.error.removed",
+  banned: "groups.error.banned",
 };
 
 /** The copy for a failed create, edit or join. */

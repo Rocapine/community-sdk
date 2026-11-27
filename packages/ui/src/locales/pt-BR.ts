@@ -327,4 +327,11 @@ export const ptBR: Record<string, string> = {
   "groups.members.removeConfirm": "Remover {name} do grupo?",
   "groups.members.readmit": "Readmitir",
   "groups.members.empty": "Nenhum membro encontrado.",
+  "groups.error.removed": "Você não faz mais parte deste grupo.",
+  "groups.error.banned": "Sua conta não pode fazer isso agora.",
+  "groups.review.hidden":
+    "A moderação ocultou este grupo: os outros não o veem. Fale com o suporte se achar que é um erro.",
+  "groups.details.delete": "Excluir grupo",
+  "groups.details.deleteConfirm": "Excluir este grupo para todos?",
+  "groups.members.removed": "Removidos",
 };

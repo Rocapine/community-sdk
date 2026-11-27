@@ -5,11 +5,19 @@
 
 import type { ResolvedCommunityConfig } from "./config";
 import { readerLocale } from "./locale";
-import { callRpc, requireGroups, uploadJpeg, uuid } from "./messaging-service";
+import {
+  GROUP_IMAGES_BUCKET,
+  callRpc,
+  groupImageUrl as publicImageUrl,
+  requireGroups,
+  toGroupStatus,
+  uploadJpeg,
+  uuid,
+} from "./messaging-service";
 import type { Group } from "./models";
 import { moderateOne, requireUid } from "./service";
 
-export const GROUP_IMAGES_BUCKET = "group-images";
+export { GROUP_IMAGES_BUCKET };
 export const GROUP_IMAGES_PENDING_BUCKET = "group-images-pending";
 export const GROUPS_PAGE_SIZE = 30;
 export const GROUP_MEMBERS_PAGE_SIZE = 50;
@@ -18,11 +26,6 @@ export type GroupMember = { userId: string; role: "member" | "creator"; joinedAt
 
 const GROUP_COLUMNS =
   "conversation_id, name, description, image_path, status, created_by, member_count, last_activity_at";
-
-function publicImageUrl(cfg: ResolvedCommunityConfig, path: string | null): string | null {
-  if (!path) return null;
-  return cfg.requireClient().storage.from(GROUP_IMAGES_BUCKET).getPublicUrl(path).data.publicUrl;
-}
 
 /** Uploads a new group image to the caller's pending folder; moderation moves it. */
 async function uploadPendingImage(cfg: ResolvedCommunityConfig, uid: string, uri: string) {
@@ -136,6 +139,7 @@ export async function searchGroups(
     status: "visible",
     rejectedFields: [],
     isCreator: mine.has(r.group_id),
+    myRole: null,
     creatorId: null,
   }));
 }
@@ -181,13 +185,15 @@ export async function fetchGroup(cfg: ResolvedCommunityConfig, id: string): Prom
   const [membership, review] = await Promise.all([
     client
       .from("conversation_members")
-      .select("state")
+      .select("state, role")
       .eq("conversation_id", id)
       .eq("user_id", uid)
       .maybeSingle(),
     isCreator ? callRpc<ReviewRow[]>(cfg, "my_group_review", { p_group: id }) : null,
   ]);
   if (membership.error) throw membership.error;
+  const member = membership.data as { state: string; role: "member" | "creator" } | null;
+  const active = member?.state === "active";
   const r = review?.[0];
   const t = g.group_translations?.[0];
   let imageUrl = publicImageUrl(cfg, g.image_path);
@@ -205,10 +211,12 @@ export async function fetchGroup(cfg: ResolvedCommunityConfig, id: string): Prom
     imageUrl,
     memberCount: g.member_count,
     lastActivityAt: g.last_activity_at,
-    isMember: (membership.data as { state: string } | null)?.state === "active",
-    status: g.status === "visible" ? "visible" : "pending",
+    isMember: active,
+    // R13: hidden by a moderator stays "hidden" (never "pending": no approval is coming).
+    status: toGroupStatus(g.status) ?? "pending",
     rejectedFields: r?.rejected_fields ?? [],
     isCreator,
+    myRole: active ? (member?.role ?? "member") : null,
     creatorId: g.created_by,
   };
 }
@@ -246,4 +254,39 @@ export async function fetchGroupOnlineCounts(
     p_groups: ids,
   });
   return Object.fromEntries((rows ?? []).map((r) => [r.group_id, r.online]));
+}
+
+export type GroupRemoval = { userId: string; username: string | null; removedAt: string };
+
+/** Members removed from a group, latest first (its managers only, RLS). `query` keeps
+ * those whose username contains it, as the member search does. */
+export async function fetchGroupRemovals(
+  cfg: ResolvedCommunityConfig,
+  id: string,
+  query = "",
+): Promise<GroupRemoval[]> {
+  requireGroups(cfg);
+  await requireUid(cfg);
+  const { data, error } = await cfg
+    .requireClient()
+    .from("group_removals")
+    .select("user_id, removed_at, profiles(username)")
+    .eq("group_id", id)
+    .order("removed_at", { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  const q = query.trim().toLowerCase();
+  return (
+    (data ?? []) as unknown as {
+      user_id: string;
+      removed_at: string;
+      profiles: { username: string | null } | null;
+    }[]
+  )
+    .map((r) => ({
+      userId: r.user_id,
+      username: r.profiles?.username ?? null,
+      removedAt: r.removed_at,
+    }))
+    .filter((r) => !q || (r.username ?? "").toLowerCase().includes(q));
 }

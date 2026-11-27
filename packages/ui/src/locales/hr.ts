@@ -339,4 +339,11 @@ export const hr: Record<string, string> = {
   "groups.members.removeConfirm": "Ukloniti {name} iz grupe?",
   "groups.members.readmit": "Vrati",
   "groups.members.empty": "Nije pronađen nijedan član.",
+  "groups.error.removed": "Uklonjeno ti je članstvo u ovoj grupi.",
+  "groups.error.banned": "Tvoj račun to trenutačno ne može učiniti.",
+  "groups.review.hidden":
+    "Moderatori su sakrili ovu grupu: drugi je ne vide. Obrati se podršci ako misliš da je riječ o pogrešci.",
+  "groups.details.delete": "Izbriši grupu",
+  "groups.details.deleteConfirm": "Izbrisati ovu grupu za sve?",
+  "groups.members.removed": "Uklonjeni",
 };

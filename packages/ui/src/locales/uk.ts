@@ -340,4 +340,11 @@ export const uk: Record<string, string> = {
   "groups.members.removeConfirm": "Вилучити {name} з групи?",
   "groups.members.readmit": "Повернути",
   "groups.members.empty": "Учасників не знайдено.",
+  "groups.error.removed": "Тебе вилучено з цієї групи.",
+  "groups.error.banned": "Твій обліковий запис зараз не може цього зробити.",
+  "groups.review.hidden":
+    "Модератори приховали цю групу: інші її не бачать. Звернися до підтримки, якщо вважаєш, що це помилка.",
+  "groups.details.delete": "Видалити групу",
+  "groups.details.deleteConfirm": "Видалити цю групу для всіх?",
+  "groups.members.removed": "Вилучені",
 };

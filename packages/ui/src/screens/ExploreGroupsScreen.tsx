@@ -2,12 +2,13 @@
 // `exploreLayout: "cards"`): a search field (debounced), the visible groups latest
 // activity first, each with "N members · X online" (online only above 0) and Join or
 // Open, and a `+` that creates a group. Tapping a row opens it, as a read-only preview
-// when I'm not a member; Join joins right away and opens it.
+// when I'm not a member (`groups.preview: "none"`: it joins instead); Join joins right
+// away and opens it.
 //
-// Account rules, run before the backend (which enforces them anyway): creating needs a
-// linked account when `createRequiresAccount` (then `beforeCreate`); joining needs one
-// when `requireAccount: true`, and runs `beforeJoin` (the feed's `beforeCompose`) when
-// `requireAccount: "feed"`. Renders nothing when the groups module is off.
+// The SDK's own checks run first, the backend enforces them anyway: creating needs a
+// linked account when `createRequiresAccount`, joining when `requireAccount: true`.
+// Then the host gates: `beforeCreate`, and `beforeJoinGroup` (with `requireAccount:
+// "feed"`, pass the feed's `beforeCompose`). Renders nothing when groups is off.
 import {
   COMMUNITY_EVENTS,
   MessagingError,
@@ -35,7 +36,7 @@ import type { CommunityTheme } from "../theme";
 import { GroupFormSheet } from "../components/GroupFormSheet";
 import { GroupRow } from "../components/GroupRow";
 import { ScreenBackground } from "../components/ScreenBackground";
-import { groupErrorKey } from "../utils/groups";
+import { exploreRowTap, groupErrorKey, needsAccount } from "../utils/groups";
 import { noFocusRing } from "../utils/noFocusRing";
 import { isQueryLoading } from "../utils/query";
 
@@ -48,9 +49,9 @@ export type ExploreGroupsScreenProps = {
   /** Host gate before creating a group (same contract as the feed's `beforeCompose`):
    * resolve false to cancel. */
   beforeCreate?: () => Promise<boolean>;
-  /** Host gate before joining, run when `requireAccount: "feed"` (pass the feed's
-   * `beforeCompose`). */
-  beforeJoin?: () => Promise<boolean>;
+  /** Host gate before joining, after the SDK's own checks (same contract as
+   * `beforeCompose`; with `requireAccount: "feed"`, pass the feed's `beforeCompose`). */
+  beforeJoinGroup?: () => Promise<boolean>;
 };
 
 export function ExploreGroupsScreen(props: ExploreGroupsScreenProps) {
@@ -69,7 +70,7 @@ async function passes(gate?: () => Promise<boolean>): Promise<boolean> {
   }
 }
 
-function Explore({ onOpenGroup, onBack, beforeCreate, beforeJoin }: ExploreGroupsScreenProps) {
+function Explore({ onOpenGroup, onBack, beforeCreate, beforeJoinGroup }: ExploreGroupsScreenProps) {
   const cfg = useCommunityConfig();
   const settings = groupsSettings(cfg)!;
   const t = useT();
@@ -112,9 +113,9 @@ function Explore({ onOpenGroup, onBack, beforeCreate, beforeJoin }: ExploreGroup
   const joinGroup = async (g: Group) => {
     if (joiningId || gating) return;
     setError(null);
-    if (settings.requireAccount === true && accountLinked === false)
+    if (needsAccount(settings.requireAccount === true, accountLinked))
       return cfg.host.onAccountRequired?.("joinGroup");
-    if (settings.requireAccount === "feed" && !(await gated(beforeJoin))) return;
+    if (!(await gated(beforeJoinGroup))) return;
     setJoiningId(g.id);
     join.mutate(
       { groupId: g.id, source: "explore" },
@@ -130,15 +131,21 @@ function Explore({ onOpenGroup, onBack, beforeCreate, beforeJoin }: ExploreGroup
     );
   };
 
+  const tap = (g: Group) => {
+    const action = exploreRowTap(g, settings.preview);
+    if (action === "join") void joinGroup(g);
+    else onOpenGroup(g.id, action === "preview");
+  };
+
   const startCreate = async () => {
     if (gating) return;
     setError(null);
-    if (settings.createRequiresAccount && accountLinked === false)
+    if (needsAccount(settings.createRequiresAccount, accountLinked))
       return cfg.host.onAccountRequired?.("createGroup");
     if (await gated(beforeCreate)) setCreating(true);
   };
 
-  const header = (
+  const searchBar = (
     <>
       <View style={styles.searchField}>
         <icons.search size={16} color={theme.colors.textFaint} />
@@ -147,7 +154,7 @@ function Explore({ onOpenGroup, onBack, beforeCreate, beforeJoin }: ExploreGroup
           onChangeText={setTerm}
           onSubmitEditing={() => {
             setQuery(term);
-            emitEvent(cfg, COMMUNITY_EVENTS.groupSearched);
+            if (term.trim()) emitEvent(cfg, COMMUNITY_EVENTS.groupSearched);
           }}
           returnKeyType="search"
           placeholder={t("groups.explore.search")}
@@ -167,12 +174,18 @@ function Explore({ onOpenGroup, onBack, beforeCreate, beforeJoin }: ExploreGroup
           </Pressable>
         )}
       </View>
-      {error && <Text style={styles.error}>{error}</Text>}
-      {!query.trim() && groups.length > 0 && (
-        <Text style={styles.section}>{t("groups.explore.recent")}</Text>
+      {/* Outside the list, so a join error shows whatever the scroll position. */}
+      {error && (
+        <Text style={styles.error} accessibilityRole="alert">
+          {error}
+        </Text>
       )}
     </>
   );
+  const header =
+    !query.trim() && groups.length > 0 ? (
+      <Text style={styles.section}>{t("groups.explore.recent")}</Text>
+    ) : null;
 
   return (
     <View style={styles.root}>
@@ -202,6 +215,7 @@ function Explore({ onOpenGroup, onBack, beforeCreate, beforeJoin }: ExploreGroup
         </Pressable>
       </View>
 
+      {searchBar}
       <FlatList
         data={groups}
         keyExtractor={(g) => g.id}
@@ -214,7 +228,7 @@ function Explore({ onOpenGroup, onBack, beforeCreate, beforeJoin }: ExploreGroup
             online={online[item.id] ?? 0}
             layout={settings.exploreLayout}
             busy={joiningId === item.id}
-            onPress={() => onOpenGroup(item.id, !item.isMember)}
+            onPress={() => tap(item)}
             onAction={(action) =>
               action === "open" ? onOpenGroup(item.id, false) : void joinGroup(item)
             }

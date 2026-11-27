@@ -14,6 +14,7 @@ import {
   groupsSettings,
   isOptimistic,
   messagingSettings,
+  useAccountLinked,
   useCommunityConfig,
   useConversations,
   useDeleteMessage,
@@ -72,6 +73,7 @@ import {
   type ChatAction,
 } from "../utils/chat";
 import { canCopy, copyText } from "../utils/clipboard";
+import { groupErrorKey, needsAccount } from "../utils/groups";
 import { imagesSupported, pickImage } from "../utils/postImage";
 import { isQueryLoading } from "../utils/query";
 
@@ -85,9 +87,12 @@ export type ConversationScreenProps = {
   /** Opens an attached item; defaults to the provider's `onOpenAttachment`. */
   onOpenAttachment?(attachment: PostAttachment): void;
   onBack(): void;
-  /** Host gate run before sending and before joining (same contract as the feed's
-   * `beforeCompose`): resolve false to cancel. */
+  /** Host gate run before sending (same contract as the feed's `beforeCompose`):
+   * resolve false to cancel. */
   beforeSend?: () => Promise<boolean>;
+  /** Host gate run before joining from the preview, after the SDK's own account check
+   * (same contract; with `requireAccount: "feed"`, pass the feed's `beforeCompose`). */
+  beforeJoinGroup?: () => Promise<boolean>;
   /** The screen has the navigator's focus (`useIsFocused()`): the conversation is
    * marked read only while it does. Default true. */
   isFocused?: boolean;
@@ -121,6 +126,7 @@ function Conversation({
   onOpenAttachment,
   onBack,
   beforeSend,
+  beforeJoinGroup,
   isFocused = true,
 }: ConversationScreenProps) {
   const cfg = useCommunityConfig();
@@ -144,6 +150,8 @@ function Conversation({
   const [joined, setJoined] = useState(false);
   const member = mode === "member" || joined || !!group?.isMember;
   const [errorCode, setErrorCode] = useState<MessagingErrorCode | null>(null);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const accountLinked = useAccountLinked();
   const closed = closedReason(group, errorCode, mode === "member");
   const active = member && !closed;
 
@@ -185,11 +193,11 @@ function Conversation({
   const listRef = useRef<FlatList<Row>>(null);
   const fail = (action: ChatAction) => (e: unknown) =>
     setErrorCode(screenErrorCode(action, e instanceof MessagingError ? e.code : "unknown"));
-  const gate = async () => {
-    if (!beforeSend) return true;
+  const gate = async (hostGate = beforeSend) => {
+    if (!hostGate) return true;
     setGating(true);
     try {
-      return await beforeSend();
+      return await hostGate();
     } catch {
       return false;
     } finally {
@@ -267,15 +275,22 @@ function Conversation({
   };
 
   const joinNow = async () => {
-    if (join.isPending || !(await gate())) return;
+    if (join.isPending || gating) return;
+    setJoinError(null);
+    if (needsAccount(groupsSettings(cfg)!.requireAccount === true, accountLinked))
+      return cfg.host.onAccountRequired?.("joinGroup");
+    if (!(await gate(beforeJoinGroup))) return;
     join.mutate(
       { groupId: conversationId, source: "preview" },
       {
         onSuccess: () => setJoined(true),
         onError: (e) => {
-          if (e instanceof MessagingError && e.code === "account_required")
-            cfg.host.onAccountRequired?.("joinGroup");
-          else fail("join")(e);
+          const code = e instanceof MessagingError ? e.code : "unknown";
+          if (code === "account_required") cfg.host.onAccountRequired?.("joinGroup");
+          // A removed member or a deleted group closes the screen; any other failure
+          // (full, limit reached…) says why on the join bar.
+          else if (closedReason(group, code, false)) fail("join")(e);
+          else setJoinError(t(groupErrorKey(code)));
         },
       },
     );
@@ -564,7 +579,7 @@ function Conversation({
           </Text>
         ) : !member ? (
           <View style={styles.joinBar}>
-            {errorText && <Text style={styles.error}>{errorText}</Text>}
+            {joinError && <Text style={styles.error}>{joinError}</Text>}
             <PressableScale
               onPress={() => void joinNow()}
               disabled={join.isPending || gating}

@@ -65,59 +65,65 @@ export function GroupRow({
   );
   const a11y = [group.name, members, on].filter(Boolean).join(", ");
 
+  // The row and its button are siblings, never one pressable inside another: screen
+  // readers reach both, and the web gets no button inside a button.
   if (layout === "cards")
     return (
+      <View style={styles.card}>
+        <Pressable
+          onPress={onPress}
+          style={({ pressed }) => pressed && styles.pressed}
+          accessibilityRole="button"
+          accessibilityLabel={a11y}
+        >
+          {group.imageUrl ? (
+            <Image source={{ uri: group.imageUrl }} style={styles.banner} contentFit="cover" />
+          ) : (
+            <View style={[styles.banner, styles.bannerEmpty]}>
+              <Text style={styles.bannerInitial}>{initialOf(group.name)}</Text>
+            </View>
+          )}
+          <View style={styles.cardBody}>
+            <Text style={styles.name} numberOfLines={1}>
+              {group.name}
+            </Text>
+            {!!group.description && (
+              <Text style={styles.description} numberOfLines={2}>
+                {group.description}
+              </Text>
+            )}
+          </View>
+        </Pressable>
+        <View style={styles.cardFooter}>
+          <View style={styles.flex}>{stats}</View>
+          {button}
+        </View>
+      </View>
+    );
+
+  return (
+    <View style={styles.row}>
       <Pressable
         onPress={onPress}
-        style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
         accessibilityRole="button"
         accessibilityLabel={a11y}
       >
-        {group.imageUrl ? (
-          <Image source={{ uri: group.imageUrl }} style={styles.banner} contentFit="cover" />
-        ) : (
-          <View style={[styles.banner, styles.bannerEmpty]}>
-            <Text style={styles.bannerInitial}>{initialOf(group.name)}</Text>
-          </View>
-        )}
-        <View style={styles.cardBody}>
+        <Avatar userId={null} name={group.name} url={group.imageUrl} size={44} placement="group" />
+        <View style={styles.flex}>
           <Text style={styles.name} numberOfLines={1}>
             {group.name}
           </Text>
           {!!group.description && (
-            <Text style={styles.description} numberOfLines={2}>
+            <Text style={styles.description} numberOfLines={1}>
               {group.description}
             </Text>
           )}
-          <View style={styles.cardFooter}>
-            <View style={styles.flex}>{stats}</View>
-            {button}
-          </View>
+          {stats}
         </View>
       </Pressable>
-    );
-
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-      accessibilityRole="button"
-      accessibilityLabel={a11y}
-    >
-      <Avatar userId={null} name={group.name} url={group.imageUrl} size={44} placement="group" />
-      <View style={styles.flex}>
-        <Text style={styles.name} numberOfLines={1}>
-          {group.name}
-        </Text>
-        {!!group.description && (
-          <Text style={styles.description} numberOfLines={1}>
-            {group.description}
-          </Text>
-        )}
-        {stats}
-      </View>
       {button}
-    </Pressable>
+    </View>
   );
 }
 
@@ -133,6 +139,7 @@ function makeStyles(theme: CommunityTheme) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.colors.hairline,
     },
+    rowMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: theme.spacing(3) },
     pressed: { opacity: 0.7 },
     name: {
       ...theme.typography.label,
@@ -176,12 +183,13 @@ function makeStyles(theme: CommunityTheme) {
       justifyContent: "center",
     },
     bannerInitial: { ...theme.typography.display, color: theme.colors.accent },
-    cardBody: { padding: theme.spacing(3), gap: 2 },
+    cardBody: { paddingHorizontal: theme.spacing(3), paddingTop: theme.spacing(3), gap: 2 },
     cardFooter: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing(3),
-      marginTop: theme.spacing(2),
+      padding: theme.spacing(3),
+      paddingTop: theme.spacing(2),
     },
   });
 }

@@ -320,4 +320,11 @@ export const nb: Record<string, string> = {
   "groups.members.removeConfirm": "Fjerne {name} fra gruppen?",
   "groups.members.readmit": "Ta inn igjen",
   "groups.members.empty": "Fant ingen medlemmer.",
+  "groups.error.removed": "Du er fjernet fra denne gruppen.",
+  "groups.error.banned": "Kontoen din kan ikke gjøre dette akkurat nå.",
+  "groups.review.hidden":
+    "Moderatorene har skjult denne gruppen: andre ser den ikke. Kontakt brukerstøtte hvis du tror dette er en feil.",
+  "groups.details.delete": "Slett gruppen",
+  "groups.details.deleteConfirm": "Slette denne gruppen for alle?",
+  "groups.members.removed": "Fjernet",
 };

@@ -332,4 +332,11 @@ export const frVous: Record<string, string> = {
   "groups.members.removeConfirm": "Retirer {name} du groupe ?",
   "groups.members.readmit": "Réintégrer",
   "groups.members.empty": "Aucun membre trouvé.",
+  "groups.error.removed": "Vous ne faites plus partie de ce groupe.",
+  "groups.error.banned": "Votre compte ne peut pas faire cela pour le moment.",
+  "groups.review.hidden":
+    "La modération a masqué ce groupe : les autres ne le voient pas. Contactez le support si vous pensez que c'est une erreur.",
+  "groups.details.delete": "Supprimer le groupe",
+  "groups.details.deleteConfirm": "Supprimer ce groupe pour tout le monde ?",
+  "groups.members.removed": "Membres retirés",
 };

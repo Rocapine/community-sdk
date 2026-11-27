@@ -9,6 +9,8 @@ import {
   useCommunityConfig,
   useCreateGroup,
   useEditGroup,
+  useMyUid,
+  useProfile,
   type Group,
   type LocalImage,
 } from "@rocapine/community-core";
@@ -17,7 +19,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { CommunitySheet, SheetScrollView, SheetTextInput } from "../Sheet";
 import { useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
-import { groupErrorKey } from "../utils/groups";
+import { canManage, groupErrorKey } from "../utils/groups";
 import { noFocusRing, noFocusRingMultiline } from "../utils/noFocusRing";
 import { imagesSupported, pickImage } from "../utils/postImage";
 import { Avatar } from "./Avatar";
@@ -249,15 +251,18 @@ export function GroupFormSheet({
   );
 }
 
-/** What a group's creator sees while it is under review (not visible to others) or a
- * field was rejected, with an Edit action. Nothing for anyone else. */
+/** What a group's creator sees while it is under review or hidden by a moderator (not
+ * visible to others either way, no promise of approval), or when a field was rejected,
+ * with Edit for whoever manages the group. Nothing for anyone else. */
 export function GroupReviewNotice({ group }: { group: Group | null | undefined }) {
   const t = useT();
   const styles = useThemedStyles(makeStyles);
   const [editing, setEditing] = useState(false);
+  const meAdmin = !!useProfile(useMyUid()).data?.admin;
   if (!group?.isCreator) return null;
   const pending = group.status === "pending";
-  if (!pending && group.rejectedFields.length === 0) return null;
+  const hidden = group.status === "hidden";
+  if (!pending && !hidden && group.rejectedFields.length === 0) return null;
   return (
     <View style={styles.notice}>
       {pending && (
@@ -266,12 +271,13 @@ export function GroupReviewNotice({ group }: { group: Group | null | undefined }
         </View>
       )}
       {pending && <Text style={styles.noticeText}>{t("groups.review.pending")}</Text>}
+      {hidden && <Text style={styles.noticeText}>{t("groups.review.hidden")}</Text>}
       {group.rejectedFields.map((f) => (
         <Text key={f} style={[styles.noticeText, styles.dangerText]}>
           {t(`groups.review.rejected.${f}`)}
         </Text>
       ))}
-      {group.rejectedFields.length > 0 && (
+      {group.rejectedFields.length > 0 && canManage(group, meAdmin) && (
         <PressableScale onPress={() => setEditing(true)} style={styles.noticeButton}>
           <Text style={styles.noticeButtonLabel}>{t("chat.menu.edit")}</Text>
         </PressableScale>

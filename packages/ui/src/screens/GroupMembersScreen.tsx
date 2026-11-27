@@ -1,14 +1,15 @@
-// A group's members (members only), the creator first, with a search field. The
-// creator and app admins can remove a member (never themselves, never an app admin
-// unless they are one); a member removed here stays listed, greyed, with "Readmit"
-// until the screen closes (the backend lists active members only). A plain screen: the
-// host pads the top. Renders nothing when the groups module is off.
+// A group's members (members only), the creator first, with a search field. Whoever
+// manages the group (its active creator, an app admin) can remove a member (never
+// themselves, never an app admin unless they are one), and sees a "Removed" section
+// (group_removals) with Readmit, filtered by the same search. A plain screen: the host
+// pads the top. Renders nothing when the groups module is off.
 import {
   MessagingError,
   groupsSettings,
   useCommunityConfig,
   useGroup,
   useGroupMembers,
+  useGroupRemovals,
   useMyUid,
   useProfile,
   useReadmitMember,
@@ -50,6 +51,7 @@ export function GroupMembersScreen(props: GroupMembersScreenProps) {
 }
 
 type Target = { member: GroupMember; name: string };
+type Row = { key: string; member?: GroupMember; removed?: boolean; section?: boolean };
 
 function Members({ groupId, onOpenProfile, onBack }: GroupMembersScreenProps) {
   const t = useT();
@@ -68,20 +70,28 @@ function Members({ groupId, onOpenProfile, onBack }: GroupMembersScreenProps) {
     return () => clearTimeout(timer);
   }, [term]);
   const members = useGroupMembers(groupId, query);
+  const removals = useGroupRemovals(groupId, query, manage);
 
   const remove = useRemoveMember();
   const readmit = useReadmitMember();
-  const [removed, setRemoved] = useState<GroupMember[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<Target | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const rows = useMemo(() => {
-    const active = members.data?.pages.flat() ?? [];
-    const ids = new Set(active.map((m) => m.userId));
-    return [...active, ...removed.filter((m) => !ids.has(m.userId))];
-  }, [members.data, removed]);
-  const removedIds = useMemo(() => new Set(removed.map((m) => m.userId)), [removed]);
+  const rows = useMemo<Row[]>(() => {
+    const active: Row[] = (members.data?.pages.flat() ?? []).map((m) => ({
+      key: m.userId,
+      member: m,
+    }));
+    const removed: Row[] = (removals.data ?? []).map((r) => ({
+      key: `removed-${r.userId}`,
+      member: { userId: r.userId, role: "member", joinedAt: r.removedAt },
+      removed: true,
+    }));
+    return removed.length
+      ? [...active, { key: "removed-section", section: true }, ...removed]
+      : active;
+  }, [members.data, removals.data]);
 
   const fail = (e: unknown) => {
     setError(
@@ -98,7 +108,6 @@ function Members({ groupId, onOpenProfile, onBack }: GroupMembersScreenProps) {
     remove.mutate(
       { groupId, userId: member.userId },
       {
-        onSuccess: () => setRemoved((r) => [...r, member]),
         onError: fail,
         onSettled: () => setBusyId(null),
       },
@@ -110,7 +119,6 @@ function Members({ groupId, onOpenProfile, onBack }: GroupMembersScreenProps) {
     readmit.mutate(
       { groupId, userId: member.userId },
       {
-        onSuccess: () => setRemoved((r) => r.filter((m) => m.userId !== member.userId)),
         onError: fail,
         onSettled: () => setBusyId(null),
       },
@@ -153,22 +161,28 @@ function Members({ groupId, onOpenProfile, onBack }: GroupMembersScreenProps) {
 
       <FlatList
         data={rows}
-        keyExtractor={(m) => m.userId}
+        keyExtractor={(r) => r.key}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        renderItem={({ item }) => (
-          <MemberRow
-            member={item}
-            me={myUid}
-            meAdmin={meAdmin}
-            manage={manage}
-            removed={removedIds.has(item.userId)}
-            busy={busyId === item.userId}
-            onOpenProfile={onOpenProfile}
-            onRemove={(name) => setConfirm({ member: item, name })}
-            onReadmit={() => doReadmit(item)}
-          />
-        )}
+        renderItem={({ item }) =>
+          item.section ? (
+            <Text style={styles.section} accessibilityRole="header">
+              {t("groups.members.removed")}
+            </Text>
+          ) : (
+            <MemberRow
+              member={item.member!}
+              me={myUid}
+              meAdmin={meAdmin}
+              manage={manage}
+              removed={!!item.removed}
+              busy={busyId === item.member!.userId}
+              onOpenProfile={onOpenProfile}
+              onRemove={(name) => setConfirm({ member: item.member!, name })}
+              onReadmit={() => doReadmit(item.member!)}
+            />
+          )
+        }
         onEndReached={() => {
           if (members.hasNextPage && !members.isFetchingNextPage) void members.fetchNextPage();
         }}
@@ -237,7 +251,8 @@ function MemberRow({
   const profile = useProfile(member.userId).data;
   const name = profile?.name ?? "";
   // As remove_member allows: never myself, never an app admin unless I am one.
-  const removable = manage && member.userId !== me && (meAdmin || !profile?.admin);
+  // Not offered until the profile is known: never an empty name in the confirmation.
+  const removable = !!profile && manage && member.userId !== me && (meAdmin || !profile.admin);
   const creator = member.role === "creator";
 
   return (
@@ -268,7 +283,11 @@ function MemberRow({
       {busy ? (
         <ActivityIndicator color={theme.colors.accent} />
       ) : removed ? (
-        <PressableScale onPress={onReadmit} style={styles.pill}>
+        <PressableScale
+          onPress={onReadmit}
+          style={styles.pill}
+          accessibilityLabel={`${t("groups.members.readmit")}, ${name}`}
+        >
           <Text style={styles.pillLabel}>{t("groups.members.readmit")}</Text>
         </PressableScale>
       ) : removable ? (
@@ -343,7 +362,16 @@ function makeStyles(theme: CommunityTheme) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.colors.hairline,
     },
-    removed: { opacity: 0.5 },
+    removed: { opacity: 0.6 },
+    section: {
+      ...theme.typography.caption,
+      color: theme.colors.textFaint,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      marginHorizontal: theme.spacing(4),
+      marginTop: theme.spacing(5),
+      marginBottom: theme.spacing(1),
+    },
     who: { flex: 1, flexDirection: "row", alignItems: "center", gap: theme.spacing(3) },
     whoText: { flex: 1, minWidth: 0, gap: 2 },
     name: {

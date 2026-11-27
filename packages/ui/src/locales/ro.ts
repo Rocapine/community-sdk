@@ -339,4 +339,11 @@ export const ro: Record<string, string> = {
   "groups.members.removeConfirm": "Elimini pe {name} din grup?",
   "groups.members.readmit": "Primește înapoi",
   "groups.members.empty": "Niciun membru găsit.",
+  "groups.error.removed": "Nu mai faci parte din acest grup.",
+  "groups.error.banned": "Contul tău nu poate face asta acum.",
+  "groups.review.hidden":
+    "Moderatorii au ascuns acest grup: ceilalți nu îl văd. Contactează asistența dacă crezi că e o greșeală.",
+  "groups.details.delete": "Șterge grupul",
+  "groups.details.deleteConfirm": "Ștergi acest grup pentru toată lumea?",
+  "groups.members.removed": "Eliminați",
 };

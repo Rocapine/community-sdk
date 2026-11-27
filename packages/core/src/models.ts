@@ -538,7 +538,17 @@ export type Conversation = {
   unread: number;
   notify: boolean;
   role: "member" | "creator";
+  /** A group's live name (null for a DM, or a group never approved yet). */
+  title: string | null;
+  /** A group's live picture. */
+  imageUrl: string | null;
+  /** A group's status as the caller may know it; null for a DM. */
+  groupStatus: GroupStatus | null;
 };
+
+/** `pending`: not reviewed yet; `hidden`: hidden by a moderator (R13). Only the
+ * creator and admins ever read a group that isn't `visible`. */
+export type GroupStatus = "pending" | "visible" | "hidden";
 
 /** One message of a conversation. */
 export type ChatMessage = {
@@ -569,9 +579,12 @@ export type Group = {
   memberCount: number;
   lastActivityAt: string;
   isMember: boolean;
-  status: "pending" | "visible";
+  status: GroupStatus;
   rejectedFields: string[];
   isCreator: boolean;
+  /** My active membership's role (null when not a member): a creator who is still
+   * one manages the group, as the server's `can_manage_group` does. */
+  myRole: "member" | "creator" | null;
   /** Who created it (a group report names them); null in search results. */
   creatorId: string | null;
 };

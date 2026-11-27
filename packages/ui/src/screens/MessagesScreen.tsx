@@ -147,11 +147,13 @@ const GroupConversationRow = memo(function GroupConversationRow({
   const t = useT();
   const styles = useThemedStyles(makeStyles);
   const myUid = useMyUid();
-  const group = useGroup(c.id).data;
+  // The list carries the live title and picture; a group never approved yet has
+  // neither, and only its creator holds it: that one row reads the pending values.
+  const pending = useGroup(c.title === null && c.kind === "group" ? c.id : null).data;
   const authorId =
     c.lastMessage && c.lastMessage.authorId !== myUid ? c.lastMessage.authorId : null;
   const authorName = useProfile(authorId).data?.name ?? null;
-  const name = group?.name ?? "";
+  const name = c.title ?? pending?.name ?? "";
   const preview = lastMessagePreview(c.lastMessage, myUid, authorName, t);
   const unread = c.unread > 0;
   const unreadLabel = unread ? t("messages.unread", { count: c.unread }) : null;
@@ -163,15 +165,19 @@ const GroupConversationRow = memo(function GroupConversationRow({
       accessibilityRole="button"
       accessibilityLabel={[name, preview, unreadLabel].filter(Boolean).join(", ")}
     >
-      <Avatar userId={null} name={name} url={group?.imageUrl ?? null} size={44} placement="group" />
+      <Avatar
+        userId={null}
+        name={name}
+        url={c.imageUrl ?? pending?.imageUrl ?? null}
+        size={44}
+        placement="group"
+      />
       <View style={styles.rowBody}>
         <View style={styles.rowTop}>
           <Text style={[styles.name, unread && styles.strong]} numberOfLines={1}>
             {name}
           </Text>
-          {group?.status === "pending" && group.isCreator && (
-            <Text style={styles.tag}>{t("groups.underReview")}</Text>
-          )}
+          {c.groupStatus === "pending" && <Text style={styles.tag}>{t("groups.underReview")}</Text>}
         </View>
         <Text style={[styles.preview, unread && styles.previewUnread]} numberOfLines={1}>
           {preview}

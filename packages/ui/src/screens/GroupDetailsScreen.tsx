@@ -1,8 +1,9 @@
 // A group's details (validated mockup B: settings list): the header (picture, name,
 // "N members · X online", description), then rows — Notifications (the chat header's
 // bell, same setting), Members (opens the list; members only, others see the count),
-// Share in the community — and Report and Leave. The creator and app admins also get
-// Edit (and, in the member list, Remove / Readmit). A plain screen: the host pads the
+// Share in the community — and Report and Leave. Whoever manages the group (its active
+// creator, an app admin, as `can_manage_group`) also gets Edit and Delete (and, in the
+// member list, Remove / Readmit). A plain screen: the host pads the
 // top. Renders nothing when the groups module is off.
 import {
   COMMUNITY_EVENTS,
@@ -12,6 +13,7 @@ import {
   useConversations,
   useGroup,
   useGroupOnlineCounts,
+  useDeleteGroup,
   useLeaveGroup,
   useMyUid,
   useProfile,
@@ -36,7 +38,7 @@ export type GroupDetailsScreenProps = {
   onOpenMembers(): void;
   /** "Share in the community": the host opens the composer with the group's card. */
   onShare(group: Group): void;
-  /** I left the group: leave the screen (and the conversation under it). */
+  /** I left or deleted the group: leave the screen (and the conversation under it). */
   onLeft(): void;
   onBack(): void;
 };
@@ -61,9 +63,11 @@ function Details({ groupId, onOpenMembers, onShare, onLeft, onBack }: GroupDetai
   const conversation = useConversations().data?.find((c) => c.id === groupId);
   const setNotify = useSetGroupNotify();
   const leave = useLeaveGroup();
+  const remove = useDeleteGroup();
 
   const [error, setError] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const failed = () => setError(t("groups.error.generic"));
@@ -161,7 +165,7 @@ function Details({ groupId, onOpenMembers, onShare, onLeft, onBack }: GroupDetai
           )}
         </View>
 
-        {(canReport || member) && (
+        {(canReport || member || manage) && (
           <View style={styles.list}>
             {canReport && (
               <Row
@@ -177,6 +181,14 @@ function Details({ groupId, onOpenMembers, onShare, onLeft, onBack }: GroupDetai
                 danger
                 onPress={() => setConfirmLeave(true)}
                 divider={canReport}
+              />
+            )}
+            {manage && (
+              <Row
+                label={t("groups.details.delete")}
+                danger
+                onPress={() => setConfirmDelete(true)}
+                divider={canReport || member}
               />
             )}
           </View>
@@ -198,6 +210,22 @@ function Details({ groupId, onOpenMembers, onShare, onLeft, onBack }: GroupDetai
           },
         ]}
         onClose={() => setConfirmLeave(false)}
+      />
+      <MessageMenu
+        visible={confirmDelete}
+        title={t("groups.details.deleteConfirm")}
+        actions={[
+          {
+            key: "delete",
+            label: t("groups.details.delete"),
+            destructive: true,
+            onPress: () => {
+              setError(null);
+              remove.mutate({ groupId }, { onSuccess: onLeft, onError: failed });
+            },
+          },
+        ]}
+        onClose={() => setConfirmDelete(false)}
       />
       <GroupFormSheet
         visible={editing}

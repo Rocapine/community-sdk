@@ -21,10 +21,12 @@ import {
   GROUP_MEMBERS_PAGE_SIZE,
   GROUPS_PAGE_SIZE,
   createGroup,
+  deleteGroup,
   editGroup,
   fetchGroup,
   fetchGroupMembers,
   fetchGroupOnlineCounts,
+  fetchGroupRemovals,
   joinGroup,
   leaveGroup,
   readmitMember,
@@ -712,5 +714,29 @@ export function useReadmitMember() {
       readmitMember(cfg, groupId, userId),
     onSuccess: (_d, { groupId }) =>
       void queryClient.invalidateQueries({ queryKey: groupMembersKey(groupId) }),
+  });
+}
+
+/** Members removed from a group (its managers only; `enabled` false for anyone else). */
+export function useGroupRemovals(id: string | null, query = "", enabled = true) {
+  const cfg = useCommunityConfig();
+  const cleaned = query.trim();
+  return useQuery({
+    // Under groupMembersKey: removing or readmitting a member refreshes both lists.
+    queryKey: [...groupMembersKey(id ?? "none"), "removed", cleaned],
+    queryFn: () => fetchGroupRemovals(cfg, id!, cleaned),
+    enabled: messagingEnabled(cfg) && !!id && enabled,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/** The creator or an admin deletes a group: gone for everyone. */
+export function useDeleteGroup() {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId }: { groupId: string }) => deleteGroup(cfg, groupId),
+    onSuccess: () => void invalidateGroups(queryClient),
   });
 }

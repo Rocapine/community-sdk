@@ -354,4 +354,11 @@ export const de: Record<string, string> = {
   "groups.members.removeConfirm": "{name} aus der Gruppe entfernen?",
   "groups.members.readmit": "Wieder aufnehmen",
   "groups.members.empty": "Kein Mitglied gefunden.",
+  "groups.error.removed": "Du wurdest aus dieser Gruppe entfernt.",
+  "groups.error.banned": "Dein Konto kann das gerade nicht tun.",
+  "groups.review.hidden":
+    "Die Moderation hat diese Gruppe ausgeblendet: Andere sehen sie nicht. Wende dich an den Support, wenn du das für einen Fehler hältst.",
+  "groups.details.delete": "Gruppe löschen",
+  "groups.details.deleteConfirm": "Diese Gruppe für alle löschen?",
+  "groups.members.removed": "Entfernt",
 };

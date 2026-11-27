@@ -331,4 +331,11 @@ export const esES: Record<string, string> = {
   "groups.members.removeConfirm": "¿Quitar a {name} del grupo?",
   "groups.members.readmit": "Readmitir",
   "groups.members.empty": "No se ha encontrado ningún miembro.",
+  "groups.error.removed": "Te han quitado de este grupo.",
+  "groups.error.banned": "Tu cuenta no puede hacer esto ahora mismo.",
+  "groups.review.hidden":
+    "La moderación ha ocultado este grupo: los demás no lo ven. Contacta con soporte si crees que es un error.",
+  "groups.details.delete": "Eliminar grupo",
+  "groups.details.deleteConfirm": "¿Eliminar este grupo para todos?",
+  "groups.members.removed": "Quitados",
 };

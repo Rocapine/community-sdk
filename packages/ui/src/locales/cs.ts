@@ -337,4 +337,11 @@ export const cs: Record<string, string> = {
   "groups.members.removeConfirm": "Odebrat {name} ze skupiny?",
   "groups.members.readmit": "Přijmout zpět",
   "groups.members.empty": "Nenašel se žádný člen.",
+  "groups.error.removed": "Z této skupiny tě odebrali.",
+  "groups.error.banned": "Tvůj účet to teď nemůže udělat.",
+  "groups.review.hidden":
+    "Moderátoři tuto skupinu skryli: ostatní ji nevidí. Pokud si myslíš, že jde o omyl, kontaktuj podporu.",
+  "groups.details.delete": "Smazat skupinu",
+  "groups.details.deleteConfirm": "Smazat tuto skupinu pro všechny?",
+  "groups.members.removed": "Odebraní",
 };
