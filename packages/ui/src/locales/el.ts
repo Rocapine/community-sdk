@@ -335,4 +335,12 @@ export const el: Record<string, string> = {
   "groups.details.delete": "Διαγραφή ομάδας",
   "groups.details.deleteConfirm": "Διαγραφή αυτής της ομάδας για όλους;",
   "groups.members.removed": "Αφαιρέθηκαν",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Ροή",
+  "groups.home.groups": "Ομάδες",
+  "groups.home.mine": "Οι ομάδες μου",
+  "groups.home.discover": "Για να ανακαλύψεις",
+  "groups.home.seeAll": "Δες όλες",
+  "groups.card.join": "Συμμετοχή στην ομάδα",
+  "groups.card.gone": "Αυτή η ομάδα δεν υπάρχει πια",
 };

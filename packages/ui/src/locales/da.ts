@@ -326,4 +326,12 @@ export const da: Record<string, string> = {
   "groups.details.delete": "Slet gruppe",
   "groups.details.deleteConfirm": "Slette denne gruppe for alle?",
   "groups.members.removed": "Fjernet",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Feed",
+  "groups.home.groups": "Grupper",
+  "groups.home.mine": "Mine grupper",
+  "groups.home.discover": "Til at opdage",
+  "groups.home.seeAll": "Se alle",
+  "groups.card.join": "Bliv medlem af gruppen",
+  "groups.card.gone": "Denne gruppe findes ikke længere",
 };

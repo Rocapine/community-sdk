@@ -150,6 +150,21 @@ describe("sendMessage attachment", () => {
     expect((err as MessagingError).code).toBe("invalid_attachment");
     expect(client.rpc).not.toHaveBeenCalled();
   });
+
+  it("sends the built-in group card even with the attachments module off", async () => {
+    const client = fakeClient({
+      rpc: () => ({ data: { id: "m1", status: "visible", moderated_at: null }, error: null }),
+      tables: { messages: { data: messageRow(), error: null } },
+    });
+    await sendMessage(cfgWith(client), {
+      conversationId: "c1",
+      attachment: { type: "group", id: "g2" },
+    });
+    expect(rpcArgs(client, "send_message")).toMatchObject({
+      p_attachment_type: "group",
+      p_attachment_id: "g2",
+    });
+  });
 });
 
 describe("fetchMessages", () => {

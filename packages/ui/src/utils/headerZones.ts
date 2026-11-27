@@ -8,6 +8,9 @@ import type { ImageProps } from "expo-image";
  *  - `search`: opens the search bar
  *  - `inbox`: the notification bell (only with the inbox module and `onOpenInbox`)
  *  - `online`: the live online count (presence module)
+ *  - `messages`: the Messages page; `groups`: that page on its Groups tab; `dms`: on its
+ *    direct messages (groups module and `onOpenMessages`; `dms` waits for direct messages).
+ *    Each shows the unread badge per `messaging.badge`
  *  - `{ logo }`: an image, e.g. the app's logo (pass the source matching your theme) */
 export type FeedHeaderItem =
   | "title"
@@ -15,6 +18,9 @@ export type FeedHeaderItem =
   | "search"
   | "inbox"
   | "online"
+  | "messages"
+  | "groups"
+  | "dms"
   | {
       logo: ImageProps["source"];
       /** Defaults to 32. */
@@ -58,11 +64,17 @@ export const DEFAULT_FEED_HEADER: FeedHeaderConfig = {
 
 export function resolveHeaderZones(
   config: FeedHeaderConfig,
-  opts: { inbox: boolean; online: boolean },
+  opts: { inbox: boolean; online: boolean; messaging: boolean; dms: boolean },
 ): { left: FeedHeaderItem[]; center: FeedHeaderItem[]; right: FeedHeaderItem[]; visible: boolean } {
   if (!config.left && !config.center && !config.right) config = { ...DEFAULT_FEED_HEADER };
   const keep = (items: FeedHeaderItem[] = []) =>
-    items.filter((item) => (item !== "inbox" || opts.inbox) && (item !== "online" || opts.online));
+    items.filter(
+      (item) =>
+        (item !== "inbox" || opts.inbox) &&
+        (item !== "online" || opts.online) &&
+        ((item !== "messages" && item !== "groups") || opts.messaging) &&
+        (item !== "dms" || opts.dms),
+    );
   const left = keep(config.left);
   const center = keep(config.center);
   const right = keep(config.right);

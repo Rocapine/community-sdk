@@ -88,10 +88,14 @@ export function resolveModules(
   }
 
   // core is always required/implied; streaks/002 moves the streak onto badges;
-  // groups are conversations of the messaging core.
+  // groups are conversations of the messaging core, and their share card is a post
+  // attachment (posts.attachment).
   requestedSet.add("core");
   if (requestedSet.has("streaks")) requestedSet.add("badges");
-  if (requestedSet.has("groups")) requestedSet.add("messaging");
+  if (requestedSet.has("groups")) {
+    requestedSet.add("messaging");
+    requestedSet.add("attachments");
+  }
 
   const canonicalModules = MODULE_ORDER.filter((m) => requestedSet.has(m));
 

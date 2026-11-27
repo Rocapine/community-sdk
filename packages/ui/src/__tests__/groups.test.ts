@@ -174,6 +174,13 @@ const KEYS = [
   "groups.members.removeConfirm",
   "groups.members.readmit",
   "groups.members.empty",
+  "groups.home.feed",
+  "groups.home.groups",
+  "groups.home.mine",
+  "groups.home.discover",
+  "groups.home.seeAll",
+  "groups.card.join",
+  "groups.card.gone",
 ];
 
 describe("groups copy", () => {

@@ -346,4 +346,12 @@ export const hr: Record<string, string> = {
   "groups.details.delete": "Izbriši grupu",
   "groups.details.deleteConfirm": "Izbrisati ovu grupu za sve?",
   "groups.members.removed": "Uklonjeni",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Objave",
+  "groups.home.groups": "Grupe",
+  "groups.home.mine": "Moje grupe",
+  "groups.home.discover": "Za otkriti",
+  "groups.home.seeAll": "Prikaži sve",
+  "groups.card.join": "Pridruži se grupi",
+  "groups.card.gone": "Ova grupa više ne postoji",
 };

@@ -327,4 +327,12 @@ export const sv: Record<string, string> = {
   "groups.details.delete": "Radera grupp",
   "groups.details.deleteConfirm": "Radera den här gruppen för alla?",
   "groups.members.removed": "Borttagna",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Flöde",
+  "groups.home.groups": "Grupper",
+  "groups.home.mine": "Mina grupper",
+  "groups.home.discover": "Att upptäcka",
+  "groups.home.seeAll": "Visa alla",
+  "groups.card.join": "Gå med i gruppen",
+  "groups.card.gone": "Den här gruppen finns inte längre",
 };

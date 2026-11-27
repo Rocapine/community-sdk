@@ -53,6 +53,7 @@ import type { CommunityTheme } from "../theme";
 import { Avatar } from "../components/Avatar";
 import { useKeyboardHeight } from "../components/ComposerSheet";
 import { GroupReviewNotice } from "../components/GroupFormSheet";
+import { GroupLinkContext, type GroupLink } from "../components/GroupAttachment";
 import { ImageViewerHost } from "../components/ImageViewer";
 import { PressableScale, haptic } from "../components/PressableScale";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
@@ -86,6 +87,9 @@ export type ConversationScreenProps = {
   onOpenGroupDetails?(): void;
   /** Opens an attached item; defaults to the provider's `onOpenAttachment`. */
   onOpenAttachment?(attachment: PostAttachment): void;
+  /** Opens a group from a group card in a message (`preview`: I'm not a member). Absent
+   * ⇒ the card only joins. */
+  onOpenGroup?(groupId: string, preview: boolean): void;
   onBack(): void;
   /** Host gate run before sending (same contract as the feed's `beforeCompose`):
    * resolve false to cancel. */
@@ -110,11 +114,18 @@ function useStable<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) 
 
 export function ConversationScreen(props: ConversationScreenProps) {
   const cfg = useCommunityConfig();
+  const { onOpenGroup, beforeJoinGroup } = props;
+  const groupLink = useMemo<GroupLink | null>(
+    () => (onOpenGroup ? { openGroup: onOpenGroup, beforeJoinGroup } : null),
+    [onOpenGroup, beforeJoinGroup],
+  );
   if (!groupsSettings(cfg)) return null;
   return (
-    <ImageViewerHost>
-      <Conversation key={props.conversationId} {...props} />
-    </ImageViewerHost>
+    <GroupLinkContext.Provider value={groupLink}>
+      <ImageViewerHost>
+        <Conversation key={props.conversationId} {...props} />
+      </ImageViewerHost>
+    </GroupLinkContext.Provider>
   );
 }
 

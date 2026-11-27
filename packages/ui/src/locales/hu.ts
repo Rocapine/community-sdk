@@ -331,4 +331,12 @@ export const hu: Record<string, string> = {
   "groups.details.delete": "Csoport törlése",
   "groups.details.deleteConfirm": "Mindenki számára törlöd ezt a csoportot?",
   "groups.members.removed": "Eltávolítva",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Hírfolyam",
+  "groups.home.groups": "Csoportok",
+  "groups.home.mine": "Csoportjaim",
+  "groups.home.discover": "Felfedezésre",
+  "groups.home.seeAll": "Összes megtekintése",
+  "groups.card.join": "Csatlakozás a csoporthoz",
+  "groups.card.gone": "Ez a csoport már nem létezik",
 };

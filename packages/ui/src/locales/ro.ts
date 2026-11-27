@@ -346,4 +346,12 @@ export const ro: Record<string, string> = {
   "groups.details.delete": "Șterge grupul",
   "groups.details.deleteConfirm": "Ștergi acest grup pentru toată lumea?",
   "groups.members.removed": "Eliminați",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Flux",
+  "groups.home.groups": "Grupuri",
+  "groups.home.mine": "Grupurile mele",
+  "groups.home.discover": "De descoperit",
+  "groups.home.seeAll": "Vezi tot",
+  "groups.card.join": "Alătură-te grupului",
+  "groups.card.gone": "Acest grup nu mai există",
 };

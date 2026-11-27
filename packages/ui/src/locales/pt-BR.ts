@@ -334,4 +334,12 @@ export const ptBR: Record<string, string> = {
   "groups.details.delete": "Excluir grupo",
   "groups.details.deleteConfirm": "Excluir este grupo para todos?",
   "groups.members.removed": "Removidos",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Feed",
+  "groups.home.groups": "Grupos",
+  "groups.home.mine": "Meus grupos",
+  "groups.home.discover": "Para descobrir",
+  "groups.home.seeAll": "Ver todos",
+  "groups.card.join": "Participar do grupo",
+  "groups.card.gone": "Este grupo não existe mais",
 };

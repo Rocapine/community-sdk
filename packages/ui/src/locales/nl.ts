@@ -329,4 +329,12 @@ export const nl: Record<string, string> = {
   "groups.details.delete": "Groep verwijderen",
   "groups.details.deleteConfirm": "Deze groep voor iedereen verwijderen?",
   "groups.members.removed": "Verwijderd",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Feed",
+  "groups.home.groups": "Groepen",
+  "groups.home.mine": "Mijn groepen",
+  "groups.home.discover": "Ontdekken",
+  "groups.home.seeAll": "Alles bekijken",
+  "groups.card.join": "Lid worden van de groep",
+  "groups.card.gone": "Deze groep bestaat niet meer",
 };

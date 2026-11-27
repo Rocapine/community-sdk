@@ -344,4 +344,12 @@ export const ru: Record<string, string> = {
   "groups.details.delete": "Удалить группу",
   "groups.details.deleteConfirm": "Удалить эту группу для всех?",
   "groups.members.removed": "Удалённые",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Лента",
+  "groups.home.groups": "Группы",
+  "groups.home.mine": "Мои группы",
+  "groups.home.discover": "Стоит открыть",
+  "groups.home.seeAll": "Смотреть все",
+  "groups.card.join": "Вступить в группу",
+  "groups.card.gone": "Этой группы больше нет",
 };

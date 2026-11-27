@@ -1,7 +1,8 @@
 // A post's attachment (attachments module): the host draws the card from its own
 // data (`renderAttachment`) and opens the content (`onOpenAttachment`). Inside the
 // thread sheet, opening goes through the modal handoff so the sheet closes first.
-import type { PostAttachment } from "@rocapine/community-core";
+// A `group` attachment the host doesn't draw gets the SDK's own card (groups module).
+import { groupsSettings, useCommunityConfig, type PostAttachment } from "@rocapine/community-core";
 import { useContext, type ReactElement } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import {
@@ -11,7 +12,9 @@ import {
   type AttachmentPlacement,
   type AttachmentVariant,
 } from "../ThemeProvider";
+import { attachmentRenderer, attachmentVariant } from "../utils/attachment";
 import { ModalHandoffContext } from "../utils/modalHandoff";
+import { GroupAttachment } from "./GroupAttachment";
 
 export function AttachmentCard({
   attachment,
@@ -32,15 +35,26 @@ export function AttachmentCard({
   const presentModal = useContext(ModalHandoffContext);
   const icons = useCommunityIcons();
   const t = useT();
+  const groups = groupsSettings(useCommunityConfig());
+  const shown = attachmentVariant(attachment.type, variant, groups?.shareCardLayout ?? null);
   const node = render?.(attachment, {
     placement,
-    variant,
+    variant: shown,
     open: () => presentModal(() => (onOpen ?? open)?.(attachment)),
   });
-  if (node == null) return null;
+  const by = attachmentRenderer(attachment.type, node, !!groups);
+  if (by === null) return null;
   return (
     <View style={styles.wrap}>
-      {node}
+      {by === "host" ? (
+        node
+      ) : (
+        <GroupAttachment
+          groupId={attachment.id}
+          variant={shown}
+          interactive={placement !== "composer"}
+        />
+      )}
       {onRemove && (
         <Pressable
           hitSlop={10}

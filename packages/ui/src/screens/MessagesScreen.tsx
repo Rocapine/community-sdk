@@ -135,7 +135,8 @@ function Messages({ onOpenConversation, onOpenExplore, onBack }: MessagesScreenP
   );
 }
 
-const GroupConversationRow = memo(function GroupConversationRow({
+/** One of my groups: picture, name, last message, time and unread count (grey when muted). */
+export const GroupConversationRow = memo(function GroupConversationRow({
   conversation: c,
   now,
   onPress,

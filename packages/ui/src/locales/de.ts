@@ -361,4 +361,12 @@ export const de: Record<string, string> = {
   "groups.details.delete": "Gruppe löschen",
   "groups.details.deleteConfirm": "Diese Gruppe für alle löschen?",
   "groups.members.removed": "Entfernt",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Feed",
+  "groups.home.groups": "Gruppen",
+  "groups.home.mine": "Meine Gruppen",
+  "groups.home.discover": "Entdecken",
+  "groups.home.seeAll": "Alle ansehen",
+  "groups.card.join": "Der Gruppe beitreten",
+  "groups.card.gone": "Diese Gruppe gibt es nicht mehr",
 };

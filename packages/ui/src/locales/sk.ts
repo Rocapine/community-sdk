@@ -345,4 +345,12 @@ export const sk: Record<string, string> = {
   "groups.details.delete": "Odstrániť skupinu",
   "groups.details.deleteConfirm": "Odstrániť túto skupinu pre všetkých?",
   "groups.members.removed": "Odstránení",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Príspevky",
+  "groups.home.groups": "Skupiny",
+  "groups.home.mine": "Moje skupiny",
+  "groups.home.discover": "Na objavenie",
+  "groups.home.seeAll": "Zobraziť všetky",
+  "groups.card.join": "Pridať sa do skupiny",
+  "groups.card.gone": "Táto skupina už neexistuje",
 };

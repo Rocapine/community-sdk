@@ -347,4 +347,12 @@ export const uk: Record<string, string> = {
   "groups.details.delete": "Видалити групу",
   "groups.details.deleteConfirm": "Видалити цю групу для всіх?",
   "groups.members.removed": "Вилучені",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Стрічка",
+  "groups.home.groups": "Групи",
+  "groups.home.mine": "Мої групи",
+  "groups.home.discover": "Варто відкрити",
+  "groups.home.seeAll": "Переглянути всі",
+  "groups.card.join": "Приєднатися до групи",
+  "groups.card.gone": "Цієї групи більше не існує",
 };

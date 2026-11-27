@@ -10,7 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 
-import type { ResolvedCommunityConfig } from "./config";
+import { attachmentTypeAllowed, type ResolvedCommunityConfig } from "./config";
 import { ensureIdentity } from "./identity";
 import { readerLocale } from "./locale";
 import {
@@ -131,7 +131,8 @@ function postsSelect(cfg: ResolvedCommunityConfig): string {
     readerLocale(cfg) !== null,
     !!cfg.modules.images,
     !!cfg.modules.badges,
-    !!cfg.modules.attachments,
+    // Groups bring the built-in group card, even with the attachments module off.
+    !!cfg.modules.attachments || !!cfg.modules.groups,
   );
 }
 
@@ -508,9 +509,10 @@ export async function createPost(
   const { topic, body, pollOptions, image, attachment } = input;
   const hasPoll = !!pollOptions && pollOptions.length > 0;
   if (attachment) {
-    if (!cfg.modules.attachments) throw new Error("attachments module is not enabled");
-    if (!cfg.modules.attachments.types.includes(attachment.type))
+    if (!attachmentTypeAllowed(cfg, attachment.type)) {
+      if (!cfg.modules.attachments) throw new Error("attachments module is not enabled");
       throw new Error("attachment type not enabled");
+    }
     if (hasPoll || image)
       throw new Error("a post cannot have both an attachment and a poll or an image");
   }

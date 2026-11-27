@@ -15,6 +15,8 @@ export {
   DEFAULT_POST_MAX_LENGTH,
   resolveConfig,
   canAttach,
+  attachmentTypeAllowed,
+  GROUP_ATTACHMENT,
   isEventTopic,
   topicLive,
   STREAK_BADGES,

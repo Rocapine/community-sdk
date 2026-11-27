@@ -130,7 +130,7 @@ describe("runUpgrade", () => {
 
     await runUpgrade(baseOptions());
 
-    expect(readManifest(cwd)!.modules).toEqual(["core", "messaging", "groups"]);
+    expect(readManifest(cwd)!.modules).toEqual(["core", "attachments", "messaging", "groups"]);
     const files = fs.readdirSync(path.join(cwd, "supabase", "migrations"));
     expect(files.some((f) => f.includes("_community_messaging_messaging"))).toBe(true);
   });

@@ -5,7 +5,7 @@
 
 import type { PostgrestError } from "@supabase/supabase-js";
 
-import type { ResolvedCommunityConfig } from "./config";
+import { attachmentTypeAllowed, type ResolvedCommunityConfig } from "./config";
 import type { ChatMessage, Conversation, GroupStatus, PostAttachment } from "./models";
 import { moderateOne, requireUid } from "./service";
 import { cacheSignedUrl, cachedSignedUrl } from "./signed-urls";
@@ -327,10 +327,7 @@ export async function sendMessage(
 ): Promise<ChatMessage> {
   requireGroups(cfg);
   const { conversationId, attachment } = input;
-  if (
-    attachment &&
-    !(cfg.modules.attachments && cfg.modules.attachments.types.includes(attachment.type))
-  )
+  if (attachment && !attachmentTypeAllowed(cfg, attachment.type))
     throw new MessagingError("invalid_attachment", "attachment type not enabled");
   const uid = await requireUid(cfg);
   let imagePath: string | null = null;

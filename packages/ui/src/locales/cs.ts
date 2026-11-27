@@ -344,4 +344,12 @@ export const cs: Record<string, string> = {
   "groups.details.delete": "Smazat skupinu",
   "groups.details.deleteConfirm": "Smazat tuto skupinu pro všechny?",
   "groups.members.removed": "Odebraní",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "Příspěvky",
+  "groups.home.groups": "Skupiny",
+  "groups.home.mine": "Moje skupiny",
+  "groups.home.discover": "K objevení",
+  "groups.home.seeAll": "Zobrazit vše",
+  "groups.card.join": "Přidat se do skupiny",
+  "groups.card.gone": "Tato skupina už neexistuje",
 };

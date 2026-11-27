@@ -406,9 +406,22 @@ export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig 
   return Object.freeze(resolved);
 }
 
+/** The built-in "join the group" attachment's type (`{ type: "group", id: groupId }`). */
+export const GROUP_ATTACHMENT = "group";
+
+/** Whether a post or message may carry this attachment type: one the app enabled
+ * (`modules.attachments.types`), or the built-in `group` card with the groups module on,
+ * even when the attachments module is off. */
+export function attachmentTypeAllowed(cfg: ResolvedCommunityConfig, type: string): boolean {
+  if (type === GROUP_ATTACHMENT && cfg.modules.groups) return true;
+  return !!cfg.modules.attachments && cfg.modules.attachments.types.includes(type);
+}
+
 /** Whether this author may attach app content to a post: admin accounts always,
- * members when the app allows it. */
-export function canAttach(cfg: ResolvedCommunityConfig, admin: boolean): boolean {
+ * members when the app allows it. A group card (`type` "group", groups module on) any
+ * member may share. */
+export function canAttach(cfg: ResolvedCommunityConfig, admin: boolean, type?: string): boolean {
+  if (type === GROUP_ATTACHMENT && cfg.modules.groups) return true;
   if (!cfg.modules.attachments) return false;
   return admin || cfg.modules.attachments.membersCanAttach;
 }

@@ -328,4 +328,12 @@ export const ko: Record<string, string> = {
   "groups.details.delete": "그룹 삭제",
   "groups.details.deleteConfirm": "모두에게서 이 그룹을 삭제할까요?",
   "groups.members.removed": "내보낸 멤버",
+  // Feed | Groups home and the join-the-group card (groups module).
+  "groups.home.feed": "피드",
+  "groups.home.groups": "그룹",
+  "groups.home.mine": "내 그룹",
+  "groups.home.discover": "둘러볼 그룹",
+  "groups.home.seeAll": "모두 보기",
+  "groups.card.join": "그룹 참여하기",
+  "groups.card.gone": "이 그룹은 더 이상 없어요",
 };
