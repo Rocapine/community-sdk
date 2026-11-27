@@ -116,6 +116,25 @@ describe("runUpgrade", () => {
     expect(toBadges).toBeGreaterThan(badges);
   });
 
+  it("brings messaging along when groups are installed or added", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+    writeManifest(cwd, { ...readManifest(cwd)!, modules: ["core", "groups"] });
+
+    await runUpgrade(baseOptions());
+
+    expect(readManifest(cwd)!.modules).toEqual(["core", "messaging", "groups"]);
+    const files = fs.readdirSync(path.join(cwd, "supabase", "migrations"));
+    expect(files.some((f) => f.includes("_community_messaging_messaging"))).toBe(true);
+  });
+
   it("copies exactly a newly added template migration, timestamped after the existing ones", async () => {
     await runInit({
       cwd,

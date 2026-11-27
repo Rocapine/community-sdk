@@ -85,11 +85,13 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   // rules `init --modules` uses; left empty/undefined, behaviour here must stay
   // byte-identical to the pre-`addModules` path (no resolveModules call, no
   // spurious warnings for e.g. an existing inbox-without-reaction install).
-  // One implication still applies: streaks/002 moves the streak onto badges, so an
-  // install that has streaks gets badges too.
-  const installed = manifest.modules.includes("streaks")
-    ? [...manifest.modules, "badges"]
-    : manifest.modules;
+  // Two implications still apply: streaks/002 moves the streak onto badges, so an
+  // install that has streaks gets badges too; groups need the messaging core.
+  const installed = [
+    ...manifest.modules,
+    ...(manifest.modules.includes("streaks") ? ["badges"] : []),
+    ...(manifest.modules.includes("groups") ? ["messaging"] : []),
+  ];
   const canonicalModules =
     options.addModules && options.addModules.length > 0
       ? resolveModules([...installed, ...options.addModules], onWarn)

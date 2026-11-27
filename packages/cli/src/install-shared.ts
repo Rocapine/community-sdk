@@ -26,6 +26,9 @@ export const MODULE_ORDER = [
   "badges",
   "presence",
   "accounts",
+  // Chat core; installed with groups (and, later, dms).
+  "messaging",
+  "groups",
   // Deprecated: kept to move existing streaks onto badges (streaks/002). Implies badges.
   "streaks",
 ] as const;
@@ -79,9 +82,11 @@ export function resolveModules(
     }
   }
 
-  // core is always required/implied; streaks/002 moves the streak onto badges.
+  // core is always required/implied; streaks/002 moves the streak onto badges;
+  // groups are conversations of the messaging core.
   requestedSet.add("core");
   if (requestedSet.has("streaks")) requestedSet.add("badges");
+  if (requestedSet.has("groups")) requestedSet.add("messaging");
 
   const canonicalModules = MODULE_ORDER.filter((m) => requestedSet.has(m));
 

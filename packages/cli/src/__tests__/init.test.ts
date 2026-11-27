@@ -125,6 +125,13 @@ describe("runInit", () => {
     expect(toBadges).toBeGreaterThan(badges);
   });
 
+  it("installs messaging with groups, messaging first", async () => {
+    const result = await runInit(baseOptions({ modules: ["core", "groups"] }));
+    expect(result.manifest.modules).toEqual(["core", "messaging", "groups"]);
+    const files = fs.readdirSync(path.join(cwd, "supabase", "migrations"));
+    expect(files.some((f) => f.includes("_community_messaging_messaging"))).toBe(true);
+  });
+
   it("installs presence after core", async () => {
     const result = await runInit(baseOptions({ modules: ["core", "presence"] }));
     expect(result.manifest.modules).toEqual(["core", "presence"]);
