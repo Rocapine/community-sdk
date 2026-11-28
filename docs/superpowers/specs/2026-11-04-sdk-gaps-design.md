@@ -1,37 +1,37 @@
 # Community SDK 0.15 — closing the showcase gaps
 
-Date: 2026-11-04 · Owner: Guillaume · From: `community-sdk-showcase/docs/sdk-gaps.md`
+Date: 2026-11-04 · Owner: The maintainer · From: `community-sdk-showcase/docs/sdk-gaps.md`
 Current versions: `community-core` 0.14.0, `community-ui` 0.14.2, CLI 0.14.0.
 
 ## Intent
 
-The showcase (Eve, Maia, Lockyn, Harmony, GoodBoy, My Little Chef…) needed nine host-side
+The showcase (several host apps) needed nine host-side
 workarounds. This round turns each one into a first-class, **generic** SDK option, so any
 Rocapine app gets it by configuration. Three rules hold everywhere:
 
 - **Configuration over render props.** The header and the backgrounds are configured, never
   re-rendered whole. Render slots stay only for things that are the app's own content (an
   avatar, a member badge, an attachment card, a reaction button, an inbox row).
-- **Unchaind is the first consumer** and is migrated in the same round. Anything that makes
-  no sense in Unchaind is exercised in the example app instead.
+- **The host app is the first consumer** and is migrated in the same round. Anything that makes
+  no sense in the host app is exercised in the example app instead.
 - **0.x, breaking allowed.** Every breaking change gets a migration note in the CHANGELOG. The
   release is **0.15.0** for the whole linked group.
 
-## Decisions taken with Guillaume (2026-11-04)
+## Decisions taken with the maintainer (2026-11-04)
 
-| #   | Gap                 | Decision                                                                                                                                                            |
-| --- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 8   | `pt-BR` caption bug | Fall back to the base language name.                                                                                                                                |
-| 9   | Title font          | Named typography roles, each a full text style, in the theme.                                                                                                       |
-| 1   | Logo + title        | Header in three configurable zones (`left`, `center`, `right`), no render prop.                                                                                     |
-| 7   | Inbox rows          | `renderInboxRow` also gets `open()` and the row's computed parts.                                                                                                   |
-| 6   | Reactions           | `modules.reaction.label` + the reaction state and toggle handed to the slot.                                                                                        |
-| 2   | Backgrounds         | SDK-drawn background image (whole community) and header background. No new colour token.                                                                            |
-| 4   | Official accounts   | `renderAvatar` knows `official`, the handle, its placement and the member's badges; official names get their own colour.                                            |
-| 3   | Member badges       | One generic system: several keyed badges per member, each with its own toggle and placements. The streak becomes two badges. Unchaind's data migrates in two steps. |
-| 5   | Attachments         | A typed reference `{ type, id }` on a post, drawn and opened by the app. Members may attach only if the app allows it; official accounts always can.                |
+| #   | Gap                 | Decision                                                                                                                                                                |
+| --- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 8   | `pt-BR` caption bug | Fall back to the base language name.                                                                                                                                    |
+| 9   | Title font          | Named typography roles, each a full text style, in the theme.                                                                                                           |
+| 1   | Logo + title        | Header in three configurable zones (`left`, `center`, `right`), no render prop.                                                                                         |
+| 7   | Inbox rows          | `renderInboxRow` also gets `open()` and the row's computed parts.                                                                                                       |
+| 6   | Reactions           | `modules.reaction.label` + the reaction state and toggle handed to the slot.                                                                                            |
+| 2   | Backgrounds         | SDK-drawn background image (whole community) and header background. No new colour token.                                                                                |
+| 4   | Official accounts   | `renderAvatar` knows `official`, the handle, its placement and the member's badges; official names get their own colour.                                                |
+| 3   | Member badges       | One generic system: several keyed badges per member, each with its own toggle and placements. The streak becomes two badges. The host app's data migrates in two steps. |
+| 5   | Attachments         | A typed reference `{ type, id }` on a post, drawn and opened by the app. Members may attach only if the app allows it; official accounts always can.                    |
 
-Security stance for this round (Guillaume): no defence against technical users forging
+Security stance for this round (the maintainer): no defence against technical users forging
 their own badge data or attaching a reference through the API. Badge data and attachments
 are written by the client with the user's session, guarded only by size checks.
 
@@ -100,7 +100,7 @@ DEFAULT_FEED_HEADER = { left: ["profile"], center: ["title"], right: ["search", 
 - The community's name stays the `title` translation key (already overridable).
 - The `profile` button's avatar goes through `renderAvatar` with `placement: "header"` (§4).
 - Prop renamed `headerLayout` → `header`; the old `header?: ReactNode` slot above the row is
-  **removed** (the showcase only used it for the workarounds this round replaces; Unchaind
+  **removed** (the showcase only used it for the workarounds this round replaces; the host app
   doesn't use it).
 
 ## 3. Backgrounds (#2)
@@ -121,7 +121,7 @@ see-through. If the SDK draws the image itself, no new colour token is needed.
   instead of the host padding it. The top bar starts under the status bar, its background
   reaches behind it, and hiding on scroll stops there. (A background drawn above the
   feed's root would be clipped by it, hence the feed owning that area.)
-- No new native dependency (gradients are baked into the image). Unchaind ships this
+- No new native dependency (gradients are baked into the image). The host app ships this
   release as an OTA, which cannot add native code.
 
 ## 4. Avatars and official accounts (#4)
@@ -191,17 +191,17 @@ export const STREAK_BADGES = {
 // data: streak = { since: ISO string }, bestStreak = { days: number }
 ```
 
-Day counts are computed at render time from `since`, as now. This reproduces Unchaind's
+Day counts are computed at render time from `since`, as now. This reproduces the host app's
 UX exactly: two badges and two toggles on the profile, one badge on posts.
 
-### Unchaind's live data: two-step migration
+### The host app's live data: two-step migration
 
-Unchaind's community went live on 2026-11-03 (1.15.0). Its installed bundles write
+The host app's community went live on 2026-11-03 (1.15.0). Its installed bundles write
 `streak_started_at`, `best_streak_days`, `show_streak`, `show_best_streak` and their feed
 select embeds `visible_streak_started_at`: dropping a column would make **the whole feed
 request fail** on any client still on the old bundle.
 
-1. **Expand** (`streaks/002_to_badges.sql`, shipped with 0.15.0, applied with the Unchaind
+1. **Expand** (`streaks/002_to_badges.sql`, shipped with 0.15.0, applied with the host app
    OTA): copies the legacy columns into `badges`/`hidden_badges`, keeps the legacy columns,
    and adds a `before update` trigger that keeps both forms equal in both directions. Old
    and new clients then see the same streaks whichever bundle they run.
@@ -209,7 +209,7 @@ request fail** on any client still on the old bundle.
    legacy columns, once Expo Insights shows no more launches of the pre-OTA 1.15.0 bundle.
 
 The OTA targets the 1.15.0 runtime only (`runtimeVersion` policy `appVersion`; 1.15.1 is
-not released and later builds embed the new code). The web app (app.unchaind.app) is
+not released and later builds embed the new code). The web app (the host app's web app) is
 redeployed at the same time.
 
 New installs use the `badges` module directly; the `streaks` CLI module is kept only for
@@ -281,7 +281,7 @@ modules.attachments?: {
 - Prepared, not built: a composer button opening an app-provided picker
   (`renderAttachmentPicker`), next to the photo button.
 
-### In Unchaind
+### In the host app
 
 Type `verse`, id `"<book>.<chapter>.<verses>"` (book number as the Bible reader uses it,
 e.g. `"43.3.16-17"`). Share from the Bible reader's verse actions and from the home
@@ -312,15 +312,15 @@ SDK (one PR per row, merged in order, each with a changeset; one 0.15.0 release 
 9. Attachments (#5)
 10. Release 0.15.0
 
-Unchaind:
+The host app:
 
 11. Migrate to 0.15.0 (header, badges, reaction slot) + expand migration on sandbox, then
-    prod by Guillaume with the 1.15.0 OTA
+    prod by the maintainer with the 1.15.0 OTA
 12. Verse sharing (attachments)
 13. Later: contract migration (`streaks/003`) once the old bundle is gone
 
 Every PR that changes something visible carries an Argent recording (example app for SDK
-PRs, Unchaind for app PRs).
+PRs, the host app for app PRs).
 
 ## Out of scope
 

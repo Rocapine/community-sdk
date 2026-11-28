@@ -1,7 +1,7 @@
 # Community dashboard, brick 13: communities and access
 
-Status: draft 2026-11-13, waiting for Guillaume's review. It replaces the roadmap's brick 13 ("Dashboard
-roles") and moves it ahead of bricks 8 and 6 (brick 5 has shipped). Guillaume skipped the general
+Status: draft 2026-11-13, waiting for the maintainer's review. It replaces the roadmap's brick 13 ("Dashboard
+roles") and moves it ahead of bricks 8 and 6 (brick 5 has shipped). The maintainer skipped the general
 questions, so the calls marked "my call" are the builder's choices for him to check.
 
 ## Why
@@ -23,7 +23,7 @@ that today:
 - Each person sees only the apps they were given, with a role per app. Every rule is enforced by the
   Worker on every request. The browser only hides what the role can't do.
 - The owner of an app manages who has access to it, from the dashboard.
-- The dashboard admins (Guillaume only, as of 2026-11-27) can see and manage every app.
+- The dashboard admins (the maintainer only, as of 2026-11-27) can see and manage every app.
 
 ## Non-goals
 
@@ -62,15 +62,15 @@ that today:
     its access list.
 - **Dashboard admins**: a list of emails in the Worker's config (a `DASHBOARD_ADMINS` var). They are
   Owner of every app, see every app, and are the only ones who can delete an app. A var, not a
-  table, so access can always be repaired with a deploy. At launch there were two, Guillaume and Stan; since 2026-11-27 Guillaume alone, and Stan is an
-  Owner of Unchaind through an access row, added to each app like everyone else.
+  table, so access can always be repaired with a deploy. At launch there were two, the maintainer and a second Owner; since 2026-11-27 the maintainer alone, and the second Owner is an
+  Owner of the host app through an access row, added to each app like everyone else.
 - **Who can add an app** (my call): any Rocapinian. They become its Owner. An app nobody added stays
   invisible to everyone but the dashboard admins.
 - **An app's id** (my call) is the slug in its URLs. It is derived from the name, can be edited while
   adding the app, and is fixed afterwards. A taken id or an already registered Supabase project gets a
   plain refusal ("This id is taken", "This project is already in the dashboard"); that it reveals an
   app exists is acceptable inside Rocapine.
-- **The name belongs to the app** (my call): its communities show the app's name, as Unchaind does
+- **The name belongs to the app** (my call): its communities show the app's name, as the host app does
   today for both environments. An app may have only a sandbox, only a production, or both.
 - **Deleting** (my call): an Owner removes a community; the app stays, with its access list, even
   with no community left. Only a dashboard admin deletes an app, once it has no community. Audit rows
@@ -93,11 +93,11 @@ that today:
   community when it runs as a preview (a var set only in `previews.vars`). A preview can't reach
   production, as today with the Previews secrets (my call: enforced in code, not left to convention).
 - **Moving from today's config** (my call): a one-off import, run once by a dashboard admin, copies
-  each `COMMUNITIES` entry and its Worker secret into D1. All of Unchaind's settings are kept. The
+  each `COMMUNITIES` entry and its Worker secret into D1. All of the host app's settings are kept. The
   Worker then reads only D1. `COMMUNITIES` and the `SUPABASE_KEY_*` secrets are removed after a
   check, in the same PR or right after it. The builder picks the mechanism (an admin-only route, a
   script).
-- **Access at cutover:** Unchaind gets no access rows. The only people on it are the dashboard
+- **Access at cutover:** The host app gets no access rows. The only people on it are the dashboard
   admins. Nobody else sees anything until an Owner or an admin adds them.
 
 ### Adding a community
@@ -161,9 +161,9 @@ that today:
 
 - No SDK change.
 - Cloudflare: the Worker is on the Rocapine account. D1 and the new secrets are created by whoever has
-  Cloudflare access. The builder lists the exact commands. Guillaume runs those that need his
+  Cloudflare access. The builder lists the exact commands. The maintainer runs those that need his
   account, or allows them.
-- Production communities are read-only for agents while building. Tests use the Unchaind sandbox and
+- Production communities are read-only for agents while building. Tests use the host app sandbox and
   D1 locally (`wrangler dev`).
 - UI copy in English, no hint text under fields, calm UI. Production keeps its orange mark.
 

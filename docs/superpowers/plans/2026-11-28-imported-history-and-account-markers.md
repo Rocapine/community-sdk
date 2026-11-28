@@ -4,13 +4,13 @@
 
 **Goal:** Activity counts imported history, merged and deleted-account profiles are marked, a ban survives account deletion, and the dashboard shows all of it on the member card.
 
-**Architecture:** Two SDK migrations — `core/021` adds the two marker columns to `profiles` and redefines the two admin metric functions; `accounts/003` sets the markers from the account functions (never from `merge_profiles`) and adds `account_bans` — tested with the repo's SQL test files against the Unchaind sandbox. Then the dashboard (separate repo) reads the markers and `account_links` behind probes.
+**Architecture:** Two SDK migrations — `core/021` adds the two marker columns to `profiles` and redefines the two admin metric functions; `accounts/003` sets the markers from the account functions (never from `merge_profiles`) and adds `account_bans` — tested with the repo's SQL test files against the host app sandbox. Then the dashboard (separate repo) reads the markers and `account_links` behind probes.
 
 **Tech Stack:** Postgres (Supabase), plpgsql; SQL test files in `supabase-tests/` (assert + rollback by raise); Deno edge-function tests; Cloudflare Worker + React dashboard with vitest.
 
-**Spec:** /Users/glsx/Developer/community-sdk/.claude/worktrees/accounts-markers/docs/superpowers/specs/2026-11-28-imported-history-and-account-markers-design.md
+**Spec:** ~/Developer/community-sdk/.claude/worktrees/accounts-markers/docs/superpowers/specs/2026-11-28-imported-history-and-account-markers-design.md
 
-**Repos and branches:** SDK tasks in `/Users/glsx/Developer/community-sdk/.claude/worktrees/accounts-markers` (branch `feat/accounts-markers`, from origin/main edb54c8; the main checkout is someone else's messaging branch — never touch it). Dashboard task in `/Users/glsx/Developer/community-dashboard` on a new branch `feat/brick23-accounts` from main.
+**Repos and branches:** SDK tasks in `~/Developer/community-sdk/.claude/worktrees/accounts-markers` (branch `feat/accounts-markers`, from origin/main edb54c8; the main checkout is someone else's messaging branch — never touch it). Dashboard task in `~/Developer/community-dashboard` on a new branch `feat/brick23-accounts` from main.
 
 ## Global Constraints
 
@@ -21,7 +21,7 @@
 - Placeholders join on their first contribution: join date = earliest of their posts' and comments' `created_at`, else their own `created_at`.
 - Merged profiles (`merged_into is not null`) are left out of every metric and every dashboard list, search and count; deleted-account profiles count as members until `account_deleted_at` and their content always counts.
 - Dashboard copy (exact): chip "Deleted account"; filter label "Deleted accounts"; card notice "This member deleted their account. Their posts stay."; card line label "App account"; merged item view "Merged into <name>".
-- No agent writes to production. The Unchaind sandbox (`vjcdpodsrpemanfvrshh`) may receive these migrations and the SQL test runs (which always roll back).
+- No agent writes to production. The host app sandbox may receive these migrations and the SQL test runs (which always roll back).
 - SDK tests: `npm test` at the repo root; SQL tests run with the Supabase MCP `execute_sql` (or `npx supabase db query`) against the sandbox and pass when the raised message is the file's `*_TESTS_PASSED` string. Dashboard: `npx vitest run --exclude '.claude/**'`, `npx tsc -p tsconfig.worker.json --noEmit`, `npm run build`, `npm run lint`.
 
 ## Review Focus

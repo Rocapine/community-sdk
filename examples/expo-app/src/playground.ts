@@ -105,8 +105,8 @@ export const HEADER_PRESETS: Record<string, PlaygroundSettings["header"]> = {
     center: ["title"],
     right: ["search", "messages", "inbox"],
   },
-  Eve: { left: ["logo", "online"], center: ["title"], right: ["search"] },
-  Harmony: { left: ["profile"], center: ["logo", "title"], right: ["inbox"] },
+  "Logo left": { left: ["logo", "online"], center: ["title"], right: ["search"] },
+  "Centered logo": { left: ["profile"], center: ["logo", "title"], right: ["inbox"] },
   "Left title": { left: ["title", "online"], center: [], right: ["search", "inbox", "profile"] },
 };
 

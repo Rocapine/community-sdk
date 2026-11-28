@@ -2,7 +2,7 @@
 
 Date: 2026-09-23. Status: approved in brainstorming, awaiting implementation plan.
 Scope: `@rocapine/community-core`, `@rocapine/community-ui`, `@rocapine/community` (CLI) and the
-Supabase backend templates. First consumer: Eve's Rhythm (7 locales). Nightward (single locale)
+Supabase backend templates. First consumer: the first host app (7 locales). Another host app (single locale)
 does not enable the module.
 
 ## 1. Goal and decisions
@@ -20,8 +20,7 @@ to the original. Decisions taken during brainstorming (each is a product choice,
 | Pushes and inbox | In the recipient's language (comment push, official-post broadcast, inbox excerpts).                                                                                              |
 | Polls            | Option labels translated with the post, in the same call.                                                                                                                         |
 
-Volume baseline (Eve prod, 2026-09-23): ~200 posts and ~400 comments per month, 356 / 198
-characters on average; 96% of profiles `en`, 3.7% `es-419`. Cost is not a design constraint.
+Cost is not a design constraint.
 
 ## 2. Non-goals (v1)
 
@@ -97,7 +96,7 @@ not null …` guard (the same pattern as the inbox module's reaction trigger), s
 - `TRANSLATION_MODEL` from `COMMUNITY_TRANSLATION_MODEL` (default: a small, cheap OpenAI model,
   fixed in code as the default value; the secret overrides it).
 - `TRANSLATION_STYLE` from `COMMUNITY_TRANSLATION_STYLE` (optional free-text voice instruction per
-  app, e.g. Eve: informal "tu", feminine audience, faith vocabulary; empty by default).
+  app, e.g. the first host app: informal "tu", feminine audience, faith vocabulary; empty by default).
 - `translateItem({ content, pollOptions? })` → one OpenAI request with a JSON schema response:
   `{ source_locale: string, translations: { [locale]: { content: string, options?: string[] } } }`.
   Instructions: detect the language; translate only into target locales whose language differs from
@@ -211,7 +210,7 @@ when there is nothing to do.
 
 ## 10. Rollout and rollback
 
-Order for Eve: publish SDK 0.3.0 → `npx @rocapine/community upgrade --add-modules translation` →
+Order for the first host app: publish SDK 0.3.0 → `npx @rocapine/community upgrade --add-modules translation` →
 `supabase db push` (`--include-all` if needed) → `supabase functions deploy translate-one daily-translation
 notify-comment broadcast-post` → `supabase secrets set COMMUNITY_TRANSLATION_LOCALES=...` (and STYLE) →
 enable `modules.translation` in `lib/community-config.ts` → build. Installed clients are unaffected

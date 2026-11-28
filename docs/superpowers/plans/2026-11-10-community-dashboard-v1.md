@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A dashboard at `community.rocapi.ne` to review reported and AI-hidden content and manage members of the Unchaind community, in sandbox and production.
+**Goal:** A dashboard at `community.rocapi.ne` to review reported and AI-hidden content and manage members of the host app community, in sandbox and production.
 
-**Architecture:** A new repo `~/Developer/community-dashboard` modeled on `~/Developer/unchaind-dashboard`: a Vite + React SPA served as Worker static assets, and a hand-written Worker answering `/api/*`. The Worker checks the Cloudflare Access JWT, picks the community from the URL, and talks to that community's Supabase project with its secret key; the browser never talks to Supabase. Pure "planner" functions decide every write, so the rules are unit-tested without a database.
+**Architecture:** A new repo `~/Developer/community-dashboard` modeled on the internal dashboard repo: a Vite + React SPA served as Worker static assets, and a hand-written Worker answering `/api/*`. The Worker checks the Cloudflare Access JWT, picks the community from the URL, and talks to that community's Supabase project with its secret key; the browser never talks to Supabase. Pure "planner" functions decide every write, so the rules are unit-tested without a database.
 
 **Tech Stack:** Vite 8, React 19, TypeScript 6, Tailwind v4, shadcn/ui (`radix-nova`), wouter (routing), TanStack Query, `@supabase/supabase-js` 2 (in the Worker only), Vitest 4 + happy-dom, Wrangler 4, oxlint.
 
@@ -20,8 +20,8 @@
 - UI copy and code in English.
 - UI principles: no page per feature; list + detail and panels using the screen's width; calm, modern, not showy.
 - Production is marked by a 3px orange line across the top and an orange "Production" mark in the switcher; sandbox has neither.
-- Write tests against **Unchaind sandbox** only (`vjcdpodsrpemanfvrshh`); production (`doiafuhoourjtqsmzook`) is read-only during development.
-- Outward actions (creating the GitHub repo, creating Supabase secret keys, Cloudflare changes) need Guillaume's go before they are done.
+- Write tests against **host app sandbox** only; production is read-only during development.
+- Outward actions (creating the GitHub repo, creating Supabase secret keys, Cloudflare changes) need the maintainer's go before they are done.
 
 ## Review Focus
 
@@ -39,7 +39,7 @@
 CLAUDE.md                 points to the roadmap + UI principles in community-sdk
 .impeccable.md            design context (audience, jobs, tone) from the spec
 wrangler.jsonc            assets + run_worker_first ["/api/*"], vars COMMUNITIES, ACCESS_*, route
-.dev.vars.example         DEV_ACCESS_EMAIL, SUPABASE_KEY_UNCHAIND_SANDBOX
+.dev.vars.example         DEV_ACCESS_EMAIL, SUPABASE_KEY_ACME_SANDBOX
 index.html                theme pre-paint script (copied)
 src/shared/types.ts       types shared by Worker and app (API contract)
 src/worker/index.ts       fetch(): /api/* → router, else ASSETS
@@ -52,7 +52,7 @@ src/worker/queue.ts       queue + item detail reads
 src/worker/actions.ts     item action planner + runner
 src/worker/members.ts     member reads, admin, ban/unban planner + runner
 src/app/main.tsx, App.tsx routes, QueryClient
-src/app/theme.ts          copied from unchaind-dashboard
+src/app/theme.ts          copied from an internal dashboard
 src/app/api.ts            fetch wrapper (session-expired reload)
 src/app/community.ts      community from URL, last community
 src/app/shell/            Sidebar, CommunitySwitcher, ThemeToggle, Home
@@ -70,11 +70,11 @@ test/                     Vitest tests, one file per module
 **Files:**
 
 - Create: everything at the repo root listed above, `src/app/main.tsx`, `src/app/App.tsx` (renders an empty shell), `src/app/index.css`, `src/app/theme.ts`, `test/theme.test.ts`
-- Copy from `~/Developer/unchaind-dashboard`: `package.json` scripts and versions (drop `recharts`, `@fontsource-variable/geist`; add `@fontsource-variable/hanken-grotesk`, `wouter`, `@tanstack/react-query`, `@supabase/supabase-js`), `tsconfig*.json`, `vite.config.ts`, `components.json`, `index.html` script, `src/app/theme.ts`, `src/lib/utils.ts`
+- Copy from the internal dashboard repo: `package.json` scripts and versions (drop `recharts`, `@fontsource-variable/geist`; add `@fontsource-variable/hanken-grotesk`, `wouter`, `@tanstack/react-query`, `@supabase/supabase-js`), `tsconfig*.json`, `vite.config.ts`, `components.json`, `index.html` script, `src/app/theme.ts`, `src/lib/utils.ts`
 
 **Interfaces:**
 
-- Produces: `nextThemeAction`, `toggleTheme`, `applyTheme`, `watchSystem` (same signatures as `unchaind-dashboard/src/app/theme.ts`); CSS variables for shadcn in `:root` and `.dark`, plus `--prod` and `--prod-foreground`.
+- Produces: `nextThemeAction`, `toggleTheme`, `applyTheme`, `watchSystem` (same signatures as the internal dashboard's `src/app/theme.ts`); CSS variables for shadcn in `:root` and `.dark`, plus `--prod` and `--prod-foreground`.
 
 - [ ] **Step 1:** `git init` in `~/Developer/community-dashboard`, add the files, `npm install`.
 - [ ] **Step 2: Write `test/theme.test.ts`**
@@ -117,14 +117,14 @@ expect(nextThemeAction("light", "dark")).toBe(null);
 - Produces (`src/worker/router.ts`): `handleApi(req: Request, env: Env): Promise<Response>`; `json(data: unknown, status = 200): Response` (adds `no-store`); routes from spec "API sketch", all community routes under `/api/c/:app/:env/`; unknown community → 404 `{ error: "unknown_community" }`; no email → 401 `{ error: "unauthorized" }`.
 - Produces (`src/shared/types.ts`): `PublicCommunity { app; env; name; hasAmplitude: boolean; hasRevenuecat: boolean }` and the API types of Tasks 3–5 (declared there, all in this file).
 
-`wrangler.jsonc`: `name: "community-dashboard"`, assets as in unchaind-dashboard (`run_worker_first: ["/api/*"]`, SPA fallback), `routes: [{ pattern: "community.rocapi.ne", custom_domain: true }]`, `observability.enabled`, vars `ACCESS_TEAM_DOMAIN: "rocapine.cloudflareaccess.com"`, `ACCESS_AUD` (filled in Task 9), `COMMUNITIES` as a JSON string with the two Unchaind entries of the spec (`keySecret` `SUPABASE_KEY_UNCHAIND_PROD` / `SUPABASE_KEY_UNCHAIND_SANDBOX`).
+`wrangler.jsonc`: `name: "community-dashboard"`, assets as in an internal dashboard (`run_worker_first: ["/api/*"]`, SPA fallback), `routes: [{ pattern: "community.rocapi.ne", custom_domain: true }]`, `observability.enabled`, vars `ACCESS_TEAM_DOMAIN: "rocapine.cloudflareaccess.com"`, `ACCESS_AUD` (filled in Task 9), `COMMUNITIES` as a JSON string with the two the host app entries of the spec (`keySecret` `SUPABASE_KEY_ACME_PROD` / `SUPABASE_KEY_ACME_SANDBOX`).
 
 - [ ] **Step 1: Write `test/access.test.ts`** with a key pair from `crypto.subtle.generateKey` (RSASSA-PKCS1-v1_5, SHA-256) and `fetch` stubbed to serve its JWK:
   - `valid token → "a@rocapine.com"`
   - `wrong aud → null`, `expired → null`, `unknown kid → null`, `tampered signature → null`, `no header → null`
   - `DEV_ACCESS_EMAIL set → returns it with no header`
-- [ ] **Step 2: Write `test/communities.test.ts`:** two entries parse; `findCommunity(env, "unchaind", "prod")` returns the prod one; `"unchaind","staging"` → null; `toPublic` has no `keySecret` nor `supabaseUrl`; invalid JSON throws.
-- [ ] **Step 3: Write `test/router.test.ts`:** `GET /api/communities` without a token → 401; with `DEV_ACCESS_EMAIL` → 200, JSON list, `cache-control: no-store`; `GET /api/c/unchaind/staging/summary` → 404 `unknown_community`.
+- [ ] **Step 2: Write `test/communities.test.ts`:** two entries parse; `findCommunity(env, "acme", "prod")` returns the prod one; `"acme","staging"` → null; `toPublic` has no `keySecret` nor `supabaseUrl`; invalid JSON throws.
+- [ ] **Step 3: Write `test/router.test.ts`:** `GET /api/communities` without a token → 401; with `DEV_ACCESS_EMAIL` → 200, JSON list, `cache-control: no-store`; `GET /api/c/acme/staging/summary` → 404 `unknown_community`.
 - [ ] **Step 4:** Run `npx vitest run test/access.test.ts test/communities.test.ts test/router.test.ts`. Expected: FAIL (modules missing).
 - [ ] **Step 5:** Implement the files above; `index.ts` sends `/api/*` to `handleApi` and the rest to `env.ASSETS.fetch(req)`.
 - [ ] **Step 6:** Run the three tests. Expected: PASS. Run `npm run build`. Expected: PASS.
@@ -168,11 +168,11 @@ Queue rules (spec "What is in the queue"): an item is in when it has ≥1 open r
   - AI-hidden item with `reviewed_at` set → absent; without → present, `aiReason` set, after reported items
   - an item both reported and AI-hidden appears once
   - filter `"reported"` keeps only items with `openReports > 0`; `"ai_hidden"` only items with `aiReason` and no review
-  - `imageUrl(c, "a/b.jpg")` → `"https://vjcdpodsrpemanfvrshh.supabase.co/storage/v1/object/public/post-images/a/b.jpg"`; `imageUrl(c, null)` → null
+  - `imageUrl(c, "a/b.jpg")` → `"https://<sandbox-project-ref>.supabase.co/storage/v1/object/public/post-images/a/b.jpg"`; `imageUrl(c, null)` → null
 - [ ] **Step 2:** Run `npx vitest run test/queue.test.ts`. Expected: FAIL.
 - [ ] **Step 3:** Implement `queue.ts` (fetchers are thin supabase-js queries feeding `buildQueue`; `admin_user_stats` read for one author at a time).
 - [ ] **Step 4:** Run the test. Expected: PASS.
-- [ ] **Step 5:** Run `npx wrangler dev` with `.dev.vars` (sandbox key, `DEV_ACCESS_EMAIL`), `curl localhost:8787/api/c/unchaind/sandbox/queue`. Expected: JSON array (possibly empty). Same for `summary`.
+- [ ] **Step 5:** Run `npx wrangler dev` with `.dev.vars` (sandbox key, `DEV_ACCESS_EMAIL`), `curl localhost:8787/api/c/acme/sandbox/queue`. Expected: JSON array (possibly empty). Same for `summary`.
 - [ ] **Step 6:** Commit `feat(worker): review queue reads`.
 
 ---
@@ -209,7 +209,7 @@ Writes per action are the spec's table ("What each action writes"). Every report
 - [ ] **Step 2:** Run `npx vitest run test/actions.test.ts`. Expected: FAIL.
 - [ ] **Step 3:** Implement `planItemAction`, `runWrites` (supabase-js `.update(patch).match(match)` / `.insert(row)`), the route (actor from `verifyAccess`, `now = new Date().toISOString()`).
 - [ ] **Step 4:** Run the test. Expected: PASS.
-- [ ] **Step 5:** On sandbox via `wrangler dev`: create a post and a report from the Unchaind sandbox app (or SQL in the sandbox), `POST …/actions {action:"hide"}`, then check in SQL: post `hidden` with `reviewed_by`, report `resolved` / `content_hidden`, one `moderation_actions` row with `target_user_id`. Run it a second time: 400 `not_allowed`, no new log row.
+- [ ] **Step 5:** On sandbox via `wrangler dev`: create a post and a report from the host app sandbox app (or SQL in the sandbox), `POST …/actions {action:"hide"}`, then check in SQL: post `hidden` with `reviewed_by`, report `resolved` / `content_hidden`, one `moderation_actions` row with `target_user_id`. Run it a second time: 400 `not_allowed`, no new log row.
 - [ ] **Step 6:** Commit `feat(worker): item actions`.
 
 ---
@@ -276,7 +276,7 @@ Ban writes (spec brick 3): `update profiles {id} {is_banned: true}`; `update rep
 - Consumes: API routes of Tasks 2–5, `toggleTheme`, `PublicCommunity`, `Summary`.
 - Produces:
   `apiGet<T>(path: string): Promise<T>`, `apiPost<T>(path: string, body: unknown, init?: { keepalive?: boolean }): Promise<T>` — when the response is not `application/json`, call `onSessionExpired()` (default `location.reload()`) and reject; non-2xx JSON → throw `ApiError { status; code }`;
-  `communityPath(c: { app: string; env: string }, rest = ""): string` → `/unchaind/prod/queue`;
+  `communityPath(c: { app: string; env: string }, rest = ""): string` → `/acme/prod/queue`;
   `lastCommunity(): { app; env } | null`, `rememberCommunity(c)` (localStorage key `community`, wrapped in try/catch);
   `useCommunity(): PublicCommunity` (from the route params; unknown → redirect to `/`).
 - Routes (wouter): `/` → redirect to the last community or the first prod one; `/:app/:env` → Home; `/:app/:env/queue/:kind?/:id?`; `/:app/:env/members/:id?`.
@@ -284,7 +284,7 @@ Ban writes (spec brick 3): `update profiles {id} {is_banned: true}`; `update rep
 Layout per spec brick 1 and the mockups: sidebar 196px (switcher, nav with the queue count from `summary`, footer "Signed in with Cloudflare Access" + `ThemeToggle`), content to the right. The prod line is a 3px `--prod` bar above everything when `env === "prod"`. Home: the two counts from `summary`, each a link to `queue?filter=reported` / `queue?filter=ai_hidden`.
 
 - [ ] **Step 1: Write `test/api.test.ts`** (fetch stubbed): HTML 200 → `onSessionExpired` called once and the promise rejects (Review Focus 1); JSON 409 `{error:"deleted"}` → `ApiError` with `status 409, code "deleted"`; `apiPost(…, { keepalive: true })` passes `keepalive: true` to fetch.
-- [ ] **Step 2: Write `test/community.test.ts`:** `communityPath({app:"unchaind",env:"prod"}, "queue")` → `"/unchaind/prod/queue"`; `rememberCommunity` then `lastCommunity` round-trips; `lastCommunity()` with a throwing `localStorage` → null.
+- [ ] **Step 2: Write `test/community.test.ts`:** `communityPath({app:"acme",env:"prod"}, "queue")` → `"/acme/prod/queue"`; `rememberCommunity` then `lastCommunity` round-trips; `lastCommunity()` with a throwing `localStorage` → null.
 - [ ] **Step 3:** Run both. Expected: FAIL.
 - [ ] **Step 4:** Implement; wrap the app in `QueryClientProvider` (`staleTime: 30_000`, `refetchOnWindowFocus: true`), `TooltipProvider`, `Toaster` (sonner).
 - [ ] **Step 5:** Run both tests. Expected: PASS. `npm run build` passes.
@@ -313,7 +313,7 @@ Behavior per spec brick 2 and `review-queue.html` option A: list (340px) on the 
   - `add` then 4999 ms → `send` not called; 5000 ms → called once
   - `add` then `undo(id)` → returns true, `send` never called
   - two `add`s then `flushAll(true)` → both sent at once, with `keepalive` (Review Focus 4), timers cleared
-  - `add` with path `/api/c/unchaind/prod/items/post/1/actions`, the app then switching community, then 5000 ms → sent to that same prod path
+  - `add` with path `/api/c/acme/prod/items/post/1/actions`, the app then switching community, then 5000 ms → sent to that same prod path
 - [ ] **Step 2: Write `test/queueKeys.test.tsx`** (happy-dom): with three rows, `j` selects the second; `k` back to the first; `h` while focus is in an `<input>` does nothing.
 - [ ] **Step 3:** Run both. Expected: FAIL.
 - [ ] **Step 4:** Implement.
@@ -353,14 +353,14 @@ Behavior per spec brick 3 and `members.html`: list + panel side by side (panel 4
 - Modify: `wrangler.jsonc` (`ACCESS_AUD`, URL templates), `README.md` (setup, secrets, local dev)
 - Modify (in `community-sdk`): `docs/dashboard-roadmap.md`
 
-Each outward step is announced to Guillaume and done only after his go.
+Each outward step is announced to the maintainer and done only after his go.
 
 - [ ] **Step 1:** Create `Rocapine/community-dashboard` (private) with `gh repo create`, push `main`.
-- [ ] **Step 2:** In each Unchaind Supabase project (sandbox, then production), create a secret key named `community-dashboard`; set them with `npx wrangler secret put SUPABASE_KEY_UNCHAIND_SANDBOX` / `…_PROD`. Never print the values.
-- [ ] **Step 3:** Check with `npx wrangler whoami` that the "Rocapine" account (`cd3f38fcaf8dca226a6c08ebc2616089`) is reachable and holds the `rocapi.ne` zone. If not, stop and ask.
-- [ ] **Step 4:** Create the Access application for `community.rocapi.ne` (rule: emails ending in `@rocapine.com`), put its AUD in `ACCESS_AUD`. If the credentials lack the rights, give Guillaume the exact dashboard steps and wait.
+- [ ] **Step 2:** In each host app Supabase project (sandbox, then production), create a secret key named `community-dashboard`; set them with `npx wrangler secret put SUPABASE_KEY_ACME_SANDBOX` / `…_PROD`. Never print the values.
+- [ ] **Step 3:** Check with `npx wrangler whoami` that the "Rocapine" account is reachable and holds the `rocapi.ne` zone. If not, stop and ask.
+- [ ] **Step 4:** Create the Access application for `community.rocapi.ne` (rule: emails ending in `@rocapine.com`), put its AUD in `ACCESS_AUD`. If the credentials lack the rights, give the maintainer the exact dashboard steps and wait.
 - [ ] **Step 5:** Connect Workers Builds to the repo (deploy on `main`), deploy once.
-- [ ] **Step 6:** Fill `amplitudeUserUrl` and `revenuecatCustomerUrl` with Unchaind's Amplitude project and RevenueCat project (ask Guillaume for the ids if not found in the Unchaind repo).
+- [ ] **Step 6:** Fill `amplitudeUserUrl` and `revenuecatCustomerUrl` with the host app's Amplitude project and RevenueCat project (ask the maintainer for the ids if not found in the host app repo).
 - [ ] **Step 7: End-to-end check:** from a `@rocapine.com` account, `community.rocapi.ne` opens; from another account, Access refuses. On sandbox: one full pass of hide, undo, restore, reject, ban, unban, admin. On production: read-only look at the queue and members.
 - [ ] **Step 8:** Update `community-sdk/docs/dashboard-roadmap.md`: bricks 1–3 _done_ with the dashboard repo's commit or PR links; "Last reviewed" date. Commit on the `docs/community-dashboard-roadmap` branch.
 - [ ] **Step 9:** Commit the dashboard changes `chore: deploy config`, push.

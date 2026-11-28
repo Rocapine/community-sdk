@@ -1,4 +1,4 @@
-// The example's own notification row (GoodBoy's cards): rebuilt from the SDK's
+// The example's own notification row (another host app's cards): rebuilt from the SDK's
 // row parts, opening the post through `meta.open`.
 import type { InboxRowMeta } from "@rocapine/community-ui";
 import { Pressable, Text, View } from "react-native";

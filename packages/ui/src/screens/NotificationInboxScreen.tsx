@@ -1,5 +1,5 @@
 // Server-event notification center: likes, comments, reactions and admin
-// posts on the viewer's own content. Ported from Eve's Rhythm's
+// posts on the viewer's own content. Ported from the first host app's
 // `NotificationsScreen` (`app/(app)/notifications.tsx`), rebuilt on this
 // package's `CommunitySheet`-free plain screen pattern (`ProfileScreen`'s own
 // header-less body, since this screen's brief signature has no `onBack`).
@@ -7,20 +7,20 @@
 // Router-free / host-decoupling transformations (task brief):
 //  - `router.push("/community")` / `router.push("/support", ...)` -> the
 //    single `onOpenPost(postId)` callback, called only when a row's
-//    `postId` is present (the brief's own contract). Eve's `support_reply`
-//    kind is NOT ported (task brief: "Eve's support_reply special-casing
+//    `postId` is present (the brief's own contract). The first host app's `support_reply`
+//    kind is NOT ported (task brief: "The first host app's support_reply special-casing
 //    must NOT be ported — the custom-kind slot covers it") — a host that
 //    still has that kind flowing through its inbox rows gets it back via
 //    `renderInboxRow`, with `defaults` as `null` (an unrecognized kind), and
 //    builds its own tap target (e.g. its own support route) there.
-//  - Eve's `"Eve's Rhythm"` brand-name fallback on `admin_post` rows (that
+//  - The first host app's brand-name fallback on `admin_post` rows (that
 //    source's `translate("community.inbox.news", { name: n.actorUsername
-//    ?.trim() || "Eve's Rhythm" })`) becomes the full-sentence
+//    ?.trim() || "<app name>" })`) becomes the full-sentence
 //    `inbox.newsFromTeam` key ("News from the team"; a host puts its app name
 //    there via `translations.overrides`). Other kinds fall back to
 //    `inbox.someone`.
 //  - A row with no `postId` (e.g. an announcement whose post is gone) calls
-//    the optional `onOpenCommunity` instead of doing nothing (Eve source sent
+//    the optional `onOpenCommunity` instead of doing nothing (the first host app source sent
 //    every row to the community tab).
 //  - Groups module: `group_approved` / `group_field_rejected` open the group and
 //    `group_member_removed` its preview (nothing with `groups.preview: "none"`), through
@@ -32,7 +32,7 @@
 //    pattern from `CommunityPost`, except the fallback here is `null` since
 //    there is no built-in row for an unknown kind to fall back to).
 //  - Marks seen on open, and again whenever a newer item lands while the
-//    screen stays open (Eve source did the same), so an arrival mid-visit
+//    screen stays open (the first host app source did the same), so an arrival mid-visit
 //    doesn't relight the host's unread badge after leaving. `markInboxSeen`
 //    resolves its own clock-skew-safe anchor, so re-calling it is enough.
 //

@@ -1,6 +1,6 @@
 // English catalog for @rocapine/community-ui.
 //
-// Ported from Eve's Rhythm's key inventory (i18n/en/community.json in the
+// Ported from the first host app's key inventory (i18n/en/community.json in the
 // source app's repo — comment only, no runtime dependency on that app).
 // Flattened to dot keys, `{{x}}` (i18next) interpolation rewritten to this
 // package's `{x}` syntax, and `_one`/`_other` suffixes rewritten to `.one`/
@@ -9,9 +9,9 @@
 // Every value below is degendered and de-branded — see the internal port notes for
 // the full old -> new table. Two categories of edit were made:
 //  1. Degendering (required by the brief): every "sister"-style phrasing
-//     rewritten neutrally, "Eve's News" -> "News".
+//     rewritten neutrally, the source app's "News" name -> "News".
 //  2. De-app-copy (the brief's own global constraint — "no gendered/app
-//     copy in code OR catalog values"): app branding ("Eve Rhythm team")
+//     copy in code OR catalog values"): app branding ("<App> team")
 //     removed, and the `prayer` feature's default copy genericized to
 //     `reaction` wording, mirroring @rocapine/community-core's own
 //     prayer -> reaction generalization (see packages/core/src/models.ts).
@@ -121,7 +121,7 @@ export const en: Record<string, string> = {
     "Your comment could not be shared because it goes against our community guidelines. This is a space for kindness, encouragement and grace, thank you for helping keep it safe for everyone here.",
   "notice.gotIt": "Got it",
 
-  // "menu.cancel"/"menu.delete" are new (Task 12): the mold/Eve's Alert.alert
+  // "menu.cancel"/"menu.delete" are new (Task 12): the mold/the first host app's Alert.alert
   // menus localized these two generic button labels through their own app-wide
   // "common.*" i18n namespace (outside this package); CommunityFeedScreen/
   // ThreadSheet's native block/delete/report menus need them and this

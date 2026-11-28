@@ -1,5 +1,5 @@
 // Full-screen post composer, opened by the feed's `+` button (version A of
-// the redesign, after Eve's `compose` screen and X): Cancel / Post on top, the
+// the redesign, after the first host app's `compose` screen and X): Cancel / Post on top, the
 // author's avatar in a first column, then the name, the topic pill (tap → topic
 // menu), the text field and the attached image or poll editor; a toolbar on
 // top of the keyboard holds the photo and poll buttons and a character ring.

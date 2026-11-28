@@ -597,7 +597,7 @@ presence`). Online means in the foreground within the grace window, a per-projec
 
 ### Minor Changes
 
-- 36351ba: Restore what the Eve's Rhythm community did before the SDK migration:
+- 36351ba: Restore what the first host app community did before the SDK migration:
 
   - Floating "write a post" bar once the inline composer scrolls away (tap: scroll up + focus, or the rules sheet while locked; accepting the rules focuses the composer). New `compose` icon role.
   - A post that fails to send shows the network notice and puts the draft back (`ComposerCard` `onPublishFailed`); a failed comment draft comes back too.

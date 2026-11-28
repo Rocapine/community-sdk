@@ -2,22 +2,22 @@ import { assert, assertEquals, assertFalse, assertMatch } from "jsr:@std/assert@
 import { containsAppName, isReservedHandle, suggestHandle } from "./names.ts";
 
 Deno.test("containsAppName matches the app name inside a display name, any case or accent", () => {
-  assert(containsAppName("Unchaind Team", "Unchaind"));
-  assert(containsAppName("l'équipe UNCHAIND", "Unchaind"));
-  assert(containsAppName("Night Ward", "Nightward"));
-  assertFalse(containsAppName("Paul", "Unchaind"));
+  assert(containsAppName("Acme Team", "Acme"));
+  assert(containsAppName("l'équipe ACME", "Acme"));
+  assert(containsAppName("Moon Light", "Moonlight"));
+  assertFalse(containsAppName("Paul", "Acme"));
   assertFalse(containsAppName("Paul", ""));
 });
 
 Deno.test("containsAppName only matches a short app name as a whole word", () => {
-  assert(containsAppName("Team Eve", "Eve"));
-  assertFalse(containsAppName("Steve", "Eve"));
+  assert(containsAppName("Team Ace", "Ace"));
+  assertFalse(containsAppName("Grace", "Ace"));
 });
 
 Deno.test("isReservedHandle covers staff handles and the app name", () => {
-  assert(isReservedHandle("admin", "Unchaind"));
-  assert(isReservedHandle("unchaind-official", "Unchaind"));
-  assertFalse(isReservedHandle("superuser", "Unchaind"));
+  assert(isReservedHandle("admin", "Acme"));
+  assert(isReservedHandle("acme-official", "Acme"));
+  assertFalse(isReservedHandle("superuser", "Acme"));
 });
 
 Deno.test("suggestHandle returns a free handle on the same base", async () => {

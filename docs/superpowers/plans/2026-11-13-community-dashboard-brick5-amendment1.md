@@ -15,7 +15,7 @@
 - House accounts (`profiles.is_house`) are out of every number. A missing optional module (`poll_votes`, `post_reactions`) gives `null`, never 0.
 - Both functions: service role only (`revoke execute ... from public, anon, authenticated`), an unknown `tz` raises `invalid_time_zone` with errcode `22023`, days are counted in `tz`.
 - 017 stays one file, fully idempotent (`create or replace`, `create index if not exists`, module tables guarded with `to_regclass`). The CLI's migration count does not change.
-- Production `doiafuhoourjtqsmzook` is read-only. SQL runs on the sandbox only: `supabase db query --linked --project-ref vjcdpodsrpemanfvrshh --yes -f <file>`, one statement per file.
+- Production is read-only. SQL runs on the sandbox only: `supabase db query --linked --project-ref <sandbox-project-ref> --yes -f <file>`, one statement per file.
 - UI copy in English. Colour never carries meaning alone (▲ / ▼ and a sign on every change, a label on every series). Theme through `--chart-*` tokens in `src/app/index.css`; edit a copied Bklit file only where tokens can't reach.
 - No refactor of `communities.ts`, `access.ts` or the registry. A Supabase key never reaches the browser.
 - Stage files by name; never `git add -A`. Commit with the `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` line. No push.
@@ -47,7 +47,7 @@
   - `members_total` = non-house profiles created before the window's end.
   - posts replied after 10, 30 and 90 minutes (by someone else, not deleted) give `median_first_reply_minutes = 30`; a self-reply and a deleted reply are ignored; a window with no replied eligible post gives `null`.
   - with `poll_votes` and `post_reactions` dropped (inside the block), the call still succeeds and `active_members` counts posters, commenters and likers.
-- [ ] **Step 2: Run** `supabase db query --linked --project-ref vjcdpodsrpemanfvrshh --yes -f supabase-tests/activity-metrics.sql`. Expected: an assertion error, not `ACTIVITY_METRICS_TESTS_PASSED`.
+- [ ] **Step 2: Run** `supabase db query --linked --project-ref <sandbox-project-ref> --yes -f supabase-tests/activity-metrics.sql`. Expected: an assertion error, not `ACTIVITY_METRICS_TESTS_PASSED`.
 - [ ] **Step 3: Implement** in 017:
   - Optional modules: have the dynamic `extra` query also return the distinct `(user_id, day)` pairs, so daily active members include voters and reactors.
   - `new_members`: non-house `profiles.created_at` in the window, per day and in total. `members_total`: non-house profiles with `created_at < t1`.
@@ -152,7 +152,7 @@
   - Route `/:app/:env/activity` → `ActivityPage`, lazy-loaded in `App.tsx` (its own chunk, `Suspense` fallback a `Skeleton`). Sidebar: `NavLink` "Activity" with lucide `Activity` icon, right under Home, active on `communityPath(c, "activity")`.
   - `ActivityOverview` on Home (replaces `ActivitySection`, still lazy): header "Activity", the dates line with the stored period ("14 Oct – 12 Nov, vs the 30 days before"), a "See all" link to the page at the header's right, the four Home cards. No toggle.
   - `ActivityPage`: `<h1>` "Activity", the period `Tabs` (moved from the section), the dates line, the six cards, then `ActivityPanels` (Task 5 fills the new ones). States as today: SDK line when the probe is off (and no queries), Retry box on error, "No activity in this period" when empty. While the first load runs, the cards show `Skeleton`s of their size and the panels mount in their loading state (Task 5).
-- [ ] **Step 1: Write failing tests:** the sidebar shows "Activity" and navigates to `/unchaind/sandbox/activity`; the page shows six cards with the titles above and a 7 d / 30 d / 90 d toggle that stores `"activity-days"`; Home shows four cards, no toggle, and a "See all" link to the page; with the probe off the page shows only "Activity needs the latest community SDK." and no fetch to `activity/breakdown`; median `null` shows "—" with no change line. Reuse the mocks in the current `activitySection.test.tsx`.
+- [ ] **Step 1: Write failing tests:** the sidebar shows "Activity" and navigates to `/acme/sandbox/activity`; the page shows six cards with the titles above and a 7 d / 30 d / 90 d toggle that stores `"activity-days"`; Home shows four cards, no toggle, and a "See all" link to the page; with the probe off the page shows only "Activity needs the latest community SDK." and no fetch to `activity/breakdown`; median `null` shows "—" with no change line. Reuse the mocks in the current `activitySection.test.tsx`.
 - [ ] **Step 2: Run** `npx vitest run test/activityPage.test.tsx test/routing.test.tsx`. Expected: FAIL.
 - [ ] **Step 3: Implement** the files above.
 - [ ] **Step 4: Run** `npm test`, `npx tsc -b`, `npm run build`. Expected: pass; the build lists a separate Activity page chunk.

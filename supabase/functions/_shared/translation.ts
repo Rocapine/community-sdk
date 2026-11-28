@@ -121,7 +121,7 @@ export function parseTranslationResponse(
 }
 
 /** OpenAI request timeout: output grows with text length × target count, so a
- * flat limit fails every long post (measured on Eve's Rhythm: 7 locales of a
+ * flat limit fails every long post (measured on the first host app: 7 locales of a
  * ~1,500-character post take over 20 s). 20 s base plus 5 ms per character per
  * target, capped at 90 s (inside the edge-function wall clock). */
 export function translationTimeoutMs(contentLength: number, targetCount: number): number {

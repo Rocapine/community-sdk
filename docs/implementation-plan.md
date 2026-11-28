@@ -2,19 +2,19 @@
 
 > Historical document: this is the task-by-task plan that built this repo, imported here for provenance alongside `docs/design-spec.md`. All tasks below were executed and are reflected in the current packages, `supabase/`, `examples/expo-app` and `docs/` — the checkbox states are kept as originally written (planning-time, all unchecked) rather than retroactively edited. It is not kept up to date as the SDK evolves; for current behavior, see the package READMEs and `docs/compat.md`.
 
-**Goal:** Build and publish `0.x` of the public community SDK — monorepo with `@rocapine/community-core`, `@rocapine/community-ui`, the `@rocapine/community` CLI and the versioned Supabase backend — consolidated from the Rocacommu mold plus Eve's drift and Nightward's improvements.
+**Goal:** Build and publish `0.x` of the public community SDK — monorepo with `@rocapine/community-core`, `@rocapine/community-ui`, the `@rocapine/community` CLI and the versioned Supabase backend — consolidated from the Rocacommu mold plus the first host app's drift and another host app's improvements.
 
 **Architecture:** npm monorepo, two runtime packages (headless core on Supabase + React Query; themable UI on top) configured through a single `CommunityConfig` given to a `CommunityProvider`. Backend ships as module-organized SQL migrations + Deno Edge Functions, installed into consumer apps by a CLI (`init`/`upgrade`/`adopt`) that substitutes URL/key placeholders and tracks a manifest.
 
 **Tech Stack:** TypeScript strict, npm workspaces, tsc builds (CJS + d.ts), vitest, changesets (linked versioning), React Native / Expo peer deps, Supabase (Postgres + Edge Functions/Deno), commander (CLI).
 
-**Spec:** `docs/design-spec.md` (this repo). This plan implements spec §7 steps 1-2 only. Nightward and Eve migrations (§7 steps 3-5) get their own plans in their own repos after `0.x` ships.
+**Spec:** `docs/design-spec.md` (this repo). This plan implements spec §7 steps 1-2 only. Another host app and the first host app migrations (§7 steps 3-5) get their own plans in their own repos after `0.x` ships.
 
 ## Source material (read access required)
 
 - **Mold (baseline):** the `Rocacommu/sdk/` mold repo — `client/` (RN reference with seam files `theme.tsx`, `ui.tsx`, `community-host.ts`, `community-analytics.ts`, `constants/community.ts`, `lib/supabase.ts`, `lib/haptics.ts`), `migrations/2026072900000{1..7}_community_*.sql`, `functions/` (7 + `_shared/`), `SKILL.md`, `README.md`.
-- **Eve drift to backport:** the Eve's Rhythm app repo — `services/community.ts` (setPrayed, post_prayer_summary batching), `hooks/useCommunity.ts` (usePrayForPost, useCommunityUnseenCount), `components/app/community/ComposerCard.tsx`, `services/notification-center.ts` + `hooks/useNotificationCenter.ts`, `supabase/migrations/20260812090000_post_prayers.sql`, `20260813090000_notifications_inbox.sql`, `20260813160000_official_posts_inbox.sql`, `supabase/functions/notify-prayer/`, `i18n/*/community.json` (7 locales).
-- **Nightward improvements:** clone `Rocapine/nightward` (shallow) — nullable Supabase client pattern (`lib/supabase.ts`, `requireClient()` in `services/community.ts`), key-based i18n (`i18n/en/community.json`), storeless host seam (`lib/community-host.ts` → `hooks/useCommunityHost.ts`), `docs/community-setup.md` runbook.
+- **the first host app drift to backport:** The first host app's repo — `services/community.ts` (setPrayed, post_prayer_summary batching), `hooks/useCommunity.ts` (usePrayForPost, useCommunityUnseenCount), `components/app/community/ComposerCard.tsx`, `services/notification-center.ts` + `hooks/useNotificationCenter.ts`, `supabase/migrations/20260812090000_post_prayers.sql`, `20260813090000_notifications_inbox.sql`, `20260813160000_official_posts_inbox.sql`, `supabase/functions/notify-prayer/`, `i18n/*/community.json` (7 locales).
+- **Another host app's improvements:** clone its repo (shallow) — nullable Supabase client pattern (`lib/supabase.ts`, `requireClient()` in `services/community.ts`), key-based i18n (`i18n/en/community.json`), storeless host seam (`lib/community-host.ts` → `hooks/useCommunityHost.ts`), `docs/community-setup.md` runbook.
 
 ## Global Constraints
 
@@ -24,7 +24,7 @@
 - core peer deps ONLY: `react >=18`, `@supabase/supabase-js ^2`, `@tanstack/react-query ^5`. ui peer deps add: `react-native`, `react-native-reanimated`, `expo-image`, `expo-haptics`, `phosphor-react-native`.
 - FORBIDDEN in packages: zustand, expo-router, react-navigation, any analytics SDK, i18next. Analytics = `onEvent` callback; navigation = callbacks; i18n = internal `t()`.
 - `supabase: null` in config must never crash: hooks return empty/idle states, mutations reject with `CommunityDisabledError`, exactly one `console.warn` per session.
-- No gendered/app-specific copy in package code or default catalogs: no "sister", "Eve", "prayer" (the word "prayer" may appear only in comments referencing Eve as the origin of the reaction module).
+- No gendered/app-specific copy in package code or default catalogs: no "sister", "The first host app", "prayer" (the word "prayer" may appear only in comments referencing the first host app as the origin of the reaction module).
 - All SQL that embeds project URL/anon key uses `__SUPABASE_PROJECT_URL__` / `__SUPABASE_ANON_KEY__` placeholders plus the guard block (Task 16).
 - License MIT (§9: not yet confirmed — put MIT, flag in the release checklist).
 - Commit after every task minimum; conventional commits.
@@ -42,10 +42,10 @@ community-sdk/
 │   ├── models.ts           (from mold lib/community.ts)
 │   ├── time.ts             (from mold lib/community-feed.ts)
 │   ├── identity.ts         (from mold lib/community-identity.ts)
-│   ├── service.ts          (from mold services/community.ts + Eve reaction)
-│   ├── inbox-service.ts    (from Eve services/notification-center.ts)
-│   ├── hooks.ts            (from mold hooks/useCommunity.ts + Eve drift)
-│   ├── inbox-hooks.ts      (from Eve hooks/useNotificationCenter.ts)
+│   ├── service.ts          (from mold services/community.ts + the first host app reaction)
+│   ├── inbox-service.ts    (from the first host app services/notification-center.ts)
+│   ├── hooks.ts            (from mold hooks/useCommunity.ts + the first host app drift)
+│   ├── inbox-hooks.ts      (from the first host app hooks/useNotificationCenter.ts)
 │   ├── schema-check.ts     (community_meta dev check)
 │   └── __tests__/          (config.test.ts, models.test.ts, time.test.ts, events.test.ts, schema-check.test.ts)
 ├── packages/ui/src/
@@ -304,7 +304,7 @@ it("host adapters default to safe no-ops", async () => {
 
 - Create: `packages/core/src/models.ts`, `packages/core/src/time.ts`
 - Test: `packages/core/src/__tests__/models.test.ts`, `__tests__/time.test.ts`
-- Source: mold `sdk/client/lib/community.ts` + `lib/community.test.ts`, `lib/community-feed.ts` + test; Eve `lib/community.ts` for the prayer/reaction fields.
+- Source: mold `sdk/client/lib/community.ts` + `lib/community.test.ts`, `lib/community-feed.ts` + test; the first host app `lib/community.ts` for the prayer/reaction fields.
 
 **Interfaces:**
 
@@ -329,8 +329,8 @@ it("applyReaction increments count and marks reacted, idempotent", () => {
 - [ ] **Step 2: Run** → FAIL.
 - [ ] **Step 3: Port implementation** from mold `lib/community.ts` with these transformations (each is a seam identified in exploration):
   1. `displayName(profile)` gains a required second param `fallback: string` (was hardcoded `"A sister"` / seam const). All internal callers thread it through.
-  2. Prayer naming → reaction naming: `prayerCount` → `reactionCount`, `hasPrayed` → `hasReacted`, `applyPrayer` → `applyReaction` (port the logic from Eve's `lib/community.ts` since the mold predates prayers).
-  3. `pollVotesLabel` (hardcoded "vote/votes" in Eve) — DELETE; vote-count formatting moves to ui i18n (Task 10 key `poll.votes`).
+  2. Prayer naming → reaction naming: `prayerCount` → `reactionCount`, `hasPrayed` → `hasReacted`, `applyPrayer` → `applyReaction` (port the logic from the first host app's `lib/community.ts` since the mold predates prayers).
+  3. `pollVotesLabel` (hardcoded "vote/votes" in the first host app) — DELETE; vote-count formatting moves to ui i18n (Task 10 key `poll.votes`).
   4. Topic type: `CommunityTopic` string-union → plain `string`; `normalizeTopic(raw, topics: CommunityTopicDef[])` keeps unknown-topic rows visible under their raw id.
   5. `timeAgo` ports unchanged into `time.ts`.
 - [ ] **Step 4: Run tests** → PASS. Commit: `feat(core): pure models, limits, timeAgo (mold port, reaction generalized)`
@@ -343,7 +343,7 @@ it("applyReaction increments count and marks reacted, idempotent", () => {
 
 - Create: `packages/core/src/events.ts`, `packages/core/src/identity.ts`
 - Test: `packages/core/src/__tests__/events.test.ts`
-- Source: mold `sdk/client/services/community-analytics.ts` (event list), `sdk/client/lib/community-identity.ts`; Nightward `services/communityHostService.ts` (storeless pattern).
+- Source: mold `sdk/client/services/community-analytics.ts` (event list), `sdk/client/lib/community-identity.ts`; another host app `services/communityHostService.ts` (storeless pattern).
 
 **Interfaces:**
 
@@ -392,14 +392,14 @@ export async function syncProfileFromHost(cfg: ResolvedCommunityConfig): Promise
 **Files:**
 
 - Create: `packages/core/src/service.ts`
-- Source: mold `sdk/client/services/community.ts` (baseline), Eve `services/community.ts` (poll/reaction batching, searchPosts), Nightward `services/community.ts` (`requireClient` degradation pattern).
+- Source: mold `sdk/client/services/community.ts` (baseline), the first host app `services/community.ts` (poll/reaction batching, searchPosts), another host app `services/community.ts` (`requireClient` degradation pattern).
 
 **Interfaces:**
 
 - Consumes: `ResolvedCommunityConfig` (Task 2), models/mappers (Task 3), `ensureIdentity` (Task 4).
 - Produces (all take `cfg: ResolvedCommunityConfig` as first arg): `fetchFeedPage(cfg, { topic?, cursor? })`, `countNewPosts(cfg, sinceIso)`, `fetchUserPosts(cfg, userId)`, `searchPosts(cfg, query)`, `fetchThread(cfg, postId)`, `fetchProfile(cfg, userId)`, `createPost(cfg, { topic, body, pollOptions? })` (routes to RPC `create_poll_post` when pollOptions), `createComment(cfg, postId, body)`, `moderateOne(cfg, { kind, id })`, `setLike(cfg, postId, on)`, `setReaction(cfg, postId)`, `votePoll(cfg, postId, optionIndex)`, `reportContent(cfg, …)`, `blockUser(cfg, userId)`, `deleteOwnPost/Comment(cfg, id)`, `updateProfile(cfg, { handle?, bio?, avatarUrl? })` (edge fn), `uploadAvatar(cfg, fileUri)`. Reaction batch: `fetchReactionSummaries(cfg, postIds: string[])` → RPC `post_reaction_summary`; poll batch: RPC `poll_vote_counts`.
 
-- [ ] **Step 1: Port the mold service file.** Transformations: (a) every function takes `cfg` and opens with `const client = cfg.requireClient();` (Nightward pattern — callers in hooks catch `CommunityDisabledError` via `enabled` guards, mutations surface it); (b) `setPrayed` → `setReaction`, `post_prayer_summary` → `post_reaction_summary` (SQL renamed in Task 17), gated on `cfg.modules.reaction`; (c) poll RPCs gated on `cfg.modules.polls` (skip batching, return empty maps when off); (d) module-level constants (page size, bucket name `avatars`) imported from `models.ts` or kept local with the mold's values.
+- [ ] **Step 1: Port the mold service file.** Transformations: (a) every function takes `cfg` and opens with `const client = cfg.requireClient();` (another host app pattern — callers in hooks catch `CommunityDisabledError` via `enabled` guards, mutations surface it); (b) `setPrayed` → `setReaction`, `post_prayer_summary` → `post_reaction_summary` (SQL renamed in Task 17), gated on `cfg.modules.reaction`; (c) poll RPCs gated on `cfg.modules.polls` (skip batching, return empty maps when off); (d) module-level constants (page size, bucket name `avatars`) imported from `models.ts` or kept local with the mold's values.
 - [ ] **Step 2: Typecheck** (`npm run typecheck -w @rocapine/community-core`) → PASS. (Network layer is exercised by existing mapper tests + the example app; no supabase mock suite in v1, per spec §8.)
 - [ ] **Step 3: Commit** `feat(core): community service on injected client, reaction + poll modules gated`
 
@@ -410,16 +410,16 @@ export async function syncProfileFromHost(cfg: ResolvedCommunityConfig): Promise
 **Files:**
 
 - Create: `packages/core/src/hooks.ts`
-- Source: mold `sdk/client/hooks/useCommunity.ts`, Eve `hooks/useCommunity.ts` (usePrayForPost → useReactToPost, useCommunityUnseenCount, optimistic post-moderation reconciliation).
+- Source: mold `sdk/client/hooks/useCommunity.ts`, the first host app `hooks/useCommunity.ts` (usePrayForPost → useReactToPost, useCommunityUnseenCount, optimistic post-moderation reconciliation).
 
 **Interfaces:**
 
 - Consumes: service (Task 5), `useCommunityConfig` (Task 2), `emitEvent`/`COMMUNITY_EVENTS` (Task 4), `applyPollVote`/`applyReaction` (Task 3).
 - Produces: `useCommunityFeed(topic?)`, `useSearchPosts(q)`, `useNewPostsCount(sinceIso)`, `useCommunityUnseenCount(lastSeenAtIso)`, `useThread(postId)`, `useProfile(userId)`, `useUserPosts(userId)`, `useMyUid()`, `useUpdateProfile()`, `useCreatePost()`, `useCreateComment()`, `useToggleLike()`, `useVotePoll()`, `useReactToPost()`, `useReport()`, `useBlockUser()`, `useDeleteContent()`. Query keys stay `["community", ...]` (mold convention). Every mutation emits its `COMMUNITY_EVENTS` name via `emitEvent`; `useCreatePost`/`useCreateComment` call `cfg.host.onContentPublished()` on success.
 
-- [ ] **Step 1: Port** the mold hooks file; thread `const cfg = useCommunityConfig();` through, replace direct analytics imports with `emitEvent`, replace the mold's host-seam imports (`community-host.ts`) with `cfg.host.*`. Backport from Eve: `useReactToPost` (rename of `usePrayForPost`, optimistic `applyReaction`), `useCommunityUnseenCount` (param `lastSeenAtIso` instead of reading Eve's store), moderation reconciliation in `useCreatePost`/`useCreateComment` (pending → visible/rejected polling, mold may already have it — diff both and keep Eve's newer version).
+- [ ] **Step 1: Port** the mold hooks file; thread `const cfg = useCommunityConfig();` through, replace direct analytics imports with `emitEvent`, replace the mold's host-seam imports (`community-host.ts`) with `cfg.host.*`. Backport from the first host app: `useReactToPost` (rename of `usePrayForPost`, optimistic `applyReaction`), `useCommunityUnseenCount` (param `lastSeenAtIso` instead of reading the first host app's store), moderation reconciliation in `useCreatePost`/`useCreateComment` (pending → visible/rejected polling, mold may already have it — diff both and keep the first host app's newer version).
 - [ ] **Step 2: Degraded mode**: queries pass `enabled: cfg.supabase !== null && <existing conditions>`; verify by grepping every `useQuery` for the guard.
-- [ ] **Step 3: Typecheck** → PASS. Commit: `feat(core): React Query hooks (mold + Eve drift: reaction, unseen count, reconciliation)`
+- [ ] **Step 3: Typecheck** → PASS. Commit: `feat(core): React Query hooks (mold + the first host app drift: reaction, unseen count, reconciliation)`
 
 ---
 
@@ -428,7 +428,7 @@ export async function syncProfileFromHost(cfg: ResolvedCommunityConfig): Promise
 **Files:**
 
 - Create: `packages/core/src/inbox-service.ts`, `packages/core/src/inbox-hooks.ts`
-- Source: Eve `services/notification-center.ts`, `hooks/useNotificationCenter.ts`.
+- Source: the first host app `services/notification-center.ts`, `hooks/useNotificationCenter.ts`.
 
 **Interfaces:**
 
@@ -446,13 +446,13 @@ export async function fetchInbox(cfg): Promise<{ items: InboxItem[]; seenAt: str
 export async function markInboxSeen(cfg): Promise<void>;
 export function unreadCount(items: InboxItem[], seenAt: string | null): number;
 export function useNotificationInbox(): UseQueryResult<...>;   // key ["community", "inbox"]
-export function useUnreadNotificationCount(): number;           // fails soft to 0 (Eve rule: inbox error never surfaces)
+export function useUnreadNotificationCount(): number;           // fails soft to 0 (the first host app rule: inbox error never surfaces)
 export function useMarkInboxSeen(): UseMutationResult<...>;     // optimistic seenAt update
 ```
 
-- [ ] **Step 1: Port from Eve** with transformations: kind `prayer` → `reaction`; kind type widened to `(string & {})` for custom service-role kinds (spec §6); Eve's `support_reply` special-casing REMOVED from core (unknown kinds pass through untouched); everything gated on `cfg.modules.inbox` (hooks disabled, `unreadCount` still pure).
+- [ ] **Step 1: Port from the first host app** with transformations: kind `prayer` → `reaction`; kind type widened to `(string & {})` for custom service-role kinds (spec §6); the first host app's `support_reply` special-casing REMOVED from core (unknown kinds pass through untouched); everything gated on `cfg.modules.inbox` (hooks disabled, `unreadCount` still pure).
 - [ ] **Step 2: Unit-test `unreadCount`** in `__tests__/` (pure): items after/before seenAt, null seenAt counts all. Run → PASS after implementation.
-- [ ] **Step 3: Typecheck + tests** → PASS. Commit: `feat(core): notification inbox module (Eve backport, custom kinds pass-through)`
+- [ ] **Step 3: Typecheck + tests** → PASS. Commit: `feat(core): notification inbox module (the first host app backport, custom kinds pass-through)`
 
 ---
 
@@ -481,7 +481,7 @@ export function useMarkInboxSeen(): UseMutationResult<...>;     // optimistic se
 
 - Create: `packages/ui/src/theme.ts`, `packages/ui/src/ThemeProvider.tsx`, `packages/ui/src/i18n.ts`, `packages/ui/src/locales/en.ts`
 - Test: `packages/ui/src/__tests__/theme.test.ts`, `__tests__/i18n.test.ts`
-- Source: mold `sdk/client/components/community/theme.tsx` (the seam listing every token the components already consume — the CommunityTheme shape below must be reconciled against it), Eve `i18n/en/community.json` (key inventory), Nightward key-based usage.
+- Source: mold `sdk/client/components/community/theme.tsx` (the seam listing every token the components already consume — the CommunityTheme shape below must be reconciled against it), the first host app `i18n/en/community.json` (key inventory), another host app key-based usage.
 
 **Interfaces:**
 
@@ -529,7 +529,7 @@ export function makeT(locale: string, overrides?: Record<string, string>): TFn;
 ```
 
 - [ ] **Step 1: Tests first** — `i18n.test.ts`: en lookup, override wins, unknown locale falls back to en, missing key returns key, interpolation, plural picks `.one` at 1 / `.other` at 0 and 2. `theme.test.ts`: `mergeTheme({ colors: { accent: "#f00" } })` keeps other defaults. Run → FAIL.
-- [ ] **Step 2: Implement** theme.ts, i18n.ts. Build `locales/en.ts` by porting Eve's `i18n/en/community.json` flattened (`feed.empty`, `composer.placeholder`, `poll.votes.one`, `topics.general`, …) with degendered copy: every "sister" phrasing rewritten neutrally (e.g. `inbox.aSister` → key `inbox.someone`, value "Someone"), "Eve's News" → generic `topics.news` "News". Topic label resolution rule: `t("topics." + id)` — apps supply overrides for custom topics.
+- [ ] **Step 2: Implement** theme.ts, i18n.ts. Build `locales/en.ts` by porting the first host app's `i18n/en/community.json` flattened (`feed.empty`, `composer.placeholder`, `poll.votes.one`, `topics.general`, …) with degendered copy: every "sister" phrasing rewritten neutrally (e.g. `inbox.aSister` → key `inbox.someone`, value "Someone"), "The first host app's news" → generic `topics.news` "News". Topic label resolution rule: `t("topics." + id)` — apps supply overrides for custom topics.
 - [ ] **Step 3: Implement providers** (two contexts, memoized `makeT`).
 - [ ] **Step 4: Tests pass.** Commit: `feat(ui): theme tokens + framework-free i18n with en catalog`
 
@@ -540,7 +540,7 @@ export function makeT(locale: string, overrides?: Record<string, string>): TFn;
 **Files:**
 
 - Create: `packages/ui/src/Sheet.tsx`, `packages/ui/src/components/CommunityPost.tsx`, `components/PollBlock.tsx`, `components/NoticeCard.tsx`
-- Source: mold `sdk/client/components/community/ui.tsx` (the mold's sheet/primitives seam — base for Sheet.tsx), `CommunityPost.tsx`, `PollBlock.tsx`, `NoticeCard.tsx`; Eve's `CommunityPost.tsx` for the reaction footer.
+- Source: mold `sdk/client/components/community/ui.tsx` (the mold's sheet/primitives seam — base for Sheet.tsx), `CommunityPost.tsx`, `PollBlock.tsx`, `NoticeCard.tsx`; the first host app's `CommunityPost.tsx` for the reaction footer.
 
 **Interfaces:**
 
@@ -581,7 +581,7 @@ export function NoticeCard(props: { kind: "rejected" | "network"; onDismiss(): v
 **Files:**
 
 - Create: `packages/ui/src/components/ComposerCard.tsx`, `components/RulesSheet.tsx`, `components/ReportSheet.tsx`
-- Source: Eve `components/app/community/ComposerCard.tsx` (newer than mold — mold has composer inline), mold `CommunityRulesSheet.tsx`, `ReportSheet.tsx`.
+- Source: the first host app `components/app/community/ComposerCard.tsx` (newer than mold — mold has composer inline), mold `CommunityRulesSheet.tsx`, `ReportSheet.tsx`.
 
 **Interfaces:**
 
@@ -610,7 +610,7 @@ export function ReportSheet(props: {
 ```
 
 - [ ] **Step 1: Port** with the standard transformations (theme hook, `useT`, config-driven topics/modules, no store — rules state via adapter + local `useState` refresh).
-- [ ] **Step 2: Typecheck** → PASS. Commit: `feat(ui): composer (Eve backport), rules gate, report sheet`
+- [ ] **Step 2: Typecheck** → PASS. Commit: `feat(ui): composer (the first host app backport), rules gate, report sheet`
 
 ---
 
@@ -619,7 +619,7 @@ export function ReportSheet(props: {
 **Files:**
 
 - Create: `packages/ui/src/screens/CommunityFeedScreen.tsx`, `screens/ThreadSheet.tsx`
-- Source: mold `sdk/client/app/community.tsx` (route → component conversion), `components/community/CommunityThread.tsx`; Eve's `app/(app)/(tabs)/community.tsx` for search + "N new posts" pill + reaction wiring.
+- Source: mold `sdk/client/app/community.tsx` (route → component conversion), `components/community/CommunityThread.tsx`; the first host app's `app/(app)/(tabs)/community.tsx` for search + "N new posts" pill + reaction wiring.
 
 **Interfaces:**
 
@@ -643,7 +643,7 @@ export function ThreadSheet(props: {
 }): JSX.Element;
 ```
 
-- [ ] **Step 1: Port the mold screen as a component**: strip expo-router imports (`useFocusEffect` → `useEffect` on mount for the `opened` event; router pushes → the two callbacks); merge Eve's search + pill; all strings via `useT`.
+- [ ] **Step 1: Port the mold screen as a component**: strip expo-router imports (`useFocusEffect` → `useEffect` on mount for the `opened` event; router pushes → the two callbacks); merge the first host app's search + pill; all strings via `useT`.
 - [ ] **Step 2: Port ThreadSheet** on `CommunitySheet` (comment composer inside, `useThread`, `useCreateComment`).
 - [ ] **Step 3: Typecheck** → PASS. Commit: `feat(ui): feed screen and thread sheet as router-free components`
 
@@ -654,7 +654,7 @@ export function ThreadSheet(props: {
 **Files:**
 
 - Create: `packages/ui/src/screens/ProfileScreen.tsx`, `screens/ProfileEditSheet.tsx`, `screens/NotificationInboxScreen.tsx`
-- Source: mold `app/user/[id].tsx`, `ProfileEditSheet.tsx`, mold `hooks/useAvatarPicker.ts`; Eve `app/(app)/notifications.tsx`.
+- Source: mold `app/user/[id].tsx`, `ProfileEditSheet.tsx`, mold `hooks/useAvatarPicker.ts`; the first host app `app/(app)/notifications.tsx`.
 
 **Interfaces:**
 
@@ -685,7 +685,7 @@ export function NotificationInboxScreen(props: {
 **Files:**
 
 - Create: `packages/ui/src/locales/{es-ES,es-419,it,pl,pt-PT,pt-BR}.ts`, finalize `packages/ui/src/index.ts`
-- Source: Eve `i18n/{es-ES,es-419,it,pl,pt-PT,pt-BR}/community.json`.
+- Source: the first host app `i18n/{es-ES,es-419,it,pl,pt-PT,pt-BR}/community.json`.
 
 - [ ] **Step 1: Port the 6 catalogs** flattened to the Task 9 key scheme, degendered the same way as en (translate the neutral replacements — e.g. es "Alguien", it "Qualcuno"; the executor rewrites each gendered value in-language, this is copy translation work, not machine key mapping).
 - [ ] **Step 2: Consistency test** in `i18n.test.ts`: every catalog has exactly the same key set as en (iterate, assert equal sorted keys). Run → PASS (fix omissions).
@@ -715,7 +715,7 @@ do $$ begin
 end $$;
 ```
 
-(After CLI substitution the literal becomes the real URL and the check is false; unsubstituted, it raises. Verify the mold files — if they already carry placeholders from the Nightward runbook work, only add the guard.)
+(After CLI substitution the literal becomes the real URL and the check is false; unsubstituted, it raises. Verify the mold files — if they already carry placeholders from the another host app runbook work, only add the guard.)
 
 - [ ] **Step 3: `core/006_meta.sql`:**
 
@@ -739,14 +739,14 @@ create policy "community_meta readable" on public.community_meta for select usin
 **Files:**
 
 - Create: `supabase/migrations/reaction/001_reactions.sql`, `supabase/migrations/inbox/001_inbox.sql`
-- Source: Eve `supabase/migrations/20260812090000_post_prayers.sql`, `20260813090000_notifications_inbox.sql`, `20260813160000_official_posts_inbox.sql`.
+- Source: the first host app `supabase/migrations/20260812090000_post_prayers.sql`, `20260813090000_notifications_inbox.sql`, `20260813160000_official_posts_inbox.sql`.
 
 **Interfaces:**
 
 - Produces: `post_reactions` table (private, non-retractable, RLS insert-own/select-own), `post_reaction_summary(post_ids uuid[])` security-definer RPC (per post: `reaction_count int`, `last_reactor_name text`, `has_reacted bool`), reaction inbox trigger; `notifications`/`notification_seen` tables, triggers (like insert/retract, comment on pending→visible, reaction), `list_notifications()` RPC (stored rows ∪ all visible posts by `is_official` profiles, 90-day window), 90-day pg_cron purge. These names are what core Tasks 5/7 call.
 
-- [ ] **Step 1: Port Eve's prayers migration** with renames `post_prayers`→`post_reactions`, `post_prayer_summary`→`post_reaction_summary`, `notify_prayers`→`notify_reactions` (push_tokens pref column), `prayer`→`reaction` in trigger/kind names. Keep semantics: rows private, no delete policy, summary returns last reactor display name.
-- [ ] **Step 2: Port Eve's two inbox migrations** merged into one file, with kind `prayer`→`reaction` and the kind column left as unconstrained `text` (custom service-role kinds, spec §6). Cross-module note in header: inbox's reaction trigger is created `if exists post_reactions` guarded (`do $$ if to_regclass('public.post_reactions') is not null then ... end $$`) so inbox installs without the reaction module.
+- [ ] **Step 1: Port the first host app's prayers migration** with renames `post_prayers`→`post_reactions`, `post_prayer_summary`→`post_reaction_summary`, `notify_prayers`→`notify_reactions` (push_tokens pref column), `prayer`→`reaction` in trigger/kind names. Keep semantics: rows private, no delete policy, summary returns last reactor display name.
+- [ ] **Step 2: Port the first host app's two inbox migrations** merged into one file, with kind `prayer`→`reaction` and the kind column left as unconstrained `text` (custom service-role kinds, spec §6). Cross-module note in header: inbox's reaction trigger is created `if exists post_reactions` guarded (`do $$ if to_regclass('public.post_reactions') is not null then ... end $$`) so inbox installs without the reaction module.
 - [ ] **Step 3: Smoke-verify** both files on the Task 15 scratch stack (after core). Commit: `feat(backend): reaction module (post_prayers generalized) + inbox module`
 
 ---
@@ -756,7 +756,7 @@ create policy "community_meta readable" on public.community_meta for select usin
 **Files:**
 
 - Create: `supabase/functions/_shared/{client,config,moderation,push,slack}.ts`, `supabase/functions/{moderate-one,daily-moderation,update-profile,notify-comment,notify-like,notify-reaction,report-to-slack,broadcast-post}/index.ts`
-- Source: mold `sdk/functions/*` (baseline, already factorized), Eve `supabase/functions/notify-prayer/index.ts` (→ notify-reaction).
+- Source: mold `sdk/functions/*` (baseline, already factorized), the first host app `supabase/functions/notify-prayer/index.ts` (→ notify-reaction).
 
 **Interfaces:**
 
@@ -781,8 +781,8 @@ export async function postToSlack(payload: unknown): Promise<void> {
 
 Route `report-to-slack` and `daily-moderation` summaries through it (they currently assume the webhook exists).
 
-- [ ] **Step 2: Moderation settings.** In `_shared/moderation.ts`, read `MODERATION_SCORE_THRESHOLD` and `MODERATION_EXCLUDED_CATEGORIES` from env (Eve's hardcoded `sexual*` exclusion becomes documentation: "Eve sets MODERATION_EXCLUDED_CATEGORIES=sexual"). Keep fail-closed verdicts.
-- [ ] **Step 3: Port notify-reaction** from Eve's notify-prayer with renames (table/pref/kind per Task 16) and push copy from profile `locale` + `COMMUNITY_REACTION_PUSH_TEXT` fallback "{name} is thinking of you" — neutral default, apps override the secret.
+- [ ] **Step 2: Moderation settings.** In `_shared/moderation.ts`, read `MODERATION_SCORE_THRESHOLD` and `MODERATION_EXCLUDED_CATEGORIES` from env (the first host app's hardcoded `sexual*` exclusion becomes documentation: "The first host app sets MODERATION_EXCLUDED_CATEGORIES=sexual"). Keep fail-closed verdicts.
+- [ ] **Step 3: Port notify-reaction** from the first host app's notify-prayer with renames (table/pref/kind per Task 16) and push copy from profile `locale` + `COMMUNITY_REACTION_PUSH_TEXT` fallback "{name} is thinking of you" — neutral default, apps override the secret.
 - [ ] **Step 4: Verify** `deno check supabase/functions/**/index.ts` → PASS. Commit: `feat(backend): edge functions with optional Slack, env-driven moderation, notify-reaction`
 
 ---
@@ -837,7 +837,7 @@ Migration templates ship inside the package: `files` includes `templates/` — t
 **Interfaces:**
 
 - Consumes: manifest + substitute + template layout from Task 18.
-- Produces: `community upgrade` — diffs manifest (`schemaVersion`, `modules`, `installedFiles`) against the installed package's templates; copies only template files not in `installedFiles` (new migrations, changed functions are overwritten with a warning listing them); updates manifest. `community adopt --schema-version N --modules core,push,...` — writes the manifest only (for Eve/Nightward whose schema is already live), copies nothing, prints the compat table pointer.
+- Produces: `community upgrade` — diffs manifest (`schemaVersion`, `modules`, `installedFiles`) against the installed package's templates; copies only template files not in `installedFiles` (new migrations, changed functions are overwritten with a warning listing them); updates manifest. `community adopt --schema-version N --modules core,push,...` — writes the manifest only (for other host apps whose schema is already live), copies nothing, prints the compat table pointer.
 
 - [ ] **Step 1: Tests:** upgrade on an up-to-date manifest is a no-op ("already up to date"); after adding a fake new template migration, upgrade copies exactly it; adopt writes manifest without touching `<dir>/migrations`. Run → FAIL, implement, PASS.
 - [ ] **Step 2: Commit** `feat(cli): upgrade and adopt commands`
@@ -884,9 +884,9 @@ const config: CommunityConfig = {
 **Files:**
 
 - Create: `README.md` (root), `packages/{core,ui,cli}/README.md`, `docs/integration-skill.md`, `docs/backend-runbook.md`, `docs/compat.md`, `.changeset/<generated>.md`
-- Source: mold `SKILL.md` (phased agent guide), Nightward `docs/community-setup.md` (runbook).
+- Source: mold `SKILL.md` (phased agent guide), another host app `docs/community-setup.md` (runbook).
 
-- [ ] **Step 1: Write docs.** Root README: what/why, 5-minute quickstart (install, CLI init, provider wiring), module matrix, link to dashboard note ("a hosted moderation dashboard is used internally at Rocapine; the schema ships a `community_dashboard` migration so any admin tool can plug in — moderate via SQL/Studio otherwise"). `integration-skill.md`: port the mold's SKILL.md phases updated for npm install + CLI. `backend-runbook.md`: port Nightward's runbook (secrets table incl. the Task 17 env list, anonymous sign-ins, cron verification). `compat.md`: table `SDK version ↔ schema version` starting `0.1.x ↔ 1`.
+- [ ] **Step 1: Write docs.** Root README: what/why, 5-minute quickstart (install, CLI init, provider wiring), module matrix, link to dashboard note ("a hosted moderation dashboard is used internally at Rocapine; the schema ships a `community_dashboard` migration so any admin tool can plug in — moderate via SQL/Studio otherwise"). `integration-skill.md`: port the mold's SKILL.md phases updated for npm install + CLI. `backend-runbook.md`: port another host app's runbook (secrets table incl. the Task 17 env list, anonymous sign-ins, cron verification). `compat.md`: table `SDK version ↔ schema version` starting `0.1.x ↔ 1`.
 - [ ] **Step 2: Changeset + versions:** `npx changeset` (minor, all three packages, summary "initial public release"), `npx changeset version` → `0.1.0` everywhere.
 - [ ] **Step 3: Release checklist** at end of root README (maintainers section): confirm repo/package names with Martin (§9), npm org `@rocapine` exists + 2FA + `NPM_TOKEN` secret, LICENSE confirmed MIT, create GitHub repo and push, then `npm run release` (dry-run first: `npm publish --dry-run --workspaces`). Do NOT publish in this task — publishing is gated on the §9 confirmations (a human step).
 - [ ] **Step 4: Final full check:** `npm run typecheck && npm test && npm run build && npm publish --dry-run --workspaces` → all green. Commit: `docs: readmes, integration skill, backend runbook, compat table + v0.1.0 changeset`
@@ -897,4 +897,4 @@ const config: CommunityConfig = {
 
 - Spec coverage: §2→T1, §3.1→T2-8, §4→T9-14, §5→T15+18-19, §6→T16-17 (+T5-7 client side), §7 step 2→T20-21, §8→T1 (changesets/CI), T8 (schema check), T21 (compat/docs). §7 steps 3-5 intentionally out of scope (separate plans). §9 items surface in T21's release checklist.
 - Deliberate scope calls an executor must not "fix": no supabase-mock test suite for service/hooks (spec §8: example app is the QA bench), no RNTL component tests in v1, publishing gated on human confirmation.
-- Verify-at-port flags (exploration was summary-level): exact limit values (T3), whether mold migrations already have placeholders (T15), whether the mold hooks already contain Eve's moderation reconciliation (T6), CommunityTheme token list vs mold `theme.tsx` (T9 — reconcile, keep semantic superset).
+- Verify-at-port flags (exploration was summary-level): exact limit values (T3), whether mold migrations already have placeholders (T15), whether the mold hooks already contain the first host app's moderation reconciliation (T6), CommunityTheme token list vs mold `theme.tsx` (T9 — reconcile, keep semantic superset).

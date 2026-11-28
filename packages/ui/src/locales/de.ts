@@ -1,7 +1,7 @@
 // German catalog for @rocapine/community-ui.
 //
 // Translated from en.ts (this package's canonical key set — like fr.ts,
-// authored fresh against en.ts's meaning, no "Eve's Rhythm" German port to
+// authored fresh against en.ts's meaning, no German port of the source app to
 // draw from), following the same degendering/de-branding rules as every
 // other catalog here.
 //

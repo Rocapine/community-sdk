@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Repos and branches: community-sdk `feat/scheduled-posts` (has the spec commits); community-dashboard new branch `feat/brick7-scheduled-posts` from `main` (bb3a1fd). Never push or merge without the controller; never touch `main`.
-- Backends: scratch `cozfrhmbjrvotpwjnqmu` (free use); Unchaind sandbox `vjcdpodsrpemanfvrshh` (writes allowed with Guillaume's go, run by the controller); Unchaind prod `doiafuhoourjtqsmzook` never.
+- Backends: scratch `cozfrhmbjrvotpwjnqmu` (free use); the host app's sandbox project (writes allowed with the maintainer's go, run by the controller); the host app's production project never.
 - SQL commands: `supabase db query --linked --project-ref <ref> --yes -f <file>` (CLI 2.122 has no `--remote`). Agents that are refused a remote command stop and report; they never work around it.
 - 014 stays as released-to-sandbox; all brick 7 SQL goes in `supabase/migrations/core/015_scheduled_posts.sql`, idempotent (`if not exists`, `create or replace`, cron scheduling tolerant of "already exists").
 - Error codes are raised with errcode P0001 and the code as the message. New codes: `invalid_time`, `missed`.
@@ -97,7 +97,7 @@
 - [ ] **Step 2:** `npx prettier --check .` passes (the CI runs it; the roadmap table must stay aligned — run `npx prettier --write docs/dashboard-roadmap.md`).
 - [ ] **Step 3: Commit** `chore: brick 7 changeset, CLI counts and roadmap`.
 
-Controller after Part 1: with Guillaume's go, apply 015 to the Unchaind sandbox and run both SQL test files there; open the SDK PR (no recording: nothing visible in an app).
+Controller after Part 1: with the maintainer's go, apply 015 to the host app sandbox and run both SQL test files there; open the SDK PR (no recording: nothing visible in an app).
 
 ## Part 2 — Dashboard (community-dashboard, branch `feat/brick7-scheduled-posts`)
 
@@ -211,11 +211,11 @@ Controller after Part 1: with Guillaume's go, apply 015 to the Unchaind sandbox 
 
 ### Task 9: End to end, recording, PRs (controller)
 
-- [ ] With 015 on the Unchaind sandbox: run the dashboard locally (`npm run build && npx wrangler dev --port 8799 --host localhost`), schedule a post 3 minutes ahead in Europe/Paris and one in America/New_York, watch the first go out (the feed, the log `publish_post` with your email as actor, the Home week updating), unschedule the second; make one fail (Pin on a non-admin account set directly in SQL) and see it on Home, in the menu and in the composer.
-- [ ] Record the walkthrough with Playwright WebKit (`recordVideo`), compress, open the dashboard PR with it and the SDK PR; stop for Guillaume's test and OK.
+- [ ] With 015 on the host app sandbox: run the dashboard locally (`npm run build && npx wrangler dev --port 8799 --host localhost`), schedule a post 3 minutes ahead in Europe/Paris and one in America/New_York, watch the first go out (the feed, the log `publish_post` with your email as actor, the Home week updating), unschedule the second; make one fail (Pin on a non-admin account set directly in SQL) and see it on Home, in the menu and in the composer.
+- [ ] Record the walkthrough with Playwright WebKit (`recordVideo`), compress, open the dashboard PR with it and the SDK PR; stop for the maintainer's test and OK.
 
-## Part 3 — Release (after both PRs merge, Guillaume)
+## Part 3 — Release (after both PRs merge, the maintainer)
 
-- [ ] `changeset version` on `release/0.16.0` (both changesets → 0.16.0), release PR, Guillaume merges and runs `npm run release`.
-- [ ] Unchaind: in `~/Developer/unchaind/.claude/worktrees/sdk-0.16` (branch `chore/community-sdk-0.16`, rebase on `origin/main`), `npx @rocapine/community@0.16.0 upgrade` adds `015`, bump `@rocapine/community-*` to `^0.16.0`, tests, push, PR. Sandbox history: `migration repair --status applied` for the three timestamps (or `db push`). Prod: Guillaume's `db push` after merge.
+- [ ] `changeset version` on `release/0.16.0` (both changesets → 0.16.0), release PR, the maintainer merges and runs `npm run release`.
+- [ ] The host app: in `.claude/worktrees/sdk-0.16` of the host app repo (branch `chore/community-sdk-0.16`, rebase on `origin/main`), `npx @rocapine/community@0.16.0 upgrade` adds `015`, bump `@rocapine/community-*` to `^0.16.0`, tests, push, PR. Sandbox history: `migration repair --status applied` for the three timestamps (or `db push`). Prod: The maintainer's `db push` after merge.
 - [ ] Roadmap: brick 7 `done` with its PRs; memory updated.

@@ -30,7 +30,7 @@ create policy "update own push row" on public.push_tokens for update to authenti
 
 -- Recipient locale for localized push copy (written by the client's profile
 -- sync; read by the notify-* functions). Nullable: absent locale falls back
--- to en. Loose length check only, same as Eve's reference migration
+-- to en. Loose length check only, same as the first host app's reference migration
 -- (20260814150000_profile_locale.sql) — adding a language needs no migration.
 alter table public.profiles add column if not exists locale text check (char_length(locale) <= 10);
 

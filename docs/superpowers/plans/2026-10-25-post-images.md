@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Opt-in: `modules.images?: boolean`, absent/false ⇒ every query, select and screen byte-identical to 0.10 (Eve and Nightward untouched).
+- Opt-in: `modules.images?: boolean`, absent/false ⇒ every query, select and screen byte-identical to 0.10 (the other host apps untouched).
 - One image per post, one per comment. Text optional when an image is present; never both a poll and an image on a post.
 - Upload: long edge ≤ **1600 px**, JPEG quality **0.8**, re-encoded on device (no EXIF/GPS leaves the phone). Bucket `post-images`: public, `file_size_limit` **2 MB** (2097152), `allowed_mime_types` `['image/jpeg']`, path `{uid}/{uuid}.jpg`, inserts only into the caller's own folder.
 - `expo-image-manipulator` is required when `modules.images` is on: without it the image buttons are hidden (and a one-time `console.warn` in dev). Never upload an un-re-encoded original.
@@ -23,7 +23,7 @@
 - Analytics: existing `postPublished` / `commentPublished` events gain `hasImage: boolean` (camelCase like the existing `hasPoll`). No new event names.
 - Every new UI string in all 13 catalogs (`packages/ui/src/locales/*.ts`); icon-only buttons carry `accessibilityRole`/`accessibilityLabel`.
 - Press feedback rules (0.10): `PressableScale` only on visible surfaces, no opacity on press, haptic only on commits.
-- Backend migration must be idempotent (`if not exists`, `drop … if exists` then create) — it gets applied to the sandbox before Unchaind's `community upgrade` copies it again.
+- Backend migration must be idempotent (`if not exists`, `drop … if exists` then create) — it gets applied to the sandbox before the host app's `community upgrade` copies it again.
 - CI: `npm run build && npm run typecheck && npm test && npx prettier --check .`, plus `deno test` on `_shared/` and `deno check` on every function.
 
 ## Review Focus
@@ -319,7 +319,7 @@ Expected: no type errors, all tests pass. (Live behavior is checked in Task 12.)
 - Consumes: Task 6 `useCreatePost` `image`, Task 7 `pickImage`, `imagesSupported`, `imageFrame`.
 - Produces: `ComposerCard` internal state `image: LocalImage | null`; `beforeSubmit` draft type gains `image?: LocalImage`; `onPublishFailed` restore puts back `{ text, pollDraft, image }`.
 
-Behavior (spec §2, Guillaume's correction):
+Behavior (spec §2, the maintainer's correction):
 
 - The row inside the text box that today shows the topic select while composing becomes: **Image button left-aligned**, topic select stays right. The Image button is an icon-only `Pressable` (no `PressableScale`, it has no surface) with `t("composer.addImage")`, shown only when `cfg.modules.images && imagesSupported() && pollDraft === null`. If `topics.length <= 1` the row still renders for the Image button.
 - Picking an image shows a thumbnail under the text (inside `AnimatedHeight`), `imageFrame` at a 120-pt max width, with a ✕ (`t("composer.removeImage")`). Tapping Image again replaces it.
@@ -371,20 +371,20 @@ Behavior (spec §2):
 
 ---
 
-### Task 12: Live verification on the Unchaind sandbox, PR
+### Task 12: Live verification on the host app sandbox, PR
 
-The SDK repo has no local backend (no Docker). Live checks run against the Unchaind sandbox `vjcdpodsrpemanfvrshh` (deploys allowed; prod `doiafuhoourjtqsmzook` is Guillaume's only).
+The SDK repo has no local backend (no Docker). Live checks run against the host app's sandbox project (deploys allowed; prod is the maintainer's only).
 
 - [ ] **Step 1:** Apply `images/001_images.sql` to the sandbox (Supabase MCP `apply_migration`), deploy `moderate-one`, `daily-moderation`, `notify-comment`, `broadcast-post`, `report-to-slack`, `translate-one`, `daily-translation` (one at a time — multi-deploy 500s). Confirm the content-check constraint names first.
-- [ ] **Step 2:** On a Unchaind worktree with `@rocapine/community-*` packed from this branch, `modules.images: true`, `expo-image-manipulator` installed and a **new dev client build** (native dep): run the four behaviors, a portrait iPhone photo (Review Focus 1), a panorama, an offline publish, an image-only comment push (excerpt "📷 Photo"), a report (Slack shows the URL), and a self-hidden test item via the dashboard restore. Check `storage.objects` after an author delete + manual `daily-moderation` run: the file is gone.
-- [ ] **Step 3:** Record the walkthrough (screen recording, compressed per the PR-video rule), open the SDK PR with it, and hand Guillaume the local test setup. **Do not merge** until he has tested it; release (`npm run release`) is his.
+- [ ] **Step 2:** On a host app worktree with `@rocapine/community-*` packed from this branch, `modules.images: true`, `expo-image-manipulator` installed and a **new dev client build** (native dep): run the four behaviors, a portrait iPhone photo (Review Focus 1), a panorama, an offline publish, an image-only comment push (excerpt "📷 Photo"), a report (Slack shows the URL), and a self-hidden test item via the dashboard restore. Check `storage.objects` after an author delete + manual `daily-moderation` run: the file is gone.
+- [ ] **Step 3:** Record the walkthrough (screen recording, compressed per the PR-video rule), open the SDK PR with it, and hand the maintainer the local test setup. **Do not merge** until he has tested it; release (`npm run release`) is his.
 
 ---
 
-### Task 13 (after Guillaume publishes to npm): Unchaind consumption PR
+### Task 13 (after the maintainer publishes to npm): The host app consumption PR
 
-- [ ] Branch from Unchaind `main`; bump `@rocapine/community-core`/`-ui` to the published version; `npx expo install expo-image-manipulator`.
+- [ ] Branch from the host app `main`; bump `@rocapine/community-core`/`-ui` to the published version; `npx expo install expo-image-manipulator`.
 - [ ] `services/community/communityConfig.ts`: `modules.images: true`. `npx @rocapine/community upgrade --add-modules images` (in a scratch copy first, then the worktree), commit the generated migration and `community-sdk.json`.
-- [ ] Push copy: add the `photo` key to `scripts/communityPushCopy.mjs` output if Unchaind overrides push copy per key (otherwise the built-ins apply).
+- [ ] Push copy: add the `photo` key to `scripts/communityPushCopy.mjs` output if the host app overrides push copy per key (otherwise the built-ins apply).
 - [ ] `docs/features/COMMUNITY.md`: map row for images, the native-dependency note (1.15 build must include it), lifecycle rules.
-- [ ] `supabase db push` + functions deploy on the sandbox; walkthrough recording; PR for Guillaume. Prod migration/deploy is his.
+- [ ] `supabase db push` + functions deploy on the sandbox; walkthrough recording; PR for the maintainer. Prod migration/deploy is his.

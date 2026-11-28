@@ -44,7 +44,7 @@
 //  - A rejected or failed comment closes the sheet and shows its notice once
 //    the sheet is dismissed (same handoff as Report): rendered behind the
 //    sheet's Modal, it would only appear after the user closed the thread.
-//  - A host slot opening its own Modal from the post card (e.g. Eve's prayer
+//  - A host slot opening its own Modal from the post card (e.g. the first host app's prayer
 //    sheet) goes through `ctx.presentModal`, which this sheet provides as
 //    "close, then open once dismissed" (`ModalHandoffContext`).
 //  - Images module (`cfg.modules.images`): while the reply field is focused or

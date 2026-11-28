@@ -1,7 +1,7 @@
 // French catalog for @rocapine/community-ui.
 //
 // Translated from en.ts (this package's canonical key set — there is no
-// "Eve's Rhythm" French port to draw from, unlike the first 7 catalogs;
+// French port of the source app to draw from, unlike the first 7 catalogs;
 // this one and de.ts are authored fresh against en.ts's meaning and the
 // same degendering/de-branding rules as every other catalog here).
 //

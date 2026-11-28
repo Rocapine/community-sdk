@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Show who is in the app right now: a green dot on the avatars of online members who allow it, a live online count in the community header, and a per-member switch to hide one's own status. The work lands in the Community SDK first, then in Unchaind.
+**Goal:** Show who is in the app right now: a green dot on the avatars of online members who allow it, a live online count in the community header, and a per-member switch to hide one's own status. The work lands in the Community SDK first, then in the host app.
 
 **Architecture:** The client sends a heartbeat (`touch_presence()`) every 60 s while the app is in the foreground, plus once when it goes to the background. Each heartbeat stamps one overwritten `last_active_at` per member, in a new `presence` migration module. "Online" means `last_active_at > now() - grace` and is evaluated server-side. Clients call security-definer RPCs that return a count or a list of ids, never timestamps. The UI asks for the online state of the avatars on screen through one batched RPC per screen and refreshes every 60 s. The dot is drawn by the SDK's `Avatar` wrapper around whatever avatar the app renders.
 
@@ -25,18 +25,18 @@
 - Presence never creates an identity. With no Supabase session, there is no heartbeat and no anonymous sign-in.
 - One analytics event, `community_presence_visibility_changed { visible }`. Nothing is tracked on the header pill.
 - Copy goes in all 13 SDK locales (`packages/ui/src/locales/*`, `fr-vous` included), with plural keys following each locale's existing `feed.newPosts.*` categories.
-- The green is `theme.colors.success` (Unchaind maps it to `#22C55E`).
+- The green is `theme.colors.success` (the host app maps it to `#22C55E`).
 - Under Reduce Motion (Reanimated `useReducedMotion()`): no pulses, and the collapse switches without animation.
 - Repo rule (`CLAUDE.md`): in the same PR, update the SDK coverage table and the bricks in `docs/dashboard-roadmap.md`, plus a changeset and the module docs.
 - Commits use the repo style (`feat: …`, `docs: …`) and end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Open Expo dev clients with `__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1`. Every PR that changes something visible embeds a simulator recording.
-- Unchaind production Supabase migrations run only after Guillaume says yes in chat.
+- The host app production Supabase migrations run only after the maintainer says yes in chat.
 
 ## Review Focus
 
 1. **Module off, or a backend without the migration.** Every presence query is disabled, no RPC runs, and nothing renders: no dot, no pill, no switch. → tests in Task 3 (`enabled: false`) and Task 5 (`resolveHeaderZones` drops `"online"`).
 2. **iOS spamming `inactive`/`active` events** (Control Center, notification shade). The heartbeat must never stack two intervals, and must send at most one beat per real transition. → `startPresenceHeartbeat` test in Task 2.
-3. **No session yet** (Unchaind before onboarding and the paywall). `touchPresence` must neither call `signInAnonymously` nor run an RPC. → Task 2 test.
+3. **No session yet** (the host app before onboarding and the paywall). `touchPresence` must neither call `signInAnonymously` nor run an RPC. → Task 2 test.
 4. **A busy screen:** the same author on many posts, or more than 200 distinct avatars. The batcher must deduplicate ids and split them into chunks of 200, and an RPC failure must reject, so the query keeps its previous answer (with none, the hook returns `false`: no dot). → Task 2 batcher tests.
 5. **A failed visibility write.** The switch must go back to its previous position and no analytics event may be sent. → Task 3 mutation test. `BadgeToggle` already reverts on rejection.
 
@@ -94,7 +94,7 @@ assert (select visible from public.member_presence where user_id = v) = false;
 
 - [ ] **Step 6: Apply to the SDK scratch project** (`cozfrhmbjrvotpwjnqmu`, the one PR #82 used) and run the test:
       `npx supabase db query --remote=cozfrhmbjrvotpwjnqmu --yes -f supabase/migrations/presence/001_presence.sql`, then the same command with `-f supabase-tests/presence.sql`.
-      Expected: an error whose message is exactly `PRESENCE_TESTS_PASSED`. If the classifier refuses to write to scratch, stop and ask Guillaume to run these two commands.
+      Expected: an error whose message is exactly `PRESENCE_TESTS_PASSED`. If the classifier refuses to write to scratch, stop and ask the maintainer to run these two commands.
 - [ ] **Step 7: Commit** `feat: presence migration module (member_presence + online RPCs)`.
 
 ### Task 2: Core: presence settings, service, heartbeat and batcher
@@ -404,22 +404,22 @@ Also update the existing `resolveHeaderZones` call sites in that test file to pa
   - Both light and dark themes look right.
 - [ ] **Step 3:** Record the walkthrough (`argent-screen-recording`) and compress it with `ffmpeg -i in.mp4 -vcodec libx264 -crf 28 -vf scale=-2:1280 -an out.mp4`.
 - [ ] **Step 4:** Push `feat/online-presence` and open the PR with `gh pr create --attach ./walkthrough.mp4`. Put `![](./walkthrough.mp4)` alone on its own line in the body, and end the body with the attribution line. Then bind the PR (`ccd_pr`).
-- [ ] **Step 5:** The 0.18.0 release follows the existing release-PR flow (as in `release: community 0.16.0 (#81)`). Ask Guillaume before publishing anything to npm.
+- [ ] **Step 5:** The 0.18.0 release follows the existing release-PR flow (as in `release: community 0.16.0 (#81)`). Ask the maintainer before publishing anything to npm.
 
-### Task 9: Unchaind integration (repo `/Users/glsx/Developer/unchaind`, after 0.18.0 is on npm)
+### Task 9: The host app integration (repo the host app repo, after 0.18.0 is on npm)
 
 **Files:**
 
 - Modify: `package.json` (`@rocapine/community-core` and `-ui` set to `^0.18.0`, then a clean `npm i`)
-- **Start from Unchaind branch `chore/community-backend-0.17`** (a00af923, pushed, no PR; or `main` once it is merged). It holds the 0.17 migration files already pushed to prod (20261113002844/45/46). Running `upgrade` from any other base regenerates them with new timestamps. The 0.17 app bump (packages + `BlockedMembersScreen` in settings) is not done yet; fold it into this task or land it first.
+- **Start from the host app branch `chore/community-backend-0.17`** (a00af923, pushed, no PR; or `main` once it is merged). It holds the 0.17 migration files already pushed to prod (20261113002844/45/46). Running `upgrade` from any other base regenerates them with new timestamps. The 0.17 app bump (packages + `BlockedMembersScreen` in settings) is not done yet; fold it into this task or land it first.
 - Modify: `services/community/communityConfig.ts:69-80` (`modules.presence: {}`)
 - Modify: `hooks/useCommunityIdentity.ts`. After `ensureIdentity` resolves, call `startPresenceHeartbeat(resolvedCommunityConfig, AppState)` and keep its stop function. The effect's cleanup calls it, and a cleanup that runs before the start resolves must keep the heartbeat from starting.
-- Modify: `app/(blended)/community/index.tsx:72-86`, to `left: [{ logo, height: 32, accessibilityLabel: "Unchaind" }, "online"]`, `center: []`, `right: ["inbox", "profile"]`. This removes search, as intended.
+- Modify: `app/(blended)/community/index.tsx:72-86`, to `left: [{ logo, height: 32, accessibilityLabel: "Acme" }, "online"]`, `center: []`, `right: ["inbox", "profile"]`. This removes search, as intended.
 - Create: a Supabase migration produced by `npx @rocapine/community upgrade --add-modules presence`
 - Modify: `docs/features/COMMUNITY.md` (presence: the header, the heartbeat, the switch). If `docs/ANALYTICS.md` lists community events, add `community_presence_visibility_changed` there. The `onEvent` adapter already forwards every SDK event, so no code change is needed for it.
 
 - [ ] **Step 1:** Work on a branch per `docs/WORKFLOW.md`. Make the changes above. Copy `.env.local` from the main repo into the worktree. Run `npm run typecheck && npm run lint && npm test` and expect them to pass.
-- [ ] **Step 2:** Push the migration to the sandbox Supabase project; the refs are in the memory note `unchaind-community-sdk-migration.md`. Verify it with `supabase-tests/presence.sql` from the SDK, which must end with `PRESENCE_TESTS_PASSED`.
-- [ ] **Step 3:** Run the Task 8 Step 2 checklist on the Unchaind dev build on the simulator, in both themes. Use Metro on 8082, because 8081 is Guillaume's session.
+- [ ] **Step 2:** Push the migration to the sandbox Supabase project; the refs are in the memory note `the host app's migration note`. Verify it with `supabase-tests/presence.sql` from the SDK, which must end with `PRESENCE_TESTS_PASSED`.
+- [ ] **Step 3:** Run the Task 8 Step 2 checklist on the host app dev build on the simulator, in both themes. Use Metro on 8082, because 8081 is the maintainer's session.
 - [ ] **Step 4:** Record the walkthrough: the pill expanding and collapsing, the dots in the feed and the thread, the profile, and the switch. Then open the PR with the video, following the PR-video rule.
-- [ ] **Step 5:** Ask Guillaume in chat before pushing the migration to production. The app release ships it with no flag.
+- [ ] **Step 5:** Ask the maintainer in chat before pushing the migration to production. The app release ships it with no flag.

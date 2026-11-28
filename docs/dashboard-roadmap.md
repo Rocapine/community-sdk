@@ -2,7 +2,7 @@
 
 The back office for the apps that embed the Community SDK: moderate, publish, measure and,
 later, configure each app's community, in production and in sandbox. It replaces Rocactopus
-(the Next.js dashboard of Eve's Rhythm and Nightward) and the Octopus dashboard, and is
+(the Next.js dashboard of the other host apps) and the third-party community dashboard, and is
 built from scratch, one brick at a time: the smallest useful version first, then one brick per
 iteration.
 
@@ -35,9 +35,9 @@ From the team (2026-11-04):
 
 - **2026-11-10 — Agile:** ship the smallest useful dashboard, then add bricks one by one, in the
   order below. Settings come late.
-- **2026-11-10 — V1 scope:** Unchaind only, sandbox and production. Eve's Rhythm and Nightward
+- **2026-11-10 — V1 scope:** The host app only, sandbox and production. The other host apps
   wait for brick 19.
-- **2026-11-10 — Where:** the Rocapine Cloudflare account (where `unchaind-dashboard` runs too),
+- **2026-11-10 — Where:** the Rocapine Cloudflare account (where an internal dashboard runs too),
   at `community.rocapi.ne`, in the repo [`Rocapine/community-dashboard`](https://github.com/Rocapine/community-dashboard).
 - **2026-11-28 — Imported history is community content:** what a history import brings (the
   placeholders' posts, comments and reactions) counts in Activity like the new community's own
@@ -50,7 +50,7 @@ From the team (2026-11-04):
   per app. Anyone can add an app (its Supabase URL and secret key, checked before saving) and
   becomes its Owner; each person sees only the apps they were given, as Viewer, Editor or Owner,
   enforced by the Worker. The dashboard admins are a list in the Worker's config and manage
-  every app: Guillaume alone since 2026-11-27 (Stan is an Owner of Unchaind, added like everyone
+  every app: the maintainer alone since 2026-11-27 (the second Owner is an Owner of the host app, added like everyone
   else). The registry moves from the `COMMUNITIES` var and Worker secrets to
   D1, with each key encrypted. Design: [2026-11-12-community-dashboard-access-design.md](superpowers/specs/2026-11-12-community-dashboard-access-design.md).
 - **2026-11-11 — Team accounts, all equal:** every account the team manages is a house account
@@ -64,16 +64,16 @@ From the team (2026-11-04):
   post may have empty text, as in the app; which topics are admin-only comes from the dashboard's
   topic config, not from the database. Design:
   [2026-11-11-community-dashboard-brick4-design.md](superpowers/specs/2026-11-11-community-dashboard-brick4-design.md).
-- **2026-11-10 — Octopus:** only users on old app versions are still there, and Octopus moderates
+- **2026-11-10 — Previous vendor:** only users on old app versions are still there, and the previous vendor moderates
   its own community. The dashboard ignores it.
 - **2026-11-10 — Shell (brick 1):** an app and sandbox/production switcher kept in the URL;
   production in a color that cannot be missed; the dashboard opens on the last community used;
   the home shows open reports and AI-hidden content to review, each linking to the review queue.
 - **2026-11-10 — Theme:** a light/dark toggle from brick 1, the same two-state logic as
-  `unchaind-dashboard` and `onboarding-studio` (follow the system by default; the toggle flips
+  An internal dashboard and `onboarding-studio` (follow the system by default; the toggle flips
   the theme and forgets the override when it matches the system again; see
   [Lea Verou](https://lea.verou.me/blog/2026/dark-mode-toggles/)). Copy `src/app/theme.ts` and the
-  inline script of `index.html` from `unchaind-dashboard`.
+  inline script of `index.html` from an internal dashboard.
 - **2026-11-10 — Review queue (brick 2):** list + detail side by side. The queue on the left
   (All / Reported / AI-hidden); the selected item on the right with its context, every report,
   the author at a glance and the actions; keyboard J/K, H, R, B; each action moves on and offers
@@ -95,12 +95,12 @@ From the team (2026-11-04):
   replace Rocactopus; it does not follow Rocactopus's choices.
 - **2026-11-04 — Hosting:** a Cloudflare Worker, deployed automatically on merge to `main`
   (Workers Builds), behind Cloudflare Access with the rule "emails ending in `@rocapine.com`",
-  like `unchaind-dashboard`.
+  like an internal dashboard.
 - **2026-11-04 — UI:** simple and modern, `shadcn/ui` wherever it has the component.
 - **2026-11-04 — Switching:** one dashboard for every app, with a switcher between apps and
-  between each app's production and sandbox communities. Unchaind (fully on the SDK) is the
+  between each app's production and sandbox communities. The host app (fully on the SDK) is the
   first app and the test bed.
-- **Claude's call — stack:** copy `unchaind-dashboard`: Vite + React + Tailwind + shadcn/ui as
+- **Claude's call — stack:** copy an internal dashboard: Vite + React + Tailwind + shadcn/ui as
   static assets, plus a hand-written Worker for `/api/*`. No Next.js.
 - **Claude's call — data access:** each community (app × environment) is one Supabase project.
   The Worker reaches it with that project's service-role (or `sb_secret_`) key, stored as a
@@ -129,7 +129,7 @@ Set by the team on 2026-11-10; every brick follows them.
 
 | #   | Brick                                                                                                                                                                                                                                                                                                                                                                             | Size | SDK change | Status |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---------- | ------ |
-| 1   | **Shell.** Repo, Worker + SPA, shadcn, Access + JWT check, auto deploy, the community registry (Worker secrets), the app/environment switcher, an empty home. Starts with Unchaind sandbox and production.                                                                                                                                                                        | M    | no         | done   |
+| 1   | **Shell.** Repo, Worker + SPA, shadcn, Access + JWT check, auto deploy, the community registry (Worker secrets), the app/environment switcher, an empty home. Starts with the host app sandbox and production.                                                                                                                                                                    | M    | no         | done   |
 | 2   | **Review queue.** One list of what needs a human: open reports (grouped per post or comment, most reported first) and AI-hidden content not yet reviewed. Actions: hide, restore, keep hidden, reject the report, ban the author. Every action written to `moderation_actions` with the actor's email. Undo on the last action.                                                   | M    | no         | done   |
 | 3   | **Members.** Find a member by name, handle or id; member card (posts, comments, reports received, hidden count, ban state, Amplitude and RevenueCat ids); ban / unban; **make admin / remove admin** (`is_admin`). Since SDK 0.15, an admin posts in admin-only topics, pins and notifies everyone from the app itself, so this alone covers "publish as an admin" until brick 4. | S    | no         | done   |
 
@@ -153,12 +153,12 @@ Set by the team on 2026-11-10; every brick follows them.
 | 10  | **Community rules.** The rules text per locale, edited in the dashboard, read by the app.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | M      | yes        | todo        |
 | 11  | **Moderation rules.** Per category (harassment, sexual, self-harm…): hide, hide with human review, or let through; the score threshold. Today `CATEGORIES_TO_HIDE` is in code and the threshold is a secret.                                                                                                                                                                                                                                                                                                                                                                                    | L      | yes        | todo        |
 | 12  | **Other settings.** Translation locales, push copy, app name: today Supabase secrets, editable through the Management API without SDK change; preferred publishing times per app (quick picks in the composer's Schedule panel); the online grace window (`presence_set_grace_minutes`, presence module); the poll limits (`poll_set_limits`, polls module, read with `poll_limits()`); the messaging settings (`messaging_set_settings`, messaging module: moderation mode, limits, push preview).                                                                                             | M      | maybe      | todo        |
-| 14  | **Insights.** A monthly AI summary: themes, sentiment, standout posts, top contributors, what to watch (Octopus "Insights").                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | L      | no         | todo        |
-| 15  | **Community vs. app.** Retention and time in app of community members against the other users, from Amplitude (Octopus "Reports").                                                                                                                                                                                                                                                                                                                                                                                                                                                              | M      | no         | todo        |
-| 16  | **Post series.** Plan several posts at once, e.g. a week of daily prompts (Octopus "Plan a series"). Builds on 7.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | M      | no         | todo        |
+| 14  | **Insights.** A monthly AI summary: themes, sentiment, standout posts, top contributors, what to watch (the third-party tool's "Insights").                                                                                                                                                                                                                                                                                                                                                                                                                                                     | L      | no         | todo        |
+| 15  | **Community vs. app.** Retention and time in app of community members against the other users, from Amplitude (the third-party tool's "Reports").                                                                                                                                                                                                                                                                                                                                                                                                                                               | M      | no         | todo        |
+| 16  | **Post series.** Plan several posts at once, e.g. a week of daily prompts (the third-party tool's "Plan a series"). Builds on 7.                                                                                                                                                                                                                                                                                                                                                                                                                                                                | M      | no         | todo        |
 | 17  | **Support handoff.** Send a post to Roca Support, ready-made replies for moderators.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | M      | maybe      | todo        |
 | 18  | **Member badges view.** See and reset a member's badges.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | S      | no         | todo        |
-| 19  | **Other apps.** Eve's Rhythm and Nightward once their backends run the SDK schema; their Rocactopus extras (articles, stories, callouts) stay out of this dashboard.                                                                                                                                                                                                                                                                                                                                                                                                                            | S each | no         | todo        |
+| 19  | **Other apps.** The other host apps once their backends run the SDK schema; their Rocactopus extras (articles, stories, callouts) stay out of this dashboard.                                                                                                                                                                                                                                                                                                                                                                                                                                   | S each | no         | todo        |
 | 20  | **Online now.** The current online count on the dashboard home, from the `presence` module.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | S      | no         | todo        |
 | 21  | **Release markers.** The app's store releases and OTA updates as markers on Activity's posts-and-comments chart. The community database knows nothing of releases: the Worker would read EAS (builds, updates), App Store Connect / Google Play or the Publishing Platform, with a key and a setting per app.                                                                                                                                                                                                                                                                                   | M      | no         | todo        |
 | 23  | **Accounts on the member card.** For apps with the accounts module: the linked app account (provider, subject, linked since) from `account_links` as an "App account" line on the member card; merged profiles (the empty rows `merge_profiles` leaves) hidden from every list, search and count, their URL saying "Merged into <name>"; deleted accounts listed with a "Deleted account" chip, a "Deleted accounts" filter and a card notice; unbanning a profile also lifts its account's ban. No merge warning (a non-goal). Uses core `021`'s markers and accounts `003`'s `account_unban`. | S      | maybe      | in progress |

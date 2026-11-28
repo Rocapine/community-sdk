@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_FEED_HEADER, resolveHeaderZones } from "../utils/headerZones";
 
-const logo = { logo: 1, accessibilityLabel: "Eve" };
+const logo = { logo: 1, accessibilityLabel: "Acme" };
 
 describe("resolveHeaderZones", () => {
   it("drops the inbox when the inbox module is off", () => {

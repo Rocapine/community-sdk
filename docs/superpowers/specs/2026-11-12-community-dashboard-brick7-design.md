@@ -1,6 +1,6 @@
 # Community dashboard, brick 7: scheduled posts
 
-Status: approved 2026-11-12 (Guillaume). Mockups: `.superpowers/brainstorm/53205-1794425101/content/brick7-scheduling.html`.
+Status: approved 2026-11-12 (the maintainer). Mockups: `.superpowers/brainstorm/53205-1794425101/content/brick7-scheduling.html`.
 
 ## Why
 
@@ -10,7 +10,7 @@ prepare posts in advance and have them go out at the right hour, for example 8:0
 prayer, without being at a computer. The roadmap need is "Publish … now or scheduled".
 
 Brick 7 follows brick 4 directly. SDK 0.16.0 ships both (decision 2026-11-12): nothing is
-urgent, and one release means one Unchaind upgrade and one prod migration.
+urgent, and one release means one the host app upgrade and one prod migration.
 
 ## Goals
 
@@ -48,12 +48,12 @@ urgent, and one release means one Unchaind upgrade and one prod migration.
   now" and "Schedule…". "Schedule…" opens a small popover with a date and a time (native
   `input type="date"` / `type="time"`, so no new date-picker dependency), and three quick picks:
   tomorrow 08:00, tomorrow 19:00, next Monday 08:00, read in the chosen zone. Then a **time zone**
-  select (decided by Guillaume, 2026-11-12): the zone this browser used last, else the browser's
+  select (decided by the maintainer, 2026-11-12): the zone this browser used last, else the browser's
   own zone, comes first; then a few common ones (Europe/Paris, Europe/London, America/New_York,
   America/Chicago, America/Los_Angeles, America/Sao_Paulo, UTC); then every IANA zone
   (`Intl.supportedValuesOf("timeZone")`). Each option shows its current offset ("New York ·
   UTC−5"). When the chosen zone isn't the browser's, one line under the fields gives the time
-  in the browser's zone ("14:00 your time"). No other hint text (decided by Guillaume: no
+  in the browser's zone ("14:00 your time"). No other hint text (decided by the maintainer: no
   "goes out within a minute" line). Then Cancel and Schedule.
 - Schedule requires what Publish requires (account, topic, text or image, valid extras, Pin and
   Notify only for an admin account). The topic must also be offered on the scheduled date:
@@ -97,7 +97,7 @@ urgent, and one release means one Unchaind upgrade and one prod migration.
 
 ### SDK (core, new migration `core/015_scheduled_posts.sql`, my call)
 
-Brick 4's `014` is already applied on the Unchaind sandbox, so brick 7 adds a new file rather
+Brick 4's `014` is already applied on the host app sandbox, so brick 7 adds a new file rather
 than editing 014. Both ship in 0.16.0.
 
 - `post_drafts` gains `scheduled_by text` (the email that set the date), `publish_tz text` (the
@@ -117,7 +117,7 @@ version, scheduled_by)` in its own sub-transaction. On error it records `publish
   code) and `failed_at`, keeps `publish_at` and moves on. A failed draft is not retried until
   someone schedules it again. The log line is the usual `publish_post` with `actor_email =
 scheduled_by`.
-- **Late posts (decided by Guillaume, 2026-11-12):** a due draft more than **30 minutes** past
+- **Late posts (decided by the maintainer, 2026-11-12):** a due draft more than **30 minutes** past
   its `publish_at` is not published. The cron may have stopped for a while: an outage, a paused
   or restored backend, or a migration that lands after the date. The cron records
   `publish_error = 'missed'` and `failed_at` instead, like any failure. The composer's message
@@ -154,7 +154,7 @@ drafts/:id/schedule {version, publishAt | null}` → `schedule_post_draft`. A 40
 
 - Everything from brick 4's spec still holds: service-role-only drafts, JSON-only writes, the
   actor is the Access email, no hint text under fields, UI copy in English, calm UI.
-- Production stays read-only for agents. Guillaume runs the prod migration.
+- Production stays read-only for agents. The maintainer runs the prod migration.
 - The cron runs only once the migration is on a backend (sandbox now, prod after the joint
   release).
 
@@ -164,16 +164,16 @@ drafts/:id/schedule {version, publishAt | null}` → `schedule_post_draft`. A 40
   (minor), and both land in 0.16.0.
 - The SDK PR carries the roadmap update: brick 4 done (dashboard#3, sdk#78), brick 7 in
   progress, then done at merge. It also updates the SDK coverage row (cron publishing).
-- After the release, the Unchaind branch `chore/community-sdk-0.16` gets `upgrade` again, which
+- After the release, the host app branch `chore/community-sdk-0.16` gets `upgrade` again, which
   adds `015`, then the npm bump, PR, sandbox `migration repair` or `db push`, and the prod push
-  by Guillaume.
+  by the maintainer.
 
 ## Left to the builder
 
 How the shared draft check is factored. Whether Home's week data is one route or two. Component
 structure.
 
-## Revisions 2026-11-12 (Guillaume)
+## Revisions 2026-11-12 (the maintainer)
 
 - Transient database errors (serialization failure, deadlock, lock not available) are retried:
   the cron leaves the draft untouched and the next minute's run tries again. The 30-minute

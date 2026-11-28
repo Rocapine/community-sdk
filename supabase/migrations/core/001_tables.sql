@@ -1,7 +1,7 @@
 -- community-sdk core/001_tables.sql (schema v1)
 -- Community SDK — 01 core schema.
 -- Fresh-install consolidation of the community tables in their FINAL shape.
--- Extracted from Eve's Rhythm (supabase/migrations 20260708090000 → 20260729120000
+-- Extracted from the first host app (supabase/migrations 20260708090000 → 20260729120000
 -- on main); the resulting schema is identical, without the historical churn.
 
 create extension if not exists unaccent;

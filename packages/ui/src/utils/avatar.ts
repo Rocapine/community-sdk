@@ -1,5 +1,5 @@
 // Avatar downscale before upload: a square-cropped picker photo is still full
-// camera resolution (several MB), uploaded as-is and shown at 30-64pt. Eve's
+// camera resolution (several MB), uploaded as-is and shown at 30-64pt. The first host app's
 // pre-migration picker resized to 512px JPEG @0.8; this restores that.
 //
 // `expo-image-manipulator` is an OPTIONAL peer (same lazy-require pattern as

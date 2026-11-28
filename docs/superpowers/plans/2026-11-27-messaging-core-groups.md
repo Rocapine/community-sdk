@@ -25,7 +25,7 @@
 - Copy in all 23 locales of `packages/ui/src/locales/*` (`fr-vous` included), added in the task that introduces the string. No message text in analytics.
 - Repo rules: update `docs/dashboard-roadmap.md` (coverage table + bricks) in the same PR; changeset; commits `feat: …` / `docs: …` ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; migrations append-only, idempotent (`if not exists`, `create or replace`, `drop policy if exists`).
 - Open Expo dev clients with `__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1`. The PR embeds a simulator walkthrough recording.
-- Production Supabase migrations of any host run only after Guillaume says yes in chat. The sandbox project may be used freely.
+- Production Supabase migrations of any host run only after the maintainer says yes. The sandbox project may be used freely.
 
 ## Review Focus
 

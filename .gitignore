@@ -17,3 +17,6 @@ supabase/.temp/
 # Example apps use Continuous Native Generation
 examples/*/ios/
 examples/*/android/
+
+# Argent tool output (screen recordings, flows)
+.argent/
