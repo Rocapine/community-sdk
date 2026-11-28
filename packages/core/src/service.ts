@@ -745,26 +745,32 @@ export function isProfileUnavailable(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === "PGRST116";
 }
 
-/** `notify_group_messages`: the member-wide switch for group pushes (messaging/002),
- * read and written only with the groups module on: other backends lack the column. */
+/** `notify_group_messages` / `notify_dms`: the member-wide switches for group and DM
+ * pushes (messaging/002, dms/002), read and written only with the groups / dms module
+ * on: other backends lack the column. */
 export const NOTIFICATION_PREFERENCE_KEYS = [
   "notify_likes",
   "notify_comments",
   "notify_reactions",
   "notify_group_messages",
+  "notify_dms",
 ] as const;
 export type NotificationPreferenceKey = (typeof NOTIFICATION_PREFERENCE_KEYS)[number];
+type ModuleKey = "notify_group_messages" | "notify_dms";
 export type NotificationPreferences = Record<
-  Exclude<NotificationPreferenceKey, "notify_group_messages">,
+  Exclude<NotificationPreferenceKey, ModuleKey>,
   boolean
-> & { notify_group_messages?: boolean };
+> &
+  Partial<Record<ModuleKey, boolean>>;
 
 /** The preference columns this config's backend has. */
 export function notificationPreferenceKeys(cfg: {
-  modules: { groups?: unknown };
+  modules: { groups?: unknown; dms?: unknown };
 }): NotificationPreferenceKey[] {
   return NOTIFICATION_PREFERENCE_KEYS.filter(
-    (k) => k !== "notify_group_messages" || !!cfg.modules.groups,
+    (k) =>
+      (k !== "notify_group_messages" || !!cfg.modules.groups) &&
+      (k !== "notify_dms" || !!cfg.modules.dms),
   );
 }
 
@@ -789,7 +795,7 @@ export async function setNotificationPreference(
   enabled: boolean,
 ): Promise<void> {
   if (!notificationPreferenceKeys(cfg).includes(key))
-    throw new Error(`${key} needs the groups module`);
+    throw new Error(`${key} needs the ${key === "notify_dms" ? "dms" : "groups"} module`);
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
   const { error } = await client

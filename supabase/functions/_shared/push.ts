@@ -6,7 +6,8 @@ import { runPool } from "./translation.ts";
 
 export interface ExpoPushMessage {
   to: string;
-  title: string;
+  // Left out, the OS shows the app's name (a DM request push).
+  title?: string;
   body?: string;
   data: Record<string, string>;
   // The recipient's unread inbox items plus followed messages at send time (see

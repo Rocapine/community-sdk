@@ -272,5 +272,20 @@ describe("notification preferences", () => {
     await expect(setNotificationPreference(cfg, "notify_group_messages", false)).rejects.toThrow(
       "groups module",
     );
+    await expect(setNotificationPreference(cfg, "notify_dms", false)).rejects.toThrow("dms module");
+  });
+
+  it("lists the DM switch only with the dms module", async () => {
+    const { notificationPreferenceKeys } = await import("../service");
+    expect(notificationPreferenceKeys({ modules: { groups: {} } })).not.toContain("notify_dms");
+    expect(notificationPreferenceKeys({ modules: { dms: {} } })).toEqual([
+      "notify_likes",
+      "notify_comments",
+      "notify_reactions",
+      "notify_dms",
+    ]);
+    expect(notificationPreferenceKeys({ modules: { groups: {}, dms: false } })).not.toContain(
+      "notify_dms",
+    );
   });
 });
