@@ -439,7 +439,7 @@ without an account of my own it calls `host.onAccountRequired("dm")`. The server
 the same rule for both sides and refuses `account_required`.
 
 "Message" opens the DM for me only: the other member hears of it with my first message
-(backend `dms/006`–`007`), which runs the checks again at that moment. If they turned DMs off
+(backend `dms/006`–`008`), which runs the checks again at that moment. If they turned DMs off
 in between, the send is refused with a "doesn't take direct messages" line (`account_required`
 calls `host.onAccountRequired("dm")`, or shows the line without it). A DM nobody wrote in
 stays out of the Messages page, mine included; a host that renders `useConversations()`

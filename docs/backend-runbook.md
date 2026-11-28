@@ -710,7 +710,10 @@ Then `supabase db push`, `messaging_set_settings` with the `dms*` keys above, an
   ever written in, `conversations.last_message_at` null, is gated like a new one even when
   both members opened it: `send_message` runs the checks and makes a request in requests
   mode, `start_dm` refuses on opening, `has_dm` and the picker need a DM written in; a
-  block tells the blocked member's `dms:<id>` only when they have a row). All
+  block tells the blocked member's `dms:<id>` only when they have a row) and
+  `dms/008_send_recheck` (`send_message` checks the caller's own row again under the pair
+  lock: of two first messages sent at once in requests mode, the second is refused
+  `not_a_member` instead of landing in the request its row just became). All
   idempotent; `dms/002` needs the push module (skipped with a notice when `push_tokens`
   is missing).
 - **Functions.** No new secret and no new function: `notify-message` (messaging + push)

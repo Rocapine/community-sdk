@@ -974,6 +974,16 @@ begin
   exception when raise_exception then
     assert sqlerrm = 'not_a_member', 'got ' || sqlerrm;
   end;
+  reset role;
+  -- dms/008: the losing sender of that race stores nothing and stamps no read (a true
+  -- race needs two sessions; this is its sequential outcome).
+  assert not exists (select 1 from public.messages
+                     where conversation_id = cx and body = 'hello c, at the same moment'),
+    'the refused send stored nothing';
+  assert (select last_read_at is null from public.conversation_members
+          where conversation_id = cx and user_id = x), 'and left no read on the request';
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
   assert public.start_dm(c) = cx, 'X opens it again: accepted';
   perform public.send_message(cx, 'hello c');
   reset role;
