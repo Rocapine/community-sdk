@@ -329,7 +329,12 @@ function Conversation({
     acceptRequest.mutate(
       { conversationId },
       {
-        onSuccess: () => setAccepted(true),
+        // The draft a refused send left (both wrote first at once: mine became a request)
+        // is still in `text`; the refusal's line goes.
+        onSuccess: () => {
+          setAccepted(true);
+          setErrorCode(null);
+        },
         onError: () => setRequestError(t("dms.request.error")),
       },
     );

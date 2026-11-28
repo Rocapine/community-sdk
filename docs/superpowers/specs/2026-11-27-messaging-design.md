@@ -421,8 +421,8 @@ description, member count, "X online" (above 0), and "Join" or "Open".
     of the opener's Messages page too. Until something is written, a DM both opened is
     still new: the first message runs the checks and, in requests mode, makes a request
     (one from the budget); opening it again runs them too. Two first messages at the same
-    moment stay one conversation: in requests mode the second sender finds a request to
-    answer. `start_dm` accepts a request only when its sender wrote, and no "request
+    moment stay one conversation: in requests mode the second sender's message is refused
+    and they find a request to answer, their draft kept in the composer for after Accept. `start_dm` accepts a request only when its sender wrote, and no "request
     accepted" goes out for a DM nobody wrote in. "Keeps working after the switch" means
     something was written in the DM (`last_message_at`).
   - The author of a DM message can't read its cached translations: one would tell them the
