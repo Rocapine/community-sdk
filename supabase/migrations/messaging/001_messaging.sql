@@ -12,7 +12,7 @@
 -- Group preview (`groupsPreview = 'readOnly'`) reads `public.groups`, which the
 -- groups module creates: until then can_read_conversation() only lets members in.
 -- Account rules read `public.account_links` only when the accounts module is in.
--- merge_messaging (called by accounts/003's merge_profiles) and messaging_on_account_delete
+-- merge_messaging (called by accounts/004's merge_profiles) and messaging_on_account_delete
 -- (called by account-delete) live here: they serve groups and, later, DMs.
 -- Requires core. Idempotent on its own; re-running it after groups/003 (which changes
 -- list_conversations()' return type) is not supported: the CLI applies each template once.
@@ -755,7 +755,7 @@ create policy "message image read by readers" on storage.objects
   );
 
 -- ============ PROFILE MERGE ============
--- Called by merge_profiles (accounts/003). main keeps its row where both are members
+-- Called by merge_profiles (accounts/004). main keeps its row where both are members
 -- (the earliest joined_at, notify OR-ed, creator if either was); likes deduplicated
 -- with like_count kept in step. The groups module's tables are handled when installed
 -- (created groups, removals, recounted member counts).

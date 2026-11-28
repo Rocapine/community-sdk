@@ -88,7 +88,7 @@
 **Files:**
 
 - Create: `supabase/migrations/groups/001_groups.sql`
-- Create: `supabase/migrations/accounts/003_merge_hooks.sql`
+- Create: `supabase/migrations/accounts/004_merge_hooks.sql`
 - Modify: `supabase/functions/account-delete/index.ts`
 - Create: `supabase-tests/groups.sql`
 

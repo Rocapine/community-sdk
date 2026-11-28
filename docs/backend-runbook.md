@@ -474,7 +474,9 @@ merged profile's refresh token is signed out instead of acting as the empty
 profile. The caller's new session is minted after the merge, so the device that
 signs in stays signed in (`accounts/002_merge_and_delete.sql`). The merged
 profile's `merged_into` points at the account profile (`accounts/003`): the
-dashboard leaves it out of every count and list.
+dashboard leaves it out of every count and list. With the messaging module, its
+group memberships, messages, likes, created groups and removals move to the
+account profile too (`accounts/004_merge_hooks.sql`).
 
 Core `021` builds the author indexes on `posts` and `comments` before it alters `profiles`, in one transaction. On a large production database, build them beforehand with `create index concurrently if not exists` (check they are valid: a failed concurrent build leaves an invalid index that `if not exists` skips), or push at low traffic with a `lock_timeout`.
 
@@ -520,6 +522,7 @@ AW=<appwrite endpoint>; AWP=<appwrite project id>; AWK=<appwrite server key>
 supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_accounts.sql
 supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_merge_and_delete.sql
 supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_markers_and_bans.sql
+supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_merge_hooks.sql
 supabase functions deploy account-session account-delete --project-ref $REF
 
 # A throwaway account and its proof.

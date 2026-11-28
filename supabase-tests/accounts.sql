@@ -1,6 +1,6 @@
 -- Account links and profile merge (accounts/001_accounts.sql, accounts/002_merge_and_delete.sql,
--- accounts/003_markers_and_bans.sql, accounts/003_merge_hooks.sql).
--- Run against a backend with core applied, after accounts/001, 002 and both 003:
+-- accounts/003_markers_and_bans.sql, accounts/004_merge_hooks.sql).
+-- Run against a backend with core applied, after accounts/001, 002, 003 and 004:
 --   npx supabase db query --linked --yes -f supabase-tests/accounts.sql
 -- It creates two auth users (so two profiles), merges them and always rolls back by raising at the
 -- end: the run passed when the error message is exactly ACCOUNTS_TESTS_PASSED.
@@ -29,7 +29,7 @@ declare
     'notification_seen.user_id', 'notification_reads.user_id', 'poll_votes.user_id',
     'post_reactions.user_id', 'member_presence.user_id', 'push_tokens.user_id', 'push_devices.user_id',
     'profiles.merged_into', -- repointed by account_link_and_merge, not merge_profiles
-    -- merge_messaging (groups module), called by merge_profiles since accounts/003_merge_hooks.
+    -- merge_messaging (groups module), called by merge_profiles since accounts/004.
     'conversation_members.user_id', 'messages.author_id', 'message_likes.user_id', 'groups.created_by',
     'group_removals.user_id'];
 begin
