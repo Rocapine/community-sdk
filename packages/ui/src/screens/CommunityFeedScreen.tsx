@@ -133,7 +133,7 @@ import { SegmentedTabs } from "../components/SegmentedTabs";
 import { GroupLinkContext, type GroupLink } from "../components/GroupAttachment";
 import { GroupsHome } from "../components/GroupsHome";
 import { joinGate } from "../utils/groups";
-import { useMessageMember } from "../utils/messageMember";
+import { useMessageMember, usePrefetchDmFlags } from "../utils/messageMember";
 import { homeSegment, rememberHomeSegment, type HomeSegment } from "../utils/homeSegment";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
@@ -306,6 +306,8 @@ export function CommunityFeedScreen({
       searchActive ? uniqueById(searchFeed.data?.pages) : uniqueById(categoryFeed.data?.pages),
     [searchActive, searchFeed.data, categoryFeed.data],
   );
+  // "Message" in a post's menu reads its author's flag from the cache.
+  usePrefetchDmFlags(onOpenMessages ? posts.map((p) => p.authorId) : []);
   // `isPending` alone (TanStack Query v5: `status === "pending"`) stays true
   // forever for a query that never runs — both `useCommunityFeed` and
   // `useSearchPosts` set `enabled: cfg.supabase !== null && ...`, so in
@@ -546,7 +548,7 @@ export function CommunityFeedScreen({
   }, [postRequestedAt]);
 
   const openPostMenu = useCallback(
-    async (post: FeedPost) => {
+    (post: FeedPost) => {
       if (post.isOwn) {
         const askDelete = () =>
           Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
@@ -566,10 +568,9 @@ export function CommunityFeedScreen({
         ]);
         return;
       }
-      const message = await messageMenu.current(post.authorId);
       Alert.alert(post.authorName, undefined, [
         ...pinMenu(post),
-        ...message,
+        ...messageMenu.current(post.authorId),
         {
           text: t("menu.reportPost"),
           onPress: () =>

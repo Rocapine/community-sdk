@@ -184,7 +184,7 @@ export function ProfileScreen({
     if (userPosts.hasNextPage && !userPosts.isFetchingNextPage) userPosts.fetchNextPage();
   };
 
-  const openPostMenu = async (post: FeedPost) => {
+  const openPostMenu = (post: FeedPost) => {
     if (post.isOwn) {
       const askDelete = () =>
         Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
@@ -204,10 +204,9 @@ export function ProfileScreen({
       ]);
       return;
     }
-    const message = await messageMember.menuItems(post.authorId);
     Alert.alert(post.authorName, undefined, [
       ...pinMenu(post),
-      ...message,
+      ...messageMember.menuItems(post.authorId),
       {
         text: t("menu.reportPost"),
         onPress: () =>

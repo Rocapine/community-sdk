@@ -77,7 +77,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "rea
 import type { TextInputInstance } from "react-native";
 import { CommunitySheet, SHEET_GUTTER, SheetScrollView, SheetTextInput } from "../Sheet";
 import { usePinMenu } from "../utils/pinMenu";
-import { useMessageMember, type OpenDm } from "../utils/messageMember";
+import { useMessageMember, usePrefetchDmFlags, type OpenDm } from "../utils/messageMember";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
@@ -196,6 +196,10 @@ export function ThreadSheet({
   usePost(shownId, post === null);
   const thread = useThread(shownId);
   const comments = thread.data ?? [];
+  // "Message" in the post and comment menus reads these flags from the cache.
+  usePrefetchDmFlags(
+    onOpenMessages && shownId ? [post?.authorId ?? "", ...comments.map((c) => c.authorId)] : [],
+  );
   const rows = useMemo(() => threadRows(comments), [comments]);
   // @handle → member, for tappable mentions (only people in this thread).
   const handles = useMemo(() => {
@@ -426,7 +430,7 @@ export function ThreadSheet({
     pendingReport.current = null;
   };
 
-  const openPostMenu = async (p: FeedPost) => {
+  const openPostMenu = (p: FeedPost) => {
     if (p.isOwn) {
       const askDelete = () =>
         Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
@@ -449,10 +453,9 @@ export function ThreadSheet({
       ]);
       return;
     }
-    const message = await messageMember.menuItems(p.authorId);
     Alert.alert(p.authorName, undefined, [
       ...pinMenu(p),
-      ...message,
+      ...messageMember.menuItems(p.authorId),
       {
         text: t("menu.reportPost"),
         onPress: () =>
@@ -492,7 +495,7 @@ export function ThreadSheet({
     ]);
   };
 
-  const openCommentMenu = async (c: ThreadComment) => {
+  const openCommentMenu = (c: ThreadComment) => {
     if (c.isOwn) {
       Alert.alert(t("menu.deleteCommentTitle"), undefined, [
         { text: t("menu.cancel"), style: "cancel" },
@@ -504,9 +507,8 @@ export function ThreadSheet({
       ]);
       return;
     }
-    const message = await messageMember.menuItems(c.authorId);
     Alert.alert(c.authorName, undefined, [
-      ...message,
+      ...messageMember.menuItems(c.authorId),
       {
         text: t("menu.reportComment"),
         onPress: () =>

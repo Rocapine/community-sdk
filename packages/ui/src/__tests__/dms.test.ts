@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { QueryClient } from "@tanstack/react-query";
 import { makeT } from "../i18n";
 import { en } from "../locales/en";
 import { cs } from "../locales/cs";
@@ -33,7 +34,7 @@ import {
   showRequestsRow,
 } from "../utils/chat";
 import { lastMessagePreview } from "../utils/groups";
-import { canMessage } from "../utils/dms";
+import { cachedDmFlag, canMessage } from "../utils/dms";
 
 const t = makeT("en");
 
@@ -329,4 +330,39 @@ describe("DM copy", () => {
       }
     });
   }
+});
+
+describe("cachedDmFlag (the menu never waits for the network)", () => {
+  const options = (queryFn: () => Promise<boolean>) => ({
+    queryKey: ["community", "dms", "flag", "m"],
+    queryFn,
+    staleTime: 60_000,
+  });
+  it("answers false at once for an unknown flag, and fetches it in the background", () => {
+    const queryClient = new QueryClient();
+    const queryFn = vi.fn(() => new Promise<boolean>(() => {})); // never settles
+    expect(cachedDmFlag(queryClient, options(queryFn))).toBe(false);
+    expect(queryFn).toHaveBeenCalledTimes(1);
+    queryClient.clear();
+  });
+  it("answers from the cache once known, with no fetch", () => {
+    const queryClient = new QueryClient();
+    const queryFn = vi.fn(async () => true);
+    queryClient.setQueryData(options(queryFn).queryKey, true);
+    expect(cachedDmFlag(queryClient, options(queryFn))).toBe(true);
+    queryClient.setQueryData(options(queryFn).queryKey, false);
+    expect(cachedDmFlag(queryClient, options(queryFn))).toBe(false);
+    expect(queryFn).not.toHaveBeenCalled();
+  });
+  it("gives the menu its Message item only for a cached true", () => {
+    const queryClient = new QueryClient();
+    const opts = options(() => new Promise<boolean>(() => {}));
+    const rule = { memberId: "m", me: "me", dms: { entryPoints: ["contextMenu" as const] } };
+    const item = () =>
+      canMessage({ ...rule, entryPoint: "contextMenu", flag: cachedDmFlag(queryClient, opts) });
+    expect(item()).toBe(false);
+    queryClient.setQueryData(opts.queryKey, true);
+    expect(item()).toBe(true);
+    queryClient.clear();
+  });
 });
