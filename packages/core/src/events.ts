@@ -40,6 +40,11 @@ export const COMMUNITY_EVENTS = {
   groupShared: "community_group_shared",
   groupNotificationsToggled: "community_group_notifications_toggled",
   homeSegment: "community_home_segment",
+  // DMs (dms module). Ids only.
+  dmStarted: "community_dm_started",
+  dmRequestAccepted: "community_dm_request_accepted",
+  dmRequestDeclined: "community_dm_request_declined",
+  dmRequestBlocked: "community_dm_request_blocked",
 } as const;
 
 export type CommunityEventName = (typeof COMMUNITY_EVENTS)[keyof typeof COMMUNITY_EVENTS];

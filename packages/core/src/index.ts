@@ -23,14 +23,18 @@ export {
   presenceSettings,
   messagingSettings,
   groupsSettings,
+  dmsSettings,
   pollLimits,
 } from "./config";
 export type {
+  DmsConfig,
+  DmsEntryPoint,
   GroupsConfig,
   MessagingConfig,
   OnlineCountAppearance,
   PollLimits,
   PresenceSettings,
+  ResolvedDms,
   ResolvedGroups,
   ResolvedMessaging,
 } from "./config";
@@ -76,6 +80,7 @@ export type {
   MemberBadges,
   PostAttachment,
   Conversation,
+  DmRequest,
   ChatMessage,
   Group,
   GroupStatus,
@@ -231,6 +236,20 @@ export {
 export type { MessagingErrorCode, SendMessageInput } from "./messaging-service";
 
 export {
+  MEMBER_SEARCH_LIMIT,
+  acceptRequest,
+  blockAndReportRequest,
+  declineRequest,
+  fetchAcceptsDms,
+  fetchDmFlags,
+  fetchDmRequests,
+  fetchPeerRead,
+  searchMembers,
+  setAcceptsDms,
+  startDm,
+} from "./dms-service";
+
+export {
   GROUPS_PAGE_SIZE,
   GROUP_MEMBERS_PAGE_SIZE,
   createGroup,
@@ -278,8 +297,18 @@ export {
   useToggleMessageLike,
   useTranslateMessage,
   useTyping,
+  useAcceptRequest,
+  useAcceptsDms,
+  useBlockAndReportRequest,
+  useDeclineRequest,
+  useDmFlags,
+  useDmRequests,
+  useMemberSearch,
+  usePeerRead,
+  useSetAcceptsDms,
+  useStartDm,
 } from "./messaging-hooks";
-export type { MessagesData, SendMessageContext } from "./messaging-hooks";
+export type { DmSource, MessagesData, SendMessageContext } from "./messaging-hooks";
 export { sendTyping, subscribeConversation } from "./realtime";
 export type { ConversationHandlers } from "./realtime";
 

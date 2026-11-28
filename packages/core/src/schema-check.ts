@@ -5,7 +5,12 @@
 // in production (RN's global `__DEV__` gate, same convention every host app
 // already relies on for dev-only logging).
 
-import { groupsSettings, messagingSettings, type ResolvedCommunityConfig } from "./config";
+import {
+  dmsSettings,
+  groupsSettings,
+  messagingSettings,
+  type ResolvedCommunityConfig,
+} from "./config";
 
 /** Bump whenever the SDK's expected `community_meta` shape changes. */
 export const REQUIRED_SCHEMA_VERSION = 1;
@@ -46,12 +51,13 @@ export async function checkSchemaVersionUnguarded(cfg: ResolvedCommunityConfig):
 }
 
 /** Backend `messaging_settings` keys vs the resolved client config (client-only
- * options are not compared). `groupsRequireAccount` is a backend boolean: the
+ * options are not compared; each module's keys only when it is on). `groupsRequireAccount` is a backend boolean: the
  * client's `"feed"` means false. */
 function expectedMessagingSettings(cfg: ResolvedCommunityConfig): Record<string, unknown> | null {
   const m = messagingSettings(cfg);
+  if (!m) return null;
   const g = groupsSettings(cfg);
-  if (!m || !g) return null;
+  const d = dmsSettings(cfg);
   return {
     moderation: m.moderation,
     translation: m.translation,
@@ -59,14 +65,23 @@ function expectedMessagingSettings(cfg: ResolvedCommunityConfig): Record<string,
     onAccountDelete: m.onAccountDelete,
     maxLength: m.maxLength,
     ratePerMinute: m.ratePerMinute,
-    groupsPreview: g.preview,
-    groupsRequireAccount: g.requireAccount === true,
-    groupsCreateRequiresAccount: g.createRequiresAccount,
-    maxCreatedPerMember: g.maxCreatedPerMember,
-    maxJoinedPerMember: g.maxJoinedPerMember,
-    maxMembers: g.maxMembers,
-    nameMaxLength: g.nameMaxLength,
-    descriptionMaxLength: g.descriptionMaxLength,
+    ...(g && {
+      groupsPreview: g.preview,
+      groupsRequireAccount: g.requireAccount === true,
+      groupsCreateRequiresAccount: g.createRequiresAccount,
+      maxCreatedPerMember: g.maxCreatedPerMember,
+      maxJoinedPerMember: g.maxJoinedPerMember,
+      maxMembers: g.maxMembers,
+      nameMaxLength: g.nameMaxLength,
+      descriptionMaxLength: g.descriptionMaxLength,
+    }),
+    ...(d && {
+      dmsFirstMessage: d.firstMessage,
+      dmsReadReceipts: d.readReceipts,
+      dmsRequireAccount: d.requireAccount,
+      dmsRequestsPerDay: d.requestsPerDay,
+      dmsDeclineCooldownDays: d.declineCooldownDays,
+    }),
   };
 }
 

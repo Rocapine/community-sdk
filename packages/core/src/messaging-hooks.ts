@@ -1,21 +1,39 @@
-// React Query hooks over the messaging and groups services (groups module). Every query
-// and subscription is off unless the groups module is on and a backend is configured:
-// the services throw when it is off.
+// React Query hooks over the messaging, groups and dms services. Every query and
+// subscription is off unless its module (messaging: groups or dms) is on and a backend
+// is configured: the services throw when it is off.
 
 import {
   focusManager,
   hashKey,
   useInfiniteQuery,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
   type InfiniteData,
   type QueryClient,
   type UseMutationOptions,
 } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { groupsSettings, messagingSettings, type ResolvedCommunityConfig } from "./config";
+import {
+  dmsSettings,
+  groupsSettings,
+  messagingSettings,
+  type ResolvedCommunityConfig,
+} from "./config";
+import {
+  acceptRequest,
+  blockAndReportRequest,
+  declineRequest,
+  fetchAcceptsDms,
+  fetchDmFlags,
+  fetchDmRequests,
+  fetchPeerRead,
+  searchMembers,
+  setAcceptsDms,
+  startDm,
+} from "./dms-service";
 import { COMMUNITY_EVENTS, emitEvent } from "./events";
 import {
   GROUP_MEMBERS_PAGE_SIZE,
@@ -37,12 +55,17 @@ import {
 import { isOptimistic, ownAuthorFields } from "./hooks";
 import {
   CONVERSATIONS_KEY,
+  DMS_KEY,
+  DM_REQUESTS_KEY,
   GROUPS_KEY,
   GROUPS_SEARCH_KEY,
   UNREAD_MESSAGES_KEY,
   groupKey,
+  dmFlagKey,
   groupMembersKey,
+  memberSearchKey,
   messagesKey,
+  peerReadKey,
 } from "./keys";
 import { readerLocale } from "./locale";
 import {
@@ -59,7 +82,8 @@ import {
   unreadFollowedMessages,
   type SendMessageInput,
 } from "./messaging-service";
-import type { ChatMessage, Conversation, Group } from "./models";
+import type { ChatMessage, CommunityProfile, Conversation, Group } from "./models";
+import { createOnlineBatcher } from "./presence";
 import { PRESENCE_POLL_MS } from "./presence-hooks";
 import { useCommunityConfig } from "./provider";
 import { CHANGE_DEBOUNCE_MS, sendTyping, subscribeConversation } from "./realtime";
@@ -73,7 +97,11 @@ type MessageCursor = { createdAt: string; id: string };
 export type MessagesData = InfiniteData<ChatMessage[], MessageCursor | undefined>;
 
 const messagingEnabled = (cfg: ResolvedCommunityConfig) =>
+  messagingSettings(cfg) !== null && cfg.supabase !== null;
+export const groupsEnabled = (cfg: ResolvedCommunityConfig) =>
   groupsSettings(cfg) !== null && cfg.supabase !== null;
+const dmsEnabled = (cfg: ResolvedCommunityConfig) =>
+  dmsSettings(cfg) !== null && cfg.supabase !== null;
 
 // ============ CONVERSATIONS & BADGE ============
 
@@ -121,14 +149,19 @@ export function useAccountLinked(): boolean | null {
 }
 
 /** The header badge per `messaging.badge`. A muted group (notify off) never lights
- * `followed` or `dot`. */
+ * `followed` or `dot`. DMs and pending requests always count: the backend's followed
+ * count has them, `all` adds `pendingRequests`. */
 export function messagingBadge(
   badge: "followed" | "all" | "dot",
   followedUnread: number | undefined,
   conversations: Conversation[] | undefined,
+  pendingRequests = 0,
 ): { count: number; dot: boolean } {
   if (badge === "all")
-    return { count: (conversations ?? []).reduce((n, c) => n + c.unread, 0), dot: false };
+    return {
+      count: (conversations ?? []).reduce((n, c) => n + c.unread, 0) + pendingRequests,
+      dot: false,
+    };
   if (badge === "dot") return { count: 0, dot: (followedUnread ?? 0) > 0 };
   return { count: followedUnread ?? 0, dot: false };
 }
@@ -138,10 +171,14 @@ export function useMessagingBadge(): { count: number; dot: boolean } {
   const badge = messagingSettings(cfg)?.badge ?? "followed";
   const followed = unreadMessagesQueryOptions(cfg);
   const all = conversationsQueryOptions(cfg);
+  const requests = dmRequestsQueryOptions(cfg);
   const f = useQuery({ ...followed, enabled: followed.enabled && badge !== "all" }).data;
   const c = useQuery({ ...all, enabled: all.enabled && badge === "all" }).data;
+  const r = useQuery({ ...requests, enabled: requests.enabled && badge === "all" }).data;
   // A disabled query keeps its cached data: answer the module-off case here.
-  return all.enabled ? messagingBadge(badge, f, c) : { count: 0, dot: false };
+  return all.enabled
+    ? messagingBadge(badge, f, c, requests.enabled ? (r?.length ?? 0) : 0)
+    : { count: 0, dot: false };
 }
 
 // ============ MESSAGES ============
@@ -555,7 +592,7 @@ export function useGroupSearch(query: string) {
         ? { id: g.id, lastActivityAt: g.lastActivityAt }
         : undefined;
     },
-    enabled: messagingEnabled(cfg),
+    enabled: groupsEnabled(cfg),
     staleTime: 30_000,
     retry: 1,
   });
@@ -568,7 +605,7 @@ export function useGroup(id: string | null) {
   return useQuery({
     queryKey: groupKey(id ?? "none", locale),
     queryFn: () => fetchGroup(cfg, id!),
-    enabled: messagingEnabled(cfg) && !!id,
+    enabled: groupsEnabled(cfg) && !!id,
     staleTime: 30_000,
     retry: 1,
   });
@@ -584,7 +621,7 @@ export function useGroupMembers(id: string | null, query = "") {
     initialPageParam: 0,
     getNextPageParam: (last: unknown[], all: unknown[][]) =>
       last.length >= GROUP_MEMBERS_PAGE_SIZE ? all.length * GROUP_MEMBERS_PAGE_SIZE : undefined,
-    enabled: messagingEnabled(cfg) && !!id,
+    enabled: groupsEnabled(cfg) && !!id,
     staleTime: 30_000,
     retry: 1,
   });
@@ -593,7 +630,7 @@ export function useGroupMembers(id: string | null, query = "") {
 /** Online members per group (presence module); `{}` when off or not loaded. */
 export function useGroupOnlineCounts(ids: string[]): Record<string, number> {
   const cfg = useCommunityConfig();
-  const enabled = messagingEnabled(cfg) && !!cfg.modules.presence && ids.length > 0;
+  const enabled = groupsEnabled(cfg) && !!cfg.modules.presence && ids.length > 0;
   const q = useQuery({
     queryKey: [...GROUPS_KEY, "online", [...ids].sort()],
     queryFn: () => fetchGroupOnlineCounts(cfg, ids),
@@ -742,7 +779,7 @@ export function useGroupRemovals(id: string | null, query = "", enabled = true) 
     // Under groupMembersKey: removing or readmitting a member refreshes both lists.
     queryKey: [...groupMembersKey(id ?? "none"), "removed", cleaned],
     queryFn: () => fetchGroupRemovals(cfg, id!, cleaned),
-    enabled: messagingEnabled(cfg) && !!id && enabled,
+    enabled: groupsEnabled(cfg) && !!id && enabled,
     staleTime: 30_000,
     retry: 1,
   });
@@ -756,4 +793,197 @@ export function useDeleteGroup() {
     mutationFn: ({ groupId }: { groupId: string }) => deleteGroup(cfg, groupId),
     onSuccess: () => void invalidateGroups(queryClient),
   });
+}
+
+// ============ DMS ============
+
+export function dmRequestsQueryOptions(cfg: ResolvedCommunityConfig) {
+  return {
+    queryKey: DM_REQUESTS_KEY,
+    queryFn: () => fetchDmRequests(cfg),
+    enabled: dmsEnabled(cfg),
+    staleTime: 30_000,
+    refetchInterval: BADGE_POLL_MS,
+    refetchIntervalInBackground: false,
+    retry: 1,
+  };
+}
+
+/** DM requests waiting for my answer, newest first. */
+export function useDmRequests() {
+  return useQuery(dmRequestsQueryOptions(useCommunityConfig()));
+}
+
+const invalidateDms = (queryClient: QueryClient) =>
+  Promise.all(
+    [DM_REQUESTS_KEY, CONVERSATIONS_KEY, UNREAD_MESSAGES_KEY].map((queryKey) =>
+      queryClient.invalidateQueries({ queryKey }),
+    ),
+  );
+
+/** Opens (or creates) my DM with a member; resolves to its conversation id. `source`:
+ * where it was started, for analytics. */
+export function useStartDm() {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ recipientId }: { recipientId: string; source: DmSource }) =>
+      startDm(cfg, recipientId),
+    onSuccess: (conversationId, { source }) => {
+      void invalidateDms(queryClient);
+      emitEvent(cfg, COMMUNITY_EVENTS.dmStarted, { conversationId, source });
+    },
+  });
+}
+
+export type DmSource = "profile" | "newMessage" | "contextMenu";
+
+function useRequestAnswer(
+  answer: (cfg: ResolvedCommunityConfig, conversationId: string) => Promise<void>,
+  event: (typeof COMMUNITY_EVENTS)["dmRequestAccepted" | "dmRequestDeclined"],
+) {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ conversationId }: { conversationId: string }) => answer(cfg, conversationId),
+    onSuccess: (_d, { conversationId }) => {
+      void invalidateDms(queryClient);
+      emitEvent(cfg, event, { conversationId });
+    },
+  });
+}
+
+export const useAcceptRequest = () =>
+  useRequestAnswer(acceptRequest, COMMUNITY_EVENTS.dmRequestAccepted);
+
+/** Silent for the sender. */
+export const useDeclineRequest = () =>
+  useRequestAnswer(declineRequest, COMMUNITY_EVENTS.dmRequestDeclined);
+
+/** Blocks the sender, reports the request and declines it. */
+export function useBlockAndReportRequest() {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      conversationId,
+      reason,
+    }: {
+      conversationId: string;
+      reason: Parameters<typeof blockAndReportRequest>[2];
+    }) => blockAndReportRequest(cfg, conversationId, reason),
+    onSuccess: (_d, { conversationId }) => {
+      emitEvent(cfg, COMMUNITY_EVENTS.dmRequestBlocked, { conversationId });
+      // A block hides the sender everywhere, like useBlockUser.
+      void queryClient.invalidateQueries({ queryKey: ["community"] });
+    },
+  });
+}
+
+/** My "Receive direct messages" switch; null until known or with dms off. */
+export function useAcceptsDms(): boolean | null {
+  const cfg = useCommunityConfig();
+  const enabled = dmsEnabled(cfg);
+  const data = useQuery({
+    queryKey: [...DMS_KEY, "acceptsDms"],
+    queryFn: () => fetchAcceptsDms(cfg),
+    enabled,
+    staleTime: 60_000,
+    retry: 1,
+  }).data;
+  return enabled && data !== undefined ? data : null;
+}
+
+export function useSetAcceptsDms() {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  const key = [...DMS_KEY, "acceptsDms"];
+  return useMutation({
+    mutationFn: ({ on }: { on: boolean }) => setAcceptsDms(cfg, on),
+    onMutate: async ({ on }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<boolean>(key);
+      queryClient.setQueryData(key, on);
+      return { previous };
+    },
+    onError: (_e, _v, context) => queryClient.setQueryData(key, context?.previous),
+  });
+}
+
+export function peerReadQueryOptions(cfg: ResolvedCommunityConfig, conversationId: string | null) {
+  return {
+    queryKey: peerReadKey(conversationId ?? "none"),
+    queryFn: () => fetchPeerRead(cfg, conversationId!),
+    // staleTime 0: refetched on every focus.
+    enabled: dmsEnabled(cfg) && dmsSettings(cfg)?.readReceipts === true && !!conversationId,
+    retry: 1,
+  };
+}
+
+/** When the DM's peer last read it ("Seen", under my last message only); null when read
+ * receipts are off, on a request, or not known yet. Refetched on each change of the
+ * conversation and on focus. */
+export function usePeerRead(conversationId: string | null): string | null {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  const opts = peerReadQueryOptions(cfg, conversationId);
+  const data = useQuery(opts).data;
+  const live = opts.enabled;
+  useEffect(() => {
+    if (!live || !conversationId) return;
+    return subscribeConversation(cfg, conversationId, {
+      onChange: () => void queryClient.invalidateQueries({ queryKey: peerReadKey(conversationId) }),
+      onTyping: () => {},
+    });
+  }, [cfg, queryClient, conversationId, live]);
+  return live ? (data ?? null) : null;
+}
+
+// One batched profile_dm_flags call per 30 ms for every id asked across the screen.
+const dmFlagBatchers = new WeakMap<ResolvedCommunityConfig, (id: string) => Promise<boolean>>();
+function dmFlagBatcher(cfg: ResolvedCommunityConfig) {
+  let b = dmFlagBatchers.get(cfg);
+  if (!b) dmFlagBatchers.set(cfg, (b = createOnlineBatcher((ids) => fetchDmFlags(cfg, ids))));
+  return b;
+}
+
+/** Per member id: whether I may start a DM with them (the "Message" button). False while
+ * loading or with dms off. */
+export function useDmFlags(ids: string[]): Record<string, boolean> {
+  const cfg = useCommunityConfig();
+  const enabled = dmsEnabled(cfg);
+  const results = useQueries({
+    queries: ids.map((id) => ({
+      queryKey: dmFlagKey(id),
+      queryFn: () => dmFlagBatcher(cfg)(id),
+      enabled,
+      staleTime: 60_000,
+      retry: 1,
+    })),
+  });
+  const values = results.map((r) => r.data === true);
+  // A stable object while the answers don't change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(
+    () => Object.fromEntries(ids.map((id, i) => [id, enabled && values[i]!])),
+    [enabled, ids.join(), values.join()],
+  );
+}
+
+/** Members for the "new message" picker; empty for an empty query or with dms off. */
+export function useMemberSearch(query: string): {
+  members: CommunityProfile[];
+  isLoading: boolean;
+} {
+  const cfg = useCommunityConfig();
+  const cleaned = query.trim();
+  const enabled = dmsEnabled(cfg) && cleaned.length > 0;
+  const q = useQuery({
+    queryKey: memberSearchKey(cleaned),
+    queryFn: () => searchMembers(cfg, cleaned),
+    enabled,
+    staleTime: 30_000,
+    retry: 1,
+  });
+  return { members: enabled ? (q.data ?? []) : [], isLoading: enabled && q.isLoading };
 }

@@ -20,7 +20,10 @@ import {
   createTypingTracker,
   invalidateGroup,
   messagesQueryOptions,
+  dmRequestsQueryOptions,
+  groupsEnabled,
   messagingBadge,
+  peerReadQueryOptions,
   refreshNewestMessages,
   type MessagesData,
   sendMessageMutationOptions,
@@ -226,6 +229,26 @@ it("useMessagingBadge per messaging.badge", () => {
   expect(messagingBadge("dot", 3, list)).toEqual({ count: 0, dot: true });
   expect(messagingBadge("dot", 0, list)).toEqual({ count: 0, dot: false }); // muted never lights it
   expect(messagingBadge("all", undefined, undefined)).toEqual({ count: 0, dot: false });
+  // Pending DM requests count in "all" (the backend's followed count has them already).
+  expect(messagingBadge("all", 3, list, 2)).toEqual({ count: 7, dot: false });
+});
+
+it("dms alone turn the messaging queries on, not the groups ones", () => {
+  const dms = resolveConfig({ ...base, modules: { ...mods, dms: {} } });
+  expect(conversationsQueryOptions(dms).enabled).toBe(true);
+  expect(messagesQueryOptions(dms, "c1").enabled).toBe(true);
+  expect(dmRequestsQueryOptions(dms).enabled).toBe(true);
+  expect(groupsEnabled(dms)).toBe(false);
+  expect(dmRequestsQueryOptions(on()).enabled).toBe(false);
+});
+
+it("usePeerRead stays off (null) unless read receipts are on", () => {
+  const dms = (readReceipts: boolean) =>
+    resolveConfig({ ...base, modules: { ...mods, dms: { readReceipts } } });
+  expect(peerReadQueryOptions(dms(false), "c1").enabled).toBe(false);
+  expect(peerReadQueryOptions(dms(true), "c1").enabled).toBe(true);
+  expect(peerReadQueryOptions(dms(true), null).enabled).toBe(false);
+  expect(peerReadQueryOptions(off, "c1").enabled).toBe(false);
 });
 
 it("conversations and the badge poll cheaply and key under community", () => {

@@ -1,11 +1,11 @@
-// Realtime per conversation (groups module): one private channel `conversation:<id>`
+// Realtime per conversation (groups and dms modules): one private channel `conversation:<id>`
 // carrying database changes of its messages (RLS applied; a like is an UPDATE of
 // like_count), the typing broadcast and the `members` broadcast (groups/004), authorised by the realtime.messages policies of
 // messaging/001_messaging.sql. Every subscriber of a conversation shares the channel.
 
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 
-import { groupsSettings, type ResolvedCommunityConfig } from "./config";
+import { messagingSettings, type ResolvedCommunityConfig } from "./config";
 import { requireUid } from "./service";
 
 export const CHANGE_DEBOUNCE_MS = 150;
@@ -111,7 +111,7 @@ export function subscribeConversation(
   conversationId: string,
   handlers: ConversationHandlers,
 ): () => void {
-  if (!groupsSettings(cfg) || !cfg.supabase) return () => {};
+  if (!messagingSettings(cfg) || !cfg.supabase) return () => {};
   const client = cfg.supabase;
   const reg = registry(client);
   let entry = reg.open.get(conversationId);

@@ -131,11 +131,11 @@ describe("sendMessage", () => {
     expect(client.functions.invoke).not.toHaveBeenCalled();
   });
 
-  it("does nothing when the groups module is off", async () => {
+  it("does nothing when no messaging module is on", async () => {
     const client = fakeClient({});
     await expect(
       sendMessage(cfgWith(client, { groups: false }), { conversationId: "c1", body: "hi" }),
-    ).rejects.toThrow("groups module is not enabled");
+    ).rejects.toThrow("messaging is not enabled");
     expect(client.rpc).not.toHaveBeenCalled();
   });
 });

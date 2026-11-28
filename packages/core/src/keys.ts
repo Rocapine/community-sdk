@@ -31,3 +31,10 @@ export const groupKey = (id: string, locale?: string | null) =>
   [...GROUPS_KEY, "group", id, locale ?? "src"] as const;
 export const groupMembersKey = (id: string) => [...GROUPS_KEY, "members", id] as const;
 export const UNREAD_MESSAGES_KEY = ["community", "unreadMessages"] as const;
+// DMs (dms module).
+export const DMS_KEY = ["community", "dms"] as const;
+export const DM_REQUESTS_KEY = [...DMS_KEY, "requests"] as const;
+export const dmFlagKey = (userId: string) => [...DMS_KEY, "flags", userId] as const;
+export const peerReadKey = (conversationId: string) =>
+  [...DMS_KEY, "peerRead", conversationId] as const;
+export const memberSearchKey = (query: string) => [...DMS_KEY, "members", query] as const;
