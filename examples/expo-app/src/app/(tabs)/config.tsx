@@ -2,6 +2,7 @@
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { DmsEntryPoint } from "@rocapine/community-core";
 import { usePlayground } from "@/PlaygroundProvider";
 import {
   BACKGROUNDS,
@@ -15,6 +16,8 @@ import {
   TITLE_FONTS,
   type PlaygroundSettings,
 } from "@/playground";
+
+const DMS_ENTRY_POINTS: DmsEntryPoint[] = ["profile", "newMessage", "contextMenu"];
 
 type ModuleName = keyof PlaygroundSettings["modules"];
 const MODULE_NAMES: ModuleName[] = [
@@ -112,6 +115,51 @@ export default function ConfigTab() {
             update({ groups: { ...settings.groups, shareCardLayout } })
           }
         />
+      </Section>
+
+      <Section title="Direct messages">
+        <Row label="DMs module">
+          <Switch
+            value={settings.dms.enabled}
+            onValueChange={(enabled) => update({ dms: { ...settings.dms, enabled } })}
+          />
+        </Row>
+        <Text style={styles.hint}>First message (dms.firstMessage)</Text>
+        <Chips
+          options={["direct", "requests"] as const}
+          value={settings.dms.firstMessage}
+          onChange={(firstMessage) => update({ dms: { ...settings.dms, firstMessage } })}
+        />
+        <Row label="Read receipts (dms.readReceipts)">
+          <Switch
+            value={settings.dms.readReceipts}
+            onValueChange={(readReceipts) => update({ dms: { ...settings.dms, readReceipts } })}
+          />
+        </Row>
+        <Text style={styles.hint}>Entry points (dms.entryPoints, tap to toggle)</Text>
+        <View style={styles.chips}>
+          {DMS_ENTRY_POINTS.map((point) => {
+            const on = settings.dms.entryPoints.includes(point);
+            const toggle = () =>
+              update({
+                dms: {
+                  ...settings.dms,
+                  entryPoints: on
+                    ? settings.dms.entryPoints.filter((p) => p !== point)
+                    : [...settings.dms.entryPoints, point],
+                },
+              });
+            return (
+              <Pressable key={point} onPress={toggle} style={[styles.chip, on && styles.chipOn]}>
+                <Text style={[styles.chipText, on && styles.chipTextOn]}>{point}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={styles.hint}>
+          Set the same values on the backend with messaging_set_settings (dmsFirstMessage,
+          dmsReadReceipts).
+        </Text>
       </Section>
 
       <Section title="Attachments">

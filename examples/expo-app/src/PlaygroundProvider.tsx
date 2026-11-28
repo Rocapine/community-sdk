@@ -107,6 +107,7 @@ export function PlaygroundProvider({ children }: { children: ReactNode }) {
             adminPostsNotifyAll: admin.notifyAll,
             attachments: playground.settings.attachments,
             groups: playground.settings.groups,
+            dms: playground.settings.dms,
           })}
           config={config}
         >

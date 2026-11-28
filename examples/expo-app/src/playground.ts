@@ -8,6 +8,7 @@ import {
   streakBadgeData,
   type BadgePlacement,
   type CommunityConfig,
+  type DmsEntryPoint,
   type MemberBadges,
 } from "@rocapine/community-core";
 import type { FeedHeaderConfig, FeedHeaderItem } from "@rocapine/community-ui";
@@ -42,6 +43,15 @@ export type PlaygroundSettings = {
     hubLayout: "tabs" | "unified";
     exploreLayout: "list" | "cards";
     shareCardLayout: "card" | "banner";
+  };
+  /** Direct messages (`modules.dms`): who a first message goes to (`firstMessage`), "Seen"
+   * (`readReceipts`) and where "Message" appears (`entryPoints`). The scratch backend's
+   * `messaging_settings` must hold the same values (dev builds warn otherwise). */
+  dms: {
+    enabled: boolean;
+    firstMessage: "direct" | "requests";
+    readReceipts: boolean;
+    entryPoints: DmsEntryPoint[];
   };
   /** The attachments module, with the example's `recipe` and `session` types. */
   attachments: { enabled: boolean; membersCanAttach: boolean };
@@ -84,6 +94,7 @@ export const HEADER_ITEMS = [
   "online",
   "messages",
   "groups",
+  "dms",
 ] as const;
 export type HeaderItemId = (typeof HEADER_ITEMS)[number];
 
@@ -120,6 +131,7 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
     exploreLayout: "list",
     shareCardLayout: "card",
   },
+  dms: { enabled: true, firstMessage: "direct", readReceipts: false, entryPoints: ["profile"] },
   attachments: { enabled: true, membersCanAttach: true },
   colors: { accent: "#6C4DF6", background: "#F7F7F8" },
   typography: { titleFont: null, bodySize: 15 },
@@ -247,6 +259,13 @@ export function buildConfig(settings: PlaygroundSettings): CommunityConfig {
         ? {
             exploreLayout: settings.groups.exploreLayout,
             shareCardLayout: settings.groups.shareCardLayout,
+          }
+        : false,
+      dms: settings.dms.enabled
+        ? {
+            firstMessage: settings.dms.firstMessage,
+            readReceipts: settings.dms.readReceipts,
+            entryPoints: settings.dms.entryPoints,
           }
         : false,
     },

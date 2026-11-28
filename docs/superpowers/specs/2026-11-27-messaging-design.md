@@ -397,11 +397,33 @@ description, member count, "X online" (above 0), and "Join" or "Open".
 - **Read receipts** (`readReceipts: true`): "Seen" under my last message the other member
   read.
 
+- **Decided while building** _(Our calls.)_:
+  - The "Message" button and the "new message" picker read one server call,
+    `profile_dm_flags(ids)` (switch, has an account, already has a DM; never the account id),
+    and the picker searches through `search_dm_members`.
+  - The switch only blocks new DMs: an existing DM keeps working, and the button and the
+    picker still list a member who turned DMs off when a DM with them already exists.
+  - Admins are exempt from member blocks for DMs, as in the feed: a member can't block an
+    in-app admin out.
+  - `dms/001` itself replaces `list_conversations` (a security-definer list that ignored a declined
+    request's `visible_from` would leak its last message); a host that adds `groups` after
+    `dms` re-applies it.
+  - After the decline cooldown, a sender's re-request is gated like a new DM (the member's
+    switch, the per-day budget, the account rule, blocks). If it fails, the request row stays
+    declined and the message is stored silently: the sender is never told.
+  - A DM request's first message pushes once; a request accepted gives the sender a center
+    item (`dm_request_accepted`, inbox module).
+
 ### Notifications and push
 
 - A new message pushes to every member of the conversation who follows it (DMs always;
   groups when their switch is on), except the author, members who blocked them, members
   whose app-level messaging switch is off, and members currently viewing the conversation.
+- _(Our call.)_ `pushPreview: "none"` makes a DM message push fully neutral: it drops the
+  sender's name as the title too. A new request's push is neutral whatever `pushPreview` says.
+- _(Our call.)_ The app-level switches ended up as `push_tokens` columns, `notify_group_messages`
+  and `notify_dms`, exposed through `useNotificationPreferences()` next to the other push
+  switches, rather than a `notification_preferences` table.
 - With `moderation: "post"`, the push leaves once the AI has passed the message (a few
   seconds); with `"pre"`, when it is approved; a message moderation hides never pushes.
   _(Our call.)_
@@ -428,6 +450,11 @@ Mutual blocks apply everywhere: no DM, no request, no "Message" button; in group
 blocked member's messages are hidden for the blocker and vice versa, as in the feed. An
 existing DM stays in the list with its composer replaced by a line saying you can't write
 to this member.
+
+_(Our call.)_ A blocked DM's history is readable by neither side (the server refuses): the
+screen shows what it had cached and the "can't write" line, and a cold open of it shows only
+the line. A block or unblock made while the DM is open closes or reopens its composer at once
+(the server broadcasts it on the DM's channel).
 
 ### Account deletion
 

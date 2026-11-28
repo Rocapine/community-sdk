@@ -542,11 +542,12 @@ Expect, in order (wait 10 s between two calls for the same account that open a s
    also removes their profiles and posts) and the Appwrite user
    (`DELETE $AW/users/$U`).
 
-## 8. Messaging and groups
+## 8. Messaging, groups and direct messages
 
-Group chats (`modules.groups` in the app). `messaging` is the chat core (conversations,
-members, messages, likes, edit history, the translation cache and the settings), shared
-with direct messages later; `groups` adds public groups on it.
+Group chats (`modules.groups` in the app) and direct messages (`modules.dms`). `messaging` is
+the chat core (conversations, members, messages, likes, edit history, the translation cache
+and the settings), shared by both; `groups` adds public groups on it, `dms` one-to-one
+conversations (see [Direct messages](#direct-messages-dms)).
 
 ### Install and order
 
@@ -615,9 +616,14 @@ It merges the keys given; an unknown key or a bad value raises `invalid_setting:
 | `maxMembers`                  | `groups.maxMembers` (`null`: any)      | `null`       |
 | `nameMaxLength`               | `groups.nameMaxLength` (≤ 120)         | `60`         |
 | `descriptionMaxLength`        | `groups.descriptionMaxLength` (≤ 1000) | `500`        |
+| `dmsFirstMessage`             | `dms.firstMessage`                     | `"direct"`   |
+| `dmsReadReceipts`             | `dms.readReceipts`                     | `false`      |
+| `dmsRequireAccount`           | `dms.requireAccount`                   | `false`      |
+| `dmsRequestsPerDay`           | `dms.requestsPerDay` (≥ 1)             | `5`          |
+| `dmsDeclineCooldownDays`      | `dms.declineCooldownDays` (≥ 0)        | `30`         |
 
-The account rules read `account_links` only when the accounts module is installed;
-without it they don't apply. `groups.requireAccount: "feed"` is client only (`false` here).
+The account rules (`groupsRequireAccount`, `groupsCreateRequiresAccount`, `dmsRequireAccount`)
+read `account_links` only when the accounts module is installed; without it they don't apply. `groups.requireAccount: "feed"` is client only (`false` here).
 
 ### Realtime, storage, moderation
 
@@ -666,9 +672,67 @@ without it they don't apply. `groups.requireAccount: "feed"` is client only (`fa
   (`messages.pushed_at`, stamped before sending): a failed Expo send is not retried. `COMMUNITY_PUSH_COPY` keys:
   `message.groupBody` (`pushPreview: "sender"`), `message.neutral` (`"none"`).
 
+### Direct messages (dms)
+
+`modules.dms` in the app. `npx @rocapine/community upgrade --add-modules dms` (or
+`init --modules …,dms`) also installs `messaging`; `groups` and `attachments` are not needed.
+Then `supabase db push`, `messaging_set_settings` with the `dms*` keys above, and
+`supabase functions deploy`.
+
+- **Migrations**, after `messaging/001–006` (and `groups/*` when installed, the CLI's order):
+  `dms/001_dms` (the `dm_pairs`, `dm_declines` and `dm_request_log` tables, the DM
+  settings keys, the start / accept / decline / block-and-report RPCs, the read rules, a
+  recipient's `visible_from`, `profile_dm_flags`, `list_dm_requests`, `dm_peer_read`,
+  and replacements of `send_message`, `can_read_conversation`, `list_conversations`,
+  `unread_followed_messages`, `messaging_on_account_delete` and `merge_messaging`),
+  `dms/002_push` (DM pushes, `push_tokens.notify_dms`, `claim_message_push` with a `kind`),
+  `dms/003_flags_search_read` (`search_dm_members`, `has_dm` in `profile_dm_flags`, the
+  live "Seen" broadcast) and `dms/004_block_broadcast` (a block between two members of a DM
+  broadcasts `members` on its channel, so an open DM closes its composer at once). All
+  idempotent; `dms/002` needs the push module (skipped with a notice when `push_tokens`
+  is missing).
+- **Functions.** No new secret and no new function: `notify-message` (messaging + push)
+  now pushes DMs, `report-to-slack` names a reported DM's two members and never quotes
+  it, and `account-delete` applies `eraseDms`. Redeploy `notify-message` and
+  `report-to-slack` after `db push` (`dms/002` first: `notify-message` reads
+  `claim_message_push`'s `kind`).
+- **Traps.**
+  - **Adding `push` after `dms`:** re-run `messaging/002_push.sql`, **then** `dms/002_push.sql`.
+    `messaging/002` alone after `dms/002` fails on `claim_message_push`'s return type;
+    run `dms/002` again after it.
+  - **Adding `groups` after `dms`:** `groups/003` recreates `list_conversations` without the
+    DM rules, so `dms/001` must run again once groups is in (`upgrade --add-modules groups`
+    copies the dms templates again; apply them, `db push`). Until then a declined request's
+    last message can leak into the conversation list. Fresh installs are fine: the CLI
+    orders `groups` before `dms`.
+  - **Config must match the backend.** With `modules.dms` on and `dms/001` missing, the
+    conversation list breaks (`dm_peers` fails and takes the whole list with it). Run
+    `db push` before shipping an app build that sets `modules.dms`.
+  - **DM-only installs have no storage sweep.** `messaging_images_unreferenced()` (the
+    daily sweep of the messaging buckets, called by `daily-moderation`) comes with
+    `groups/005`, not with `messaging` or `dms`; without it the function is a silent no-op.
+    A DM-only install therefore keeps the image files of erased DM messages (`eraseDms`,
+    `eraseAll`) and any upload nobody sent. Add `groups` (or run `groups/005` by hand) to
+    sweep them; `message-images` is private, so this is a storage cost, not a leak.
+  - **The Slack report path for a DM was not run live.** `report-to-slack`'s DM branch is
+    unit-tested only (running it would post to the real channel): report one DM message from a
+    sandbox first and check the line reads "Direct message from _a_ to _b_ (text not shown)".
+- **Privacy at the dashboard.** A DM's text never appears in Slack. The dashboard reads a
+  message only through `admin_message_context(message, before, after)`, and that answers
+  only for a message that was reported or AI-hidden, with up to 50 messages around it each
+  way (a pair that was never flagged stays unreadable). In-app admins can't read DMs.
+- **Pushes.** `notify-message` pushes the other member of a DM unless `push_tokens.notify_dms`
+  is off (default on; `useNotificationPreferences()` in the app), at most once a minute per
+  DM unless they read it since, never across a block, never for a message before their
+  `visible_from`. A new request pushes once, on its first message, with `message.request`
+  (a neutral line that names no one, whatever `pushPreview` says). `pushPreview: "none"`
+  also drops the sender's title on a DM message push. New `COMMUNITY_PUSH_COPY` keys:
+  `message.dmBody` (`pushPreview: "sender"`) and `message.request`.
+
 ### Dashboard functions
 
-`admin_message_context(message, before, after)` (a flagged message and its neighbours),
+`admin_message_context(message, before, after)` (a flagged message and its neighbours; in a
+DM only for a reported or AI-hidden message),
 `admin_edit_group`, `admin_transfer_group` and `messaging_set_settings` answer only the
 service role or the SQL editor (`messaging_is_dashboard_admin()`, fail-closed); in-app
 admin powers stay `profiles.is_admin`. Reports carry `message_id` or `group_id`.
