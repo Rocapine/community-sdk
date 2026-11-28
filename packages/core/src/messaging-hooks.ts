@@ -325,8 +325,8 @@ export async function refreshNewestMessages(
 }
 
 /** A conversation's messages, newest page first (`pages[0][0]` is the newest message),
- * live while mounted: a Realtime change refetches the newest page, and the badge. */
-/** `dm`: the conversation is a DM (see `subscribeConversation`). */
+ * live while mounted: a Realtime change refetches the newest page, and the badge. `dm`:
+ * the conversation is a DM (see `subscribeConversation`). */
 export function useMessages(conversationId: string | null, { dm = false }: { dm?: boolean } = {}) {
   const cfg = useCommunityConfig();
   const queryClient = useQueryClient();
@@ -740,13 +740,24 @@ export const invalidateGroup = (queryClient: QueryClient, id: string) =>
     ),
   );
 
+/** Refreshes a group now and, with `everyMs`, again every `everyMs` until stopped (the
+ * driver behind `useRefreshGroupOnFocus`). Returns the stop. */
+export function refreshGroup(queryClient: QueryClient, id: string, everyMs?: number): () => void {
+  void invalidateGroup(queryClient, id);
+  if (!everyMs) return () => {};
+  const timer = setInterval(() => void invalidateGroup(queryClient, id), everyMs);
+  return () => clearInterval(timer);
+}
+
 /** Refreshes a group each time its screen gets the focus (and on mount): a removal, a
- * readmission or a join seen while the screen was away, or before the app had it cached. */
-export function useRefreshGroupOnFocus(id: string | null, focused: boolean) {
+ * readmission or a join seen while the screen was away, or before the app had it cached.
+ * With `everyMs`, also every `everyMs` while focused: a removed member's screen hears of
+ * a readmission, which nothing broadcasts to them (they can't join the channel). */
+export function useRefreshGroupOnFocus(id: string | null, focused: boolean, everyMs?: number) {
   const queryClient = useQueryClient();
   useEffect(() => {
-    if (focused && id) void invalidateGroup(queryClient, id);
-  }, [queryClient, id, focused]);
+    if (focused && id) return refreshGroup(queryClient, id, everyMs);
+  }, [queryClient, id, focused, everyMs]);
 }
 
 /** Creates a group (pending until moderation approves it); resolves to its id. */

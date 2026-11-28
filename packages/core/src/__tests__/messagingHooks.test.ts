@@ -34,6 +34,7 @@ import {
   type MessagesData,
   sendMessageMutationOptions,
   unreadMessagesQueryOptions,
+  refreshGroup,
   watchDms,
 } from "../messaging-hooks";
 import * as realtime from "../realtime";
@@ -506,4 +507,26 @@ it("watchDms: the badge, the list and the requests share one subscription", () =
   b();
   expect(unsubscribe).toHaveBeenCalledTimes(2);
   vi.mocked(realtime.subscribeDms).mockReturnValue(() => {});
+});
+
+it("refreshGroup: now, then every `everyMs` until stopped (a removed member's screen)", () => {
+  vi.useFakeTimers();
+  try {
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const groupCalls = () =>
+      invalidate.mock.calls.filter(([f]) => JSON.stringify(f?.queryKey).includes('"group","g1"'))
+        .length;
+    refreshGroup(qc, "g1")(); // on focus only
+    expect(groupCalls()).toBe(1);
+    const stop = refreshGroup(qc, "g1", 30_000);
+    expect(groupCalls()).toBe(2);
+    vi.advanceTimersByTime(60_000);
+    expect(groupCalls()).toBe(4);
+    stop();
+    vi.advanceTimersByTime(60_000);
+    expect(groupCalls()).toBe(4);
+  } finally {
+    vi.useRealTimers();
+  }
 });

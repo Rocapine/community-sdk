@@ -143,11 +143,12 @@ type Row = {
   last?: boolean;
 };
 
-/** A callback whose identity never changes but that always runs the latest closure,
- * so memoized rows don't re-render on each keystroke. */
 /** The space under the composer (see composerBottomSpace): the screen's bottom edge
  * in the window, measured at layout and again on each keyboard move (a modal may have
  * been mid-animation at layout). */
+/** How often a removed member's screen checks whether they were readmitted. */
+const REMOVED_RECHECK_MS = 30_000;
+
 function useBottomSpace(insetBottom: number) {
   const ref = useRef<ViewInstance>(null);
   const windowHeight = useWindowDimensions().height;
@@ -177,6 +178,8 @@ function useBottomSpace(insetBottom: number) {
   return { ref, measure, ...space };
 }
 
+/** A callback whose identity never changes but that always runs the latest closure,
+ * so memoized rows don't re-render on each keystroke. */
 function useStable<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
   const ref = useRef(fn);
   ref.current = fn;
@@ -268,14 +271,14 @@ function Conversation({
   const [errorCode, setErrorCode] = useState<MessagingErrorCode | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const accountLinked = useAccountLinked();
-  // A removal, a readmission or a join while the screen was away (groups/004 covers the
-  // ones while it is open).
-  useRefreshGroupOnFocus(kind === "group" ? conversationId : null, isFocused);
-  // A failed action said "removed", the group now says I'm in again (readmitted, rejoined).
+  // A failed action said "removed", and the group now says I'm in again (rejoined) or no
+  // longer removed (readmitted: back to the preview's Join).
+  const wasRemoved = useRef(false);
   useEffect(() => {
-    if (group?.isMember)
+    if (group?.isMember || (wasRemoved.current && group?.removed === false))
       setErrorCode((c) => (c === "not_a_member" || c === "removed_from_group" ? null : c));
-  }, [group?.isMember]);
+    if (group) wasRemoved.current = group.removed;
+  }, [group?.isMember, group?.removed]);
   // A join made here no longer counts once I'm removed (a readmission then offers Join).
   useEffect(() => {
     if (group?.removed) setJoined(false);
@@ -305,6 +308,14 @@ function Conversation({
         ? state
         : null;
   const active = member && !closed && kind !== null && (!isDm || state === "active");
+  // A removal, a readmission or a join while the screen was away (groups/004 covers a
+  // removal while it is open); while the removed line shows, every 30 s too: nothing tells
+  // a removed member they were readmitted.
+  useRefreshGroupOnFocus(
+    kind === "group" ? conversationId : null,
+    isFocused,
+    closed === "removed" ? REMOVED_RECHECK_MS : undefined,
+  );
 
   // Closed: no more reads nor Realtime. A blocked DM keeps both (the server filters the
   // blocked member's messages), so an unblock (dms/004's broadcast) reopens it live.
@@ -321,16 +332,18 @@ function Conversation({
   );
   const peerRead = usePeerRead(isDm && active ? conversationId : null);
 
-  // Once per opening (the screen is keyed by conversation), once its kind is known.
+  // Once per opening (the screen is keyed by conversation), once its kind is sure: a DM
+  // not in my lists yet guesses "group" meanwhile.
   const opened = useRef(false);
+  const kindKnown = identity.confirmed || (kind === "group" && !!group);
   useEffect(() => {
-    if (kind === null || opened.current) return;
+    if (kind === null || !kindKnown || opened.current) return;
     opened.current = true;
     emitEvent(cfg, COMMUNITY_EVENTS.conversationOpened, { conversationId, kind });
     if (mode === "preview")
       emitEvent(cfg, COMMUNITY_EVENTS.groupPreviewed, { groupId: conversationId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kind]);
+  }, [kind, kindKnown]);
 
   // ---- composer ----
   const inputRef = useRef<TextInputInstance>(null);
