@@ -22,8 +22,11 @@
 //  - A row with no `postId` (e.g. an announcement whose post is gone) calls
 //    the optional `onOpenCommunity` instead of doing nothing (Eve source sent
 //    every row to the community tab).
-//  - Only the 4 standard kinds (`like`/`comment`/`reaction`/`admin_post`)
-//    get a built-in row; anything else calls `renderInboxRow?.(item, null)`
+//  - Groups module: `group_approved` / `group_field_rejected` open the group and
+//    `group_member_removed` its preview (nothing with `groups.preview: "none"`), through
+//    `onOpenMessages`, the feed's own prop (see `inboxRowTarget`).
+//  - Only the standard kinds (`like`/`comment`/`reply`/`reaction`/`admin_post` and
+//    the three group events) get a built-in row; anything else calls `renderInboxRow?.(item, null)`
 //    (mirrors `PostSlots`' `renderPostFooter?.(post, defaults) ?? defaults`
 //    pattern from `CommunityPost`, except the fallback here is `null` since
 //    there is no built-in row for an unknown kind to fall back to).
@@ -45,6 +48,7 @@
 import {
   COMMUNITY_EVENTS,
   emitEvent,
+  groupsSettings,
   unreadCount,
   useCommunityConfig,
   isUnread,
@@ -58,7 +62,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import type { TFn } from "../i18n";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
-import { inboxRowText } from "../utils/inboxRow";
+import { GROUP_INBOX_KINDS, inboxRowTarget, inboxRowText } from "../utils/inboxRow";
 import { isQueryLoading } from "../utils/query";
 import { ScreenBackground } from "../components/ScreenBackground";
 
@@ -68,15 +72,20 @@ const KNOWN_KINDS = new Set<InboxItem["kind"]>([
   "reply",
   "reaction",
   "admin_post",
+  ...GROUP_INBOX_KINDS,
 ]);
 
 export function NotificationInboxScreen({
   onOpenPost,
   onOpenCommunity,
+  onOpenMessages,
   onBack,
   renderInboxRow,
 }: {
   onOpenPost(postId: string): void;
+  /** Groups module: opens a group a `group_*` row is about (`preview`: read-only, for a
+   * removed member). Same callback as the feed's `onOpenMessages`. */
+  onOpenMessages?: (target: { groupId: string; preview?: boolean }) => void;
   /** Shows a back button left of the centred title. */
   onBack?: () => void;
   /** Tapped row with no post attached (e.g. a deleted announcement). */
@@ -139,10 +148,14 @@ export function NotificationInboxScreen({
   // Live in "tap" mode (dots go out as items are read); frozen per visit in "open".
   const readIds = tapToRead ? (inbox.data?.readIds ?? []) : [];
   const anyUnread = items.some((item) => isUnread(item, seenAt, readIds));
+  const groupsPreview = groupsSettings(cfg)?.preview ?? "none";
   const openItem = (item: InboxItem) => {
     if (tapToRead && isUnread(item, seenAt, readIds)) markItemRead.mutate(item.id);
-    if (item.postId) onOpenPost(item.postId);
-    else onOpenCommunity?.();
+    const target = inboxRowTarget(item, groupsPreview);
+    if (target && "postId" in target) onOpenPost(target.postId);
+    else if (target) onOpenMessages?.(target);
+    // A group row with nothing to open stays put.
+    else if (!GROUP_INBOX_KINDS.includes(item.kind)) onOpenCommunity?.();
   };
 
   return (
@@ -228,6 +241,10 @@ function KindIcon({ kind }: { kind: InboxItem["kind"] }) {
       return <icons.reaction size={19} color={color} weight="fill" />;
     case "admin_post":
       return <icons.announcement size={19} color={color} weight="fill" />;
+    case "group_approved":
+    case "group_field_rejected":
+    case "group_member_removed":
+      return <icons.groups size={19} color={color} weight="fill" />;
     default:
       return null;
   }

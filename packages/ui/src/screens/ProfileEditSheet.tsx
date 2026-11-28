@@ -446,7 +446,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
               <View style={styles.section}>
                 <Text style={styles.label}>{t("profile.badges")}</Text>
                 {Object.keys(cfg.modules.badges).map((id) => (
-                  <BadgeToggle
+                  <ToggleRow
                     key={id}
                     label={badgeToggleLabel(t, id)}
                     value={!profile.data.hiddenBadges.includes(id)}
@@ -460,7 +460,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
             {presenceSettings(cfg) && presenceVisible !== null && (
               <View style={styles.section}>
                 <Text style={styles.label}>{t("profile.activityStatus")}</Text>
-                <BadgeToggle
+                <ToggleRow
                   label={t("profile.showOnline")}
                   value={presenceVisible}
                   onChange={(on) => setPresenceVisible.mutateAsync(on)}
@@ -474,9 +474,10 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   );
 }
 
-/** One badge toggle, applied at once (not by Save). Local state keeps the switch
- * where the finger left it while the change lands; a failure puts it back. */
-function BadgeToggle({
+/** One switch row (a badge, presence, a group's notifications), applied at once (not
+ * by Save). Local state keeps the switch where the finger left it while the change
+ * lands; a failure puts it back. */
+export function ToggleRow({
   label,
   value,
   onChange,
@@ -493,6 +494,8 @@ function BadgeToggle({
     <View style={styles.toggleRow}>
       <Text style={styles.toggleLabel}>{label}</Text>
       <Switch
+        // iOS's Switch defaults to `alignSelf: "flex-start"`: it sat at the row's top.
+        style={styles.toggleSwitch}
         value={on}
         onValueChange={(next) => {
           haptic("selection");
@@ -611,6 +614,7 @@ function makeStyles(theme: CommunityTheme) {
       gap: theme.spacing(3),
       minHeight: 44,
     },
+    toggleSwitch: { alignSelf: "center" },
     toggleLabel: {
       flex: 1,
       ...theme.typography.body,

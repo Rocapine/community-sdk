@@ -1,0 +1,744 @@
+-- Groups module (groups/001_groups.sql, 004_members_changed.sql, 005_storage_sweep.sql,
+-- 006_review_fixes.sql, 007_online_others.sql, messaging/005_review_fixes.sql,
+-- accounts/004_merge_hooks.sql).
+-- Run against a backend with messaging/001…006 and groups/001…007 applied:
+--   npx supabase db query --project-ref <ref> --linked --yes -f supabase-tests/groups.sql
+-- It creates five auth users (so five profiles: a creator, b, c members, x outsider, adm an
+-- in-app admin) and always rolls back by raising at the end: the run passed when the error
+-- message is exactly GROUPS_TESTS_PASSED. The accounts, presence and inbox parts run only
+-- where those modules are installed.
+do $$
+declare
+  a uuid := gen_random_uuid();
+  b uuid := gen_random_uuid();
+  c uuid := gen_random_uuid();
+  x uuid := gen_random_uuid();
+  adm uuid := gen_random_uuid();
+  g1 uuid; g2 uuid; g3 uuid; gx uuid; dm uuid;
+  img text;
+  m public.messages;
+  r record;
+  failed boolean;
+begin
+  insert into auth.users (id) values (a), (b), (c), (x), (adm);
+  update public.profiles set is_admin = true where id = adm;
+
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"groupsCreateRequiresAccount": false, "groupsRequireAccount": false,
+    "maxCreatedPerMember": 3, "maxJoinedPerMember": 50, "maxMembers": null, "nameMaxLength": 60,
+    "descriptionMaxLength": 500, "groupsPreview": "readOnly", "moderation": "post", "ratePerMinute": 100,
+    "onAccountDelete": "keep"}');
+
+  -- A creates three groups; a fourth is refused; lengths are checked.
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.create_group(repeat('n', 61), 'd');
+    assert false, 'a 61-char name is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'name_too_long', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.create_group('n', repeat('d', 501));
+    assert false, 'a 501-char description is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'description_too_long', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.create_group('n', 'd', b || '/' || gen_random_uuid() || '.jpg');
+    assert false, 'an image outside the caller''s pending folder is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'invalid_image_path', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.create_group('n', 'd', a || '/cover.jpg');
+    assert false, 'an image without a random name is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'invalid_image_path', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.create_group('   ', 'd');
+    assert false, 'a blank name is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'name_required', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.create_group('n', '');
+    assert false, 'an empty description is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'description_required', 'got ' || sqlerrm;
+  end;
+  img := a || '/' || gen_random_uuid() || '.jpg';
+  g1 := public.create_group('City runners', 'We run together', img);
+  g2 := public.create_group('Second', 'two');
+  g3 := public.create_group('Third', 'three');
+  begin
+    perform public.create_group('Fourth', 'four');
+    assert false, 'a fourth group is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'too_many_groups', 'got ' || sqlerrm;
+  end;
+  assert (select name is null and status = 'pending' from public.groups where conversation_id = g1),
+    'A reads its pending group, live values empty';
+  assert (select pending_name = 'City runners' and pending_image_path = img and status = 'pending'
+          from public.my_group_review(g1)), 'the pending values come through my_group_review';
+  select role, notify, state into r from public.conversation_members where conversation_id = g1 and user_id = a;
+  assert r.role = 'creator' and not r.notify and r.state = 'active', 'A is the creator, notifications off';
+  reset role;
+
+  -- An in-app admin is not limited.
+  perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  for i in 1 .. 4 loop
+    gx := public.create_group('Admin ' || i, 'd');
+  end loop;
+  reset role;
+
+  -- A pending group is invisible to B until moderation approves it.
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from public.search_groups() s where s.group_id = g1) = 0, 'B does not find a pending group';
+  assert (select count(*) from public.groups where conversation_id = g1) = 0, 'nor reads it';
+  begin
+    perform public.join_group(g1);
+    assert false, 'B cannot join a pending group';
+  exception when raise_exception then
+    assert sqlerrm = 'not_found', 'got ' || sqlerrm;
+  end;
+  reset role;
+  update public.groups
+     set status = 'visible', name = pending_name, description = pending_description,
+         pending_name = null, pending_description = null
+   where conversation_id in (g1, g2, g3);
+  insert into public.group_translations (group_id, locale, name, description)
+    values (g1, 'fr', 'Coureurs de Lyon', 'On court ensemble à Lyon');
+
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from public.search_groups() s where s.group_id = g1) = 1, 'B finds it once visible';
+  assert (select name from public.search_groups('lyon', 'fr') s where s.group_id = g1) = 'Coureurs de Lyon',
+    'found through its French translation, returned translated';
+  assert (select count(*) from public.search_groups('lyon', 'en')) = 0, 'not in another locale';
+  assert (select count(*) from public.search_groups('runners', 'fr') s where s.group_id = g1) = 1,
+    'the original still matches';
+  perform public.join_group(g1);
+  perform public.join_group(g1);
+  assert (select member_count from public.groups where conversation_id = g1) = 2, 'joining is idempotent';
+  assert (select is_member from public.search_groups() s where s.group_id = g1), 'B is a member';
+  perform public.set_group_notify(g1, true);
+  assert (select notify from public.conversation_members where conversation_id = g1 and user_id = b),
+    'B follows the group';
+  m := public.send_message(g1, 'hello');
+  reset role;
+
+  -- A visible message bumps the group's activity; a pending one only once approved.
+  update public.groups set last_activity_at = '2000-01-01' where conversation_id = g1;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  m := public.send_message(g1, 'with image', null, g1 || '/' || b || '/p.jpg');
+  reset role;
+  assert (select last_activity_at = '2000-01-01' from public.groups where conversation_id = g1),
+    'a pending message does not count';
+  update public.messages set status = 'visible' where id = m.id;
+  assert (select last_activity_at > now() - interval '1 minute' from public.groups where conversation_id = g1),
+    'its approval does';
+  update public.groups set last_activity_at = '2000-01-01' where conversation_id = g1;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.send_message(g1, 'again');
+  reset role;
+  assert (select last_activity_at > now() - interval '1 minute' from public.groups where conversation_id = g1),
+    'last_activity_at follows the messages';
+
+  -- Keyset pages across equal activity times: every group once, none twice.
+  update public.groups set last_activity_at = '2001-01-01' where conversation_id in (g1, g2, g3);
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  declare
+    seen uuid[] := '{}';
+    cur_at timestamptz := '2001-01-02';
+    cur_id uuid := 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+  begin
+    for i in 1 .. 3 loop
+      select s.group_id, s.last_activity_at into r from public.search_groups(null, null, 1, cur_at, cur_id) s;
+      seen := seen || r.group_id;
+      cur_at := r.last_activity_at;
+      cur_id := r.group_id;
+    end loop;
+    assert seen @> array[g1, g2, g3] and array_length(seen, 1) = 3, 'three pages, three groups';
+  end;
+  reset role;
+
+  -- The creator removes B; B cannot rejoin until readmitted.
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.remove_member(g1, b);
+  perform public.remove_member(g1, b);
+  reset role;
+  assert (select state = 'removed' and removed_by = a from public.conversation_members
+          where conversation_id = g1 and user_id = b), 'B is removed';
+  assert (select member_count from public.groups where conversation_id = g1) = 1, 'and no longer counted';
+  if to_regclass('public.notifications') is not null then
+    assert (select count(*) from public.notifications
+            where user_id = b and kind = 'group_member_removed' and conversation_id = g1) = 1,
+      'B is told once';
+  end if;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.join_group(g1);
+    assert false, 'a removed member cannot rejoin';
+  exception when raise_exception then
+    assert sqlerrm = 'removed_from_group', 'got ' || sqlerrm;
+  end;
+  assert not public.can_read_conversation(g1), 'nor previews the group';
+  -- inbox/005: the center names the group.
+  if exists (select 1 from pg_proc where proname = 'list_notifications'
+             and pg_get_function_result(oid) like '%conversation_id%') then
+    assert (select count(*) from public.list_notifications(50) x
+            where x.kind = 'group_member_removed' and x.conversation_id = g1) = 1,
+      'B''s center names the group';
+  end if;
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.readmit_member(g1, b);
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.can_read_conversation(g1), 'readmitted, B previews again';
+  perform public.join_group(g1);
+  assert (select role = 'member' and state = 'active' and not notify from public.conversation_members
+          where conversation_id = g1 and user_id = b), 'B is back as a member, notifications off';
+  reset role;
+
+  -- The creator never removes an admin; an outsider never lists members.
+  perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.join_group(g1);
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.join_group(g1);
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.remove_member(g1, adm);
+    assert false, 'the creator cannot remove an admin';
+  exception when raise_exception then
+    assert sqlerrm = 'forbidden', 'got ' || sqlerrm;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.list_conversation_members(g1);
+    assert false, 'a non-member cannot list members';
+  exception when raise_exception then
+    assert sqlerrm = 'forbidden', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.remove_member(g1, b);
+    assert false, 'an outsider cannot remove';
+  exception when raise_exception then
+    assert sqlerrm = 'forbidden', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.edit_group(g1, 'Mine', null, null);
+    assert false, 'an outsider cannot edit';
+  exception when raise_exception then
+    assert sqlerrm = 'forbidden', 'got ' || sqlerrm;
+  end;
+  reset role;
+
+  -- A blocks B: B leaves A's member list and A's online count.
+  insert into public.blocks (blocker_id, blocked_id) values (a, b);
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from public.list_conversation_members(g1)) = 3, 'A lists A, C and the admin';
+  assert (select role from public.list_conversation_members(g1) l where l.user_id = a) = 'creator', 'A is the creator';
+  assert (select count(*) from public.list_conversation_members(g1, 'zzz-no-match')) = 0, 'the query filters';
+  reset role;
+  if to_regclass('public.member_presence') is not null then
+    -- B (blocked by A) and C (hidden) are online, the admin too, visibly.
+    insert into public.member_presence (user_id, last_active_at, visible) values
+      (b, now(), true), (c, now(), false), (adm, now(), true)
+    on conflict (user_id) do update set last_active_at = excluded.last_active_at, visible = excluded.visible;
+    perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    assert (select online from public.group_online_counts(array[g1, g2]) o where o.group_id = g1) = 1,
+      'A counts the admin only (C hidden, B blocked)';
+    assert (select online from public.group_online_counts(array[g1, g2]) o where o.group_id = g2) = 0,
+      'nobody online in g2';
+    reset role;
+    perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    assert (select online from public.group_online_counts(array[g1]) o where o.group_id = g1) = 2,
+      'X counts B and the admin';
+    reset role;
+    -- groups/007: the admin, online in g1, counts the others only (B), never itself.
+    perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    assert (select online from public.group_online_counts(array[g1]) o where o.group_id = g1) = 1,
+      'the admin counts B, not itself';
+    reset role;
+  end if;
+  delete from public.blocks where blocker_id = a and blocked_id = b;
+
+  -- Edits wait for moderation; the creator leaving keeps the group; deletion removes everyone.
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.edit_group(g1, 'City runners club', 'New description', null);
+  reset role;
+  assert (select name = 'City runners' and pending_name = 'City runners club' and status = 'visible'
+          from public.groups where conversation_id = g1), 'an edit stays pending, the live name stays';
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  failed := false;
+  begin
+    perform pending_name from public.groups where conversation_id = g1;
+  exception when insufficient_privilege then failed := true;
+  end;
+  assert failed, 'another member cannot read the pending values';
+  begin
+    perform public.my_group_review(g1);
+    assert false, 'nor through my_group_review';
+  exception when raise_exception then
+    assert sqlerrm = 'forbidden', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.edit_group(g1, '', null, null);
+    assert false, 'nor edit it';
+  exception when raise_exception then
+    assert sqlerrm = 'forbidden', 'got ' || sqlerrm;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.edit_group(g1, ' ', null, null);
+    assert false, 'an edit cannot blank the name';
+  exception when raise_exception then
+    assert sqlerrm = 'name_required', 'got ' || sqlerrm;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.leave_group(g1);
+  begin
+    perform public.edit_group(g1, 'Back', null, null);
+    assert false, 'a creator who left no longer manages the group';
+  exception when raise_exception then
+    assert sqlerrm = 'forbidden', 'got ' || sqlerrm;
+  end;
+  reset role;
+  assert (select status = 'visible' and member_count = 3 from public.groups where conversation_id = g1),
+    'the group lives on without its creator';
+  perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.delete_group(g1);
+  reset role;
+  assert (select status = 'deleted' and member_count = 0 from public.groups where conversation_id = g1),
+    'an admin deletes the group';
+  assert not exists (select 1 from public.conversation_members where conversation_id = g1 and state = 'active'),
+    'nobody is a member any more';
+
+  -- Dashboard tools: transfer and live edits, never from the app.
+  perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.admin_transfer_group(g2, b);
+    assert false, 'admin_transfer_group is dashboard-only';
+  exception when raise_exception then
+    assert sqlerrm = 'forbidden', 'got ' || sqlerrm;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.admin_transfer_group(g2, b);
+  perform public.admin_edit_group(g2, 'Renamed', null, null);
+  assert (select created_by = b and name = 'Renamed' and description = 'two' from public.groups where conversation_id = g2),
+    'transferred and renamed live';
+  assert (select role from public.conversation_members where conversation_id = g2 and user_id = b) = 'creator'
+    and (select role from public.conversation_members where conversation_id = g2 and user_id = a) = 'member',
+    'B is the creator, A a member';
+
+  -- Limits: a full group, too many joined groups.
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.join_group(g2);
+  reset role;
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"maxMembers": 1}');
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.join_group(g3);
+    assert false, 'a full group is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'group_full', 'got ' || sqlerrm;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings(json_build_object('maxMembers', null,
+    'maxJoinedPerMember', public.group_joined_count(c))::jsonb);
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.join_group(g3);
+    assert false, 'joining past maxJoinedPerMember is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'too_many_joined', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.set_group_notify(g3, true);
+    assert false, 'a non-member has no notify switch';
+  exception when raise_exception then
+    assert sqlerrm = 'not_a_member', 'got ' || sqlerrm;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"maxJoinedPerMember": 50}');
+
+  -- Group RPCs refuse a DM.
+  insert into public.conversations (kind) values ('dm') returning id into dm;
+  insert into public.conversation_members (conversation_id, user_id) values (dm, a), (dm, c);
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.leave_group(dm);
+    assert false, 'leave_group refuses a DM';
+  exception when raise_exception then
+    assert sqlerrm = 'not_a_group', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.remove_member(dm, c);
+    assert false, 'remove_member refuses a DM';
+  exception when raise_exception then
+    assert sqlerrm = 'not_a_group', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.set_group_notify(dm, true);
+    assert false, 'set_group_notify refuses a DM';
+  exception when raise_exception then
+    assert sqlerrm = 'not_a_group', 'got ' || sqlerrm;
+  end;
+  -- The creator deletes their own group.
+  gx := public.create_group('Short-lived', 'd');
+  perform public.delete_group(gx);
+  reset role;
+  assert (select status from public.groups where conversation_id = gx) = 'deleted', 'the creator deletes';
+
+  -- Reports: a group (naming its creator) or a message; never nothing.
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  insert into public.reports (reporter_id, reported_user_id, group_id, reason) values (c, b, g2, 'spam');
+  begin
+    insert into public.reports (reporter_id, reported_user_id, group_id, reason) values (c, x, g2, 'spam');
+    assert false, 'a group report names its creator';
+  exception when insufficient_privilege then null;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.join_group(g3);
+  m := public.send_message(g3, 'reported');
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  insert into public.reports (reporter_id, reported_user_id, message_id, reason) values (a, b, m.id, 'spam');
+  begin
+    insert into public.reports (reporter_id, reported_user_id, reason) values (a, b, 'spam');
+    assert false, 'a report needs a target';
+  exception when check_violation then null;
+  end;
+  reset role;
+
+  -- Account rules, where the accounts module is installed.
+  if to_regclass('public.account_links') is not null then
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.messaging_set_settings('{"groupsCreateRequiresAccount": true, "groupsRequireAccount": true}');
+    perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    begin
+      perform public.create_group('No account', 'd');
+      assert false, 'creating needs an account';
+    exception when raise_exception then
+      assert sqlerrm = 'account_required', 'got ' || sqlerrm;
+    end;
+    begin
+      perform public.join_group(g3);
+      assert false, 'joining needs an account';
+    exception when raise_exception then
+      assert sqlerrm = 'account_required', 'got ' || sqlerrm;
+    end;
+    reset role;
+    insert into public.account_links (provider, subject, profile_id) values ('test', 'groups-x', x);
+    perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.create_group('With account', 'd');
+    perform public.join_group(g3);
+    reset role;
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.messaging_set_settings('{"groupsCreateRequiresAccount": false, "groupsRequireAccount": false}');
+  end if;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.join_group(g3);
+  m := public.send_message(g3, 'liked by both');
+  reset role;
+
+  -- Profile merge: A and B are both in g3; B's message and like move to A.
+  if to_regprocedure('public.merge_profiles(uuid,uuid)') is not null then
+    foreach gx in array array[a, b] loop
+      perform set_config('request.jwt.claims', json_build_object('sub', gx, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      perform public.set_message_like(m.id, true);
+      reset role;
+    end loop;
+    assert (select like_count from public.messages where id = m.id) = 2, 'two likes before the merge';
+    perform public.merge_profiles(a, b);
+    assert (select count(*) from public.conversation_members where conversation_id = g3 and user_id = a and state = 'active') = 1,
+      'one active row for main';
+    assert (select role from public.conversation_members where conversation_id = g3 and user_id = a) = 'creator',
+      'main stays the creator';
+    assert not exists (select 1 from public.conversation_members where user_id = b), 'other has no memberships left';
+    assert not exists (select 1 from public.messages where author_id = b), 'other''s messages are main''s';
+    assert (select count(*) from public.message_likes where message_id = m.id) = 1
+      and (select like_count from public.messages where id = m.id) = 1, 'one like, counted once';
+    assert (select created_by from public.groups where conversation_id = g2) = a, 'the groups other created are main''s';
+    assert (select member_count from public.groups where conversation_id = g3) =
+      (select count(*) from public.conversation_members where conversation_id = g3 and state = 'active'),
+      'member_count is recounted';
+  end if;
+
+  -- Account deletion: keep leaves the messages, eraseAll deletes them.
+  perform public.messaging_on_account_delete(adm);
+  assert exists (select 1 from public.messages where author_id = adm), 'keep: the messages stay';
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"onAccountDelete": "eraseAll"}');
+  perform public.messaging_on_account_delete(adm);
+  assert not exists (select 1 from public.messages where author_id = adm), 'eraseAll: the messages go';
+
+  -- Inbox installed after this module: notifications has no conversation_id, removal still notifies.
+  if to_regclass('public.notifications') is not null then
+    alter table public.notifications drop column conversation_id;
+    perform set_config('request.jwt.claims', json_build_object('sub',
+      (select created_by from public.groups where conversation_id = g2), 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.remove_member(g2, c);
+    reset role;
+    assert (select count(*) from public.notifications where user_id = c and kind = 'group_member_removed') = 1,
+      'removal notified without conversation_id';
+  end if;
+
+  -- groups/004: a changed member count broadcasts `members` on the conversation's channel.
+  -- groups/005: the files of deleted groups and stale unreferenced uploads are listed.
+  declare
+    s uuid := gen_random_uuid();
+    t uuid := gen_random_uuid();
+    gs uuid;
+    mid uuid;
+    rep_m uuid;
+    rep_g uuid;
+    pend text := a || '/' || gen_random_uuid() || '.jpg';
+    kept text[];
+    listed text[];
+  begin
+    insert into auth.users (id) values (s), (t);
+    perform set_config('request.jwt.claims', json_build_object('sub', s, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    gs := public.create_group('Sweep', 'files', s || '/' || gen_random_uuid() || '.jpg');
+    reset role;
+    update public.groups
+       set status = 'visible', name = pending_name, description = pending_description,
+           pending_name = null, pending_description = null, image_path = gs || '/live.jpg'
+     where conversation_id = gs;
+
+    if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+      perform set_config('request.jwt.claims', json_build_object('sub', t, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      perform public.join_group(gs);
+      perform public.join_group(gs);
+      reset role;
+      assert (select count(*) from realtime.messages
+              where topic = 'conversation:' || gs and event = 'members') = 1,
+        'a join broadcasts members once (an idempotent rejoin changes nothing)';
+      perform set_config('request.jwt.claims', json_build_object('sub', s, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      perform public.remove_member(gs, t);
+      perform public.readmit_member(gs, t);
+      reset role;
+      assert (select count(*) from realtime.messages
+              where topic = 'conversation:' || gs and event = 'members') = 2,
+        'a removal broadcasts members; a readmission (no count change) does not';
+      assert (select bool_and(private) from realtime.messages where topic = 'conversation:' || gs),
+        'on the private channel';
+    end if;
+
+    insert into public.messages (conversation_id, author_id, image_path, status)
+      values (gs, s, gs || '/' || s || '/sent.jpg', 'visible') returning id into mid;
+    insert into public.message_versions (message_id, image_path) values (mid, gs || '/' || s || '/older.jpg');
+    insert into storage.objects (bucket_id, name, created_at) values
+      ('group-images', g1 || '/deleted-group.jpg', now()),
+      ('message-images', g1 || '/' || a || '/deleted-group.jpg', now()),
+      ('group-images', gs || '/live.jpg', now() - interval '2 days'),
+      ('group-images', gs || '/stale.jpg', now() - interval '2 days'),
+      ('group-images', gs || '/fresh.jpg', now()),
+      ('group-images-pending', (select pending_image_path from public.groups where conversation_id = gs),
+        now() - interval '2 days'),
+      ('group-images-pending', s || '/abandoned.jpg', now() - interval '2 days'),
+      ('group-images-pending', s || '/uploading.jpg', now()),
+      ('message-images', gs || '/' || s || '/sent.jpg', now() - interval '2 days'),
+      ('message-images', gs || '/' || s || '/older.jpg', now() - interval '2 days'),
+      ('message-images', gs || '/' || s || '/never-sent.jpg', now() - interval '2 days'),
+      ('message-images', gs || '/' || s || '/being-sent.jpg', now());
+    select array_agg(u.bucket || ':' || u.name order by u.bucket || ':' || u.name) into listed
+      from public.messaging_images_unreferenced(100000) u
+     where u.name like g1 || '/%' or u.name like gs || '/%' or u.name like s || '/%';
+    assert listed = (select array_agg(e order by e) from unnest(array[
+        'group-images:' || g1 || '/deleted-group.jpg',
+        'group-images:' || gs || '/stale.jpg',
+        'group-images-pending:' || s || '/abandoned.jpg',
+        'message-images:' || g1 || '/' || a || '/deleted-group.jpg',
+        'message-images:' || gs || '/' || s || '/never-sent.jpg'
+      ]) e), 'swept: deleted groups'' files and stale unreferenced uploads, got ' || listed::text;
+
+    -- groups/006: what an open report points at stays until the report is resolved: a
+    -- reported message's image (here in its earlier version) and a reported group's
+    -- pictures, live and pending, even once the group is deleted.
+    insert into public.messages (conversation_id, author_id, status)
+      values (g1, a, 'deleted') returning id into mid;
+    insert into public.message_versions (message_id, image_path) values (mid, g1 || '/' || a || '/reported.jpg');
+    update public.groups set pending_image_path = pend where conversation_id = g1;
+    insert into storage.objects (bucket_id, name, created_at) values
+      ('message-images', g1 || '/' || a || '/reported.jpg', now()),
+      ('group-images-pending', pend, now() - interval '2 days');
+    kept := array[g1 || '/' || a || '/reported.jpg', g1 || '/deleted-group.jpg', pend];
+    assert (select count(*) from public.messaging_images_unreferenced(100000) u where u.name = any (kept)) = 3,
+      'without a report, the deleted group''s files are swept';
+    insert into public.reports (reporter_id, reported_user_id, message_id, reason)
+      values (c, a, mid, 'spam') returning id into rep_m;
+    insert into public.reports (reporter_id, reported_user_id, group_id, reason)
+      values (c, a, g1, 'spam') returning id into rep_g;
+    assert (select count(*) from public.messaging_images_unreferenced(100000) u where u.name = any (kept)) = 0,
+      'an open report keeps its evidence';
+    update public.reports set status = 'resolved' where id in (rep_m, rep_g);
+    assert (select count(*) from public.messaging_images_unreferenced(100000) u where u.name = any (kept)) = 3,
+      'a resolved report lets the sweep go on';
+
+    perform set_config('request.jwt.claims', json_build_object('sub', s, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    failed := false;
+    begin
+      perform public.messaging_images_unreferenced(1);
+    exception when insufficient_privilege then failed := true;
+    end;
+    assert failed, 'authenticated must not list sweepable files';
+    reset role;
+  end;
+
+  -- messaging/005: a group that isn't visible takes no message, except its creator's while
+  -- it is pending. groups/006: at most 5 edits per group per hour, admins exempt.
+  declare
+    u1 uuid := gen_random_uuid();
+    u2 uuid := gen_random_uuid();
+    gp uuid;
+  begin
+    insert into auth.users (id) values (u1), (u2);
+    perform set_config('request.jwt.claims', json_build_object('sub', u1, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    gp := public.create_group('Under review', 'd');
+    m := public.send_message(gp, 'while under review');
+    assert m.status = 'visible', 'the creator writes to their pending group';
+    reset role;
+    insert into public.conversation_members (conversation_id, user_id) values (gp, u2);
+    perform set_config('request.jwt.claims', json_build_object('sub', u2, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    begin
+      perform public.send_message(gp, 'hi');
+      assert false, 'only its creator writes to a pending group';
+    exception when raise_exception then
+      assert sqlerrm = 'not_found', 'got ' || sqlerrm;
+    end;
+    reset role;
+    update public.groups set status = 'visible' where conversation_id = gp;
+    perform set_config('request.jwt.claims', json_build_object('sub', u2, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.send_message(gp, 'visible now');
+    reset role;
+    update public.groups set status = 'hidden' where conversation_id = gp;
+    foreach gx in array array[u1, u2] loop
+      perform set_config('request.jwt.claims', json_build_object('sub', gx, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      begin
+        perform public.send_message(gp, 'hi');
+        assert false, 'a hidden group takes no message, not even its creator''s';
+      exception when raise_exception then
+        assert sqlerrm = 'not_found', 'got ' || sqlerrm;
+      end;
+      reset role;
+    end loop;
+    update public.groups set status = 'visible' where conversation_id = gp;
+
+    perform set_config('request.jwt.claims', json_build_object('sub', u1, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    for i in 1 .. 5 loop
+      perform public.edit_group(gp, 'Edit ' || i, null, null);
+    end loop;
+    begin
+      perform public.edit_group(gp, 'Edit 6', null, null);
+      assert false, 'a sixth edit within the hour is refused';
+    exception when raise_exception then
+      assert sqlerrm = 'rate_limited', 'got ' || sqlerrm;
+    end;
+    reset role;
+    assert (select pending_name from public.groups where conversation_id = gp) = 'Edit 5',
+      'the refused edit changed nothing';
+    perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.edit_group(gp, 'By the admin', null, null);
+    reset role;
+    assert (select count(*) from public.group_edits where group_id = gp) = 5, 'an admin''s edit is not counted';
+    update public.group_edits set at = now() - interval '61 minutes' where group_id = gp;
+    perform set_config('request.jwt.claims', json_build_object('sub', u1, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.edit_group(gp, 'An hour later', null, null);
+    failed := false;
+    begin
+      perform 1 from public.group_edits;
+    exception when insufficient_privilege then failed := true;
+    end;
+    assert failed, 'clients do not read the edit log';
+    reset role;
+    assert (select count(*) from public.group_edits where group_id = gp) = 1, 'older edits are dropped';
+  end;
+
+  -- Clients never call the dashboard and service functions; anon calls nothing.
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  failed := false;
+  begin
+    perform public.messaging_on_account_delete(c);
+  exception when insufficient_privilege then failed := true;
+  end;
+  assert failed, 'authenticated must not call messaging_on_account_delete';
+  failed := false;
+  begin
+    perform public.merge_messaging(c, x);
+  exception when insufficient_privilege then failed := true;
+  end;
+  assert failed, 'authenticated must not call merge_messaging';
+  reset role;
+  set local role anon;
+  failed := false;
+  begin
+    perform public.search_groups();
+  exception when insufficient_privilege then failed := true;
+  end;
+  assert failed, 'anon must not search groups';
+  reset role;
+
+  raise exception 'GROUPS_TESTS_PASSED';
+end $$;

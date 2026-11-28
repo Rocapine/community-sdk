@@ -103,4 +103,26 @@ describe("attachments", () => {
     expect(canAttach(adminsOnly, true)).toBe(true);
     expect(canAttach(resolveConfig(base), true)).toBe(false);
   });
+
+  it("takes the built-in group card with the groups module on, even with attachments off", async () => {
+    const card = { type: "group", id: "g1" };
+    const inserted: { row?: Record<string, unknown> } = {};
+    const groups = resolveConfig({
+      ...base,
+      supabase: fakeClient(inserted),
+      modules: { ...base.modules, groups: {} },
+    });
+    expect(canAttach(groups, false, "group")).toBe(true);
+    expect(canAttach(groups, false, "verse")).toBe(false);
+    expect(canAttach(resolveConfig(base), false, "group")).toBe(false);
+    await createPost(groups, { topic: "general", body: "Join us", attachment: card });
+    expect(inserted.row).toMatchObject({ attachment: card });
+    await expect(
+      createPost(resolveConfig({ ...base, supabase: fakeClient({}) }), {
+        topic: "general",
+        body: "x",
+        attachment: card,
+      }),
+    ).rejects.toThrow("attachments module is not enabled");
+  });
 });

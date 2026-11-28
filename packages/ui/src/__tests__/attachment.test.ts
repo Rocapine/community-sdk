@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // The built core pulls in JSX; canAttach and resolveConfig are plain TS.
 vi.mock("@rocapine/community-core", async () => import("../../../core/src/config"));
 const { resolveConfig } = await import("../../../core/src/config");
-const { allowedAttachment } = await import("../utils/attachment");
+const { allowedAttachment, attachmentRenderer, attachmentVariant } =
+  await import("../utils/attachment");
 
 const base = {
   supabase: null,
@@ -37,5 +38,32 @@ describe("allowedAttachment", () => {
     expect(allowedAttachment(cfg(true), false, { type: "recipe", id: "1" })).toBeNull();
     expect(allowedAttachment(resolveConfig(base), true, verse)).toBeNull();
     expect(allowedAttachment(cfg(true), false, undefined)).toBeNull();
+  });
+});
+
+describe("the group card", () => {
+  const card = { type: "group", id: "g1" };
+  const groups = resolveConfig({ ...base, modules: { ...base.modules, groups: {} } });
+
+  it("goes out with the groups module even when attachments are off", () => {
+    expect(allowedAttachment(groups, false, card)).toEqual(card);
+    expect(allowedAttachment(resolveConfig(base), false, card)).toBeNull();
+  });
+
+  it("is drawn by the SDK when the host renderer returns null, by the host when not", () => {
+    expect(attachmentRenderer("group", null, true)).toBe("group");
+    expect(attachmentRenderer("group", undefined, true)).toBe("group");
+    expect(attachmentRenderer("group", "host card", true)).toBe("host");
+    expect(attachmentRenderer("group", null, false)).toBeNull();
+    expect(attachmentRenderer("verse", null, true)).toBeNull();
+    expect(attachmentRenderer("verse", "host card", false)).toBe("host");
+  });
+
+  it("follows shareCardLayout in posts and stays compact in bubbles", () => {
+    expect(attachmentVariant("group", "card", "banner")).toBe("banner");
+    expect(attachmentVariant("group", "card", "card")).toBe("card");
+    expect(attachmentVariant("group", "compact", "banner")).toBe("compact");
+    expect(attachmentVariant("verse", "card", "banner")).toBe("card");
+    expect(attachmentVariant("group", "card", null)).toBe("card");
   });
 });

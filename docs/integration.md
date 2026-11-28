@@ -41,7 +41,8 @@ exact signatures, see the per-package READMEs.
    ```
 
    Drop any module you don't want (`core` is always implied; omitting the flag
-   installs every module). This copies migrations into `supabase/migrations/`
+   installs every module but `accounts`, group chats' `messaging`, `groups` and
+   `attachments` included). This copies migrations into `supabase/migrations/`
    and Edge Functions into `supabase/functions/`, and writes
    `community-sdk.json`. Nothing project-specific is written into the
    migrations: the same files deploy to a sandbox and to production.
@@ -69,6 +70,7 @@ exact signatures, see the per-package READMEs.
    - `COMMUNITY_TRANSLATION_LOCALES` is needed only for the translation module.
    - `EXPO_ACCESS_TOKEN` is needed only for the push module.
    - Two secrets must equal what the app sets in Phase 3:
+
      - `COMMUNITY_APP_NAME` is the app's name as users would type it: display names and handles containing it are refused (no "<App> Team" impersonation);
      - `COMMUNITY_TRANSLATION_LOCALES` must equal `modules.translation.locales`.
 
@@ -275,6 +277,131 @@ e.g. `lib/community-config.ts`.
   notification taps: the payload has `data.route: "/community"` and
   `data.kind`.
 
+## Messaging (groups module)
+
+Public group chats next to the feed: members create groups, find them in Explore, join,
+write (text, one image, a reply, a like), and share a group's card in the feed. Everything
+stays off unless `modules.groups` is set; direct messages come later on the same core.
+
+**Backend.** `init --modules …,groups` (or `upgrade --add-modules groups`) also installs
+`messaging` (the chat core) and `attachments` (a group's share card is a post attachment).
+`init` without `--modules` now installs `messaging`, `groups` and `attachments` too: the
+tables are there, the app shows nothing until it sets `modules.groups`. Install `push`
+**before** messaging for group pushes (a later `push` means re-running `messaging/002`);
+`inbox` works in either order (the group events in the center). See [`backend-runbook.md`](backend-runbook.md#8-messaging-and-groups)
+for the order, the functions and the settings.
+
+**Config.** Every value the backend enforces also lives in `messaging_settings`, set with
+`messaging_set_settings` (runbook). Keep both equal: in dev builds `CommunityProvider`
+warns when they differ.
+
+```ts
+modules: { groups: {} },             // groups' own options, below
+messaging: { homeLayout: "header" }, // shared chat options, below
+```
+
+| Option                         | Default      | Meaning                                                                                                                                                                                                                                     |
+| ------------------------------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `messaging.moderation`         | `"post"`     | `"post"`: a message shows at once and the AI hides it if it fails; `"pre"`: it waits for the AI; `"reportOnly"`: no AI, reports only. Images always wait for the AI. Backend key `moderation`.                                              |
+| `messaging.translation`        | `"onDemand"` | A "Translate" action on messages (needs the `translation` module). `"off"` removes it. Group names and descriptions are translated at approval (translation module) whatever this says.                                                     |
+| `messaging.typingIndicator`    | `true`       | "X is typing" in a conversation.                                                                                                                                                                                                            |
+| `messaging.badge`              | `"followed"` | The header items' badge: unread messages of the groups I follow (`"followed"`), of all my groups (`"all"`), or a dot (`"dot"`) for the followed ones.                                                                                       |
+| `messaging.hubLayout`          | `"tabs"`     | The Messages page: "Explore groups" on top (`"tabs"`, which becomes the Groups / DMs tabs once DMs exist) or at the bottom of a single list (`"unified"`).                                                                                  |
+| `messaging.homeLayout`         | `"header"`   | `"header"`: the feed reaches messages through header items. `"segmented"`: a "Feed \| Groups" switch on the feed's home (needs `onOpenMessages` and `onOpenExplore`).                                                                       |
+| `messaging.pushPreview`        | `"full"`     | Group push text: the message (`"full"`), "X sent a message" (`"sender"`), or a neutral line (`"none"`). Backend only.                                                                                                                       |
+| `messaging.onAccountDelete`    | `"keep"`     | What account deletion does to the member's messages: keep them, erase their DMs (`"eraseDms"`, later), or erase every message (`"eraseAll"`). Backend only.                                                                                 |
+| `messaging.maxLength`          | `2000`       | Characters per message (database cap 4000).                                                                                                                                                                                                 |
+| `messaging.ratePerMinute`      | `20`         | One per-minute budget per member: sends, edits and deletions of your own messages share it (`messaging/006`).                                                                                                                               |
+| `groups.preview`               | `"readOnly"` | A non-member reads a group before joining (`"readOnly"`), or joins first (`"none"`). Backend key `groupsPreview`.                                                                                                                           |
+| `groups.exploreLayout`         | `"list"`     | Explore: a compact list or `"cards"` with a banner.                                                                                                                                                                                         |
+| `groups.shareCardLayout`       | `"card"`     | A group's card in the feed: `"card"` or `"banner"`.                                                                                                                                                                                         |
+| `groups.requireAccount`        | `"feed"`     | Joining and writing need an app account: `true` (enforced by the backend, accounts module), `false`, or `"feed"` (client only: runs the feed's `beforeCompose` gate first). Backend key `groupsRequireAccount` (`"feed"` is `false` there). |
+| `groups.createRequiresAccount` | `true`       | Creating a group needs an app account (accounts module; without it nobody could pass, so the backend skips the rule).                                                                                                                       |
+| `groups.maxCreatedPerMember`   | `3`          | Groups a member may create.                                                                                                                                                                                                                 |
+| `groups.maxJoinedPerMember`    | `50`         | Groups a member may belong to.                                                                                                                                                                                                              |
+| `groups.maxMembers`            | `null`       | Members per group; `null` = no limit.                                                                                                                                                                                                       |
+| `groups.nameMaxLength`         | `60`         | Name length (database cap 120).                                                                                                                                                                                                             |
+| `groups.descriptionMaxLength`  | `500`        | Description length (database cap 1000).                                                                                                                                                                                                     |
+
+Fixed limits, not settings: a group's creator edits it at most 5 times an hour (in-app
+admins exempt; `GroupFormSheet` says to try again later), and a group under review takes
+messages from its creator only, a hidden one from nobody (the chat says the group no
+longer exists).
+
+**Host adapter.** `host.onAccountRequired(reason)`, `reason` `"joinGroup"`, `"createGroup"`
+(or `"dm"` later): the SDK calls it when an action needs an app account the member hasn't
+linked. Show the app's sign-in there.
+
+**Screens.** Mount them in your router like the others; navigation is callbacks.
+
+- `CommunityFeedScreen` gains `onOpenMessages(target?)`, `onOpenExplore()` and
+  `beforeJoinGroup?()`. `target` is `{ groupId, preview? }` (a group; `preview`: read-only,
+  I'm not a member), `{ tab: "groups" }` (the Messages page on a tab) or nothing (the
+  Messages page); `{ conversationId }` is for DMs later. Without `onOpenMessages` there are
+  no messages header items, no Groups home, and a group card only joins.
+- `NotificationInboxScreen` gains `onOpenMessages({ groupId, preview? })` (same callback):
+  "your group was approved" and "part of your group wasn't accepted" open the group; "you
+  were removed from a group" opens its preview, which says so (nothing with
+  `groups.preview: "none"`).
+- `MessagesScreen`: `onOpenConversation(id)`, `onOpenExplore()`, `onBack()`, `initialTab?`.
+- `ConversationScreen`: `conversationId`, `mode` (`"member"` or `"preview"`, read-only with
+  a Join bar), `onOpenProfile`, `onOpenGroupDetails?`, `onOpenGroup?(groupId, preview)` (a
+  group card in a message), `onOpenAttachment?`, `onBack`, `beforeSend?()` and
+  `beforeJoinGroup?()` (host gates, same contract as `beforeCompose`: resolve `false` to
+  cancel; with `requireAccount: "feed"`, pass the feed's `beforeCompose`), and `isFocused`
+  (pass `useIsFocused()`: the conversation is marked read only while it has focus).
+- `ExploreGroupsScreen`: `onOpenGroup(id, preview)`, `onBack`, `beforeCreate?`,
+  `beforeJoinGroup?`.
+- `GroupDetailsScreen`: `groupId`, `onOpenMembers`, `onShare(group)` (open the feed's
+  composer with `composeRequest={{ attachment: { type: "group", id: group.id }, requestedAt }}`),
+  `onLeft` (I left or deleted it: leave this screen and the conversation under it), `onBack`.
+- `GroupMembersScreen`: `groupId`, `onOpenProfile`, `onBack`.
+
+`examples/expo-app` wires all of them (`src/routes.ts`, `src/app/messages.tsx`,
+`conversation/[id].tsx`, `explore.tsx`, `group/[id]/`).
+
+**Header and home.** Header items `"messages"` (the Messages page) and `"groups"` (on its
+Groups tab) carry the unread badge (`messaging.badge`; `useMessagingBadge()` for your own
+entry point). With `homeLayout: "segmented"` the groups live in the home's Groups segment,
+so the header needs no `"groups"` item; once direct messages exist, put `"dms"` in the
+header there instead of `"messages"`. The SDK doesn't switch it for you: the header is your
+config.
+
+**Pushes and badge.** Group pushes need the push module. A member follows a group with the
+bell in its conversation (off by default per group). The member-wide "Groups" switch for
+your settings screen is `notify_group_messages` (default on) in `useNotificationPreferences()`:
+`setPreference("notify_group_messages", false)`. It is read only with `modules.groups` on
+(`notificationPreferenceKeys(cfg)`); otherwise `preferences.notify_group_messages` is
+absent and setting it throws. Several
+messages from one group within a minute push once. A message push carries
+`data: { route: "/community", kind: "community_message", conversationId }`: route it with
+`onOpenMessages({ groupId: conversationId })`, and skip the banner in your foreground
+handler while that conversation is on screen. Every community push's `badge` is the
+center's unread count plus the unread messages of followed groups. Messages never create
+notification-center rows; the center gets group approved, a group field rejected, and
+removed from a group (inbox module).
+
+**Optional peer.** `npx expo install expo-clipboard` adds "Copy" to a message's menu on
+iOS and Android (new native build). Without it there is no Copy; web uses the browser
+clipboard.
+
+**Chat gestures.** A double tap on a message likes or unlikes it; a swipe right replies
+(iOS and Android; touches at the screen's left edge stay the back swipe). The long press
+menu keeps Like and Reply, and screen readers get both as actions. `ConversationScreen`
+brings its own `GestureHandlerRootView`. The header shows "● N online", the other members
+online (`groups/007` leaves the reader out of every "online" count), and only when N > 0.
+
+**Web.** The screens run on react-native-web: a message's menu opens on right click or
+the "…" shown on hover and focus (long press on touch), a double click likes, Reply is in
+the menu (no swipe), and the menu's Copy copies a message (bubbles take no text selection,
+so a double click doesn't select a word).
+
+**Analytics.** New `COMMUNITY_EVENTS`: `messagesOpened`, `conversationOpened`,
+`messageSent`, `messageLiked`, `messageTranslated`, `messageEdited`, `messageDeleted`,
+`messageReported`, `groupExploreOpened`, `groupSearched`, `groupPreviewed`, `groupJoined`,
+`groupLeft`, `groupCreated`, `groupShared`, `groupNotificationsToggled`, `homeSegment`. Ids
+and counts only, never message text.
+
 ## Phase 5 — Moderation
 
 The `core` migrations include `community_dashboard` (`admin_users`,
@@ -329,7 +456,12 @@ On a dev client, against the real project or a scratch one:
     (or none with `accounts.required`). Delete the account: every device drops
     the profile, which falls back to the default name. Pushes reach both
     devices.
-12. **The app's own tests** still pass.
+12. **Groups.** With the groups module, two accounts: A creates a group, sees "under
+    review", then the center's "Your group was approved"; B finds it in Explore, previews,
+    joins and writes; A sees the message live, likes, replies and edits; a follower gets one
+    push per burst; A removes B, and B's center says so. Share the group to the feed and
+    join from its card. Repeat on web.
+13. **The app's own tests** still pass.
 
 ## Maintenance
 

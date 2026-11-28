@@ -68,6 +68,7 @@ describe("runInit", () => {
       "inbox",
       "inbox",
       "inbox",
+      "inbox",
     ]);
   });
 
@@ -125,6 +126,13 @@ describe("runInit", () => {
     expect(toBadges).toBeGreaterThan(badges);
   });
 
+  it("installs messaging and attachments with groups, messaging first", async () => {
+    const result = await runInit(baseOptions({ modules: ["core", "groups"] }));
+    expect(result.manifest.modules).toEqual(["core", "attachments", "messaging", "groups"]);
+    const files = fs.readdirSync(path.join(cwd, "supabase", "migrations"));
+    expect(files.some((f) => f.includes("_community_messaging_messaging"))).toBe(true);
+  });
+
   it("installs presence after core", async () => {
     const result = await runInit(baseOptions({ modules: ["core", "presence"] }));
     expect(result.manifest.modules).toEqual(["core", "presence"]);
@@ -132,13 +140,14 @@ describe("runInit", () => {
     expect(files.some((f) => f.includes("_community_presence_"))).toBe(true);
   });
 
-  it("init with --modules accounts installs account-session and account-delete and accounts/001-003", async () => {
+  it("init with --modules accounts installs account-session and account-delete and accounts/001-004", async () => {
     const result = await runInit(baseOptions({ modules: ["accounts"] }));
     expect(result.manifest.modules).toEqual(["core", "accounts"]);
     const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
-    expect(files.at(-3)).toMatch(/_community_accounts_accounts\.sql$/);
-    expect(files.at(-2)).toMatch(/_community_accounts_merge_and_delete\.sql$/);
-    expect(files.at(-1)).toMatch(/_community_accounts_markers_and_bans\.sql$/);
+    expect(files.at(-4)).toMatch(/_community_accounts_accounts\.sql$/);
+    expect(files.at(-3)).toMatch(/_community_accounts_merge_and_delete\.sql$/);
+    expect(files.at(-2)).toMatch(/_community_accounts_markers_and_bans\.sql$/);
+    expect(files.at(-1)).toMatch(/_community_accounts_merge_hooks\.sql$/);
     const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions"));
     expect(fnDirs).toContain("account-session");
     expect(fnDirs).toContain("account-delete");
@@ -237,6 +246,16 @@ describe("runInit", () => {
     expect(fnDirs).toContain("notify-comment");
     expect(fnDirs).toContain("broadcast-post");
     expect(fnDirs).not.toContain("notify-reaction");
+  });
+
+  it("copies notify-message with messaging and push", async () => {
+    await runInit(baseOptions({ modules: ["core", "push", "groups"] }));
+    expect(fs.readdirSync(path.join(cwd, "supabase", "functions"))).toContain("notify-message");
+  });
+
+  it("does not copy notify-message without push", async () => {
+    await runInit(baseOptions({ modules: ["core", "groups"] }));
+    expect(fs.readdirSync(path.join(cwd, "supabase", "functions"))).not.toContain("notify-message");
   });
 
   it("installs the translation module last, with its migrations and two functions", async () => {

@@ -621,7 +621,7 @@ function OptionPill({
  * Android: the Modal is edge-to-edge, so the OS does not resize it for the
  * keyboard. RN reports the height minus the navigation bar, which the keyboard
  * also covers: add it back (`bottomInset`). */
-function useKeyboardHeight(bottomInset: number): number {
+export function useKeyboardHeight(bottomInset: number): number {
   const [height, setHeight] = useState(0);
   const ios = Platform.OS === "ios";
   const extra = ios ? 0 : bottomInset;

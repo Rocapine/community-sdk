@@ -19,3 +19,15 @@ export const userPostsKey = (userId: string, locale?: string | null) =>
 export const SEARCH_KEY = ["community", "search"] as const;
 export const searchKey = (cleaned: string, locale?: string | null) =>
   [...SEARCH_KEY, cleaned, locale ?? "src"] as const;
+
+// Messaging (groups module). Keys holding translated text end with the locale too.
+export const CONVERSATIONS_KEY = ["community", "conversations"] as const;
+export const MESSAGES_KEY = ["community", "messages"] as const;
+export const messagesKey = (conversationId: string, locale?: string | null) =>
+  [...MESSAGES_KEY, conversationId, locale ?? "src"] as const;
+export const GROUPS_KEY = ["community", "groups"] as const;
+export const GROUPS_SEARCH_KEY = [...GROUPS_KEY, "search"] as const;
+export const groupKey = (id: string, locale?: string | null) =>
+  [...GROUPS_KEY, "group", id, locale ?? "src"] as const;
+export const groupMembersKey = (id: string) => [...GROUPS_KEY, "members", id] as const;
+export const UNREAD_MESSAGES_KEY = ["community", "unreadMessages"] as const;

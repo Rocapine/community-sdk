@@ -1,5 +1,5 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { fetchImagePath, fetchImagePaths, postImageUrl } from "./images.ts";
+import { fetchImagePath, fetchImagePaths, postImageUrl, sweepMessagingImages } from "./images.ts";
 
 Deno.test("postImageUrl points at the public post-images bucket", () => {
   assert(postImageUrl("u1/a.jpg").endsWith("/storage/v1/object/public/post-images/u1/a.jpg"));
@@ -98,3 +98,81 @@ Deno.test(
     assertEquals(noModulePgrst.paths.size + noModulePgrst.failedIds.size, 0);
   },
 );
+
+// rpc() answers `listed`; storage.from(bucket).remove(names) is recorded and answers
+// `removeResult(bucket)`.
+function sweepStub(
+  listed: { data: unknown; error: unknown },
+  removeResult: (bucket: string) => { data: unknown; error: unknown } = (b) => ({
+    data: [{ name: b }],
+    error: null,
+  }),
+) {
+  const removes: [string, string[]][] = [];
+  // deno-lint-ignore no-explicit-any
+  const client: any = {
+    rpc: () => Promise.resolve(listed),
+    storage: {
+      from: (bucket: string) => ({
+        remove: (names: string[]) => {
+          removes.push([bucket, names]);
+          const r = removeResult(bucket);
+          return Promise.resolve({
+            data: r.data ? names.map((name) => ({ name })) : null,
+            error: r.error,
+          });
+        },
+      }),
+    },
+  };
+  return { client, removes };
+}
+
+Deno.test("sweepMessagingImages removes the listed files bucket by bucket", async () => {
+  const { client, removes } = sweepStub({
+    data: [
+      { bucket: "group-images", name: "g1/a.jpg" },
+      { bucket: "message-images", name: "g1/u1/b.jpg" },
+      { bucket: "message-images", name: "g1/u2/c.jpg" },
+    ],
+    error: null,
+  });
+  assertEquals(await sweepMessagingImages(client), { removed: 3 });
+  assertEquals(removes, [
+    ["group-images", ["g1/a.jpg"]],
+    ["message-images", ["g1/u1/b.jpg", "g1/u2/c.jpg"]],
+  ]);
+});
+
+Deno.test(
+  "sweepMessagingImages: nothing listed or no groups module => nothing removed",
+  async () => {
+    const none = sweepStub({ data: [], error: null });
+    assertEquals(await sweepMessagingImages(none.client), { removed: 0 });
+    assertEquals(none.removes, []);
+    const missing = sweepStub({ data: null, error: { code: "PGRST202", message: "not found" } });
+    assertEquals(await sweepMessagingImages(missing.client), { removed: 0 });
+  },
+);
+
+Deno.test("sweepMessagingImages reports a failed list or removal", async () => {
+  const failedList = sweepStub({ data: null, error: { code: "", message: "fetch failed" } });
+  assertEquals(await sweepMessagingImages(failedList.client), {
+    removed: 0,
+    error: "fetch failed",
+  });
+  const failedRemove = sweepStub(
+    {
+      data: [
+        { bucket: "group-images", name: "g1/a.jpg" },
+        { bucket: "message-images", name: "g1/u1/b.jpg" },
+      ],
+      error: null,
+    },
+    (b) =>
+      b === "group-images"
+        ? { data: null, error: { message: "denied" } }
+        : { data: [], error: null },
+  );
+  assertEquals(await sweepMessagingImages(failedRemove.client), { removed: 1, error: "denied" });
+});

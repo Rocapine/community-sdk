@@ -95,6 +95,12 @@ export const defaultIcons: CommunityIconSet = {
     iosFill: "flame.fill",
     material: "local_fire_department",
   }),
+  messages: fromSymbols("messages", {
+    ios: "bubble.left.and.bubble.right",
+    iosFill: "bubble.left.and.bubble.right.fill",
+    material: "forum",
+  }),
+  groups: fromSymbols("groups", { ios: "person.3", iosFill: "person.3.fill", material: "groups" }),
   menu: fromSymbols("menu", { ios: "ellipsis", material: "more_horiz" }),
   back: fromSymbols("back", { ios: "chevron.left", material: "arrow_back" }),
   close: fromSymbols("close", { ios: "xmark", material: "close" }),

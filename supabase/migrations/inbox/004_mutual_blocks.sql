@@ -2,7 +2,8 @@
 -- The center follows blocks, past ones included: an item whose actor, or whose
 -- post's author, is blocked either way (core/016_mutual_blocks.sql) is no longer
 -- listed. Nothing is deleted, so an unblock brings the items back. Same return
--- shape as inbox/003, so installed app versions read it unchanged.
+-- shape as inbox/003, so installed app versions read it unchanged. Re-running it after
+-- inbox/005 (which adds a return column) is not supported: the CLI applies each template once.
 
 create or replace function public.list_notifications(p_limit int default 50)
 returns table (

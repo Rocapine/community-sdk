@@ -528,3 +528,65 @@ export function newestCreatedAt(posts: readonly { createdAt: string }[]): string
   }
   return newest;
 }
+
+/** A chat conversation (a group, later a DM) in the member's list. */
+export type Conversation = {
+  id: string;
+  kind: "dm" | "group";
+  lastMessageAt: string | null;
+  lastMessage: { id: string; body: string | null; authorId: string } | null;
+  unread: number;
+  notify: boolean;
+  role: "member" | "creator";
+  /** A group's live name (null for a DM, or a group never approved yet). */
+  title: string | null;
+  /** A group's live picture. */
+  imageUrl: string | null;
+  /** A group's status as the caller may know it; null for a DM. */
+  groupStatus: GroupStatus | null;
+};
+
+/** `pending`: not reviewed yet; `hidden`: hidden by a moderator (R13). Only the
+ * creator and admins ever read a group that isn't `visible`. */
+export type GroupStatus = "pending" | "visible" | "hidden";
+
+/** One message of a conversation. */
+export type ChatMessage = {
+  id: string;
+  conversationId: string;
+  authorId: string;
+  body: string | null;
+  imagePath: string | null;
+  attachment: PostAttachment | null;
+  replyTo: { id: string; authorId: string; body: string | null; deleted: boolean } | null;
+  /** `hidden`: removed by moderation or an app admin; only its author still reads it. */
+  status: "pending" | "visible" | "hidden" | "deleted";
+  /** Who left the "deleted" placeholder (`status: "deleted"` only). */
+  deletedBy: "author" | "creator" | null;
+  editedAt: string | null;
+  createdAt: string;
+  likeCount: number;
+  likedByMe: boolean;
+};
+
+/** A group. `status` and `rejectedFields` are only known to its creator/admin
+ * (RPC `my_group_review`): "visible" and empty for everyone else. */
+export type Group = {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl: string | null;
+  memberCount: number;
+  lastActivityAt: string;
+  isMember: boolean;
+  status: GroupStatus;
+  rejectedFields: string[];
+  isCreator: boolean;
+  /** My active membership's role (null when not a member): a creator who is still
+   * one manages the group, as the server's `can_manage_group` does. */
+  myRole: "member" | "creator" | null;
+  /** Who created it (a group report names them); null in search results. */
+  creatorId: string | null;
+  /** A manager removed me from it (until readmitted); false in search results. */
+  removed: boolean;
+};

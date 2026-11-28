@@ -216,6 +216,9 @@ function SheetBody({
         index={0}
         {...sizing}
         enablePanDownToClose
+        // gorhom makes its content view one accessible element ("Bottom Sheet",
+        // adjustable): on iOS that hides every field and button inside from VoiceOver.
+        accessible={false}
         animationConfigs={animationConfigs}
         topInset={insets.top}
         // Full sheets are already at their max height: "extend" keeps them

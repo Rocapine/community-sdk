@@ -22,6 +22,24 @@ export const COMMUNITY_EVENTS = {
   inboxOpened: "notification_center_opened",
   translationToggled: "community_translation_toggled",
   presenceVisibilityChanged: "community_presence_visibility_changed",
+  // Messaging and groups (groups module). Ids only, never message text.
+  messagesOpened: "community_messages_opened",
+  conversationOpened: "community_conversation_opened",
+  messageSent: "community_message_sent",
+  messageLiked: "community_message_liked",
+  messageTranslated: "community_message_translated",
+  messageEdited: "community_message_edited",
+  messageDeleted: "community_message_deleted",
+  messageReported: "community_message_reported",
+  groupExploreOpened: "community_group_explore_opened",
+  groupSearched: "community_group_searched",
+  groupPreviewed: "community_group_previewed",
+  groupJoined: "community_group_joined",
+  groupLeft: "community_group_left",
+  groupCreated: "community_group_created",
+  groupShared: "community_group_shared",
+  groupNotificationsToggled: "community_group_notifications_toggled",
+  homeSegment: "community_home_segment",
 } as const;
 
 export type CommunityEventName = (typeof COMMUNITY_EVENTS)[keyof typeof COMMUNITY_EVENTS];
