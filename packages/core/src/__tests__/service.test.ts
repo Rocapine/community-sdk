@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveConfig } from "../config";
 import {
   buildFeedSelect,
+  fetchProfile,
   isProfileUnavailable,
   threadSelect,
   withTranslationFilters,
 } from "../service";
+import { cfgWith, fakeClient } from "./fakeSupabase";
 
 // buildFeedSelect is the pure, mockable piece of the feed.extraPostColumns
 // extension point (see config.ts) — the network-hitting fetch* functions just
@@ -165,5 +167,16 @@ describe("isProfileUnavailable", () => {
     expect(isProfileUnavailable({ code: "42501" })).toBe(false);
     expect(isProfileUnavailable(new Error("offline"))).toBe(false);
     expect(isProfileUnavailable(null)).toBe(false);
+  });
+});
+
+describe("fetchProfile", () => {
+  it("asks for one row without a 406 and still answers PGRST116 when it's hidden", async () => {
+    const client = fakeClient({ tables: { profiles: { data: null, error: null } } });
+    const err = await fetchProfile(cfgWith(client), "u2").catch((e: unknown) => e);
+    expect(isProfileUnavailable(err)).toBe(true);
+    const calls = client.queries.profiles![0]!.calls.map(([m]) => m);
+    expect(calls).toContain("maybeSingle");
+    expect(calls).not.toContain("single");
   });
 });

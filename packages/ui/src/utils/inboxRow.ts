@@ -24,13 +24,17 @@ export const GROUP_INBOX_KINDS: readonly string[] = [
   "group_member_removed",
 ];
 
-/** Where tapping a row goes: its post, or its group (`GROUP_INBOX_KINDS`). A removed
- * member gets the group's preview (it says they were removed, or lets them join again
- * once readmitted); with `groups.preview: "none"` there is nothing to open. */
+/** Where tapping a row goes: its post, its group (`GROUP_INBOX_KINDS`), or the DM whose
+ * request was accepted (`dm_request_accepted`). A removed member gets the group's
+ * preview (it says they were removed, or lets them join again once readmitted); with
+ * `groups.preview: "none"` there is nothing to open. */
 export function inboxRowTarget(
   item: InboxItem,
   groupsPreview: "readOnly" | "none",
-): { postId: string } | { groupId: string; preview?: true } | null {
+): { postId: string } | { groupId: string; preview?: true } | { conversationId: string } | null {
+  // The conversation id travels in `groupId` (notifications.conversation_id).
+  if (item.kind === "dm_request_accepted")
+    return item.groupId ? { conversationId: item.groupId } : null;
   if (GROUP_INBOX_KINDS.includes(item.kind)) {
     if (!item.groupId) return null;
     if (item.kind !== "group_member_removed") return { groupId: item.groupId };
@@ -62,6 +66,8 @@ function rowTitle(t: TFn, item: InboxItem): string {
       return t("inbox.groupFieldRejected");
     case "group_member_removed":
       return t("inbox.groupMemberRemoved");
+    case "dm_request_accepted":
+      return t("inbox.dmAccepted", { name });
     default:
       return "";
   }

@@ -470,6 +470,51 @@ describe("runUpgrade", () => {
     expect(manifest.installedTemplates).toContain("images/images");
   });
 
+  it("re-copies the dms migrations after groups' when groups joins an install with dms", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core", "dms"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+
+    const result = await runUpgrade(baseOptions({ addModules: ["groups"] }));
+
+    const lastGroups = result.addedMigrations
+      .map((f) => f.includes("_community_groups_"))
+      .lastIndexOf(true);
+    const dms = result.addedMigrations.findIndex((f) => f.includes("_community_dms_dms"));
+    expect(lastGroups).toBeGreaterThan(-1);
+    expect(dms).toBeGreaterThan(lastGroups);
+    // Every dms file again, in order: dms/006 after dms/001, then 007, 008 and 009.
+    const firstMessage = result.addedMigrations.findIndex((f) =>
+      f.includes("_community_dms_first_message"),
+    );
+    const emptyDm = result.addedMigrations.findIndex((f) =>
+      f.includes("_community_dms_empty_dm_checks"),
+    );
+    expect(firstMessage).toBeGreaterThan(dms);
+    const recheck = result.addedMigrations.findIndex((f) =>
+      f.includes("_community_dms_send_recheck"),
+    );
+    const sweep = result.addedMigrations.findIndex((f) =>
+      f.includes("_community_dms_storage_sweep"),
+    );
+    expect(emptyDm).toBeGreaterThan(firstMessage);
+    expect(recheck).toBeGreaterThan(emptyDm);
+    expect(sweep).toBeGreaterThan(recheck);
+    expect(readManifest(cwd)!.modules).toEqual([
+      "core",
+      "attachments",
+      "messaging",
+      "groups",
+      "dms",
+    ]);
+  });
+
   it("adds the opt-in accounts module with addModules", async () => {
     await runInit({
       cwd,

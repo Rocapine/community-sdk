@@ -78,9 +78,9 @@ export async function fetchImagePaths(
   return { paths, failedIds };
 }
 
-// Group pictures and chat images nothing needs any more (groups/005): every file of a
-// deleted group, and uploads no row points at after a day. Removed bucket by bucket;
-// a missing RPC (no groups module) is a silent no-op. Returns how many files went, and
+// Group pictures and chat images nothing needs any more (groups/005–006, or dms/009 on a
+// DM-only install): every file of a deleted group, and uploads no row points at after a
+// day. Removed bucket by bucket; a missing RPC (neither groups nor dms) is a silent no-op. Returns how many files went, and
 // the first error (surfaced in the Slack summary).
 export async function sweepMessagingImages(
   supabase: Admin,

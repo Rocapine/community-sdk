@@ -76,3 +76,15 @@ describe("group events", () => {
     expect(inboxRowTarget(item({}), "readOnly")).toEqual({ postId: "p1" });
   });
 });
+
+describe("dm_request_accepted", () => {
+  it("names who accepted and opens the DM", () => {
+    const row = item({ kind: "dm_request_accepted", postId: null, groupId: "c1" });
+    expect(inboxRowText(t, row, now).title).toBe("Marie accepted your message request");
+    expect(inboxRowTarget(row, "none")).toEqual({ conversationId: "c1" });
+  });
+
+  it("has no target without the conversation id", () => {
+    expect(inboxRowTarget(item({ kind: "dm_request_accepted", postId: null }), "none")).toBeNull();
+  });
+});

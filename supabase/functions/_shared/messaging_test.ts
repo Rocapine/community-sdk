@@ -1,9 +1,12 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import { pushCopy } from "./copy.ts";
 import {
+  dmPushPayload,
   groupFieldsToModerate,
   messageModerationInput,
   nextGroupState,
   readMessagingMode,
+  translationRefusal,
 } from "./messaging.ts";
 
 const newGroup = {
@@ -129,4 +132,46 @@ Deno.test("readMessagingMode: the mode, or null on any other error", async () =>
   } finally {
     console.error = original;
   }
+});
+
+Deno.test("dmPushPayload: a request names no one and quotes nothing, whatever pushPreview", () => {
+  const fr = pushCopy("fr");
+  for (const preview of ["full", "sender", "none"]) {
+    const p = dmPushPayload(fr, "request", preview, "Jean", "Secret", true);
+    assertEquals(p, { body: "Tu as une nouvelle demande de message" }, preview);
+  }
+  // Anything but "message" is treated as a request (fail closed).
+  assertEquals(dmPushPayload(fr, "other", "full", "Jean", "Secret", false).title, undefined);
+});
+
+Deno.test("dmPushPayload: a message follows pushPreview, the sender as title", () => {
+  const fr = pushCopy("fr");
+  assertEquals(dmPushPayload(fr, "message", "full", "Jean", "Salut", false), {
+    title: "Jean",
+    body: "Salut",
+  });
+  assertEquals(dmPushPayload(fr, "message", "full", "Jean", null, true).body, "📷 Photo");
+  assertEquals(dmPushPayload(fr, "message", "full", "Jean", " ", false), {
+    title: "Jean",
+    body: "Jean t'a envoyé un message",
+  });
+  assertEquals(dmPushPayload(fr, "message", "sender", "Jean", "Secret", true), {
+    title: "Jean",
+    body: "Jean t'a envoyé un message",
+  });
+  assertEquals(dmPushPayload(fr, "message", "none", "Jean", "Secret", true), {
+    body: "Tu as un nouveau message",
+  });
+  const long = dmPushPayload(fr, "message", "full", "Jean", "a".repeat(300), false).body;
+  assertEquals(long.length, 120);
+  assertEquals(long.endsWith("..."), true);
+});
+
+Deno.test("translationRefusal: the author is refused, whatever the cache holds", () => {
+  const msg = { body: "hola", status: "visible", author_id: "u1" };
+  assertEquals(translationRefusal(msg, "u1"), "own message");
+  assertEquals(translationRefusal(msg, "u2"), null);
+  assertEquals(translationRefusal({ ...msg, status: "pending" }, "u2"), "not found");
+  assertEquals(translationRefusal({ ...msg, body: "  " }, "u2"), "not found");
+  assertEquals(translationRefusal(null, "u2"), "not found");
 });

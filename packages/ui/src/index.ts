@@ -72,6 +72,7 @@ export { ReportSheet } from "./components/ReportSheet";
 export { CommunityFeedScreen } from "./screens/CommunityFeedScreen";
 export { ConversationScreen, type ConversationScreenProps } from "./screens/ConversationScreen";
 export { MessagesScreen, type MessagesScreenProps } from "./screens/MessagesScreen";
+export { RequestsScreen, type RequestsScreenProps } from "./screens/RequestsScreen";
 export { ExploreGroupsScreen, type ExploreGroupsScreenProps } from "./screens/ExploreGroupsScreen";
 export { GroupDetailsScreen, type GroupDetailsScreenProps } from "./screens/GroupDetailsScreen";
 export { GroupMembersScreen, type GroupMembersScreenProps } from "./screens/GroupMembersScreen";

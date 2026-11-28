@@ -7,6 +7,9 @@
 --    author's sends plus edits of the last 60 s, under the same per-author lock;
 --  - delete_message: a banned creator no longer deletes other members' messages.
 -- Requires messaging/001. Idempotent.
+-- With the dms module, the dms migrations own later versions of send_message: a new
+-- migration that replaces it must keep their DM rules (visible_from, blocks, the first
+-- message's checks), then re-run supabase-tests/dms.sql.
 
 -- Edits of the last minute, for edit_message's count.
 create index if not exists message_versions_replaced_idx

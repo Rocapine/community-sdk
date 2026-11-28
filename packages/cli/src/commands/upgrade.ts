@@ -87,11 +87,12 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   // spurious warnings for e.g. an existing inbox-without-reaction install).
   // Two implications still apply: streaks/002 moves the streak onto badges, so an
   // install that has streaks gets badges too; groups need the messaging core and the
-  // posts' attachment column (their share card).
+  // posts' attachment column (their share card); dms need the messaging core.
   const installed = [
     ...manifest.modules,
     ...(manifest.modules.includes("streaks") ? ["badges"] : []),
     ...(manifest.modules.includes("groups") ? ["messaging", "attachments"] : []),
+    ...(manifest.modules.includes("dms") ? ["messaging"] : []),
   ];
   const canonicalModules =
     options.addModules && options.addModules.length > 0
@@ -107,6 +108,9 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   // order, sorted within each module — identical ordering rule to init. ----
   type PendingMigration = { moduleName: Module; templateFilename: string; rawSql: string };
   const pending: PendingMigration[] = [];
+  // groups/003 recreates list_conversations without the DM read rules: an install that
+  // has dms and adds groups gets its (idempotent) dms migrations again, after groups'.
+  const reapplyDms = manifest.modules.includes("dms") && addedModules.includes("groups");
   for (const moduleName of canonicalModules) {
     const moduleSrcDir = path.join(migrationsSrcRoot, moduleName);
     if (!fs.existsSync(moduleSrcDir)) continue;
@@ -117,7 +121,7 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
 
     for (const filename of filenames) {
       const id = migrationTemplateId(moduleName, templateBaseName(filename));
-      if (installedTemplateIds.has(id)) continue;
+      if (installedTemplateIds.has(id) && !(reapplyDms && moduleName === "dms")) continue;
       pending.push({
         moduleName,
         templateFilename: filename,

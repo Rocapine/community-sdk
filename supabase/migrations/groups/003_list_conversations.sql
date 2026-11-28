@@ -7,6 +7,9 @@
 -- The return type changes, so the function is dropped and created again (a SQL body
 -- isn't a tracked dependency: unread_followed_messages keeps working). Requires
 -- messaging/001 and groups/001. Idempotent.
+-- With the dms module, dms/001 owns later versions of list_conversations: a new
+-- migration that replaces it must keep its DM rules (visible_from, blocks), then re-run
+-- supabase-tests/dms.sql.
 
 drop function if exists public.list_conversations();
 

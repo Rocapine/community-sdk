@@ -3,6 +3,7 @@ import {
   type CommunityConfig,
   CommunityDisabledError,
   DEFAULT_NAME,
+  dmsSettings,
   groupsSettings,
   messagingSettings,
   isEventTopic,
@@ -204,5 +205,28 @@ describe("groupsSettings / messagingSettings", () => {
       maxLength: 2000,
       ratePerMinute: 20,
     });
+  });
+});
+
+describe("dmsSettings", () => {
+  it("resolves every default", () => {
+    expect(dmsSettings({ modules: { ...base.modules, dms: {} } })).toEqual({
+      firstMessage: "direct",
+      entryPoints: ["profile"],
+      readReceipts: false,
+      requireAccount: false,
+      requestsPerDay: 5,
+      declineCooldownDays: 30,
+    });
+  });
+
+  it("is null when dms is off or absent", () => {
+    expect(dmsSettings({ modules: { ...base.modules, dms: false } })).toBeNull();
+    expect(dmsSettings({ modules: base.modules })).toBeNull();
+  });
+
+  it("turns messaging on with dms alone", () => {
+    expect(messagingSettings({ modules: { ...base.modules, dms: {} } })?.moderation).toBe("post");
+    expect(groupsSettings({ modules: { ...base.modules, dms: {} } })).toBeNull();
   });
 });

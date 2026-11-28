@@ -47,6 +47,9 @@
 //    (opened through `onOpenMessages`), and with `messaging.homeLayout: "segmented"`
 //    a "Feed | Groups" selector under the header (validated mockup A) whose Groups side
 //    is `GroupsHome`.
+//  - Dms module: the `dms` header item (Messages on its Conversations tab), and
+//    "Message" in post menus and in this screen's thread (`dms.entryPoints` has
+//    `"contextMenu"`), opened through `onOpenMessages({ conversationId })`.
 
 import {
   COMMUNITY_EVENTS,
@@ -65,6 +68,7 @@ import {
   type PostAttachment,
   useUnreadNotificationCount,
   presenceSettings,
+  dmsSettings,
   groupsSettings,
   messagingSettings,
   useConversations,
@@ -119,15 +123,18 @@ import { ComposerSheet } from "../components/ComposerSheet";
 import { RulesSheet } from "../components/RulesSheet";
 import { openComposerGuarded, type CommentGate } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
+import { useActionMenu } from "../components/chat/MessageMenu";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
 import { MyAvatar } from "../components/Avatar";
 import { firstTabLabelInset, TABS_ROW_HEIGHT, TopicTabs } from "../components/TopicTabs";
 import { OnlinePill } from "../components/OnlinePill";
-import { haptic, PressableScale } from "../components/PressableScale";
+import { PressableScale } from "../components/PressableScale";
+import { SegmentedTabs } from "../components/SegmentedTabs";
 import { GroupLinkContext, type GroupLink } from "../components/GroupAttachment";
 import { GroupsHome } from "../components/GroupsHome";
 import { joinGate } from "../utils/groups";
+import { useMessageMember, usePrefetchDmFlags } from "../utils/messageMember";
 import { homeSegment, rememberHomeSegment, type HomeSegment } from "../utils/homeSegment";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
@@ -160,10 +167,11 @@ export function CommunityFeedScreen({
 }: {
   onOpenProfile(userId: string, source?: ProfileSource): void;
   onOpenInbox?: () => void;
-  /** Groups module: opens the Messages page (the `messages` / `groups` header items), or
-   * a group (`groupId`; `preview`: read-only, I'm not a member) from a group card or the
-   * Groups home. `conversationId` is for direct messages, later. Absent ⇒ no messages
-   * header items, no Groups home, and group cards only join. */
+  /** Groups or dms module: opens the Messages page (the `messages` / `groups` / `dms`
+   * header items, `tab` saying which), a group (`groupId`; `preview`: read-only, I'm not
+   * a member) from a group card or the Groups home, or a DM (`conversationId`) started
+   * from a post or comment menu. Absent ⇒ no messages header items, no Groups home, no
+   * "Message" in menus, and group cards only join. */
   onOpenMessages?: (target?: {
     conversationId?: string;
     groupId?: string;
@@ -261,7 +269,12 @@ export function CommunityFeedScreen({
   const blockUser = useBlockUser();
   const deleteContent = useDeleteContent();
   const pinMenu = usePinMenu();
+  const { show: showMenu, sheet: menuSheet } = useActionMenu();
   const topicStyles = useTopicStyles();
+  // Read through a ref: the post menu stays memoized (see `renderItem`).
+  const messageMenuItems = useMessageMember(onOpenMessages).menuItems;
+  const messageMenu = useRef(messageMenuItems);
+  messageMenu.current = messageMenuItems;
 
   useEffect(() => {
     emitEvent(cfg, COMMUNITY_EVENTS.opened);
@@ -295,6 +308,8 @@ export function CommunityFeedScreen({
       searchActive ? uniqueById(searchFeed.data?.pages) : uniqueById(categoryFeed.data?.pages),
     [searchActive, searchFeed.data, categoryFeed.data],
   );
+  // "Message" in a post's menu reads its author's flag from the cache.
+  usePrefetchDmFlags(onOpenMessages ? posts.map((p) => p.authorId) : []);
   // `isPending` alone (TanStack Query v5: `status === "pending"`) stays true
   // forever for a query that never runs — both `useCommunityFeed` and
   // `useSearchPosts` set `enabled: cfg.supabase !== null && ...`, so in
@@ -538,25 +553,31 @@ export function CommunityFeedScreen({
     (post: FeedPost) => {
       if (post.isOwn) {
         const askDelete = () =>
-          Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
-            { text: t("menu.cancel"), style: "cancel" },
-            {
-              text: t("menu.delete"),
-              style: "destructive",
-              onPress: () => deleteContent.mutate({ kind: "post", id: post.id, postId: post.id }),
-            },
-          ]);
+          Alert.alert(
+            t("menu.deletePostTitle"),
+            t("menu.deletePostBody"),
+            [
+              { text: t("menu.cancel"), style: "cancel" },
+              {
+                text: t("menu.delete"),
+                style: "destructive",
+                onPress: () => deleteContent.mutate({ kind: "post", id: post.id, postId: post.id }),
+              },
+            ],
+            { cancelable: true },
+          );
         const pin = pinMenu(post);
         if (pin.length === 0) return askDelete();
-        Alert.alert(post.authorName, undefined, [
+        showMenu(post.authorName, [
           ...pin,
           { text: t("menu.delete"), style: "destructive", onPress: askDelete },
           { text: t("menu.cancel"), style: "cancel" },
         ]);
         return;
       }
-      Alert.alert(post.authorName, undefined, [
+      showMenu(post.authorName, [
         ...pinMenu(post),
+        ...messageMenu.current(post.authorId),
         {
           text: t("menu.reportPost"),
           onPress: () =>
@@ -592,7 +613,7 @@ export function CommunityFeedScreen({
         { text: t("menu.cancel"), style: "cancel" },
       ]);
     },
-    [t, deleteContent, blockUser, pinMenu],
+    [t, deleteContent, blockUser, pinMenu, showMenu],
   );
 
   // Memoized so `FlatList` only reconciles the visible window when one of
@@ -618,9 +639,9 @@ export function CommunityFeedScreen({
   const zones = resolveHeaderZones(header, {
     inbox: !!cfg.modules.inbox && !!onOpenInbox,
     online: !!presenceSettings(cfg),
-    messaging: !!groups && !!onOpenMessages,
-    // Direct messages don't exist yet.
-    dms: false,
+    messaging: !!messagingSettings(cfg) && !!onOpenMessages,
+    groups: !!groups && !!onOpenMessages,
+    dms: !!dmsSettings(cfg) && !!onOpenMessages,
   });
   // The row bleeds out so icon glyphs sit flush with the content edge. A logo or the
   // online count first on the left lines up with the first topic tab's label instead;
@@ -680,7 +701,13 @@ export function CommunityFeedScreen({
           />
         );
       case "dms":
-        return null;
+        return (
+          <MessagesButton
+            key={index}
+            kind="dms"
+            onPress={() => onOpenMessages!({ tab: "conversations" })}
+          />
+        );
       case "online":
         return <OnlinePill key={index} style={inset} />;
       case "search":
@@ -965,6 +992,7 @@ export function CommunityFeedScreen({
             onClose={() => setActivePostId(null)}
             onOpenProfile={onOpenProfile}
             onPressTopic={selectTopic}
+            onOpenMessages={onOpenMessages}
             slots={slots}
             beforeSubmitComment={beforeSubmitComment}
           />
@@ -999,6 +1027,7 @@ export function CommunityFeedScreen({
             onClose={() => setReportTarget(null)}
           />
           {notice && <NoticeCard kind={notice} onDismiss={() => setNotice(null)} />}
+          {menuSheet}
         </View>
       </ImageViewerHost>
     </GroupLinkContext.Provider>
@@ -1037,14 +1066,22 @@ function InboxBell({ onPress }: { onPress: () => void }) {
 
 /** A `messages` / `groups` header item, with the unread badge per `messaging.badge`. Its
  * own component so the badge query only runs when the item shows. */
-function MessagesButton({ kind, onPress }: { kind: "messages" | "groups"; onPress: () => void }) {
+function MessagesButton({
+  kind,
+  onPress,
+}: {
+  kind: "messages" | "groups" | "dms";
+  onPress: () => void;
+}) {
   const theme = useCommunityTheme();
   const t = useT();
   const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
   const badge = useMessagingBadge();
-  const Icon = kind === "messages" ? icons.messages : icons.groups;
-  const label = t(kind === "messages" ? "messages.title" : "groups.home.groups");
+  const Icon = kind === "groups" ? icons.groups : icons.messages;
+  const label = t(
+    kind === "groups" ? "groups.home.groups" : kind === "dms" ? "a11y.dms" : "messages.title",
+  );
   return (
     <PressableScale
       onPress={onPress}
@@ -1082,40 +1119,15 @@ function HomeSegments({
     .filter((c) => c.kind === "group" && c.notify)
     .reduce((n, c) => n + c.unread, 0);
   return (
-    <View style={styles.segments} accessibilityRole="tablist">
-      {(["feed", "groups"] as const).map((s) => {
-        const on = segment === s;
-        const label = t(s === "feed" ? "groups.home.feed" : "groups.home.groups");
-        const count = s === "groups" ? unread : 0;
-        return (
-          <Pressable
-            key={s}
-            onPress={() => {
-              if (on) return;
-              haptic("selection");
-              onSelect(s);
-            }}
-            style={[styles.segment, on && styles.segmentOn]}
-            // 34pt tall: the slop takes the target to 44pt.
-            hitSlop={{ top: 5, bottom: 5 }}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: on }}
-            accessibilityLabel={count > 0 ? `${label}, ${t("messages.unread", { count })}` : label}
-          >
-            <Text style={[styles.segmentLabel, on && styles.segmentLabelOn]} numberOfLines={1}>
-              {label}
-            </Text>
-            {count > 0 && (
-              <View style={[styles.segmentCount, on && styles.segmentCountOn]}>
-                <Text style={[styles.segmentCountText, on && styles.segmentCountTextOn]}>
-                  {count > 99 ? "99+" : count}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        );
-      })}
-    </View>
+    <SegmentedTabs
+      items={[
+        { key: "feed", label: t("groups.home.feed"), count: 0 },
+        { key: "groups", label: t("groups.home.groups"), count: unread },
+      ]}
+      selected={segment}
+      onSelect={onSelect}
+      style={styles.segments}
+    />
   );
 }
 
@@ -1215,49 +1227,7 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.bold,
       color: theme.colors.textInverse,
     },
-    segments: {
-      flexDirection: "row",
-      marginTop: theme.spacing(1),
-      marginBottom: theme.spacing(2.5),
-      padding: 3,
-      borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.surfaceMuted,
-    },
-    segment: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: theme.spacing(1.5),
-      minHeight: 34,
-      borderRadius: theme.radius.sm,
-    },
-    segmentOn: { backgroundColor: theme.colors.accent },
-    segmentLabel: { ...theme.typography.label, color: theme.colors.textMuted },
-    segmentLabelOn: {
-      fontFamily: theme.fonts.bold,
-      fontWeight: theme.fontWeights.bold,
-      color: theme.colors.textInverse,
-    },
-    segmentCount: {
-      minWidth: 18,
-      height: 18,
-      borderRadius: 9,
-      paddingHorizontal: 5,
-      backgroundColor: theme.colors.danger,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    segmentCountOn: { backgroundColor: theme.colors.textInverse },
-    segmentCountText: {
-      ...theme.typography.caption,
-      fontSize: 10,
-      lineHeight: 12,
-      fontFamily: theme.fonts.bold,
-      fontWeight: theme.fontWeights.bold,
-      color: theme.colors.textInverse,
-    },
-    segmentCountTextOn: { color: theme.colors.accent },
+    segments: { marginTop: theme.spacing(1), marginBottom: theme.spacing(2.5) },
     switchRow: {
       // The border sits inside the height: without its share the tab row
       // overflows by a hairline and scrolls vertically.

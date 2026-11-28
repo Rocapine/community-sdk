@@ -16,6 +16,7 @@ import {
   messageImageUrl,
   signedImageUrl,
 } from "./images.ts";
+import type { pushCopy } from "./copy.ts";
 import { moderateItem } from "./moderation.ts";
 import { postToSlack } from "./slack.ts";
 
@@ -70,6 +71,26 @@ export interface GroupUpdate {
 
 export type ModerationMode = "pre" | "post" | "reportOnly";
 
+/** A DM push (notify-message). A request (`kind` from claim_message_push; anything but
+ * "message" counts as one) names no one and quotes nothing, whatever `pushPreview` says:
+ * no title, so the OS shows the app's name. A message follows `pushPreview` with the
+ * sender as title: `full` their text (120 chars, "📷 Photo" for an image), `sender`
+ * message.dmBody, `none` no name and message.neutral. */
+export function dmPushPayload(
+  copy: ReturnType<typeof pushCopy>,
+  kind: string,
+  preview: string,
+  sender: string,
+  body: string | null,
+  hasImage: boolean,
+): { title?: string; body: string } {
+  if (kind !== "message") return { body: copy.text("message.request") };
+  if (preview === "none") return { body: copy.text("message.neutral") };
+  const text = preview === "full" ? body?.trim() || (hasImage ? copy.text("photo") : "") : "";
+  if (!text) return { title: sender, body: copy.text("message.dmBody", { sender }) };
+  return { title: sender, body: text.length > 120 ? `${text.slice(0, 117)}...` : text };
+}
+
 // The text the AI reads: none in 'reportOnly' (an image is still checked) or for an
 // attachment-only message; "" makes moderateItem skip the text call.
 export function messageModerationInput(
@@ -77,6 +98,17 @@ export function messageModerationInput(
   mode: ModerationMode = "post",
 ): string {
   return mode === "reportOnly" ? "" : (row.body ?? "");
+}
+
+// Why translate-message won't answer the caller for this message (null: it will). Its
+// author is refused before the cache is read: an instant cached answer would tell them a
+// reader translated it, so that it was read (a DM request, read receipts off).
+export function translationRefusal(
+  msg: { body: string | null; status: string; author_id: string } | null,
+  callerId: string,
+): "not found" | "own message" | null {
+  if (!msg || msg.status !== "visible" || !msg.body?.trim()) return "not found";
+  return msg.author_id === callerId ? "own message" : null;
 }
 
 // Postgres' undefined_table (42P01) or PostgREST's "table not found" (PGRST205): the

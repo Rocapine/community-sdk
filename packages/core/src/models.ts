@@ -544,6 +544,26 @@ export type Conversation = {
   imageUrl: string | null;
   /** A group's status as the caller may know it; null for a DM. */
   groupStatus: GroupStatus | null;
+  /** A DM's other member (dms module); null for a group, or a DM across a block. */
+  peerId: string | null;
+  /** My side of a DM (dms module); null for a group. The conversation list only holds
+   * my active conversations, so it is always `"active"` there: requests come from
+   * `useDmRequests`. */
+  requestState: "active" | "request" | null;
+};
+
+/** A DM request waiting for my answer (dms module): the sender's latest message I
+ * may read, and who they are to me. */
+export type DmRequest = {
+  conversationId: string;
+  senderId: string;
+  lastBody: string | null;
+  lastHasImage: boolean;
+  lastAt: string;
+  groupsInCommon: number;
+  /** Up to 3, most active first. */
+  commonGroupNames: string[];
+  memberSince: string;
 };
 
 /** `pending`: not reviewed yet; `hidden`: hidden by a moderator (R13). Only the

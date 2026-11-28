@@ -14,9 +14,12 @@ describe("onlineDotMetrics", () => {
 });
 
 describe("onlineLookupId", () => {
-  it.each(["post", "comment", "profile"])("looks up the member on %s avatars", (placement) => {
-    expect(onlineLookupId(placement, "u1")).toBe("u1");
-  });
+  it.each(["post", "comment", "profile", "dm"])(
+    "looks up the member on %s avatars",
+    (placement) => {
+      expect(onlineLookupId(placement, "u1")).toBe("u1");
+    },
+  );
   it.each(["header", "composer", "reply", "edit", "blocked"])(
     "does no lookup on %s avatars",
     (placement) => {

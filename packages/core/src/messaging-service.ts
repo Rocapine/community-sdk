@@ -1,11 +1,11 @@
-// Messaging backend service (groups module, later DMs): conversations and
+// Messaging backend service (groups and dms modules): conversations and
 // messages. Every write goes through the security definer RPCs of
 // messaging/001_messaging.sql; reads go through RLS. Postgres errors raised by
 // those RPCs come back as `MessagingError` with the raised code.
 
 import type { PostgrestError } from "@supabase/supabase-js";
 
-import { attachmentTypeAllowed, type ResolvedCommunityConfig } from "./config";
+import { attachmentTypeAllowed, messagingSettings, type ResolvedCommunityConfig } from "./config";
 import type { ChatMessage, Conversation, GroupStatus, PostAttachment } from "./models";
 import { moderateOne, requireUid } from "./service";
 import { cacheSignedUrl, cachedSignedUrl } from "./signed-urls";
@@ -13,18 +13,22 @@ import { cacheSignedUrl, cachedSignedUrl } from "./signed-urls";
 export const MESSAGE_IMAGES_BUCKET = "message-images";
 export const MESSAGES_PAGE_SIZE = 40;
 
-/** Every code the messaging and groups RPCs raise. */
+/** Every code the messaging, groups and dms RPCs raise. */
 export const MESSAGING_ERROR_CODES = [
   "account_required",
   "banned",
   "blocked",
+  "declined_recently",
   "description_required",
   "description_too_long",
+  "dms_off",
   "empty_message",
   "forbidden",
   "group_full",
   "invalid_attachment",
   "invalid_image_path",
+  "invalid_reason",
+  "invalid_recipient",
   "invalid_reply",
   "message_too_long",
   "name_required",
@@ -38,6 +42,7 @@ export const MESSAGING_ERROR_CODES = [
   "removed_from_group",
   "too_many_groups",
   "too_many_joined",
+  "too_many_requests",
 ] as const;
 
 export type MessagingErrorCode = (typeof MESSAGING_ERROR_CODES)[number] | "unknown";
@@ -77,6 +82,10 @@ export async function callRpc<T>(
 
 export function requireGroups(cfg: ResolvedCommunityConfig): void {
   if (!cfg.modules.groups) throw new Error("groups module is not enabled");
+}
+
+export function requireMessaging(cfg: ResolvedCommunityConfig): void {
+  if (!messagingSettings(cfg)) throw new Error("messaging is not enabled (groups or dms module)");
 }
 
 /** A v4 uuid; storage paths require one (Hermes may lack `crypto.randomUUID`). */
@@ -136,11 +145,18 @@ type ConversationRow = {
   group_status?: string | null;
 };
 
-/** The member's active conversations, latest activity first. */
+type DmPeerRow = { conversation_id: string; peer_id: string; my_state: "active" | "request" };
+
+/** The member's active conversations, latest activity first. With dms, each DM gets
+ * its peer and my state (`dm_peers`; none across a block). */
 export async function fetchConversations(cfg: ResolvedCommunityConfig): Promise<Conversation[]> {
-  requireGroups(cfg);
+  requireMessaging(cfg);
   await requireUid(cfg);
-  const rows = await callRpc<ConversationRow[]>(cfg, "list_conversations");
+  const [rows, peers] = await Promise.all([
+    callRpc<ConversationRow[]>(cfg, "list_conversations"),
+    cfg.modules.dms ? callRpc<DmPeerRow[]>(cfg, "dm_peers") : null,
+  ]);
+  const peerOf = new Map((peers ?? []).map((p) => [p.conversation_id, p]));
   return (rows ?? []).map((r) => ({
     id: r.conversation_id,
     kind: r.kind,
@@ -154,12 +170,14 @@ export async function fetchConversations(cfg: ResolvedCommunityConfig): Promise<
     title: r.title ?? null,
     imageUrl: groupImageUrl(cfg, r.image_path ?? null),
     groupStatus: toGroupStatus(r.group_status ?? null),
+    peerId: peerOf.get(r.conversation_id)?.peer_id ?? null,
+    requestState: peerOf.get(r.conversation_id)?.my_state ?? null,
   }));
 }
 
 /** Unread messages of the conversations the member follows (notify on). */
 export async function unreadFollowedMessages(cfg: ResolvedCommunityConfig): Promise<number> {
-  requireGroups(cfg);
+  requireMessaging(cfg);
   await requireUid(cfg);
   return (await callRpc<number | null>(cfg, "unread_followed_messages")) ?? 0;
 }
@@ -168,14 +186,14 @@ export async function markConversationRead(
   cfg: ResolvedCommunityConfig,
   conversationId: string,
 ): Promise<void> {
-  requireGroups(cfg);
+  requireMessaging(cfg);
   await requireUid(cfg);
   await callRpc(cfg, "mark_conversation_read", { p_conversation: conversationId });
 }
 
 /** False only when the accounts module is installed and the member has no linked account. */
 export async function fetchAccountLinked(cfg: ResolvedCommunityConfig): Promise<boolean> {
-  requireGroups(cfg);
+  requireMessaging(cfg);
   await requireUid(cfg);
   return (await callRpc<boolean | null>(cfg, "my_account_linked")) === true;
 }
@@ -278,7 +296,7 @@ export async function fetchMessages(
   conversationId: string,
   opts: { before?: { createdAt: string; id: string }; limit?: number } = {},
 ): Promise<ChatMessage[]> {
-  requireGroups(cfg);
+  requireMessaging(cfg);
   const uid = await requireUid(cfg);
   let query = cfg
     .requireClient()
@@ -325,7 +343,7 @@ export async function sendMessage(
   cfg: ResolvedCommunityConfig,
   input: SendMessageInput,
 ): Promise<ChatMessage> {
-  requireGroups(cfg);
+  requireMessaging(cfg);
   const { conversationId, attachment } = input;
   if (attachment && !attachmentTypeAllowed(cfg, attachment.type))
     throw new MessagingError("invalid_attachment", "attachment type not enabled");
@@ -358,7 +376,7 @@ export async function editMessage(
   id: string,
   body: string,
 ): Promise<ChatMessage> {
-  requireGroups(cfg);
+  requireMessaging(cfg);
   const uid = await requireUid(cfg);
   const row = await callRpc<{ id: string; status: string; moderated_at: string | null }>(
     cfg,
@@ -371,7 +389,7 @@ export async function editMessage(
 
 /** The author's own, a group creator's on others (not an admin's), or an admin's. */
 export async function deleteMessage(cfg: ResolvedCommunityConfig, id: string): Promise<void> {
-  requireGroups(cfg);
+  requireMessaging(cfg);
   await requireUid(cfg);
   await callRpc(cfg, "delete_message", { p_message: id });
 }
@@ -381,7 +399,7 @@ export async function setMessageLike(
   id: string,
   liked: boolean,
 ): Promise<void> {
-  requireGroups(cfg);
+  requireMessaging(cfg);
   await requireUid(cfg);
   await callRpc(cfg, "set_message_like", { p_message: id, p_liked: liked });
 }
@@ -392,7 +410,7 @@ export async function translateMessage(
   id: string,
   locale: string,
 ): Promise<string> {
-  requireGroups(cfg);
+  requireMessaging(cfg);
   await requireUid(cfg);
   const { data, error } = await cfg
     .requireClient()
@@ -407,7 +425,7 @@ const SIGNED_URL_REUSE_MS = 50 * 60_000;
 /** A signed URL of a message image (private bucket), cached 50 minutes per member
  * (the cache is cleared on every identity change). */
 export async function messageImageUrl(cfg: ResolvedCommunityConfig, path: string): Promise<string> {
-  requireGroups(cfg);
+  requireMessaging(cfg);
   const key = `${await requireUid(cfg)}:${path}`;
   const cached = cachedSignedUrl(key);
   if (cached) return cached;

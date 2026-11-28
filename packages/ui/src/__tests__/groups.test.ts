@@ -25,6 +25,7 @@ import { sk } from "../locales/sk";
 import { cs } from "../locales/cs";
 import {
   canManage,
+  dmRowSummary,
   exploreRowAction,
   exploreRowTap,
   groupErrorKey,
@@ -279,5 +280,25 @@ describe("groups copy", () => {
   it("never promises approval while a group is under review or hidden", () => {
     for (const key of ["groups.review.pending", "groups.review.hidden"])
       expect(en[key]).not.toMatch(/once|when|approved|will appear/i);
+  });
+});
+
+describe("dmRowSummary", () => {
+  const last = { id: "m1", body: "my older reply", authorId: "me" };
+  it("previews an open DM, mine with You:", () => {
+    expect(dmRowSummary({ peerId: "p", lastMessage: last, unread: 2 }, "me", t)).toEqual({
+      preview: "You: my older reply",
+      unread: 2,
+    });
+  });
+  it("shows no message and no count across a block, on either side", () => {
+    expect(dmRowSummary({ peerId: null, lastMessage: last, unread: 3 }, "me", t)).toEqual({
+      preview: "You can't write to this member.",
+      unread: 0,
+    });
+    expect(
+      dmRowSummary({ peerId: null, lastMessage: { ...last, authorId: "p" }, unread: 0 }, "me", t)
+        .preview,
+    ).toBe("You can't write to this member.");
   });
 });

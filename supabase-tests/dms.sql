@@ -1,0 +1,1121 @@
+-- Direct messages (dms/001_dms.sql … 009_storage_sweep.sql) on the messaging core.
+-- Run against a backend with messaging and dms applied (groups optional):
+--   npx supabase db query --remote=<ref> --yes -f supabase-tests/dms.sql
+-- Five existing profiles (a, b, c, x, a2) write DMs to each other. Every timestamp
+-- in one transaction is the same now(), so the test backdates rows where order
+-- matters. It always rolls back by raising at the end: the run passed when the error
+-- message is exactly DMS_TESTS_PASSED.
+do $$
+declare
+  ids uuid[];
+  a uuid; b uuid; c uuid; x uuid; a2 uuid;
+  ab uuid; ac uuid; cx uuid; a2c uuid; a2x uuid; a2b uuid; ax uuid; cb uuid; g uuid;
+  xa uuid; xb uuid; xc uuid; xa2 uuid;
+  m public.messages;
+  m_ab public.messages;
+  r record;
+  n0 int;
+  n int;
+  rep uuid;
+  sweep_m uuid;
+  swept text[];
+  failed boolean;
+begin
+  select array_agg(id) into ids from (
+    select id from public.profiles where not is_banned and not is_admin limit 5
+  ) s;
+  assert coalesce(array_length(ids, 1), 0) = 5, 'needs five member profiles';
+  a := ids[1]; b := ids[2]; c := ids[3]; x := ids[4]; a2 := ids[5];
+  delete from public.blocks where blocker_id = any (ids) or blocked_id = any (ids);
+  delete from public.conversations where id in (
+    select conversation_id from public.dm_pairs where user_a = any (ids) or user_b = any (ids));
+  delete from public.dm_declines where sender_id = any (ids) or recipient_id = any (ids);
+  delete from public.dm_request_log where sender_id = any (ids) or recipient_id = any (ids);
+  update public.profiles set accepts_dms = true where id = any (ids);
+  -- Unique names for the picker checks (sandbox profiles may have none).
+  update public.profiles set username = 'Zqdm' || substr(md5(id::text), 1, 10) where id = any (ids);
+  if to_regclass('public.account_links') is not null then
+    delete from public.account_links where profile_id = any (ids);
+  end if;
+
+  -- Settings: the DM keys are validated like the others.
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"moderation": "post", "ratePerMinute": 1000,
+    "onAccountDelete": "keep", "dmsFirstMessage": "requests", "dmsReadReceipts": true,
+    "dmsRequireAccount": false, "dmsRequestsPerDay": 100, "dmsDeclineCooldownDays": 0}');
+  perform public.messaging_set_settings('{"dmsDeclineCooldownDays": 30}');
+  begin
+    perform public.messaging_set_settings('{"dmsFirstMessage": "later"}');
+    assert false, 'an unknown first-message mode is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'invalid_setting:dmsFirstMessage', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.messaging_set_settings('{"dmsRequestsPerDay": 0}');
+    assert false, 'zero requests a day is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'invalid_setting:dmsRequestsPerDay', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.messaging_set_settings('{"dmsReadReceipts": "yes"}');
+    assert false, 'a non-boolean switch is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'invalid_setting:dmsReadReceipts', 'got ' || sqlerrm;
+  end;
+  assert public.messaging_client_settings() ->> 'dmsFirstMessage' = 'requests'
+    and (public.messaging_client_settings() ->> 'dmsDeclineCooldownDays')::int = 30,
+    'the client settings carry the DM keys';
+
+  -- B's followed unread count before any DM (B may have other conversations).
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  n0 := public.unread_followed_messages();
+  reset role;
+
+  -- Requests: A writes to B; B reads it without leaving a read state.
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  ab := public.start_dm(b);
+  m_ab := public.send_message(ab, 'hi b');
+  assert public.start_dm(b) = ab, 'one DM per pair';
+  begin
+    perform public.start_dm(a);
+    assert false, 'no DM with oneself';
+  exception when raise_exception then
+    assert sqlerrm = 'invalid_recipient', 'got ' || sqlerrm;
+  end;
+  assert (select count(*) from public.conversation_members where conversation_id = ab) = 1,
+    'the sender reads only their own row';
+  reset role;
+  assert (select state from public.conversation_members where conversation_id = ab and user_id = a) = 'active'
+    and (select state from public.conversation_members where conversation_id = ab and user_id = b) = 'request',
+    'requests: sender active, recipient in request';
+  update public.conversation_members set joined_at = now() - interval '1 hour' where conversation_id = ab;
+  update public.messages set created_at = now() - interval '50 minutes' where id = m_ab.id;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from public.messages where conversation_id = ab) = 1, 'the recipient reads the request';
+  perform public.mark_conversation_read(ab);
+  select * into r from public.list_dm_requests() l where l.conversation_id = ab;
+  assert r.sender_id = a and r.last_body = 'hi b' and not r.last_has_image
+    and r.groups_in_common >= 0 and r.member_since is not null, 'listed as a request';
+  assert exists (select 1 from public.dm_peers() p where p.conversation_id = ab and p.peer_id = a and p.my_state = 'request'),
+    'dm_peers names the sender';
+  assert not exists (select 1 from public.list_conversations() l where l.conversation_id = ab),
+    'a request is not in the conversation list';
+  assert public.unread_followed_messages() = n0 + 1, 'a pending request counts one';
+  begin
+    perform public.send_message(ab, 'reply');
+    assert false, 'the recipient accepts before writing';
+  exception when raise_exception then
+    assert sqlerrm = 'not_a_member', 'got ' || sqlerrm;
+  end;
+  reset role;
+  assert (select last_read_at from public.conversation_members where conversation_id = ab and user_id = b) is null,
+    'reading a request leaves no read state';
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.dm_peer_read(ab) is null, 'no receipt on a request';
+  reset role;
+
+  -- Mutual start: B starting a DM with A accepts A's pending request.
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.start_dm(a) = ab, 'one conversation';
+  assert public.unread_followed_messages() = n0 + 1, 'an active DM counts its unread, notify off';
+  perform public.mark_conversation_read(ab);
+  assert public.unread_followed_messages() = n0, 'read';
+  reset role;
+  assert (select count(*) from public.conversation_members where conversation_id = ab and state = 'active') = 2,
+    'both active';
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.dm_peer_read(ab) is not null, 'read receipts once both are active';
+  reset role;
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"dmsReadReceipts": false}');
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.dm_peer_read(ab) is null, 'no receipts when off';
+  reset role;
+
+  -- Decline: silent for A; C never sees the declined request again.
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  ac := public.start_dm(c);
+  perform public.send_message(ac, 'before decline');
+  reset role;
+  update public.conversation_members set joined_at = now() - interval '1 hour' where conversation_id = ac;
+  update public.messages set created_at = now() - interval '40 minutes' where conversation_id = ac;
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.decline_request(ac);
+  begin
+    perform public.decline_request(ac);
+    assert false, 'only a pending request is declined';
+  exception when raise_exception then
+    assert sqlerrm = 'not_found', 'got ' || sqlerrm;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.start_dm(c) = ac, 'the sender is never told';
+  perform public.send_message(ac, 'during cooldown 1');
+  perform public.send_message(ac, 'during cooldown 2');
+  assert (select count(*) from public.messages where conversation_id = ac) = 3, 'the sender sees all they wrote';
+  reset role;
+  update public.messages set created_at = now() - interval '30 minutes'
+  where conversation_id = ac and body like 'during%';
+  assert (select state from public.conversation_members where conversation_id = ac and user_id = c) = 'declined',
+    'declined';
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from public.messages where conversation_id = ac) = 0, 'nothing of a declined request';
+  assert not public.can_read_conversation(ac), 'not readable';
+  assert not exists (select 1 from public.list_dm_requests() l where l.conversation_id = ac), 'not a request';
+  assert not exists (select 1 from public.dm_peers() p where p.conversation_id = ac), 'not a peer';
+  reset role;
+
+  -- Cooldown over: A's next message starts a new request showing only itself, once a
+  -- new DM's checks pass (ruling D4); until then it stays silent, without an error.
+  update public.dm_declines set until = now() - interval '1 minute' where sender_id = a and recipient_id = c;
+  update public.profiles set accepts_dms = false where id = c;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.send_message(ac, 'silent: dms off');
+  reset role;
+  assert (select state from public.conversation_members where conversation_id = ac and user_id = c) = 'declined',
+    'C refuses DMs: no new request';
+  update public.profiles set accepts_dms = true where id = c;
+  select count(*) into n from public.dm_request_log where sender_id = a and at > now() - interval '1 day';
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings(jsonb_build_object('dmsRequestsPerDay', n));
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.send_message(ac, 'silent: over budget');
+  reset role;
+  assert (select state from public.conversation_members where conversation_id = ac and user_id = c) = 'declined',
+    'over the request budget: no new request';
+  assert (select count(*) from public.dm_request_log where sender_id = a and at > now() - interval '1 day') = n,
+    'and nothing logged';
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"dmsRequestsPerDay": 100}');
+  if to_regclass('public.account_links') is not null then
+    perform public.messaging_set_settings('{"dmsRequireAccount": true}');
+    perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.send_message(ac, 'silent: no account');
+    reset role;
+    assert (select state from public.conversation_members where conversation_id = ac and user_id = c) = 'declined',
+      'no account: no new request';
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.messaging_set_settings('{"dmsRequireAccount": false}');
+  else
+    raise notice 'dms.sql: no accounts module, the account-required re-request case is skipped';
+  end if;
+  update public.messages set created_at = now() - interval '25 minutes'
+  where conversation_id = ac and body like 'silent%';
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.send_message(ac, 'after cooldown');
+  reset role;
+  assert (select state from public.conversation_members where conversation_id = ac and user_id = c) = 'request',
+    'a new request';
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from public.messages where conversation_id = ac) = 1
+    and (select body from public.messages where conversation_id = ac) = 'after cooldown', 'only the new message';
+  select * into r from public.list_dm_requests() l where l.conversation_id = ac;
+  assert r.last_body = 'after cooldown', 'listed with the new message';
+  perform public.accept_request(ac);
+  select * into r from public.list_conversations() l where l.conversation_id = ac;
+  assert r.last_body = 'after cooldown' and r.unread = 1, 'accepted: the declined messages stay out';
+  assert (select count(*) from public.messages where conversation_id = ac) = 1, 'and unread';
+  reset role;
+  if to_regclass('public.notifications') is not null then
+    assert exists (select 1 from public.notifications
+                   where user_id = a and kind = 'dm_request_accepted' and actor_id = c),
+      'the sender learns of the acceptance';
+  end if;
+
+  -- The decliner writing back later doesn't see what they declined.
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"dmsReadReceipts": true}');
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  a2c := public.start_dm(c);
+  m := public.send_message(a2c, 'declined text');
+  reset role;
+  update public.messages set created_at = now() - interval '20 minutes' where conversation_id = a2c;
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.decline_request(a2c);
+  assert public.start_dm(a2) = a2c, 'the decliner can write later';
+  assert (select count(*) from public.messages where conversation_id = a2c) = 0, 'without the declined messages';
+  select * into r from public.list_conversations() l where l.conversation_id = a2c;
+  assert r.last_body is null and r.unread = 0 and r.last_message_at is null, 'not even in the list';
+  begin
+    perform public.send_message(a2c, 'quoting', m.id);
+    assert false, 'no reply to a declined message';
+  exception when raise_exception then
+    assert sqlerrm = 'invalid_reply', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.set_message_like(m.id, true);
+    assert false, 'no like on a declined message';
+  exception when raise_exception then
+    assert sqlerrm = 'not_found', 'got ' || sqlerrm;
+  end;
+  reset role;
+  assert (select last_read_at from public.conversation_members where conversation_id = a2c and user_id = c) is null,
+    'reopening stamps no read';
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.mark_conversation_read(a2c);
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.dm_peer_read(a2c) is null, 'no Seen on messages C never saw';
+  perform public.send_message(a2c, 'after the reopen');
+  assert public.dm_peer_read(a2c) is not null, 'Seen once A2 wrote since';
+  reset role;
+
+  -- Blocks: no request, no write either way, nothing listed; outsiders read nothing.
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  cx := public.start_dm(x);
+  perform public.send_message(cx, 'to x');
+  reset role;
+  insert into public.blocks (blocker_id, blocked_id) values (x, c);
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not exists (select 1 from public.list_dm_requests() l where l.conversation_id = cx), 'no request from a blocked member';
+  assert not exists (select 1 from public.dm_peers() p where p.conversation_id = cx), 'no peer';
+  assert not public.can_read_conversation(cx)
+    and (select count(*) from public.messages where conversation_id = cx) = 0, 'nothing readable';
+  assert not exists (select 1 from public.profile_dm_flags(array[c])), 'no flags for a blocked member';
+  begin
+    perform public.start_dm(c);
+    assert false, 'no DM across a block';
+  exception when raise_exception then
+    assert sqlerrm = 'blocked', 'got ' || sqlerrm;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.send_message(cx, 'still there?');
+    assert false, 'the blocked sender cannot write';
+  exception when raise_exception then
+    assert sqlerrm = 'blocked', 'got ' || sqlerrm;
+  end;
+  reset role;
+  insert into public.blocks (blocker_id, blocked_id) values (a, b);
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.send_message(ab, 'blocked?');
+    assert false, 'the blocker cannot write';
+  exception when raise_exception then
+    assert sqlerrm = 'blocked', 'got ' || sqlerrm;
+  end;
+  assert not exists (select 1 from public.dm_peers() p where p.conversation_id = ab), 'blocked pair out of dm_peers';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.send_message(ab, 'blocked?');
+    assert false, 'the blocked member cannot write';
+  exception when raise_exception then
+    assert sqlerrm = 'blocked', 'got ' || sqlerrm;
+  end;
+  assert (select count(*) from public.messages where conversation_id = ab) = 0, 'nor read';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not public.can_read_conversation(ab)
+    and (select count(*) from public.messages where conversation_id = ab) = 0
+    and (select count(*) from public.conversations where id = ab) = 0, 'an outsider reads nothing';
+  reset role;
+  delete from public.blocks where blocker_id = any (ids) or blocked_id = any (ids);
+
+  -- accepts_dms off: no new DM, existing ones keep working.
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.set_accepts_dms(false);
+  reset role;
+  assert not (select accepts_dms from public.profiles where id = b), 'switched off';
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  select * into r from public.profile_dm_flags(array[b, c]) f where f.user_id = b;
+  assert not r.accepts_dms and r.has_account is not null, 'flags say B refuses DMs';
+  begin
+    perform public.start_dm(b);
+    assert false, 'B refuses new DMs';
+  exception when raise_exception then
+    assert sqlerrm = 'dms_off', 'got ' || sqlerrm;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  select * into r from public.profile_dm_flags(array[b]) f;
+  assert not r.accepts_dms and r.has_dm, 'flags: B refuses DMs, but A already has one with B';
+  assert exists (select 1 from public.search_dm_members((select username from public.profiles where id = b)) s
+                 where s.user_id = b), 'the picker keeps B for A (existing DM)';
+  perform public.send_message(ab, 'existing DMs keep working');
+  assert public.start_dm(b) = ab, 'and open';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not exists (select 1 from public.search_dm_members((select username from public.profiles where id = b)) s
+                     where s.user_id = b), 'the picker leaves B out for C (no DM, switch off)';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.set_accepts_dms(true);
+  reset role;
+
+  -- requestsPerDay, then the cooldown on a new DM.
+  select count(*) into n from public.dm_request_log where sender_id = a and at > now() - interval '1 day';
+  assert n >= 2, 'A''s requests are logged';
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings(jsonb_build_object('dmsRequestsPerDay', n));
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.start_dm(x);
+    assert false, 'one request too many';
+  exception when raise_exception then
+    assert sqlerrm = 'too_many_requests', 'got ' || sqlerrm;
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"dmsRequestsPerDay": 100}');
+  insert into public.dm_declines (sender_id, recipient_id, until) values (x, a, now() + interval '1 day');
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.start_dm(a);
+    assert false, 'A declined X recently';
+  exception when raise_exception then
+    assert sqlerrm = 'declined_recently', 'got ' || sqlerrm;
+  end;
+  reset role;
+
+  -- Account rule, where the accounts module is installed: both sides need a link.
+  if to_regclass('public.account_links') is not null then
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.messaging_set_settings('{"dmsRequireAccount": true}');
+    perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    begin
+      perform public.start_dm(b);
+      assert false, 'the sender needs an account';
+    exception when raise_exception then
+      assert sqlerrm = 'account_required', 'got ' || sqlerrm;
+    end;
+    reset role;
+    insert into public.account_links (provider, subject, profile_id) values ('test', 'dms-x', x);
+    perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    begin
+      perform public.start_dm(b);
+      assert false, 'the recipient needs one too';
+    exception when raise_exception then
+      assert sqlerrm = 'account_required', 'got ' || sqlerrm;
+    end;
+    reset role;
+    insert into public.account_links (provider, subject, profile_id) values ('test', 'dms-b', b);
+    perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    assert public.start_dm(b) is not null, 'both linked';
+    reset role;
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.messaging_set_settings('{"dmsRequireAccount": false}');
+  else
+    raise notice 'dms.sql: no accounts module, the account-required start case is skipped';
+  end if;
+
+  -- Block and report a request; the dashboard reads a reported DM message only.
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  a2x := public.start_dm(x);
+  m := public.send_message(a2x, 'spam here');
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.block_and_report_request(a2x, 'nonsense');
+    assert false, 'an unknown reason is refused';
+  exception when raise_exception then
+    assert sqlerrm = 'invalid_reason', 'got ' || sqlerrm;
+  end;
+  perform public.block_and_report_request(a2x, 'spam');
+  reset role;
+  assert exists (select 1 from public.blocks where blocker_id = x and blocked_id = a2), 'blocked';
+  assert exists (select 1 from public.reports where reporter_id = x and reported_user_id = a2 and message_id = m.id),
+    'the request''s latest message is reported';
+  assert (select state from public.conversation_members where conversation_id = a2x and user_id = x) = 'declined',
+    'and declined';
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  assert (select count(*) from public.admin_message_context(m.id)) >= 1, 'a reported DM message has context';
+  begin
+    perform public.admin_message_context(m_ab.id);
+    assert false, 'an unreported DM message has none';
+  exception when raise_exception then
+    assert sqlerrm = 'forbidden', 'got ' || sqlerrm;
+  end;
+  delete from public.blocks where blocker_id = any (ids) or blocked_id = any (ids);
+
+  -- An in-app admin's request: reported and declined, never blocked.
+  update public.profiles set is_admin = true where id = c;
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  cb := public.start_dm(b);
+  m := public.send_message(cb, 'from an admin');
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.block_and_report_request(cb, 'other');
+  reset role;
+  assert not exists (select 1 from public.blocks where blocker_id = b and blocked_id = c), 'an admin is not blocked';
+  assert exists (select 1 from public.reports where reporter_id = b and message_id = m.id), 'but reported';
+  assert (select state from public.conversation_members where conversation_id = cb and user_id = b) = 'declined',
+    'and declined';
+  update public.profiles set is_admin = false where id = c;
+
+  -- eraseDms: A's DM messages go, their group messages stay.
+  insert into public.conversations (kind) values ('group') returning id into g;
+  insert into public.conversation_members (conversation_id, user_id) values (g, a);
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.send_message(g, 'group message');
+  reset role;
+  assert exists (select 1 from public.messages mm join public.conversations cc on cc.id = mm.conversation_id
+                 where mm.author_id = a and cc.kind = 'dm'), 'A has DM messages';
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"onAccountDelete": "eraseDms"}');
+  perform public.messaging_on_account_delete(a);
+  assert not exists (select 1 from public.messages mm join public.conversations cc on cc.id = mm.conversation_id
+                     where mm.author_id = a and cc.kind = 'dm'), 'eraseDms: the DM messages go';
+  assert exists (select 1 from public.messages where author_id = a and conversation_id = g), 'the group ones stay';
+  perform public.messaging_set_settings('{"onAccountDelete": "keep"}');
+
+  -- Merge: A and A2 both have a DM with B, C and X; each pair becomes one conversation.
+  -- B wrote to A2, who declined (the merged profile declined the peer); A and B are active.
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  a2b := public.start_dm(a2);
+  perform public.send_message(a2b, 'from b to a2');
+  perform public.send_message(ab, 'from b');
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.decline_request(a2b);
+  reset role;
+  -- The cooldown passes; B writes again but A2 refuses DMs: a refused re-request, so A2's
+  -- row stays declined with a past visible_from. X reports that message.
+  update public.messages set created_at = now() - interval '30 minutes' where conversation_id = a2b;
+  update public.conversation_members set visible_from = now() - interval '10 minutes'
+  where conversation_id = a2b and user_id = a2;
+  update public.dm_declines set until = now() - interval '10 minutes' where sender_id = b and recipient_id = a2;
+  update public.profiles set accepts_dms = false where id = a2;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  m := public.send_message(a2b, 'refused re-request');
+  reset role;
+  update public.profiles set accepts_dms = true where id = a2;
+  assert (select state from public.conversation_members where conversation_id = a2b and user_id = a2) = 'declined',
+    'the re-request was refused';
+  insert into public.reports (reporter_id, reported_user_id, message_id, reason) values (x, b, m.id, 'spam')
+    returning id into rep;
+  -- X declined A2 (above) but is active with A: active (no visible_from) + declined (future).
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  ax := public.start_dm(x);
+  perform public.send_message(ax, 'a to x');
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.accept_request(ax);
+  reset role;
+  select count(*) into n from public.messages where conversation_id = ab;
+  perform public.merge_messaging(a, a2);
+  assert (select count(*) from public.conversations where id in (ab, a2b)) = 1, 'two DMs with B become one';
+  select p.conversation_id into ab from public.dm_pairs p where p.user_a = least(a, b) and p.user_b = greatest(a, b);
+  assert ab is not null and (select count(*) from public.messages where conversation_id = ab) = n
+    and not exists (select 1 from public.messages where body = 'from b to a2' and author_id = b)
+    and not exists (select 1 from public.messages where body = 'refused re-request' and author_id = b),
+    'with their messages, minus the request A2 declined and the refused re-request';
+  assert (select message_id is null and details = 'refused re-request' from public.reports where id = rep), 'the report keeps the body';
+  assert (select count(*) from public.conversation_members where conversation_id = ab) = 2
+    and (select state from public.conversation_members where conversation_id = ab and user_id = b) = 'active'
+    and (select state = 'active' and visible_from is null from public.conversation_members
+         where conversation_id = ab and user_id = a), 'two members, both active, nothing hidden';
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from public.messages where conversation_id = ab) = n, 'A reads every message';
+  reset role;
+  select p.conversation_id into ax from public.dm_pairs p where p.user_a = least(a, x) and p.user_b = greatest(a, x);
+  assert (select count(*) from public.dm_pairs p where p.user_a = least(a, x) and p.user_b = greatest(a, x)) = 1
+    and (select state = 'active' and visible_from is null from public.conversation_members
+         where conversation_id = ax and user_id = x), 'X active with A, not blanked';
+  assert not exists (select 1 from public.messages where body = 'spam here' and author_id = a),
+    'the request X declined is gone';
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from public.messages where conversation_id = ax and body = 'a to x') = 1,
+    'X still reads A''s message';
+  reset role;
+  assert (select count(*) from public.dm_pairs p where p.user_a = least(a, c) and p.user_b = greatest(a, c)) = 1,
+    'one DM with C';
+  assert not exists (select 1 from public.conversation_members where user_id = a2), 'A2 has no memberships left';
+  assert not exists (select 1 from public.dm_pairs where a2 in (user_a, user_b)), 'nor pairs';
+  assert not exists (select 1 from public.dm_declines where a2 in (sender_id, recipient_id)), 'nor declines';
+
+  -- dms/003: banned members leave the flags and the picker; the picker escapes % and _,
+  -- never lists the caller and caps its limit.
+  update public.profiles set is_banned = true where id = c;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not exists (select 1 from public.profile_dm_flags(array[c])), 'no flags for a banned member';
+  assert not exists (select 1 from public.search_dm_members((select username from public.profiles where id = c)) s
+                     where s.user_id = c), 'the picker leaves a banned member out';
+  assert not exists (select 1 from public.search_dm_members('%')), '% is a literal';
+  assert not exists (select 1 from public.search_dm_members('  ')), 'an empty query lists no one';
+  assert not exists (select 1 from public.search_dm_members((select username from public.profiles where id = a)) s
+                     where s.user_id = a), 'never myself';
+  assert (select count(*) from public.search_dm_members('e', 500)) <= 50, 'at most 50';
+  reset role;
+  update public.profiles set is_banned = false where id = c;
+
+  -- dms/003: `read` broadcast only when a DM member with read receipts on reads a new
+  -- message of the peer's (both active, no block).
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.messaging_set_settings('{"dmsReadReceipts": true}');
+    perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.send_message(ab, 'read me');
+    reset role;
+    update public.conversation_members set last_read_at = now() - interval '1 minute'
+    where conversation_id = ab and user_id = b;
+    select count(*) into n0 from realtime.messages where topic = 'conversation:' || ab and event = 'read';
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.mark_conversation_read(ab);
+    reset role;
+    select count(*) into n from realtime.messages where topic = 'conversation:' || ab and event = 'read';
+    assert n = n0 + 1, 'a DM read with receipts on broadcasts `read`';
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.mark_conversation_read(ab);
+    reset role;
+    assert (select count(*) from realtime.messages where topic = 'conversation:' || ab and event = 'read') = n,
+      'a read mark that did not move sends nothing';
+    -- Nothing new since the old mark (a focus, a remount): nothing sent.
+    update public.conversation_members set last_read_at = now() + interval '1 second'
+    where conversation_id = ab and user_id = b;
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.mark_conversation_read(ab);
+    reset role;
+    assert (select count(*) from realtime.messages where topic = 'conversation:' || ab and event = 'read') = n,
+      'no new peer message read: no broadcast';
+    -- A block either way: nothing sent.
+    insert into public.blocks (blocker_id, blocked_id) values (a, b);
+    update public.conversation_members set last_read_at = now() - interval '1 minute'
+    where conversation_id = ab and user_id = b;
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.mark_conversation_read(ab);
+    reset role;
+    assert (select count(*) from realtime.messages where topic = 'conversation:' || ab and event = 'read') = n,
+      'blocked: no broadcast';
+    delete from public.blocks where blocker_id = a and blocked_id = b;
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.messaging_set_settings('{"dmsReadReceipts": false}');
+    update public.conversation_members set last_read_at = now() - interval '1 minute'
+    where conversation_id = ab and user_id = b;
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.mark_conversation_read(ab);
+    reset role;
+    assert (select count(*) from realtime.messages where topic = 'conversation:' || ab and event = 'read') = n,
+      'receipts off: no broadcast';
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.messaging_set_settings('{"dmsReadReceipts": true}');
+  end if;
+
+  -- dms/004: a block or an unblock between DM members broadcasts `members` on the DM's
+  -- channel, so open screens close (or reopen) their composer at once.
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null
+     and to_regprocedure('public.dms_broadcast_block()') is not null then
+    select count(*) into n0 from realtime.messages
+    where topic = 'conversation:' || ab and event = 'members';
+    insert into public.blocks (blocker_id, blocked_id) values (b, a);
+    assert (select count(*) from realtime.messages
+            where topic = 'conversation:' || ab and event = 'members') = n0 + 1,
+      'a block broadcasts members on the DM';
+    delete from public.blocks where blocker_id = b and blocked_id = a;
+    assert (select count(*) from realtime.messages
+            where topic = 'conversation:' || ab and event = 'members') = n0 + 2,
+      'an unblock broadcasts members on the DM';
+    -- No DM between them: no broadcast, no error.
+    select count(*) into n0 from realtime.messages where event = 'members';
+    delete from public.conversations where id in (
+      select conversation_id from public.dm_pairs
+      where user_a = least(c, x) and user_b = greatest(c, x));
+    insert into public.blocks (blocker_id, blocked_id) values (c, x);
+    delete from public.blocks where blocker_id = c and blocked_id = x;
+    assert (select count(*) from realtime.messages where event = 'members') = n0,
+      'no DM: no broadcast';
+  else
+    raise notice 'dms/004 or realtime.send missing: block broadcast not checked';
+  end if;
+
+  -- dms/005: a request counts when it is sent. Opening "Message" without writing logs
+  -- nothing and is never refused for the budget; past it, the first message is refused.
+  -- (A budget of 3 here: this test has five members, so four recipients for X.)
+  delete from public.blocks where blocker_id = any (ids) or blocked_id = any (ids);
+  delete from public.conversations where id in (
+    select conversation_id from public.dm_pairs where x in (user_a, user_b));
+  delete from public.dm_declines where sender_id = x or recipient_id = x;
+  delete from public.dm_request_log where sender_id = x;
+  update public.profiles set accepts_dms = true where id = any (ids);
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"dmsFirstMessage": "requests", "dmsRequestsPerDay": 3}');
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  xa := public.start_dm(a);
+  xb := public.start_dm(b);
+  xc := public.start_dm(c);
+  xa2 := public.start_dm(a2);
+  reset role;
+  assert not exists (select 1 from public.dm_request_log where sender_id = x),
+    'opening four DMs logs no request, and the fourth (past a budget of 3) is not refused';
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not exists (select 1 from public.list_dm_requests() l where l.conversation_id = xa),
+    'the recipient never sees an empty request';
+  reset role;
+  update public.profiles set accepts_dms = false where id = b;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.send_message(xb, 'b turned DMs off since');
+    assert false, 'a first message runs a new DM''s checks';
+  exception when raise_exception then
+    assert sqlerrm = 'dms_off', 'got ' || sqlerrm;
+  end;
+  reset role;
+  update public.profiles set accepts_dms = true where id = b;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.send_message(xa, 'request 1');
+  perform public.send_message(xa, 'request 1, more');
+  perform public.send_message(xb, 'request 2');
+  perform public.send_message(xc, 'request 3');
+  begin
+    perform public.send_message(xa2, 'request 4');
+    assert false, 'the fourth sent request is over the budget';
+  exception when raise_exception then
+    assert sqlerrm = 'too_many_requests', 'got ' || sqlerrm;
+  end;
+  reset role;
+  assert (select count(*) from public.dm_request_log where sender_id = x) = 3,
+    'one log row per sent request, none for a later message';
+  assert not exists (select 1 from public.messages where conversation_id = xa2),
+    'the refused first message is not stored';
+
+  -- dms/005: `changed` on the member's own channel `dms:<id>` (ids only) when a DM message
+  -- becomes visible to them, and to a sender when their request is accepted. Only the
+  -- member joins it; nobody sends on it.
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+    assert (select count(*) from realtime.messages
+            where topic = 'dms:' || b and event = 'changed' and payload ->> 'id' = xb::text) = 1,
+      'a new request tells its recipient once (the refused first try told nothing)';
+    assert (select count(*) from realtime.messages
+            where topic = 'dms:' || a and event = 'changed' and payload ->> 'id' = xa::text) = 2,
+      'each visible message of the request tells A';
+    assert not exists (select 1 from realtime.messages
+                       where topic = 'dms:' || a2 and payload ->> 'id' = xa2::text),
+      'a refused request tells nothing';
+    assert not exists (select 1 from realtime.messages
+                       where topic = 'dms:' || x and payload ->> 'id' = any (array[xa, xb, xc]::text[])),
+      'the sender is not told of their own messages';
+    assert (select bool_and(payload - 'id' = '{}'::jsonb) from realtime.messages
+            where topic like 'dms:%' and payload ->> 'id' = any (array[xa, xb, xc]::text[])),
+      'ids only';
+    -- A decline tells the sender nothing; what X writes during the cooldown tells C nothing.
+    select count(*) into n0 from realtime.messages where topic in ('dms:' || x, 'dms:' || c);
+    perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.decline_request(xc);
+    reset role;
+    perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.send_message(xc, 'during the cooldown');
+    reset role;
+    assert (select count(*) from realtime.messages where topic in ('dms:' || x, 'dms:' || c)) = n0,
+      'decline and cooldown: no broadcast';
+    -- An accept tells the sender.
+    perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.accept_request(xa);
+    reset role;
+    assert (select count(*) from realtime.messages
+            where topic = 'dms:' || x and event = 'changed' and payload ->> 'id' = xa::text) = 1,
+      'an accepted request tells its sender';
+    -- A pending (pre-moderated) message tells nothing until it is approved.
+    update public.messages set status = 'pending' where conversation_id = xb;
+    select count(*) into n0 from realtime.messages where topic = 'dms:' || b;
+    update public.messages set status = 'visible' where conversation_id = xb;
+    assert (select count(*) from realtime.messages where topic = 'dms:' || b) = n0 + 1,
+      'a message turning visible tells the recipient';
+    -- Joining: B's own channel only; sending: nobody.
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    perform set_config('realtime.topic', 'dms:' || b, true);
+    set local role authenticated;
+    select count(*) into n from realtime.messages where topic = 'dms:' || b;
+    reset role;
+    assert n > 0, 'B joins their own channel';
+    perform set_config('realtime.topic', 'dms:' || a, true);
+    set local role authenticated;
+    select count(*) into n from realtime.messages where topic = 'dms:' || a;
+    reset role;
+    assert n = 0, 'nobody joins another member''s channel';
+    perform set_config('realtime.topic', 'dms:' || b, true);
+    set local role authenticated;
+    begin
+      insert into realtime.messages (topic, extension, event, payload, private)
+      values ('dms:' || b, 'broadcast', 'changed', '{"id": "x"}', true);
+      assert false, 'a client cannot send on a member channel';
+    exception when insufficient_privilege then
+      null;
+    end;
+    reset role;
+    perform set_config('realtime.topic', '', true);
+  else
+    raise notice 'realtime.send missing: dms/005 broadcasts not checked';
+  end if;
+
+  -- dms/006: a DM reaches its recipient with its first message, not with "Message".
+  delete from public.blocks where blocker_id = any (ids) or blocked_id = any (ids);
+  delete from public.conversations where id in (
+    select conversation_id from public.dm_pairs where user_a = any (ids) or user_b = any (ids));
+  delete from public.dm_declines where sender_id = any (ids) or recipient_id = any (ids);
+  delete from public.dm_request_log where sender_id = any (ids) or recipient_id = any (ids);
+  update public.profiles set accepts_dms = true where id = any (ids);
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"dmsFirstMessage": "direct", "dmsRequestsPerDay": 100,
+    "dmsReadReceipts": false}');
+  -- Direct mode: A opens a DM with B without writing; B has nothing.
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  ab := public.start_dm(b);
+  assert exists (select 1 from public.dm_peers() p
+                 where p.conversation_id = ab and p.peer_id = b and p.my_state = 'active'),
+    'the opener knows the peer (their screen works)';
+  assert exists (select 1 from public.list_conversations() l
+                 where l.conversation_id = ab and l.last_message_id is null),
+    'listed for the opener without a message (the UI leaves it out)';
+  select * into r from public.profile_dm_flags(array[b]) f;
+  assert not r.has_dm, 'nothing written to B: no DM that outlives their switch';
+  reset role;
+  assert not exists (select 1 from public.conversation_members where conversation_id = ab and user_id = b),
+    'B has no row';
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not exists (select 1 from public.list_conversations() l where l.conversation_id = ab), 'not in B''s list';
+  assert not exists (select 1 from public.dm_peers() p where p.conversation_id = ab), 'nor B''s peers';
+  assert not exists (select 1 from public.list_dm_requests() l where l.conversation_id = ab), 'nor B''s requests';
+  assert not public.can_read_conversation(ab), 'B reads nothing';
+  reset role;
+  -- B turns DMs off after the tap: the first message is refused, a new "Message" too.
+  update public.profiles set accepts_dms = false where id = b;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.send_message(ab, 'hi b');
+    assert false, 'the first message runs a new DM''s checks';
+  exception when raise_exception then
+    assert sqlerrm = 'dms_off', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.start_dm(b);
+    assert false, 'and "Message" says so first';
+  exception when raise_exception then
+    assert sqlerrm = 'dms_off', 'got ' || sqlerrm;
+  end;
+  reset role;
+  assert not exists (select 1 from public.messages where conversation_id = ab), 'the refused message is not stored';
+  assert not exists (select 1 from public.conversation_members where conversation_id = ab and user_id = b),
+    'and B still has no row';
+  update public.profiles set accepts_dms = true where id = b;
+  -- The first message: B's row, active, unread, listed, told live.
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  m := public.send_message(ab, 'first');
+  select * into r from public.profile_dm_flags(array[b]) f;
+  assert r.has_dm, 'written to B: the DM outlives their switch';
+  reset role;
+  assert (select state from public.conversation_members where conversation_id = ab and user_id = b) = 'active',
+    'direct: B is active';
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  select * into r from public.list_conversations() l where l.conversation_id = ab;
+  assert r.last_body = 'first' and r.unread = 1, 'in B''s list, unread';
+  reset role;
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+    assert (select count(*) from realtime.messages
+            where topic = 'dms:' || b and event = 'changed' and payload ->> 'id' = ab::text) = 1,
+      'B is told once, by the message';
+  end if;
+  -- B turns DMs off now: this DM keeps working (ruling D6).
+  update public.profiles set accepts_dms = false where id = b;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.send_message(ab, 'still fine');
+  assert public.start_dm(b) = ab, 'and opens';
+  reset role;
+  update public.profiles set accepts_dms = true where id = b;
+
+  -- dms/007, direct mode: X and A2 both open their DM, nobody writes; X writes: A2 gets it.
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  xa2 := public.start_dm(a2);
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.start_dm(x) = xa2, 'one DM';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.send_message(xa2, 'hello a2');
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  select * into r from public.list_conversations() l where l.conversation_id = xa2;
+  assert r.last_body = 'hello a2' and r.unread = 1, 'direct: delivered to A2, unread';
+  reset role;
+  -- A2 and C both open their DM, then C turns DMs off: A2's first message is refused, so
+  -- is a new "Message", and C's flags show no DM that outlives the switch.
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  a2c := public.start_dm(c);
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.start_dm(a2) = a2c, 'C opened it too';
+  reset role;
+  update public.profiles set accepts_dms = false where id = c;
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  select * into r from public.profile_dm_flags(array[c]) f;
+  assert not r.has_dm, 'a DM nobody wrote in doesn''t outlive the switch';
+  assert not exists (select 1 from public.search_dm_members((select username from public.profiles where id = c)) s
+                     where s.user_id = c), 'nor keeps C in the picker';
+  begin
+    perform public.send_message(a2c, 'are you there?');
+    assert false, 'C turned DMs off before anything was written';
+  exception when raise_exception then
+    assert sqlerrm = 'dms_off', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.start_dm(c);
+    assert false, 'opening it again says so';
+  exception when raise_exception then
+    assert sqlerrm = 'dms_off', 'got ' || sqlerrm;
+  end;
+  reset role;
+  assert not exists (select 1 from public.messages where conversation_id = a2c), 'nothing stored, nothing to push';
+  update public.profiles set accepts_dms = true where id = c;
+
+  -- Requests mode, both open the DM without writing: one DM, both active, nobody told.
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"dmsFirstMessage": "requests"}');
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  cx := public.start_dm(x);
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.start_dm(c) = cx, 'one DM';
+  reset role;
+  assert (select count(*) from public.conversation_members where conversation_id = cx and state = 'active') = 2,
+    'both active';
+  if to_regclass('public.notifications') is not null then
+    assert not exists (select 1 from public.notifications
+                       where kind = 'dm_request_accepted'
+                         and ((user_id = c and actor_id = x) or (user_id = x and actor_id = c))),
+      'no "request accepted" for a request nobody sent';
+  end if;
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+    assert not exists (select 1 from realtime.messages
+                       where topic in ('dms:' || c, 'dms:' || x) and payload ->> 'id' = cx::text),
+      'nobody is told of an empty DM';
+  end if;
+  -- dms/007: C writes first: nothing was written yet, so it is a new DM for X, a request
+  -- (one from C's budget), though X opened it too.
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.send_message(cx, 'hello x');
+  reset role;
+  assert (select state from public.conversation_members where conversation_id = cx and user_id = x) = 'request',
+    'the first message of a DM both opened is a request';
+  assert (select count(*) from public.dm_request_log where sender_id = c and recipient_id = x) = 1,
+    'and spends one request';
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert exists (select 1 from public.list_dm_requests() l where l.conversation_id = cx and l.last_body = 'hello x'),
+    'X finds it in their Requests';
+  begin
+    perform public.send_message(cx, 'hello c, at the same moment');
+    assert false, 'a request is answered before writing';
+  exception when raise_exception then
+    assert sqlerrm = 'not_a_member', 'got ' || sqlerrm;
+  end;
+  reset role;
+  -- dms/008: the losing sender of that race stores nothing and stamps no read (a true
+  -- race needs two sessions; this is its sequential outcome).
+  assert not exists (select 1 from public.messages
+                     where conversation_id = cx and body = 'hello c, at the same moment'),
+    'the refused send stored nothing';
+  assert (select last_read_at is null from public.conversation_members
+          where conversation_id = cx and user_id = x), 'and left no read on the request';
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.start_dm(c) = cx, 'X opens it again: accepted';
+  perform public.send_message(cx, 'hello c');
+  reset role;
+  assert (select count(*) from public.conversation_members where conversation_id = cx and state = 'active') = 2,
+    'one DM, both active once both wrote';
+
+  -- A real request, then its recipient taps "Message": accepted, the sender told.
+  if to_regclass('public.notifications') is not null then
+    select count(*) into n0 from public.notifications
+    where user_id = a and actor_id = c and kind = 'dm_request_accepted';
+  end if;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  ac := public.start_dm(c);
+  perform public.send_message(ac, 'request to c');
+  reset role;
+  assert (select state from public.conversation_members where conversation_id = ac and user_id = c) = 'request',
+    'requests mode: C has a request';
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.start_dm(a) = ac, 'the same DM';
+  reset role;
+  assert (select state from public.conversation_members where conversation_id = ac and user_id = c) = 'active',
+    'accepted';
+  if to_regclass('public.notifications') is not null then
+    assert (select count(*) from public.notifications
+            where user_id = a and actor_id = c and kind = 'dm_request_accepted') = n0 + 1,
+      'A learns of the acceptance';
+  end if;
+
+  -- The author of a DM message never reads its translations; the reader does.
+  insert into public.message_translations (message_id, locale, body) values (m.id, 'fr', 'premier');
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not exists (select 1 from public.message_translations where message_id = m.id),
+    'the author can''t tell the message was translated';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert exists (select 1 from public.message_translations where message_id = m.id), 'the reader reads it';
+  reset role;
+
+  -- Across a block: nobody sends on the DM's channel, and both members' own channels
+  -- hear of it.
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    perform set_config('realtime.topic', 'conversation:' || ab, true);
+    set local role authenticated;
+    insert into realtime.messages (topic, extension, event, payload, private)
+    values ('conversation:' || ab, 'broadcast', 'typing', '{}', true);
+    reset role;
+    select count(*) into n0 from realtime.messages
+    where topic in ('dms:' || a, 'dms:' || b) and event = 'changed' and payload ->> 'id' = ab::text;
+    insert into public.blocks (blocker_id, blocked_id) values (a, b);
+    assert (select count(*) from realtime.messages
+            where topic in ('dms:' || a, 'dms:' || b) and event = 'changed' and payload ->> 'id' = ab::text) = n0 + 2,
+      'a block tells both members'' lists';
+    set local role authenticated;
+    begin
+      insert into realtime.messages (topic, extension, event, payload, private)
+      values ('conversation:' || ab, 'broadcast', 'typing', '{}', true);
+      assert false, 'a blocked DM member sends nothing';
+    exception when insufficient_privilege then
+      null;
+    end;
+    reset role;
+    perform set_config('realtime.topic', '', true);
+    delete from public.blocks where blocker_id = a and blocked_id = b;
+  else
+    raise notice 'realtime.send missing: dms/006 channel checks skipped';
+  end if;
+
+  -- Merge with a row on one side only: C opened a DM with B alone (the older), A2 wrote
+  -- to B. One DM survives with both members, and B still reads A2's message.
+  delete from public.conversations where id in (
+    select conversation_id from public.dm_pairs where a2 in (user_a, user_b));
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"dmsFirstMessage": "direct"}');
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  cb := public.start_dm(b);
+  reset role;
+  update public.conversations set created_at = now() - interval '1 day' where id = cb;
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  a2b := public.start_dm(b);
+  perform public.send_message(a2b, 'a2 to b');
+  reset role;
+  perform public.merge_messaging(c, a2);
+  select p.conversation_id into cb from public.dm_pairs p where p.user_a = least(c, b) and p.user_b = greatest(c, b);
+  assert cb is not null and not exists (select 1 from public.dm_pairs where a2 in (user_a, user_b)), 'one DM with B';
+  assert (select count(*) from public.conversation_members where conversation_id = cb and state = 'active') = 2,
+    'C and B both in it';
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert (select count(*) from public.messages where conversation_id = cb and body = 'a2 to b') = 1,
+    'B still reads A2''s message';
+  reset role;
+
+  -- dms/009 (or groups/005–006 where groups is in): the daily sweep lists a DM's image
+  -- files nothing holds after a day (an image uploaded for a first message the server
+  -- refused, or of an erased message), never one a message, its history or an open
+  -- report holds (here a deleted message's earlier image, reported), nor a fresh upload.
+  insert into public.messages (conversation_id, author_id, image_path, status)
+    values (cb, c, cb || '/' || c || '/sent.jpg', 'visible');
+  insert into public.messages (conversation_id, author_id, status)
+    values (cb, c, 'deleted') returning id into sweep_m;
+  insert into public.message_versions (message_id, image_path) values (sweep_m, cb || '/' || c || '/reported.jpg');
+  insert into storage.objects (bucket_id, name, created_at) values
+    ('message-images', cb || '/' || c || '/sent.jpg', now() - interval '2 days'),
+    ('message-images', cb || '/' || c || '/refused.jpg', now() - interval '2 days'),
+    ('message-images', cb || '/' || c || '/reported.jpg', now() - interval '2 days'),
+    ('message-images', cb || '/' || c || '/uploading.jpg', now());
+  insert into public.reports (reporter_id, reported_user_id, message_id, reason)
+    values (b, c, sweep_m, 'spam') returning id into rep;
+  select array_agg(u.name order by u.name) into swept
+    from public.messaging_images_unreferenced(100000) u
+   where u.bucket = 'message-images' and u.name like cb || '/%';
+  assert swept = array[cb || '/' || c || '/refused.jpg'],
+    'swept: the upload no message holds, got ' || coalesce(swept::text, 'nothing');
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  failed := false;
+  begin
+    perform public.messaging_images_unreferenced(1);
+  exception when insufficient_privilege then failed := true;
+  end;
+  assert failed, 'authenticated must not list sweepable files';
+  reset role;
+
+  raise exception 'DMS_TESTS_PASSED';
+end $$;

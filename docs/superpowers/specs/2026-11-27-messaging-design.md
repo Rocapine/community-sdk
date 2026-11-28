@@ -397,11 +397,49 @@ description, member count, "X online" (above 0), and "Join" or "Open".
 - **Read receipts** (`readReceipts: true`): "Seen" under my last message the other member
   read.
 
+- **Decided while building** _(Our calls.)_:
+  - The "Message" button and the "new message" picker read one server call,
+    `profile_dm_flags(ids)` (switch, has an account, already has a DM; never the account id),
+    and the picker searches through `search_dm_members`.
+  - The switch only blocks new DMs: an existing DM keeps working, and the button and the
+    picker still list a member who turned DMs off when a DM with them already exists.
+  - Admins are exempt from member blocks for DMs, as in the feed: a member can't block an
+    in-app admin out.
+  - `dms/001` itself replaces `list_conversations` (a security-definer list that ignored a declined
+    request's `visible_from` would leak its last message); a host that adds `groups` after
+    `dms` re-applies it.
+  - After the decline cooldown, a sender's re-request is gated like a new DM (the member's
+    switch, the per-day budget, the account rule, blocks). If it fails, the request row stays
+    declined and the message is stored silently: the sender is never told.
+  - A DM request's first message pushes once; a request accepted gives the sender a center
+    item (`dm_request_accepted`, inbox module).
+  - "Message" (`start_dm`) creates the conversation with the opener's row only, so their
+    screen works; the recipient's row comes with the first message, which runs a new DM's
+    checks at that moment (their switch, blocks, the account rule, a recent decline, the
+    day's budget in requests mode) and is refused otherwise. Until then the recipient has
+    nothing: no row, no list entry, no request, no push. A DM nobody wrote in is left out
+    of the opener's Messages page too. Until something is written, a DM both opened is
+    still new: the first message runs the checks and, in requests mode, makes a request
+    (one from the budget); opening it again runs them too. Two first messages at the same
+    moment stay one conversation: in requests mode the second sender's message is refused
+    and they find a request to answer, their draft kept in the composer for after Accept. `start_dm` accepts a request only when its sender wrote, and no "request
+    accepted" goes out for a DM nobody wrote in. "Keeps working after the switch" means
+    something was written in the DM (`last_message_at`).
+  - The author of a DM message can't read its cached translations: one would tell them the
+    other member read it (a request, or read receipts off). `translate-message` refuses a
+    message's author before reading its cache, so an instant cached answer can't say it
+    either (the app offers Translate on others' messages only).
+
 ### Notifications and push
 
 - A new message pushes to every member of the conversation who follows it (DMs always;
   groups when their switch is on), except the author, members who blocked them, members
   whose app-level messaging switch is off, and members currently viewing the conversation.
+- _(Our call.)_ `pushPreview: "none"` makes a DM message push fully neutral: it drops the
+  sender's name as the title too. A new request's push is neutral whatever `pushPreview` says.
+- _(Our call.)_ The app-level switches ended up as `push_tokens` columns, `notify_group_messages`
+  and `notify_dms`, exposed through `useNotificationPreferences()` next to the other push
+  switches, rather than a `notification_preferences` table.
 - With `moderation: "post"`, the push leaves once the AI has passed the message (a few
   seconds); with `"pre"`, when it is approved; a message moderation hides never pushes.
   _(Our call.)_
@@ -429,6 +467,13 @@ blocked member's messages are hidden for the blocker and vice versa, as in the f
 existing DM stays in the list with its composer replaced by a line saying you can't write
 to this member.
 
+_(Our call.)_ A blocked DM's history is readable by neither side (the server refuses): the
+screen shows what it had cached and the "can't write" line, and a cold open of it shows only
+the line. A block or unblock made while the DM is open closes or reopens its composer at once
+(the server broadcasts it on the DM's channel), and both members' lists and Requests refetch
+(`changed` on their own channels): a pending request leaves at once. A member of a DM across a
+block can't send typing on its channel either.
+
 ### Account deletion
 
 `messaging.onAccountDelete`, applied by the existing `account-delete` path:
@@ -444,7 +489,9 @@ Groups the member created stay; their management falls to the admins.
 When the accounts module merges two profiles (`merge_profiles`), the kept profile takes
 over the merged one's DMs, group memberships, created groups, likes, notification
 preferences and declines. Two DMs with the same member become one conversation. _(Our
-call.)_
+call.)_ The messages that member never saw (before their `visible_from`, or any while
+their row was declined, the sender's silent messages after a decline included) are deleted,
+not merged in: keeping them would show them. _(Our call: privacy over history.)_
 
 ### Analytics (`host.onEvent`)
 

@@ -1,11 +1,13 @@
 // A message's menu: a sheet of actions (Like, Reply, Copy, Translate, Edit, Delete,
 // Report…, built by the screen). An action with `confirm` asks first, inside the same
 // sheet: no system alert, which react-native-web doesn't show.
-import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+// `useActionMenu`: the post and comment "…" menus, on this sheet on Android.
+import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { Alert, Platform, Pressable, StyleSheet, Text, View, type AlertButton } from "react-native";
 import { CommunitySheet, SheetView } from "../../Sheet";
 import { useCommunityTheme, useT, useThemedStyles } from "../../ThemeProvider";
 import type { CommunityTheme } from "../../theme";
+import { menuActions } from "../../utils/menu";
 
 export type MessageMenuAction = {
   key: string;
@@ -83,6 +85,30 @@ export function MessageMenu({
       </SheetView>
     </CommunitySheet>
   );
+}
+
+/** `show(title, buttons)` opens a post or comment "…" menu: the system alert on iOS and
+ * web, as before; this sheet on Android, whose alert shows three buttons at most (the
+ * fourth and Cancel are dropped) and can't be dismissed. Render `sheet` in the screen. */
+export function useActionMenu(): {
+  show(title: string, buttons: AlertButton[]): void;
+  sheet: ReactElement | null;
+} {
+  const [menu, setMenu] = useState({ open: false, title: "", actions: [] as MessageMenuAction[] });
+  const show = useCallback((title: string, buttons: AlertButton[]) => {
+    if (Platform.OS === "android") setMenu({ open: true, title, actions: menuActions(buttons) });
+    else Alert.alert(title, undefined, buttons);
+  }, []);
+  const sheet =
+    Platform.OS === "android" ? (
+      <MessageMenu
+        visible={menu.open}
+        title={menu.title}
+        actions={menu.actions}
+        onClose={() => setMenu((m) => ({ ...m, open: false }))}
+      />
+    ) : null;
+  return { show, sheet };
 }
 
 function makeStyles(theme: CommunityTheme) {

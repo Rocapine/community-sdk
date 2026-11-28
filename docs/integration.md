@@ -277,18 +277,18 @@ e.g. `lib/community-config.ts`.
   notification taps: the payload has `data.route: "/community"` and
   `data.kind`.
 
-## Messaging (groups module)
+## Messaging (groups and dms modules)
 
 Public group chats next to the feed: members create groups, find them in Explore, join,
 write (text, one image, a reply, a like), and share a group's card in the feed. Everything
-stays off unless `modules.groups` is set; direct messages come later on the same core.
+stays off unless `modules.groups` is set. Direct messages ride the same core: see [Direct messages](#direct-messages-dms-module).
 
 **Backend.** `init --modules …,groups` (or `upgrade --add-modules groups`) also installs
 `messaging` (the chat core) and `attachments` (a group's share card is a post attachment).
 `init` without `--modules` now installs `messaging`, `groups` and `attachments` too: the
 tables are there, the app shows nothing until it sets `modules.groups`. Install `push`
 **before** messaging for group pushes (a later `push` means re-running `messaging/002`);
-`inbox` works in either order (the group events in the center). See [`backend-runbook.md`](backend-runbook.md#8-messaging-and-groups)
+`inbox` works in either order (the group events in the center). See [`backend-runbook.md`](backend-runbook.md#8-messaging-groups-and-direct-messages)
 for the order, the functions and the settings.
 
 **Config.** Every value the backend enforces also lives in `messaging_settings`, set with
@@ -306,10 +306,10 @@ messaging: { homeLayout: "header" }, // shared chat options, below
 | `messaging.translation`        | `"onDemand"` | A "Translate" action on messages (needs the `translation` module). `"off"` removes it. Group names and descriptions are translated at approval (translation module) whatever this says.                                                     |
 | `messaging.typingIndicator`    | `true`       | "X is typing" in a conversation.                                                                                                                                                                                                            |
 | `messaging.badge`              | `"followed"` | The header items' badge: unread messages of the groups I follow (`"followed"`), of all my groups (`"all"`), or a dot (`"dot"`) for the followed ones.                                                                                       |
-| `messaging.hubLayout`          | `"tabs"`     | The Messages page: "Explore groups" on top (`"tabs"`, which becomes the Groups / DMs tabs once DMs exist) or at the bottom of a single list (`"unified"`).                                                                                  |
+| `messaging.hubLayout`          | `"tabs"`     | The Messages page: "Explore groups" on top (`"tabs"`, which becomes the Conversations / Groups tabs with DMs on) or at the bottom of a single list (`"unified"`).                                                                           |
 | `messaging.homeLayout`         | `"header"`   | `"header"`: the feed reaches messages through header items. `"segmented"`: a "Feed \| Groups" switch on the feed's home (needs `onOpenMessages` and `onOpenExplore`).                                                                       |
 | `messaging.pushPreview`        | `"full"`     | Group push text: the message (`"full"`), "X sent a message" (`"sender"`), or a neutral line (`"none"`). Backend only.                                                                                                                       |
-| `messaging.onAccountDelete`    | `"keep"`     | What account deletion does to the member's messages: keep them, erase their DMs (`"eraseDms"`, later), or erase every message (`"eraseAll"`). Backend only.                                                                                 |
+| `messaging.onAccountDelete`    | `"keep"`     | What account deletion does to the member's messages: keep them, erase their DMs (`"eraseDms"`), or erase every message (`"eraseAll"`). Backend only.                                                                                        |
 | `messaging.maxLength`          | `2000`       | Characters per message (database cap 4000).                                                                                                                                                                                                 |
 | `messaging.ratePerMinute`      | `20`         | One per-minute budget per member: sends, edits and deletions of your own messages share it (`messaging/006`).                                                                                                                               |
 | `groups.preview`               | `"readOnly"` | A non-member reads a group before joining (`"readOnly"`), or joins first (`"none"`). Backend key `groupsPreview`.                                                                                                                           |
@@ -329,7 +329,7 @@ messages from its creator only, a hidden one from nobody (the chat says the grou
 longer exists).
 
 **Host adapter.** `host.onAccountRequired(reason)`, `reason` `"joinGroup"`, `"createGroup"`
-(or `"dm"` later): the SDK calls it when an action needs an app account the member hasn't
+or `"dm"` (a DM with a member who has no account, or my own missing one, with `dms.requireAccount`): the SDK calls it when an action needs an app account the member hasn't
 linked. Show the app's sign-in there.
 
 **Screens.** Mount them in your router like the others; navigation is callbacks.
@@ -337,12 +337,12 @@ linked. Show the app's sign-in there.
 - `CommunityFeedScreen` gains `onOpenMessages(target?)`, `onOpenExplore()` and
   `beforeJoinGroup?()`. `target` is `{ groupId, preview? }` (a group; `preview`: read-only,
   I'm not a member), `{ tab: "groups" }` (the Messages page on a tab) or nothing (the
-  Messages page); `{ conversationId }` is for DMs later. Without `onOpenMessages` there are
+  Messages page); `{ conversationId }` is a DM (dms module). Without `onOpenMessages` there are
   no messages header items, no Groups home, and a group card only joins.
-- `NotificationInboxScreen` gains `onOpenMessages({ groupId, preview? })` (same callback):
+- `NotificationInboxScreen` gains `onOpenMessages({ groupId, preview? } | { conversationId })` (same callback):
   "your group was approved" and "part of your group wasn't accepted" open the group; "you
   were removed from a group" opens its preview, which says so (nothing with
-  `groups.preview: "none"`).
+  `groups.preview: "none"`); "your message request was accepted" opens the DM.
 - `MessagesScreen`: `onOpenConversation(id)`, `onOpenExplore()`, `onBack()`, `initialTab?`.
 - `ConversationScreen`: `conversationId`, `mode` (`"member"` or `"preview"`, read-only with
   a Join bar), `onOpenProfile`, `onOpenGroupDetails?`, `onOpenGroup?(groupId, preview)` (a
@@ -360,12 +360,12 @@ linked. Show the app's sign-in there.
 `examples/expo-app` wires all of them (`src/routes.ts`, `src/app/messages.tsx`,
 `conversation/[id].tsx`, `explore.tsx`, `group/[id]/`).
 
-**Header and home.** Header items `"messages"` (the Messages page) and `"groups"` (on its
-Groups tab) carry the unread badge (`messaging.badge`; `useMessagingBadge()` for your own
-entry point). With `homeLayout: "segmented"` the groups live in the home's Groups segment,
-so the header needs no `"groups"` item; once direct messages exist, put `"dms"` in the
-header there instead of `"messages"`. The SDK doesn't switch it for you: the header is your
-config.
+**Header and home.** Header items `"messages"` (the Messages page), `"groups"` (on its
+Groups tab, groups module) and `"dms"` (on its Conversations tab, dms module) carry the
+unread badge (`messaging.badge`; `useMessagingBadge()` for your own entry point). With
+`homeLayout: "segmented"` the groups live in the home's Groups segment, so the header needs
+no `"groups"` item: with DMs on, put `"dms"` in the header there instead of `"messages"`.
+The SDK doesn't switch it for you: the header is your config.
 
 **Pushes and badge.** Group pushes need the push module. A member follows a group with the
 bell in its conversation (off by default per group). The member-wide "Groups" switch for
@@ -394,13 +394,132 @@ online (`groups/007` leaves the reader out of every "online" count), and only wh
 **Web.** The screens run on react-native-web: a message's menu opens on right click or
 the "…" shown on hover and focus (long press on touch), a double click likes, Reply is in
 the menu (no swipe), and the menu's Copy copies a message (bubbles take no text selection,
-so a double click doesn't select a word).
+so a double click doesn't select a word). In the composer, Enter sends and Shift+Enter adds
+a line. A stack navigator hides the screen it leaves with `aria-hidden` while the clicked
+button keeps focus, and Chrome warns about it: the example app's root layout drops that
+focus on mouse clicks (a capture `click` listener, web only); copy it if your host shows
+the warning.
 
 **Analytics.** New `COMMUNITY_EVENTS`: `messagesOpened`, `conversationOpened`,
 `messageSent`, `messageLiked`, `messageTranslated`, `messageEdited`, `messageDeleted`,
 `messageReported`, `groupExploreOpened`, `groupSearched`, `groupPreviewed`, `groupJoined`,
 `groupLeft`, `groupCreated`, `groupShared`, `groupNotificationsToggled`, `homeSegment`. Ids
 and counts only, never message text.
+
+### Direct messages (dms module)
+
+One-to-one conversations on the same core, off unless `modules.dms` is set (`false` or absent:
+nothing changes). A DM is a conversation of two members, one per pair, with the same chat
+screen, composer, likes, replies, edits, translation, typing, report and block as a group.
+
+**Backend.** `init --modules …,dms` or `upgrade --add-modules dms` (it also installs
+`messaging`), `supabase db push`, then `messaging_set_settings` with the DM keys below. See
+[`backend-runbook.md`](backend-runbook.md#8-messaging-groups-and-direct-messages), "Direct messages", for the
+migrations, the order and the traps (adding `push` or `groups` after `dms` re-runs files).
+
+```ts
+modules: { dms: { firstMessage: "requests", entryPoints: ["profile", "newMessage"] } },
+```
+
+| Option                    | Default       | Meaning                                                                                                                                                                                        |
+| ------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dms.firstMessage`        | `"direct"`    | A first message lands in the recipient's conversations (`"direct"`), or waits in their Requests until they accept (`"requests"`). Backend key `dmsFirstMessage`.                               |
+| `dms.entryPoints`         | `["profile"]` | Where "Message" appears: a member's `"profile"`, the `"newMessage"` picker (a pencil on the Messages page), the `"contextMenu"` of a post, comment or message. Client only.                    |
+| `dms.readReceipts`        | `false`       | "Seen" under my last message once the other member read it. Never on a request. Backend key `dmsReadReceipts`.                                                                                 |
+| `dms.requireAccount`      | `false`       | Both members need a linked app account (accounts module) to start a DM. Backend key `dmsRequireAccount`.                                                                                       |
+| `dms.requestsPerDay`      | `5`           | Requests a member may send per day (`firstMessage: "requests"` only), at least 1: one counts when its first message is sent, not when "Message" opens the DM. Backend key `dmsRequestsPerDay`. |
+| `dms.declineCooldownDays` | `30`          | After a decline, the sender can't start a new request to that member for this long (0 = no wait). Backend key `dmsDeclineCooldownDays`.                                                        |
+
+As for groups, keep the app's values equal to `messaging_settings`: dev builds warn when
+they differ. The shared `messaging.*` options (moderation, translation, typing, `badge`,
+`hubLayout`, `pushPreview`, `maxLength`, `ratePerMinute`) apply to DMs too.
+
+**Entry points.** "Message" is hidden on my own profile, when either of us blocked the other,
+and when the member turned DMs off ("Receive direct messages", a switch in the profile edit
+sheet, on by default; `useAcceptsDms()` / `useSetAcceptsDms()`). It still opens a DM that
+already exists with a member who turned DMs off later: the switch only blocks new DMs.
+With `requireAccount` it is hidden on the profile of a member without an account, and
+without an account of my own it calls `host.onAccountRequired("dm")`. The server enforces
+the same rule for both sides and refuses `account_required`.
+
+"Message" opens the DM for me only: the other member hears of it with my first message
+(backend `dms/006`–`008`), which runs the checks again at that moment. If they turned DMs off
+in between, the send is refused with a "doesn't take direct messages" line (`account_required`
+calls `host.onAccountRequired("dm")`, or shows the line without it). A DM nobody wrote in
+stays out of the Messages page, mine included; a host that renders `useConversations()`
+itself should drop the DMs whose `lastMessage` is `null` the same way. Until something is
+written, a DM we both opened is still a new DM: my first message runs the checks and, with
+`firstMessage: "requests"`, lands in their Requests. "Already has a DM" (the button kept for
+a member who turned DMs off later) means something was written in it.
+
+**Requests** (`firstMessage: "requests"`). The Messages page shows a Requests row while
+requests wait. A request opens read-only with the sender's context (groups in common, member
+since) and an Accept / Decline / Block and report bar; accepting turns it into the live
+conversation and gives the sender a "request accepted" row in the center (inbox module).
+Without `onOpenRequests`, `MessagesScreen` shows `RequestsScreen` inside itself; pass
+`onOpenRequests` to give it your own route (`RequestsScreen` takes `onOpenRequest(conversationId)`
+and `onBack`; a request opens in `ConversationScreen`). A decline is silent: the sender still sees their message as sent and may keep
+writing, but the recipient never sees a declined request's messages again. After
+`declineCooldownDays` the sender's next message starts a new request showing only what follows.
+It is gated like a new DM (the member's switch, the per-day budget, the account rule,
+blocks); when it can't start, the message is stored and nobody is told.
+
+**Read receipts.** With `readReceipts`, "Seen" shows under my last message once the peer
+read it, only when both are active and not blocked: a request never tells its sender it was
+read.
+
+**Account rule.** With `requireAccount` both members need an account. Without the accounts
+module the rule doesn't apply on the server (nobody could pass).
+
+**Pushes.** Needs the push module. A DM message pushes to the other member (the group "bell"
+doesn't apply: a DM is always followed), at most once a minute per conversation unless they
+read it since, never across a block. The member-wide switch for your settings screen is
+`notify_dms` (default on) in `useNotificationPreferences()`: `setPreference("notify_dms",
+false)`. Like `notify_group_messages`, it is read only with its module on
+(`notificationPreferenceKeys(cfg)`), and setting it without `modules.dms` throws. A new
+request pushes once, on its first message, with a neutral line that names no one and quotes
+nothing, whatever `pushPreview` says. The payload is the group push's:
+`data: { route: "/community", kind: "community_message", conversationId }`, so route it
+with `onOpenMessages({ conversationId })` and skip the banner while that conversation is
+on screen. `pushPreview` for DM messages: `"full"` shows the sender as the title and the
+text; `"sender"` shows "X sent you a message"; `"none"` is the neutral line with no title
+(the sender's name is dropped too).
+
+**Wiring.** `onOpenMessages({ conversationId })` opens a DM: the feed's own prop, now also
+passed to `ProfileScreen` and `ThreadSheet` (the "Message" button and the post and comment
+menus use it; absent: no "Message" there) and received by `NotificationInboxScreen`.
+`MessagesScreen` (Conversations tab: Requests row, my DMs; with groups and dms, tabs
+Conversations / Groups, or one list with `hubLayout: "unified"`) and `ConversationScreen`
+serve DMs unchanged. `NewMessageSheet` is internal: `MessagesScreen` opens it from its
+pencil when `entryPoints` holds `"newMessage"`. It searches by name through
+`search_dm_members` (members who take DMs, plus any member I already have a DM with) and
+shows a "type a name" hint until something is typed.
+
+**Header.** The `"dms"` header item opens the Messages page on its Conversations tab, with
+the unread badge (DMs and pending requests). The badge, the conversation list and the
+Requests row update live: a new DM or request for me, or my request accepted, arrives on my
+own private Realtime channel (`dms:<my id>`, ids only, backend `dms/005`). With `messaging.homeLayout: "segmented"` the
+groups live on the home, so put `"dms"` in the header there rather than `"groups"`
+(`resolveHeaderZones` drops a `"groups"` item in a dms-only app, which has no Groups tab).
+`"messages"` remains available in either layout. Screen readers call the `"dms"` item
+"Direct messages" (`a11y.dms`), the `"messages"` one "Messages".
+
+**Blocking.** A blocked pair never reaches each other: no new DM, no request, no "Message"
+button, and neither side can read the DM's history (the screen shows what it cached and a
+"can't write to this member" line; a block made while a DM is open closes its composer at
+once, and a pending request leaves the recipient's Requests at once). In-app admins can't be
+blocked out of DMs, as in the feed.
+
+**Privacy.** Only the two members read a DM. A dashboard reads a message only through
+`admin_message_context`, and only one that was reported or AI-hidden. Account deletion
+follows `messaging.onAccountDelete` (`"eraseDms"` deletes the member's DM messages).
+Merging two profiles merges their DMs with one member into a single conversation; the
+messages that member never saw (a declined request, what was written during its cooldown)
+are deleted, not merged in. The author of a DM message never reads its cached translations
+(that would tell them it was read).
+
+**Analytics.** New `COMMUNITY_EVENTS`: `dmStarted`, `dmRequestAccepted`, `dmRequestDeclined`,
+`dmRequestBlocked`. Ids only.
 
 ## Phase 5 — Moderation
 

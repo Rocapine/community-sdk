@@ -4,6 +4,7 @@ import { makeT } from "../i18n";
 import {
   canDeleteMessage,
   closedReason,
+  composerBottomSpace,
   dayLabel,
   screenErrorCode,
   findOrLoadMessage,
@@ -13,6 +14,8 @@ import {
   replyPreview,
   runFlags,
   sendErrorKey,
+  shouldSendOnKey,
+  shownInList,
 } from "../utils/chat";
 import {
   SWIPE_ARMED_OFFSET,
@@ -235,7 +238,17 @@ describe("sendErrorKey", () => {
   it("maps the send errors to their copy", () => {
     expect(sendErrorKey("message_too_long")).toBe("chat.error.tooLong");
     expect(sendErrorKey("rate_limited")).toBe("chat.error.rateLimited");
+    expect(sendErrorKey("too_many_requests")).toBe("dms.error.tooManyRequests");
+    expect(sendErrorKey("dms_off")).toBe("dms.error.dmsOff");
     expect(sendErrorKey("unknown")).toBe("chat.error.generic");
+  });
+});
+
+describe("shownInList", () => {
+  it("leaves out a DM nothing was written in yet, never a group", () => {
+    expect(shownInList({ kind: "dm", lastMessage: null })).toBe(false);
+    expect(shownInList({ kind: "dm", lastMessage: { id: "m" } })).toBe(true);
+    expect(shownInList({ kind: "group", lastMessage: null })).toBe(true);
   });
 });
 
@@ -297,5 +310,59 @@ describe("msUntilNextDay", () => {
     const now = new Date(2026, 9, 24, 12);
     const at = new Date(now.getTime() + msUntilNextDay(now) - 1000);
     expect([at.getDate(), at.getHours(), at.getMinutes()]).toEqual([25, 0, 0]);
+  });
+});
+
+describe("composerBottomSpace", () => {
+  const H = 852;
+  const kb = { top: H - 336, height: 336 };
+  it("pads only the keyboard part that covers the screen", () => {
+    // Screen down to the window bottom: the whole keyboard.
+    expect(
+      composerBottomSpace({ keyboard: kb, screenBottom: H, windowHeight: H, insetBottom: 34 }),
+    ).toEqual({ keyboard: 336, inset: 0 });
+    // The host pads the home indicator (or a tab bar sits under the screen): that much less.
+    expect(
+      composerBottomSpace({ keyboard: kb, screenBottom: H - 34, windowHeight: H, insetBottom: 34 }),
+    ).toEqual({ keyboard: 302, inset: 0 });
+    // Android adjustResize: the screen already ends above the keyboard.
+    expect(
+      composerBottomSpace({
+        keyboard: kb,
+        screenBottom: H - 336,
+        windowHeight: H,
+        insetBottom: 24,
+      }),
+    ).toEqual({ keyboard: 0, inset: 0 });
+    // Not measured yet: the keyboard's height.
+    expect(
+      composerBottomSpace({ keyboard: kb, screenBottom: null, windowHeight: H, insetBottom: 34 }),
+    ).toEqual({ keyboard: 336, inset: 0 });
+  });
+  it("keeps the safe area the screen reaches with the keyboard closed", () => {
+    const at = (screenBottom: number | null) =>
+      composerBottomSpace({ keyboard: null, screenBottom, windowHeight: H, insetBottom: 34 });
+    expect(at(H)).toEqual({ keyboard: 0, inset: 34 });
+    expect(at(H - 34)).toEqual({ keyboard: 0, inset: 0 });
+    expect(at(H - 10)).toEqual({ keyboard: 0, inset: 24 });
+    expect(at(null)).toEqual({ keyboard: 0, inset: 34 });
+    // Measured mid-transition (off screen): never more than the inset.
+    expect(at(H * 2)).toEqual({ keyboard: 0, inset: 34 });
+  });
+});
+
+describe("shouldSendOnKey", () => {
+  const web = { key: "Enter", platform: "web" };
+  it("sends on Enter on web", () => expect(shouldSendOnKey(web)).toBe(true));
+  it("adds a line on Shift+Enter", () =>
+    expect(shouldSendOnKey({ ...web, shiftKey: true })).toBe(false));
+  it("never sends while an IME composes", () => {
+    expect(shouldSendOnKey({ ...web, isComposing: true })).toBe(false);
+    expect(shouldSendOnKey({ ...web, keyCode: 229 })).toBe(false);
+  });
+  it("ignores other keys", () => expect(shouldSendOnKey({ ...web, key: "a" })).toBe(false));
+  it("keeps native's return key a newline", () => {
+    expect(shouldSendOnKey({ ...web, platform: "ios" })).toBe(false);
+    expect(shouldSendOnKey({ ...web, platform: "android" })).toBe(false);
   });
 });

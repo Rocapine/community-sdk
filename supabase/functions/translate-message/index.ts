@@ -2,13 +2,14 @@
 // Requires a user JWT. The message is read with the CALLER's client, so RLS
 // (conversation readable, not blocked, visible or own) proves read access
 // before anything is translated; only then does the service role read the
-// cache and write it. Cached in message_translations (dropped when the
+// cache and write it. The message's author is refused (403) before the cache. Cached in message_translations (dropped when the
 // message is edited or deleted).
 //
 // Body: { messageId: string, locale: string } -> { body: string }
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { adminClient, callerUserId, json, preflight, SUPABASE_URL } from "../_shared/client.ts";
+import { translationRefusal } from "../_shared/messaging.ts";
 import { ENGINE, hasLetters, TARGET_LOCALES, translateItem } from "../_shared/translation.ts";
 
 const supabase = adminClient();
@@ -24,7 +25,8 @@ Deno.serve(async (req) => {
     return json({ error: "bad request" }, 400);
   }
   if (!TARGET_LOCALES.includes(locale)) return json({ error: "unsupported locale" }, 400);
-  if (!(await callerUserId(req))) return json({ error: "unauthorized" }, 401);
+  const callerId = await callerUserId(req);
+  if (!callerId) return json({ error: "unauthorized" }, 401);
 
   const { data: settings } = await supabase
     .from("messaging_settings")
@@ -40,11 +42,14 @@ Deno.serve(async (req) => {
   });
   const { data: msg } = await caller
     .from("messages")
-    .select("body, status")
+    .select("body, status, author_id")
     .eq("id", messageId)
     .maybeSingle();
-  if (!msg || msg.status !== "visible" || !msg.body?.trim()) {
-    return json({ error: "not found" }, 404);
+  // The author never touches the cache (its timing would say whether a reader translated
+  // it); the app offers Translate on others' messages only.
+  const refusal = translationRefusal(msg, callerId);
+  if (refusal || !msg?.body) {
+    return json({ error: refusal ?? "not found" }, refusal === "own message" ? 403 : 404);
   }
   // "👍": nothing to translate, no call and no cache row.
   if (!hasLetters(msg.body)) {

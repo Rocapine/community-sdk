@@ -192,4 +192,42 @@ describe("messaging settings check", () => {
     await checkSchemaVersionUnguarded(withGroups(rpc, false));
     expect(rpc).not.toHaveBeenCalled();
   });
+
+  const dmsBackend = {
+    moderation: "post",
+    translation: "onDemand",
+    pushPreview: "full",
+    onAccountDelete: "keep",
+    maxLength: 2000,
+    ratePerMinute: 20,
+    dmsFirstMessage: "direct",
+    dmsReadReceipts: false,
+    dmsRequireAccount: false,
+    dmsRequestsPerDay: 5,
+    dmsDeclineCooldownDays: 30,
+  };
+  const withDms = (rpc: unknown, dms: object) =>
+    resolveConfig({
+      ...baseConfig,
+      modules: { ...baseConfig.modules, dms },
+      supabase: {
+        from: stubClient({ data: null, error: new Error("x") }).from,
+        rpc,
+      } as unknown as SupabaseClient,
+    });
+
+  it("checks dms alone without the groups keys", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await checkSchemaVersionUnguarded(withDms(async () => ({ data: dmsBackend, error: null }), {}));
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("warns dmsFirstMessage when the backend and the client differ", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await checkSchemaVersionUnguarded(
+      withDms(async () => ({ data: dmsBackend, error: null }), { firstMessage: "requests" }),
+    );
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain("dmsFirstMessage");
+  });
 });

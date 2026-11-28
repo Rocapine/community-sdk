@@ -561,11 +561,12 @@ Expect, in order (wait 10 s between two calls for the same account that open a s
    also removes their profiles and posts) and the Appwrite user
    (`DELETE $AW/users/$U`).
 
-## 8. Messaging and groups
+## 8. Messaging, groups and direct messages
 
-Group chats (`modules.groups` in the app). `messaging` is the chat core (conversations,
-members, messages, likes, edit history, the translation cache and the settings), shared
-with direct messages later; `groups` adds public groups on it.
+Group chats (`modules.groups` in the app) and direct messages (`modules.dms`). `messaging` is
+the chat core (conversations, members, messages, likes, edit history, the translation cache
+and the settings), shared by both; `groups` adds public groups on it, `dms` one-to-one
+conversations (see [Direct messages](#direct-messages-dms)).
 
 ### Install and order
 
@@ -634,9 +635,14 @@ It merges the keys given; an unknown key or a bad value raises `invalid_setting:
 | `maxMembers`                  | `groups.maxMembers` (`null`: any)      | `null`       |
 | `nameMaxLength`               | `groups.nameMaxLength` (≤ 120)         | `60`         |
 | `descriptionMaxLength`        | `groups.descriptionMaxLength` (≤ 1000) | `500`        |
+| `dmsFirstMessage`             | `dms.firstMessage`                     | `"direct"`   |
+| `dmsReadReceipts`             | `dms.readReceipts`                     | `false`      |
+| `dmsRequireAccount`           | `dms.requireAccount`                   | `false`      |
+| `dmsRequestsPerDay`           | `dms.requestsPerDay` (≥ 1)             | `5`          |
+| `dmsDeclineCooldownDays`      | `dms.declineCooldownDays` (≥ 0)        | `30`         |
 
-The account rules read `account_links` only when the accounts module is installed;
-without it they don't apply. `groups.requireAccount: "feed"` is client only (`false` here).
+The account rules (`groupsRequireAccount`, `groupsCreateRequiresAccount`, `dmsRequireAccount`)
+read `account_links` only when the accounts module is installed; without it they don't apply. `groups.requireAccount: "feed"` is client only (`false` here).
 
 ### Realtime, storage, moderation
 
@@ -649,12 +655,21 @@ without it they don't apply. `groups.requireAccount: "feed"` is client only (`fa
   leave, a removal): open chats refresh their header, and a member just removed sees the
   removed line at once (Realtime checks a private channel's policies when it is joined,
   so they still get it). Its policies on `realtime.messages`: readers (previewers
-  included) listen, only members send typing.
+  included) listen, members send (typing; any event, but a forged `read`, `changed` or
+  `members` only makes the others refetch what the server computes; with dms, `dms/006`
+  also requires reading the conversation, so not across a block). With dms, `dms/005` gives each member a
+  private channel `dms:<their id>` that only they can join and nobody can send on: the
+  server broadcasts `changed` (the conversation id only) there when a DM message becomes
+  visible to them (a new DM, a new request, a later message) and when their request is
+  accepted, so the Requests row, the conversation list and the badge update without a
+  refresh. Never for what they may not read (a declined request, a block, a pending
+  message), and a decline is never broadcast to its sender.
 - **Storage.** `message-images` (private, 2 MB, JPEG/PNG/WebP,
   `<conversation>/<uid>/<uuid>.<ext>`; readers get signed URLs), `group-images` (public,
   approved images only, written by moderation) and `group-images-pending` (private,
   `<uid>/<uuid>.<ext>`, copied to `group-images` on approval). `daily-moderation`
-  removes, through `messaging_images_unreferenced()` (`groups/005`, service role only),
+  removes, through `messaging_images_unreferenced()` (`groups/005`, or `dms/009` without
+  groups; service role only),
   every file of a deleted group (its picture and its messages' images) and any upload
   no row points at after a day (an image picked and never sent, an abandoned group form).
   A file a group or message that isn't deleted still points at, or that a message's edit
@@ -685,9 +700,93 @@ without it they don't apply. `groups.requireAccount: "feed"` is client only (`fa
   (`messages.pushed_at`, stamped before sending): a failed Expo send is not retried. `COMMUNITY_PUSH_COPY` keys:
   `message.groupBody` (`pushPreview: "sender"`), `message.neutral` (`"none"`).
 
+### Direct messages (dms)
+
+`modules.dms` in the app. `npx @rocapine/community upgrade --add-modules dms` (or
+`init --modules …,dms`) also installs `messaging`; `groups` and `attachments` are not needed.
+Then `supabase db push`, `messaging_set_settings` with the `dms*` keys above, and
+`supabase functions deploy`.
+
+- **Migrations**, after `messaging/001–006` (and `groups/*` when installed, the CLI's order):
+  `dms/001_dms` (the `dm_pairs`, `dm_declines` and `dm_request_log` tables, the DM
+  settings keys, the start / accept / decline / block-and-report RPCs, the read rules, a
+  recipient's `visible_from`, `profile_dm_flags`, `list_dm_requests`, `dm_peer_read`,
+  and replacements of `send_message`, `can_read_conversation`, `list_conversations`,
+  `unread_followed_messages`, `messaging_on_account_delete` and `merge_messaging`),
+  `dms/002_push` (DM pushes, `push_tokens.notify_dms`, `claim_message_push` with a `kind`),
+  `dms/003_flags_search_read` (`search_dm_members`, `has_dm` in `profile_dm_flags`, the
+  live "Seen" broadcast) and `dms/004_block_broadcast` (a block between two members of a DM
+  broadcasts `members` on its channel, so an open DM closes its composer at once) and
+  `dms/005_requests_sent_live` (a request counts against `dmsRequestsPerDay` when its
+  first message is sent: `dm_request_refusal` only reads the budget, `dm_log_request`
+  spends it from `send_message`; the member's own Realtime channel `dms:<id>`, below) and
+  `dms/006_first_message` (the recipient's row comes with the first message: `start_dm`
+  makes the opener's row only, `send_message` runs a new DM's checks and makes the
+  recipient's; `dm_peers` from `dm_pairs`; `has_dm` and the picker count a DM once the other
+  member has a row; `merge_messaging` moves a one-sided row; the author of a DM message
+  can't read its translations; sending on `conversation:<id>` needs `can_read_conversation`;
+  a block also sends `changed` on both members' `dms:<id>`. It deletes the recipient rows the
+  old `start_dm` made that nobody wrote to) and `dms/007_empty_dm_checks` (a DM nothing was
+  ever written in, `conversations.last_message_at` null, is gated like a new one even when
+  both members opened it: `send_message` runs the checks and makes a request in requests
+  mode, `start_dm` refuses on opening, `has_dm` and the picker need a DM written in; a
+  block tells the blocked member's `dms:<id>` only when they have a row) and
+  `dms/008_send_recheck` (`send_message` checks the caller's own row again under the pair
+  lock: of two first messages sent at once in requests mode, the second is refused
+  `not_a_member` instead of landing in the request its row just became) and
+  `dms/009_storage_sweep` (`messaging_images_unreferenced()` for installs without groups:
+  the daily sweep of `message-images`, below; created only when groups hasn't made it). All
+  idempotent; `dms/002` needs the push module (skipped with a notice when `push_tokens`
+  is missing).
+- **Functions.** No new secret and no new function: `notify-message` (messaging + push)
+  now pushes DMs, `report-to-slack` names a reported DM's two members and never quotes
+  it, and `account-delete` applies `eraseDms`. Redeploy `notify-message` and
+  `report-to-slack` after `db push` (`dms/002` first: `notify-message` reads
+  `claim_message_push`'s `kind`), and `translate-message`, which now refuses a message's
+  author (403) before its cache: the cache's timing would tell a DM's sender it was read.
+- **Traps.**
+  - **Adding `push` after `dms`:** re-run `messaging/002_push.sql`, **then** `dms/002_push.sql`.
+    `messaging/002` alone after `dms/002` fails on `claim_message_push`'s return type;
+    run `dms/002` again after it.
+  - **Adding `groups` after `dms`:** `groups/003` recreates `list_conversations` without the
+    DM rules, so `dms/001` must run again once groups is in (`upgrade --add-modules groups`
+    copies the dms templates again; apply them, `db push`). Until then a declined request's
+    last message can leak into the conversation list. Fresh installs are fine: the CLI
+    orders `groups` before `dms`.
+  - **Config must match the backend.** With `modules.dms` on and `dms/001` missing, the
+    conversation list breaks (`dm_peers` fails and takes the whole list with it). Run
+    `db push` before shipping an app build that sets `modules.dms`.
+  - **The storage sweep on a DM-only install** comes from `dms/009`:
+    `messaging_images_unreferenced()` (called by `daily-moderation`) lists the
+    `message-images` files no message nor message version holds after a day (an erased DM
+    message's image, `eraseDms` / `eraseAll`; an image uploaded for a first message the server
+    refused), never one an open report points at. `dms/009` creates it only when groups
+    hasn't; adding groups later replaces it with `groups/005–006`'s, which also sweeps the
+    group buckets, and re-running `dms/009` never undoes that.
+  - **The Slack report path for a DM was not run live.** `report-to-slack`'s DM branch is
+    unit-tested only (running it would post to the real channel): report one DM message from a
+    sandbox first and check the line reads "Direct message from _a_ to _b_ (text not shown)".
+- **Profile merge.** Two DMs with the same member become one. Messages that member never
+  saw are deleted first, not merged: a declined request's messages and what its sender wrote
+  silently during the cooldown (or after a re-request the checks refused). Merging them in
+  would show them, so the history loses them on purpose (a report on one keeps its text in
+  `details`).
+- **Privacy at the dashboard.** A DM's text never appears in Slack. The dashboard reads a
+  message only through `admin_message_context(message, before, after)`, and that answers
+  only for a message that was reported or AI-hidden, with up to 50 messages around it each
+  way (a pair that was never flagged stays unreadable). In-app admins can't read DMs.
+- **Pushes.** `notify-message` pushes the other member of a DM unless `push_tokens.notify_dms`
+  is off (default on; `useNotificationPreferences()` in the app), at most once a minute per
+  DM unless they read it since, never across a block, never for a message before their
+  `visible_from`. A new request pushes once, on its first message, with `message.request`
+  (a neutral line that names no one, whatever `pushPreview` says). `pushPreview: "none"`
+  also drops the sender's title on a DM message push. New `COMMUNITY_PUSH_COPY` keys:
+  `message.dmBody` (`pushPreview: "sender"`) and `message.request`.
+
 ### Dashboard functions
 
-`admin_message_context(message, before, after)` (a flagged message and its neighbours),
+`admin_message_context(message, before, after)` (a flagged message and its neighbours; in a
+DM only for a reported or AI-hidden message),
 `admin_edit_group`, `admin_transfer_group` and `messaging_set_settings` answer only the
 service role or the SQL editor (`messaging_is_dashboard_admin()`, fail-closed); in-app
 admin powers stay `profiles.is_admin`. Reports carry `message_id` or `group_id`.

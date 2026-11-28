@@ -53,6 +53,7 @@ import {
   Modal,
   Platform,
   StyleSheet,
+  TextInput,
   useWindowDimensions,
   type StyleProp,
   type ViewStyle,
@@ -331,8 +332,12 @@ export function SheetView({ style, ...rest }: ComponentProps<typeof BottomSheetV
 }
 
 /** Any text field inside a sheet must be this one: gorhom tracks its focus
- * to handle the keyboard (iOS). */
-export const SheetTextInput = BottomSheetTextInput;
+ * to handle the keyboard (iOS). On web, a plain TextInput: gorhom's blur handler
+ * calls `TextInput.State.currentlyFocusedInput`, which react-native-web lacks
+ * (an uncaught error on every blur), and there is no keyboard to track. */
+export const SheetTextInput = (
+  Platform.OS === "web" ? TextInput : BottomSheetTextInput
+) as typeof BottomSheetTextInput;
 
 /** The sheet's side gutter, in `theme.spacing` units: content and footer sit
  * inside it, so a full-width rule bleeds out by `-theme.spacing(SHEET_GUTTER)`. */

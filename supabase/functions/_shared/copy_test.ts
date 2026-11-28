@@ -117,6 +117,34 @@ Deno.test("pushCopy: group message copy, every UI locale", () => {
   }
 });
 
+Deno.test("pushCopy: DM copy, every UI locale", () => {
+  assertEquals(
+    pushCopy("fr").text("message.dmBody", { sender: "Jean" }),
+    "Jean t'a envoyé un message",
+  );
+  assertEquals(
+    pushCopy("fr-vous").text("message.dmBody", { sender: "Jean" }),
+    "Jean vous a envoyé un message",
+  );
+  assertEquals(pushCopy("en").text("message.request"), "You have a new message request");
+  const en = pushCopy("en");
+  for (const locale of UI_LOCALES) {
+    const copy = pushCopy(locale);
+    const body = copy.text("message.dmBody", { sender: "Jean" });
+    const request = copy.text("message.request");
+    assertEquals(body.includes("Jean"), true, locale);
+    assertEquals(request.length > 0 && !request.includes("{"), true, locale);
+    if (locale !== "en") {
+      assertEquals(body !== en.text("message.dmBody", { sender: "Jean" }), true, locale);
+      assertEquals(request !== en.text("message.request"), true, locale);
+    }
+  }
+  assertEquals(
+    pushCopy("fr").text("message.request") !== pushCopy("fr-vous").text("message.request"),
+    true,
+  );
+});
+
 Deno.test("groupMessageBody: no text leaves with sender or none", () => {
   const fr = pushCopy("fr");
   assertEquals(groupMessageBody(fr, "full", "Jean", "Salut", false), "Jean: Salut");

@@ -1,31 +1,47 @@
-// A group conversation (groups module; DMs later), validated mockup "bubbles": the
-// group's header (picture, name, "● X online" when other members are, notifications
-// bell), the messages newest at the bottom in runs by author with a separator between
-// days, "X is typing…", and the composer. A double tap likes a message, a swipe right
-// replies to it (native), a long press opens its menu. `mode: "preview"` reads the
-// group without joining: a "Join" bar replaces the composer, and joining turns the
-// screen into the member's chat in place. A member removed, or a group deleted, sees a line instead of the composer.
+// A conversation, validated mockup "bubbles": a group (groups module) or a DM (dms
+// module). The header: the group's picture, name, "● X online" when other members are,
+// notifications bell; a DM's peer avatar, name and "● Online" (tap: their profile). The
+// messages newest at the bottom in runs by author with a separator between days (names
+// over bubbles in groups only), "X is typing…", and the composer. A double tap likes a
+// message, a swipe right replies to it (native), a long press opens its menu.
+// `mode: "preview"` reads the group without joining: a "Join" bar replaces the composer,
+// and joining turns the screen into the member's chat in place. A member removed, or a
+// group deleted, sees a line instead of the composer; so does a DM across a block.
 //
-// The host pads the top (like every screen); the screen pads the bottom (safe area,
-// keyboard). Renders nothing when the groups module is off.
+// A DM request I received opens read-only (validated mockup B): the sender's context
+// under the header (groups in common, member since) and a bar Accept / Decline / Block
+// and report instead of the composer. Nothing tells the sender I read it: no read
+// state, no typing. Accepting turns the screen live in place; declining or blocking
+// closes it. With read receipts, "Seen" goes under my last message once the peer read it.
+//
+// The host pads the top (like every screen); the screen pads the bottom (the safe area
+// the host left, the keyboard where it covers the screen). Renders nothing when no
+// messaging module is on.
 import {
   COMMUNITY_EVENTS,
   MessagingError,
+  dmsSettings,
   emitEvent,
   groupsSettings,
   isOptimistic,
   messagingSettings,
   useAccountLinked,
+  useAcceptRequest,
+  useBlockAndReportRequest,
   useCommunityConfig,
   useConversations,
+  useDeclineRequest,
   useDeleteMessage,
+  useDmRequests,
   useEditMessage,
   useGroup,
   useGroupOnlineCounts,
+  useIsOnline,
   useJoinGroup,
   useMarkConversationRead,
   useMessages,
   useMyUid,
+  usePeerRead,
   useProfile,
   useRefreshGroupOnFocus,
   useSendMessage,
@@ -43,18 +59,21 @@ import {
   ActivityIndicator,
   AppState,
   FlatList,
+  Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type TextInputInstance,
+  type ViewInstance,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { Avatar } from "../components/Avatar";
-import { useKeyboardHeight } from "../components/ComposerSheet";
 import { GroupReviewNotice } from "../components/GroupFormSheet";
 import { GroupLinkContext, type GroupLink } from "../components/GroupAttachment";
 import { ImageViewerHost } from "../components/ImageViewer";
@@ -70,14 +89,20 @@ import { TypingLine } from "../components/chat/TypingLine";
 import {
   canDeleteMessage,
   closedReason,
+  composerBottomSpace,
+  conversationIdentity,
+  dmState,
   findOrLoadMessage,
   groupByDay,
+  groupClosed,
   localDay,
   msUntilNextDay,
   replyPreview,
   runFlags,
   screenErrorCode,
+  seenMessageId,
   sendErrorKey,
+  senderContext,
   type ChatAction,
 } from "../utils/chat";
 import { canCopy, copyText } from "../utils/clipboard";
@@ -90,7 +115,7 @@ export type ConversationScreenProps = {
   /** `"preview"`: read-only with a "Join" bar (a group the reader hasn't joined). */
   mode?: "member" | "preview";
   onOpenProfile(userId: string): void;
-  /** Tapping the header (group details). */
+  /** Tapping a group's header (group details). A DM's header opens `onOpenProfile`. */
   onOpenGroupDetails?(): void;
   /** Opens an attached item; defaults to the provider's `onOpenAttachment`. */
   onOpenAttachment?(attachment: PostAttachment): void;
@@ -118,6 +143,41 @@ type Row = {
   last?: boolean;
 };
 
+/** How often a removed member's screen checks whether they were readmitted. */
+const REMOVED_RECHECK_MS = 30_000;
+
+/** The space under the composer (see composerBottomSpace): the screen's bottom edge
+ * in the window, measured at layout and again on each keyboard move (a modal may have
+ * been mid-animation at layout). */
+function useBottomSpace(insetBottom: number) {
+  const ref = useRef<ViewInstance>(null);
+  const windowHeight = useWindowDimensions().height;
+  const [screenBottom, setScreenBottom] = useState<number | null>(null);
+  const [keyboard, setKeyboard] = useState<{ top: number; height: number } | null>(null);
+  const measure = useCallback(
+    () => ref.current?.measureInWindow((_x, y, _w, h) => setScreenBottom(y + h)),
+    [],
+  );
+  useEffect(() => {
+    const ios = Platform.OS === "ios";
+    const show = Keyboard.addListener(ios ? "keyboardWillShow" : "keyboardDidShow", (e) => {
+      measure();
+      const { screenY, height } = e.endCoordinates;
+      setKeyboard(height > 0 ? { top: screenY, height } : null);
+    });
+    const hide = Keyboard.addListener(ios ? "keyboardWillHide" : "keyboardDidHide", () => {
+      measure();
+      setKeyboard(null);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [measure]);
+  const space = composerBottomSpace({ keyboard, screenBottom, windowHeight, insetBottom });
+  return { ref, measure, ...space };
+}
+
 /** A callback whose identity never changes but that always runs the latest closure,
  * so memoized rows don't re-render on each keystroke. */
 function useStable<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
@@ -144,7 +204,7 @@ export function ConversationScreen(props: ConversationScreenProps) {
         : null,
     [canOpen, hasGate],
   );
-  if (!groupsSettings(cfg)) return null;
+  if (!messagingSettings(cfg)) return null;
   return (
     <GroupLinkContext.Provider value={groupLink}>
       <ImageViewerHost>
@@ -171,13 +231,34 @@ function Conversation({
   const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
-  const keyboardHeight = useKeyboardHeight(insets.bottom);
+  const bottom = useBottomSpace(insets.bottom);
   const settings = messagingSettings(cfg)!;
   const myUid = useMyUid();
   const me = useProfile(myUid).data;
 
-  const conversation = useConversations().data?.find((c) => c.id === conversationId);
-  const kind = conversation?.kind ?? "group";
+  const conversations = useConversations();
+  const conversation = conversations.data?.find((c) => c.id === conversationId);
+  // The list holds my active conversations only: a request I received comes from my
+  // pending requests. Once known, a DM stays that DM for the screen's life (an accept or
+  // a decline refetches both lists, and it may sit in neither for a moment).
+  const dmsOn = !!dmsSettings(cfg);
+  const requests = useDmRequests();
+  const request = requests.data?.find((r) => r.conversationId === conversationId);
+  const loaded = !isQueryLoading(conversations) && !isQueryLoading(requests);
+  const sticky = useRef<{ kind: "dm" | "group"; peerId: string | null } | null>(null);
+  const identity = conversationIdentity({
+    listed: conversation,
+    request,
+    sticky: sticky.current,
+    dmsOn,
+    groupsOn: !!groupsSettings(cfg),
+    preview: mode === "preview",
+    loaded,
+  });
+  if (identity.confirmed && identity.kind)
+    sticky.current = { kind: identity.kind, peerId: identity.peerId };
+  const { kind, peerId } = identity;
+  const isDm = kind === "dm";
   const groupQuery = useGroup(kind === "group" ? conversationId : null);
   const group = groupQuery.data;
   const online =
@@ -190,34 +271,79 @@ function Conversation({
   const [errorCode, setErrorCode] = useState<MessagingErrorCode | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const accountLinked = useAccountLinked();
-  // A removal, a readmission or a join while the screen was away (groups/004 covers the
-  // ones while it is open).
-  useRefreshGroupOnFocus(kind === "group" ? conversationId : null, isFocused);
-  // A failed action said "removed", the group now says I'm in again (readmitted, rejoined).
+  // A failed action said "removed", and the group now says I'm in again (rejoined) or no
+  // longer removed (readmitted: back to the preview's Join).
+  const wasRemoved = useRef(false);
   useEffect(() => {
-    if (group?.isMember)
+    if (group?.isMember || (wasRemoved.current && group?.removed === false))
       setErrorCode((c) => (c === "not_a_member" || c === "removed_from_group" ? null : c));
-  }, [group?.isMember]);
+    if (group) wasRemoved.current = group.removed;
+  }, [group?.isMember, group?.removed]);
   // A join made here no longer counts once I'm removed (a readmission then offers Join).
   useEffect(() => {
     if (group?.removed) setJoined(false);
   }, [group?.removed]);
-  const closed = closedReason(group, errorCode);
-  const active = member && !closed;
-
-  // Closed: no more reads nor Realtime.
-  const messages = useMessages(closed ? null : conversationId);
-  useMarkConversationRead(active ? conversationId : null, isFocused);
-  // Previewers see who is typing too; only members type (the composer).
-  const { typingUserIds, notifyTyping } = useTyping(closed ? null : conversationId);
-
+  // ---- DM ----
+  const peer = useProfile(isDm ? peerId : null).data;
+  const peerOnline = useIsOnline(isDm ? peerId : null);
+  // Accepted here: live at once, before the lists catch up.
+  const [accepted, setAccepted] = useState(false);
+  // Declined or blocked here: reads and the channel stop before the screen closes (the
+  // channel was authorized once, at join).
+  const [left, setLeft] = useState(false);
+  const state = isDm
+    ? dmState({ listed: conversation, pending: !!request, accepted, left, loaded, errorCode })
+    : null;
+  const requestMode = state === "request" || state === "left";
+  // An unblock (dms/004) brings the peer back in the list: a send refused as blocked no
+  // longer closes the composer.
   useEffect(() => {
+    if (conversation?.peerId) setErrorCode((c) => (c === "blocked" ? null : c));
+  }, [conversation?.peerId]);
+
+  const closed =
+    kind === "group"
+      ? groupClosed(group, errorCode, identity.confirmed)
+      : state === "blocked" || state === "unavailable"
+        ? state
+        : null;
+  const active = member && !closed && kind !== null && (!isDm || state === "active");
+  // A removal, a readmission or a join while the screen was away (groups/004 covers a
+  // removal while it is open); while the removed line shows, every 30 s too: nothing tells
+  // a removed member they were readmitted.
+  useRefreshGroupOnFocus(
+    kind === "group" ? conversationId : null,
+    isFocused,
+    closed === "removed" ? REMOVED_RECHECK_MS : undefined,
+  );
+
+  // Closed: no more reads nor Realtime. A blocked DM keeps both (the server filters the
+  // blocked member's messages), so an unblock (dms/004's broadcast) reopens it live.
+  const messages = useMessages(left || (closed && closed !== "blocked") ? null : conversationId, {
+    dm: isDm,
+  });
+  // A request leaves no read state.
+  useMarkConversationRead(active ? conversationId : null, isFocused);
+  // Previewers see who is typing too; only members type (the composer). A DM joins the
+  // typing channel only while live: never from a request, nor across a block.
+  const { typingUserIds, notifyTyping } = useTyping(
+    kind === null || closed || (isDm && !active) ? null : conversationId,
+    { dm: isDm },
+  );
+  const peerRead = usePeerRead(isDm && active ? conversationId : null);
+
+  // Once per opening (the screen is keyed by conversation), once its kind is sure: a DM
+  // not in my lists yet guesses "group" meanwhile.
+  const opened = useRef(false);
+  const kindKnown = identity.confirmed || (kind === "group" && !!group);
+  useEffect(() => {
+    if (kind === null || !kindKnown || opened.current) return;
+    opened.current = true;
     emitEvent(cfg, COMMUNITY_EVENTS.conversationOpened, { conversationId, kind });
     if (mode === "preview")
       emitEvent(cfg, COMMUNITY_EVENTS.groupPreviewed, { groupId: conversationId });
-    // Once per opening (the screen is keyed by conversation).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [kind, kindKnown]);
 
   // ---- composer ----
   const inputRef = useRef<TextInputInstance>(null);
@@ -239,10 +365,51 @@ function Conversation({
   const translate = useTranslateMessage();
   const join = useJoinGroup();
   const setNotify = useSetGroupNotify();
+  const acceptRequest = useAcceptRequest();
+  const declineRequest = useDeclineRequest();
+  const blockRequest = useBlockAndReportRequest();
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const answering =
+    acceptRequest.isPending || declineRequest.isPending || blockRequest.isPending || left;
+  const leave = () => {
+    setLeft(true);
+    onBack();
+  };
+  const accept = () => {
+    if (answering) return;
+    setRequestError(null);
+    acceptRequest.mutate(
+      { conversationId },
+      {
+        // The draft a refused send left (both wrote first at once: mine became a request)
+        // is still in `text`; the refusal's line goes.
+        onSuccess: () => {
+          setAccepted(true);
+          setErrorCode(null);
+        },
+        onError: () => setRequestError(t("dms.request.error")),
+      },
+    );
+  };
+  const decline = () => {
+    if (answering) return;
+    setRequestError(null);
+    declineRequest.mutate(
+      { conversationId },
+      { onSuccess: leave, onError: () => setRequestError(t("dms.request.error")) },
+    );
+  };
 
   const listRef = useRef<FlatList<Row>>(null);
-  const fail = (action: ChatAction) => (e: unknown) =>
-    setErrorCode(screenErrorCode(action, e instanceof MessagingError ? e.code : "unknown"));
+  const fail = (action: ChatAction) => (e: unknown) => {
+    const code = e instanceof MessagingError ? e.code : "unknown";
+    // A DM's first message with `requireAccount` and no account of mine (or theirs); a
+    // host without the callback gets the line.
+    if (action === "send" && code === "account_required" && cfg.host.onAccountRequired)
+      cfg.host.onAccountRequired("dm");
+    else setErrorCode(screenErrorCode(action, code));
+  };
   const gate = async (hostGate = beforeSend) => {
     if (!hostGate) return true;
     setGating(true);
@@ -467,6 +634,11 @@ function Conversation({
       }),
     [pages],
   );
+  // "Seen" under my last message only (dm_peer_read may pass older hidden ones).
+  const seenId = useMemo(
+    () => (peerRead ? seenMessageId(pages?.flat() ?? [], myUid, peerRead, isOptimistic) : null),
+    [pages, myUid, peerRead],
+  );
   const loadOlder = () => {
     if (messages.hasNextPage && !messages.isFetchingNextPage) void messages.fetchNextPage();
   };
@@ -500,7 +672,7 @@ function Conversation({
       if (item.day) return <DaySeparator day={item.day} today={today} />;
       const m = item.message!;
       const usable = !isOptimistic(m) && m.status !== "deleted" && m.status !== "hidden";
-      return (
+      const bubble = (
         <MessageBubble
           message={m}
           own={m.authorId === myUid}
@@ -517,11 +689,19 @@ function Conversation({
           onOpenAttachment={onOpenAttachment ? openAttachment : undefined}
         />
       );
+      if (m.id !== seenId) return bubble;
+      return (
+        <View>
+          {bubble}
+          <Text style={styles.seen}>{t("chat.seen")}</Text>
+        </View>
+      );
     },
-    [myUid, kind, translations, active, today, !!onOpenAttachment],
+    [myUid, kind, translations, active, today, !!onOpenAttachment, seenId, styles, t],
   );
 
   // ---- header ----
+  const peerName = peer?.name ?? (closed === "blocked" ? t("dms.blockedMember") : "");
   const notify = conversation?.notify ?? false;
   // Other members online only (groups/007 leaves me out), and nothing at 0.
   const onlineText = group ? onlineLabel(online, t) : null;
@@ -535,11 +715,18 @@ function Conversation({
           detail: replyPreview(replyTo, t),
         }
       : null;
-  const bottomPad = keyboardHeight > 0 ? theme.spacing(2) : insets.bottom + theme.spacing(2);
+  const bottomPad = bottom.inset + theme.spacing(2);
 
   return (
     // The bubbles' gestures need a gesture root; the host may not have one.
-    <GestureHandlerRootView style={[styles.root, { paddingBottom: keyboardHeight }]}>
+    <GestureHandlerRootView style={[styles.root, { paddingBottom: bottom.keyboard }]}>
+      {/* Where the screen ends in the window, for the keyboard and safe-area space. */}
+      <View
+        ref={bottom.ref}
+        onLayout={bottom.measure}
+        pointerEvents="none"
+        style={StyleSheet.absoluteFill}
+      />
       <ScreenBackground />
       <View style={styles.header}>
         <Pressable
@@ -550,29 +737,63 @@ function Conversation({
         >
           <icons.back size={22} color={theme.colors.textPrimary} weight="bold" />
         </Pressable>
-        <Pressable
-          onPress={onOpenGroupDetails}
-          disabled={!onOpenGroupDetails || !group}
-          style={styles.headerInfo}
-          accessibilityRole={onOpenGroupDetails ? "button" : undefined}
-          accessibilityLabel={[group?.name, onlineText].filter(Boolean).join(", ") || undefined}
-        >
-          {group && (
+        {isDm ? (
+          <Pressable
+            onPress={() => peerId && onOpenProfile(peerId)}
+            disabled={!peerId}
+            style={styles.headerInfo}
+            accessibilityRole="button"
+            accessibilityLabel={
+              [peerName, peerOnline ? t("a11y.online") : null].filter(Boolean).join(", ") ||
+              undefined
+            }
+          >
             <Avatar
-              userId={null}
-              name={group.name}
-              url={group.imageUrl}
+              userId={peerId}
+              name={peerName}
+              url={peer?.avatarUrl ?? null}
               size={36}
-              placement="group"
+              placement="dmHeader"
+              admin={peer?.admin ?? false}
+              handle={peer?.handle ?? null}
+              badges={peer?.badges}
             />
-          )}
-          <View style={styles.headerText}>
-            <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
-              {group?.name ?? ""}
-            </Text>
-            <OnlineLabel count={group ? online : 0} style={styles.subtitle} />
-          </View>
-        </Pressable>
+            <View style={styles.headerText}>
+              <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
+                {peerName}
+              </Text>
+              {peerOnline && (
+                <Text style={[styles.subtitle, { color: theme.colors.success }]}>
+                  {`● ${t("a11y.online")}`}
+                </Text>
+              )}
+            </View>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={onOpenGroupDetails}
+            disabled={!onOpenGroupDetails || !group}
+            style={styles.headerInfo}
+            accessibilityRole={onOpenGroupDetails ? "button" : undefined}
+            accessibilityLabel={[group?.name, onlineText].filter(Boolean).join(", ") || undefined}
+          >
+            {group && (
+              <Avatar
+                userId={null}
+                name={group.name}
+                url={group.imageUrl}
+                size={36}
+                placement="group"
+              />
+            )}
+            <View style={styles.headerText}>
+              <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
+                {group?.name ?? ""}
+              </Text>
+              <OnlineLabel count={group ? online : 0} style={styles.subtitle} />
+            </View>
+          </Pressable>
+        )}
         {active && kind === "group" && (
           <Pressable
             onPress={() => {
@@ -597,6 +818,9 @@ function Conversation({
       </View>
 
       <GroupReviewNotice group={group} />
+      {requestMode && request && (
+        <Text style={styles.context}>{senderContext(request, cfg.host.getLocale(), t)}</Text>
+      )}
 
       {isQueryLoading(messages) ? (
         <ActivityIndicator color={theme.colors.accent} style={styles.loader} />
@@ -634,9 +858,47 @@ function Conversation({
       <View style={{ paddingBottom: bottomPad }}>
         {closed ? (
           <Text style={styles.closed}>
-            {t(closed === "removed" ? "chat.removed" : "chat.groupDeleted")}
+            {t(
+              closed === "blocked"
+                ? "chat.blocked"
+                : closed === "unavailable"
+                  ? "chat.unavailable"
+                  : closed === "removed"
+                    ? "chat.removed"
+                    : "chat.groupDeleted",
+            )}
           </Text>
-        ) : !member ? (
+        ) : requestMode ? (
+          <View style={styles.joinBar}>
+            <Text style={styles.requestHint}>{t("dms.request.bar", { name: peerName })}</Text>
+            {requestError && <Text style={styles.error}>{requestError}</Text>}
+            <View style={styles.requestButtons}>
+              <PressableScale
+                onPress={accept}
+                disabled={answering}
+                haptic="medium"
+                style={[styles.join, styles.requestButton, answering && styles.disabled]}
+              >
+                <Text style={styles.joinLabel}>{t("dms.request.accept")}</Text>
+              </PressableScale>
+              <PressableScale
+                onPress={decline}
+                disabled={answering}
+                style={[styles.decline, styles.requestButton, answering && styles.disabled]}
+              >
+                <Text style={styles.declineLabel}>{t("dms.request.decline")}</Text>
+              </PressableScale>
+            </View>
+            <Pressable
+              onPress={() => setBlockOpen(true)}
+              disabled={answering}
+              style={styles.blockButton}
+              accessibilityRole="button"
+            >
+              <Text style={styles.blockLabel}>{t("dms.request.block")}</Text>
+            </Pressable>
+          </View>
+        ) : kind === null || state === "loading" ? null : !member ? (
           <>
             <TypingLine userIds={typingUserIds} />
             <View style={styles.joinBar}>
@@ -688,6 +950,17 @@ function Conversation({
         target={reportTarget}
         onClose={() => setReportTarget(null)}
       />
+      {requestMode && peerId && (
+        <ReportSheet
+          visible={blockOpen}
+          target={{ kind: "message", id: conversationId, authorId: peerId }}
+          onClose={() => setBlockOpen(false)}
+          onSubmitReason={async (reason) => {
+            await blockRequest.mutateAsync({ conversationId, reason });
+            leave();
+          }}
+        />
+      )}
     </GestureHandlerRootView>
   );
 }
@@ -741,6 +1014,43 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
     },
     disabled: { opacity: 0.5 },
+    context: {
+      ...theme.typography.caption,
+      color: theme.colors.textMuted,
+      textAlign: "center",
+      paddingHorizontal: theme.spacing(6),
+      paddingVertical: theme.spacing(2),
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.hairline,
+    },
+    seen: {
+      ...theme.typography.caption,
+      color: theme.colors.textFaint,
+      textAlign: "right",
+      paddingHorizontal: theme.spacing(4),
+      marginTop: theme.spacing(0.5),
+    },
+    requestHint: {
+      ...theme.typography.meta,
+      color: theme.colors.textMuted,
+      textAlign: "center",
+    },
+    requestButtons: { flexDirection: "row", gap: theme.spacing(2) },
+    requestButton: { flex: 1 },
+    decline: {
+      backgroundColor: theme.colors.surfaceMuted,
+      borderRadius: theme.radius.pill,
+      paddingVertical: theme.spacing(3.5),
+      alignItems: "center",
+    },
+    declineLabel: {
+      ...theme.typography.label,
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      color: theme.colors.textPrimary,
+    },
+    blockButton: { alignSelf: "center", minHeight: 44, justifyContent: "center" },
+    blockLabel: { ...theme.typography.label, color: theme.colors.danger },
     joinLabel: {
       ...theme.typography.label,
       fontFamily: theme.fonts.bold,

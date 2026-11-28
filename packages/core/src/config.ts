@@ -93,9 +93,13 @@ export type CommunityModules = {
    * or false ⇒ nothing changes. Values must equal the backend's `messaging_settings`
    * (`schema-check` warns on a difference). */
   groups?: Partial<GroupsConfig> | false;
+  /** DMs module (messaging): one-to-one conversations. Needs the messaging and dms
+   * migrations. Absent or false ⇒ nothing changes. Values must equal the backend's
+   * `messaging_settings` (`schema-check` warns on a difference). */
+  dms?: Partial<DmsConfig> | false;
 };
 
-/** Messaging options shared by group chats (and, later, DMs). Defaults in `messagingSettings`. */
+/** Messaging options shared by group chats and DMs. Defaults in `messagingSettings`. */
 export type MessagingConfig = {
   moderation: "pre" | "post" | "reportOnly";
   translation: "off" | "onDemand";
@@ -123,15 +127,33 @@ export type GroupsConfig = {
   descriptionMaxLength: number;
 };
 
+/** Where a member can start a DM: a profile, the "new message" picker, a post or
+ * message's context menu. */
+export type DmsEntryPoint = "profile" | "newMessage" | "contextMenu";
+
+export type DmsConfig = {
+  /** `"requests"`: a first message waits in the recipient's requests until accepted. */
+  firstMessage: "direct" | "requests";
+  entryPoints: DmsEntryPoint[];
+  /** "Seen" under my last message once the peer read it. */
+  readReceipts: boolean;
+  /** Both members need a linked account (accounts module) to start a DM. */
+  requireAccount: boolean;
+  requestsPerDay: number;
+  declineCooldownDays: number;
+};
+
 export type ResolvedMessaging = MessagingConfig;
 export type ResolvedGroups = GroupsConfig;
+export type ResolvedDms = DmsConfig;
 
-/** The messaging options with defaults, or null when no messaging module is on. */
+/** The messaging options with defaults, or null when no messaging module (groups or
+ * dms) is on. */
 export function messagingSettings(cfg: {
   modules: CommunityModules;
   messaging?: Partial<MessagingConfig>;
 }): ResolvedMessaging | null {
-  if (!cfg.modules.groups) return null;
+  if (!cfg.modules.groups && !cfg.modules.dms) return null;
   const m = cfg.messaging ?? {};
   return {
     moderation: m.moderation ?? "post",
@@ -162,6 +184,20 @@ export function groupsSettings(cfg: { modules: CommunityModules }): ResolvedGrou
     maxMembers: g.maxMembers ?? null,
     nameMaxLength: g.nameMaxLength ?? 60,
     descriptionMaxLength: g.descriptionMaxLength ?? 500,
+  };
+}
+
+/** The dms module's options with defaults, or null when it is off. */
+export function dmsSettings(cfg: { modules: CommunityModules }): ResolvedDms | null {
+  const d = cfg.modules.dms;
+  if (!d) return null;
+  return {
+    firstMessage: d.firstMessage ?? "direct",
+    entryPoints: d.entryPoints ?? ["profile"],
+    readReceipts: d.readReceipts ?? false,
+    requireAccount: d.requireAccount ?? false,
+    requestsPerDay: d.requestsPerDay ?? 5,
+    declineCooldownDays: d.declineCooldownDays ?? 30,
   };
 }
 
@@ -283,7 +319,7 @@ export type CommunityConfig = {
   defaultName?: CommunityDefaultName;
   topics: CommunityTopicDef[];
   modules: CommunityModules;
-  /** Messaging options (group chats; DMs later). Needs `modules.groups`. */
+  /** Messaging options (group chats and DMs). Needs `modules.groups` or `modules.dms`. */
   messaging?: Partial<MessagingConfig>;
   host?: CommunityHostAdapters;
   feed?: CommunityFeedConfig;
