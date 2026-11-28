@@ -8,10 +8,16 @@
 -- only house accounts and merged profiles stay out; a placeholder joins on its first post or comment
 -- (its created_at if it has none) for new members and members_total; members_total leaves out a
 -- deleted account from the end of the window it was deleted in, while its content always counts.
+-- Moderation's team_actions leaves out the automatic bans of the accounts module (actor 'account ban').
+-- Indexes posts and comments by author for the join dates, and profiles by merged_into.
 -- Same signatures and JSON shapes as core/019. Requires core/019. Fully idempotent.
 
 alter table public.profiles add column if not exists merged_into uuid null references public.profiles(id) on delete set null;
 alter table public.profiles add column if not exists account_deleted_at timestamptz null;
+-- A placeholder's join date (admin_daily_metrics) looks up its first post and comment.
+create index if not exists posts_author_created_idx on public.posts (author_id, created_at);
+create index if not exists comments_author_created_idx on public.comments (author_id, created_at);
+create index if not exists profiles_merged_into_idx on public.profiles (merged_into) where merged_into is not null;
 
 create or replace function public.admin_daily_metrics(from_date date, to_date date, tz text default 'UTC')
 returns jsonb
@@ -85,15 +91,14 @@ begin
   active_by_day as (select day, count(distinct who) as n from activity group by day),
   -- A member's join date: a placeholder joins on its first post or comment (its created_at is the
   -- import date), else on its created_at. House accounts and merged profiles are not members.
-  firsts as (
-    select author_id, min(created_at) as at
-    from (select author_id, created_at from posts union all select author_id, created_at from comments) w
-    where author_id in (select id from profiles where is_placeholder)
-    group by author_id),
+  -- Looked up per placeholder on the author indexes; a deleted post still sets the join date.
   joined as (
-    select case when pr.is_placeholder then coalesce(f.at, pr.created_at) else pr.created_at end as at,
+    select case when pr.is_placeholder then coalesce(least(
+        (select min(created_at) from posts where author_id = pr.id),
+        (select min(created_at) from comments where author_id = pr.id)), pr.created_at)
+      else pr.created_at end as at,
       pr.account_deleted_at
-    from profiles pr left join firsts f on f.author_id = pr.id
+    from profiles pr
     where not pr.is_house and pr.merged_into is null),
   new_by_day as (
     select (at at time zone tz)::date as day, count(*) as n
@@ -226,7 +231,8 @@ begin
           select 1 from comments c join profiles a on a.id = c.author_id and not a.is_house and a.merged_into is null
           where c.moderation_reason is not null and c.moderated_at >= w.a and c.moderated_at < w.b) q) as ai_hidden,
       (select count(*) from moderation_actions m where m.created_at >= w.a and m.created_at < w.b
-        and m.action in ('hide','restore','confirm_hide','reject_report','ban','unban')) as team_actions
+        and m.action in ('hide','restore','confirm_hide','reject_report','ban','unban')
+        and m.actor_email <> 'account ban') as team_actions
     from (values ('cur', t0, t1), ('prev', pt0, t0)) w(k, a, b)),
   top as (select * from (
     -- image_path and attachment come from optional modules: read through to_jsonb so their absence is null.

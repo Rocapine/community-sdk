@@ -14,8 +14,17 @@ declare
   b jsonb;
   failed boolean;
 begin
-  select array_agg(id) into ids from (select id from public.profiles where not is_banned order by created_at limit 5) s;
-  assert cardinality(ids) = 5, 'the backend needs five profiles';
+  -- Five profiles with no content of their own, so real data can't move a join date or a count.
+  -- poll_votes is an optional module: checked only where installed.
+  execute format($q$select array_agg(id) from (select p.id from public.profiles p where not p.is_banned
+      and not exists (select 1 from public.posts where author_id = p.id)
+      and not exists (select 1 from public.comments where author_id = p.id)
+      and not exists (select 1 from public.likes where user_id = p.id)
+      and not exists (select 1 from public.comment_likes where user_id = p.id) %s
+      order by p.created_at limit 5) s$q$,
+    case when to_regclass('public.poll_votes') is not null
+      then 'and not exists (select 1 from public.poll_votes where user_id = p.id)' else '' end) into ids;
+  assert cardinality(ids) = 5, 'the backend needs five unbanned profiles with no posts, comments, likes or votes';
   m := ids[1]; ph := ids[2]; pl := ids[3]; dl := ids[4]; mg := ids[5];
   -- m: a member. ph: a placeholder with a post and a comment. pl: a placeholder with only a like.
   -- dl: a member who deletes their account inside the window. mg: a profile merged into dl.
