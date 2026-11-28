@@ -77,8 +77,8 @@ timestamptz null`. Not client-writable (same grants as `is_placeholder`).
 ### SDK: bans that survive deletion (accounts `003`)
 
 - New table `account_bans (provider text, subject_hash text, banned_at, primary key (provider,
-subject_hash))`, service role only. `subject_hash` is the same hash the module already uses for
-  `account_session_calls`.
+subject_hash))`, service role only. `subject_hash` is a sha256 of `provider:subject` computed in SQL (the session hash in
+  `account_session_calls` is computed in TypeScript and can't be reused from SQL).
 - `account_delete_profile`: if the profile is banned and still linked, record its (provider,
   subject hash) in `account_bans` before the link goes.
 - `account_link_and_merge`: when the (provider, subject) being linked is in `account_bans`, the main
