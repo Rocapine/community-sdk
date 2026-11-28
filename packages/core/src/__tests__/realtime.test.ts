@@ -256,8 +256,8 @@ it("dms/005: one private channel of my own, whose `changed` calls onChange", asy
   const { cfg, client, channels } = setup({ dms: {} });
   const onChange = vi.fn();
   const other = vi.fn();
-  const stop = subscribeDms(cfg, onChange);
-  const stopOther = subscribeDms(cfg, other); // the badge and the list share it
+  const stop = subscribeDms(cfg, "uid1", onChange);
+  const stopOther = subscribeDms(cfg, "uid1", other); // the badge and the list share it
   await vi.advanceTimersByTimeAsync(0);
   expect(client.channel).toHaveBeenCalledTimes(1);
   expect(channels[0]!.topic).toBe("dms:uid1");
@@ -278,8 +278,23 @@ it("dms/005: one private channel of my own, whose `changed` calls onChange", asy
 
 it("dms/005: no channel of my own without the dms module", async () => {
   const { cfg, client } = setup();
-  const stop = subscribeDms(cfg, vi.fn());
+  const stop = subscribeDms(cfg, "uid1", vi.fn());
   await vi.advanceTimersByTimeAsync(0);
   expect(client.channel).not.toHaveBeenCalled();
   stop();
+});
+
+it("dms/005: another signed-in member gets their own channel, never the previous one's", async () => {
+  const { cfg, client, channels } = setup({ dms: {} });
+  const stop = subscribeDms(cfg, "uid1", vi.fn());
+  await vi.advanceTimersByTimeAsync(0);
+  stop(); // the account switch unmounts the watcher...
+  const stale = subscribeDms(cfg, "uid0", vi.fn()); // ...a subscriber still on the old id
+  const next = subscribeDms(cfg, "uid1", vi.fn()); // same tick: the first channel is reused
+  await vi.advanceTimersByTimeAsync(2000);
+  // The session is uid1: the stale id opens nothing.
+  expect(channels.map((c) => c.topic)).toEqual(["dms:uid1"]);
+  expect(client.removeChannel).not.toHaveBeenCalled();
+  stale();
+  next();
 });

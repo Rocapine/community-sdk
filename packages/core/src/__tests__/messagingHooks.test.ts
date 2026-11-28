@@ -457,14 +457,16 @@ it("a DM change on my own channel refetches my requests, conversations and badge
   const cfg = dmsCfg();
   const keys = [DM_REQUESTS_KEY, CONVERSATIONS_KEY, UNREAD_MESSAGES_KEY, messagesKey("c1")];
   for (const k of keys) qc.setQueryData(k, { v: 1 });
-  const stop = watchDms(cfg, qc);
-  const [subCfg, onChange] = vi.mocked(realtime.subscribeDms).mock.calls.at(-1)!;
+  const stop = watchDms(cfg, qc, "u1");
+  const [subCfg, subUid, onChange] = vi.mocked(realtime.subscribeDms).mock.calls.at(-1)!;
   expect(subCfg).toBe(cfg);
+  expect(subUid).toBe("u1");
   onChange();
   expect(keys.map((k) => qc.getQueryState(k)!.isInvalidated)).toEqual([true, true, true, false]);
   stop();
   vi.mocked(realtime.subscribeDms).mockClear();
-  watchDms(on(), qc)(); // groups only: no DM channel
+  watchDms(on(), qc, "u1")(); // groups only: no DM channel
+  watchDms(cfg, qc, null)(); // signed-in member not known yet
   expect(realtime.subscribeDms).not.toHaveBeenCalled();
 });
 
@@ -475,9 +477,9 @@ it("watchDms: the badge, the list and the requests share one subscription", () =
   vi.mocked(realtime.subscribeDms).mockClear();
   vi.mocked(realtime.subscribeDms).mockReturnValue(unsubscribe);
   const invalidate = vi.spyOn(qc, "invalidateQueries");
-  const stops = [watchDms(cfg, qc), watchDms(cfg, qc), watchDms(cfg, qc)];
+  const stops = [watchDms(cfg, qc, "u1"), watchDms(cfg, qc, "u1"), watchDms(cfg, qc, "u1")];
   expect(realtime.subscribeDms).toHaveBeenCalledTimes(1);
-  vi.mocked(realtime.subscribeDms).mock.calls[0]![1]();
+  vi.mocked(realtime.subscribeDms).mock.calls[0]![2]();
   expect(invalidate).toHaveBeenCalledTimes(3); // the three keys, once
   stops[0]!();
   stops[0]!(); // a second call is a no-op
@@ -485,7 +487,23 @@ it("watchDms: the badge, the list and the requests share one subscription", () =
   expect(unsubscribe).not.toHaveBeenCalled();
   stops[2]!();
   expect(unsubscribe).toHaveBeenCalledTimes(1);
-  watchDms(cfg, qc)(); // a later watcher subscribes again
+  watchDms(cfg, qc, "u1")(); // a later watcher subscribes again
   expect(realtime.subscribeDms).toHaveBeenCalledTimes(2);
+  // An account switch: the new member's watchers share a subscription of their own.
+  const old = watchDms(cfg, qc, "u1");
+  const a = watchDms(cfg, qc, "u2");
+  const b = watchDms(cfg, qc, "u2");
+  expect(vi.mocked(realtime.subscribeDms).mock.calls.map((c) => c[1])).toEqual([
+    "u1",
+    "u1",
+    "u1",
+    "u2",
+  ]);
+  unsubscribe.mockClear();
+  old();
+  expect(unsubscribe).toHaveBeenCalledTimes(1);
+  a();
+  b();
+  expect(unsubscribe).toHaveBeenCalledTimes(2);
   vi.mocked(realtime.subscribeDms).mockReturnValue(() => {});
 });

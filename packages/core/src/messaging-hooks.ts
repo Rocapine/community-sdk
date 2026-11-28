@@ -52,7 +52,7 @@ import {
   searchGroups,
   setGroupNotify,
 } from "./groups-service";
-import { isOptimistic, ownAuthorFields } from "./hooks";
+import { isOptimistic, ownAuthorFields, useMyUid } from "./hooks";
 import {
   CONVERSATIONS_KEY,
   DMS_KEY,
@@ -144,18 +144,23 @@ const invalidateDms = (queryClient: QueryClient) =>
     ),
   );
 
-/** One DM subscription per query client, however many hooks watch it. */
-const dmsWatchers = new WeakMap<QueryClient, { users: number; stop(): void }>();
+/** One DM subscription per query client and member, however many hooks watch it. */
+const dmsWatchers = new WeakMap<QueryClient, { uid: string; users: number; stop(): void }>();
 
 /** The subscription behind `useDmsLive`, split out so it can be driven without React:
  * the server's `changed` on my own channel (dms/005) refetches my pending requests, my
  * conversations and the badge, once per event however many watchers (the badge, the
- * list, the requests) are mounted. Nothing with dms off. Returns the unsubscribe. */
-export function watchDms(cfg: ResolvedCommunityConfig, queryClient: QueryClient): () => void {
-  if (!dmsEnabled(cfg)) return () => {};
+ * list, the requests) are mounted. `uid`: the signed-in member (nothing until known).
+ * Nothing with dms off. Returns the unsubscribe. */
+export function watchDms(
+  cfg: ResolvedCommunityConfig,
+  queryClient: QueryClient,
+  uid: string | null,
+): () => void {
+  if (!dmsEnabled(cfg) || !uid) return () => {};
   let w = dmsWatchers.get(queryClient);
-  if (!w) {
-    w = { users: 0, stop: subscribeDms(cfg, () => void invalidateDms(queryClient)) };
+  if (!w || w.uid !== uid) {
+    w = { uid, users: 0, stop: subscribeDms(cfg, uid, () => void invalidateDms(queryClient)) };
     dmsWatchers.set(queryClient, w);
   }
   const own = w;
@@ -170,11 +175,13 @@ export function watchDms(cfg: ResolvedCommunityConfig, queryClient: QueryClient)
   };
 }
 
-/** Keeps my DM requests, conversations and badge live while mounted (`watchDms`). */
+/** Keeps my DM requests, conversations and badge live while mounted (`watchDms`),
+ * on the channel of whoever is signed in (an account switch resubscribes). */
 export function useDmsLive(): void {
   const cfg = useCommunityConfig();
   const queryClient = useQueryClient();
-  useEffect(() => watchDms(cfg, queryClient), [cfg, queryClient]);
+  const uid = useMyUid();
+  useEffect(() => watchDms(cfg, queryClient, uid), [cfg, queryClient, uid]);
 }
 
 /** My active conversations, latest activity first. Live for DMs (`useDmsLive`). */

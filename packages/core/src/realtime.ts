@@ -36,9 +36,8 @@ type Entry = {
   releaseTimer?: ReturnType<typeof setTimeout>;
 };
 
-/** Keyed by conversation id, or `DMS_KEY` for my own channel. */
+/** Keyed by conversation id, or `dms:<uid>` for my own channel. */
 type Registry = { open: Map<string, Entry>; closing: Map<string, Promise<unknown>> };
-const DMS_KEY = "dms";
 const registries = new WeakMap<SupabaseClient, Registry>();
 
 function registry(client: SupabaseClient) {
@@ -185,22 +184,27 @@ export function subscribeConversation(
 }
 
 /** dms/005: calls `onChange` (debounced, and on every (re)join) when the server says a
- * DM of mine changed: a new DM or request for me, or my request accepted. One channel,
- * `dms:<my id>`, shared by every subscriber. Returns the unsubscribe. */
-export function subscribeDms(cfg: ResolvedCommunityConfig, onChange: () => void): () => void {
+ * DM of `uid` (the signed-in member) changed: a new DM or request for me, or my request
+ * accepted. One channel, `dms:<uid>`, shared by every subscriber; a sign-in as someone
+ * else subscribes again with the new id (never opened when the session has already
+ * moved on). Returns the unsubscribe. */
+export function subscribeDms(
+  cfg: ResolvedCommunityConfig,
+  uid: string,
+  onChange: () => void,
+): () => void {
   if (!dmsSettings(cfg) || !cfg.supabase) return () => {};
   const client = cfg.supabase;
+  const key = `dms:${uid}`;
   return listen(
     client,
-    DMS_KEY,
-    // shortcut: the channel keeps the uid it opened with; a sign-in as someone else
-    // while a subscriber stays mounted keeps listening to the old id until it unmounts.
+    key,
     () =>
       open(
         cfg,
         client,
-        DMS_KEY,
-        (uid) => (uid ? `dms:${uid}` : null),
+        key,
+        (sessionUid) => (sessionUid === uid ? key : null),
         (channel, entry) => channel.on("broadcast", { event: "changed" }, () => changed(entry)),
       ),
     { onChange, onTyping: () => {} },
