@@ -211,6 +211,93 @@ $$;
 
 
 
+-- ============ LIVE LISTS ============
+-- My own channel: only I join `dms:<my id>`. No insert policy matches it (messaging/001's
+-- admits `conversation:` topics only), so only the server sends on it.
+drop policy if exists "dms: members join their own channel" on realtime.messages;
+create policy "dms: members join their own channel" on realtime.messages
+  for select to authenticated
+  using (realtime.topic() = 'dms:' || (select auth.uid())::text);
+
+-- A DM message that became visible: `changed` to the other member, when they may read it
+-- (an active DM or a pending request, not before their visible_from, no block either way
+-- but with an in-app admin, as in blocked_member_ids).
+create or replace function public.dms_broadcast_message()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_peer uuid;
+begin
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is null
+     or (tg_op = 'UPDATE' and old.status = 'visible') then
+    return null;
+  end if;
+  select case when d.user_a = new.author_id then d.user_b else d.user_a end into v_peer
+  from public.dm_pairs d where d.conversation_id = new.conversation_id;
+  if v_peer is not null
+     and exists (
+       select 1 from public.conversation_members cm
+       where cm.conversation_id = new.conversation_id and cm.user_id = v_peer
+         and cm.state in ('active', 'request')
+         and new.created_at >= coalesce(cm.visible_from, '-infinity'))
+     and not exists (
+       select 1 from public.blocks b
+       join public.profiles p on p.id = new.author_id and not p.is_admin
+       where (b.blocker_id = v_peer and b.blocked_id = new.author_id)
+          or (b.blocker_id = new.author_id and b.blocked_id = v_peer)) then
+    perform realtime.send(
+      jsonb_build_object('id', new.conversation_id),
+      'changed',
+      'dms:' || v_peer::text,
+      true
+    );
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists dms_broadcast_message on public.messages;
+create trigger dms_broadcast_message
+  after insert or update of status on public.messages
+  for each row
+  when (new.status = 'visible')
+  execute function public.dms_broadcast_message();
+
+-- A request accepted: `changed` to its sender. A decline sends nothing (it is silent).
+create or replace function public.dms_broadcast_accept()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_peer uuid;
+begin
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is null then
+    return null;
+  end if;
+  select case when d.user_a = new.user_id then d.user_b else d.user_a end into v_peer
+  from public.dm_pairs d where d.conversation_id = new.conversation_id;
+  if v_peer is not null then
+    perform realtime.send(
+      jsonb_build_object('id', new.conversation_id),
+      'changed',
+      'dms:' || v_peer::text,
+      true
+    );
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists dms_broadcast_accept on public.conversation_members;
+create trigger dms_broadcast_accept
+  after update of state on public.conversation_members
+  for each row
+  when (old.state = 'request' and new.state = 'active')
+  execute function public.dms_broadcast_accept();
+
+revoke all on function public.dms_broadcast_message() from public, anon, authenticated;
+revoke all on function public.dms_broadcast_accept() from public, anon, authenticated;
 revoke execute on function public.dm_request_refusal(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.dm_log_request(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.send_message(uuid, text, uuid, text, text, text) from public, anon;

@@ -636,7 +636,13 @@ read `account_links` only when the accounts module is installed; without it they
   leave, a removal): open chats refresh their header, and a member just removed sees the
   removed line at once (Realtime checks a private channel's policies when it is joined,
   so they still get it). Its policies on `realtime.messages`: readers (previewers
-  included) listen, only members send typing.
+  included) listen, only members send typing. With dms, `dms/005` gives each member a
+  private channel `dms:<their id>` that only they can join and nobody can send on: the
+  server broadcasts `changed` (the conversation id only) there when a DM message becomes
+  visible to them (a new DM, a new request, a later message) and when their request is
+  accepted, so the Requests row, the conversation list and the badge update without a
+  refresh. Never for what they may not read (a declined request, a block, a pending
+  message), and a decline is never broadcast to its sender.
 - **Storage.** `message-images` (private, 2 MB, JPEG/PNG/WebP,
   `<conversation>/<uid>/<uuid>.<ext>`; readers get signed URLs), `group-images` (public,
   approved images only, written by moderation) and `group-images-pending` (private,
@@ -691,7 +697,7 @@ Then `supabase db push`, `messaging_set_settings` with the `dms*` keys above, an
   broadcasts `members` on its channel, so an open DM closes its composer at once) and
   `dms/005_requests_sent_live` (a request counts against `dmsRequestsPerDay` when its
   first message is sent: `dm_request_refusal` only reads the budget, `dm_log_request`
-  spends it from `send_message`). All
+  spends it from `send_message`; the member's own Realtime channel `dms:<id>`, below). All
   idempotent; `dms/002` needs the push module (skipped with a notice when `push_tokens`
   is missing).
 - **Functions.** No new secret and no new function: `notify-message` (messaging + push)

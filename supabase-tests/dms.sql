@@ -726,5 +726,77 @@ begin
   assert not exists (select 1 from public.messages where conversation_id = xa2),
     'the refused first message is not stored';
 
+  -- dms/005: `changed` on the member's own channel `dms:<id>` (ids only) when a DM message
+  -- becomes visible to them, and to a sender when their request is accepted. Only the
+  -- member joins it; nobody sends on it.
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+    assert (select count(*) from realtime.messages
+            where topic = 'dms:' || b and event = 'changed' and payload ->> 'id' = xb::text) = 1,
+      'a new request tells its recipient once (the refused first try told nothing)';
+    assert (select count(*) from realtime.messages
+            where topic = 'dms:' || a and event = 'changed' and payload ->> 'id' = xa::text) = 2,
+      'each visible message of the request tells A';
+    assert not exists (select 1 from realtime.messages
+                       where topic = 'dms:' || a2 and payload ->> 'id' = xa2::text),
+      'a refused request tells nothing';
+    assert not exists (select 1 from realtime.messages
+                       where topic = 'dms:' || x and payload ->> 'id' = any (array[xa, xb, xc]::text[])),
+      'the sender is not told of their own messages';
+    assert (select bool_and(payload - 'id' = '{}'::jsonb) from realtime.messages
+            where topic like 'dms:%' and payload ->> 'id' = any (array[xa, xb, xc]::text[])),
+      'ids only';
+    -- A decline tells the sender nothing; what X writes during the cooldown tells C nothing.
+    select count(*) into n0 from realtime.messages where topic in ('dms:' || x, 'dms:' || c);
+    perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.decline_request(xc);
+    reset role;
+    perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.send_message(xc, 'during the cooldown');
+    reset role;
+    assert (select count(*) from realtime.messages where topic in ('dms:' || x, 'dms:' || c)) = n0,
+      'decline and cooldown: no broadcast';
+    -- An accept tells the sender.
+    perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.accept_request(xa);
+    reset role;
+    assert (select count(*) from realtime.messages
+            where topic = 'dms:' || x and event = 'changed' and payload ->> 'id' = xa::text) = 1,
+      'an accepted request tells its sender';
+    -- A pending (pre-moderated) message tells nothing until it is approved.
+    update public.messages set status = 'pending' where conversation_id = xb;
+    select count(*) into n0 from realtime.messages where topic = 'dms:' || b;
+    update public.messages set status = 'visible' where conversation_id = xb;
+    assert (select count(*) from realtime.messages where topic = 'dms:' || b) = n0 + 1,
+      'a message turning visible tells the recipient';
+    -- Joining: B's own channel only; sending: nobody.
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    perform set_config('realtime.topic', 'dms:' || b, true);
+    set local role authenticated;
+    select count(*) into n from realtime.messages where topic = 'dms:' || b;
+    reset role;
+    assert n > 0, 'B joins their own channel';
+    perform set_config('realtime.topic', 'dms:' || a, true);
+    set local role authenticated;
+    select count(*) into n from realtime.messages where topic = 'dms:' || a;
+    reset role;
+    assert n = 0, 'nobody joins another member''s channel';
+    perform set_config('realtime.topic', 'dms:' || b, true);
+    set local role authenticated;
+    begin
+      insert into realtime.messages (topic, extension, event, payload, private)
+      values ('dms:' || b, 'broadcast', 'changed', '{"id": "x"}', true);
+      assert false, 'a client cannot send on a member channel';
+    exception when insufficient_privilege then
+      null;
+    end;
+    reset role;
+    perform set_config('realtime.topic', '', true);
+  else
+    raise notice 'realtime.send missing: dms/005 broadcasts not checked';
+  end if;
+
   raise exception 'DMS_TESTS_PASSED';
 end $$;

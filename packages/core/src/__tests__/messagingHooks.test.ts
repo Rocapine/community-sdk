@@ -9,6 +9,7 @@ import { resolveConfig } from "../config";
 import {
   CONVERSATIONS_KEY,
   DM_REQUESTS_KEY,
+  UNREAD_MESSAGES_KEY,
   GROUPS_SEARCH_KEY,
   groupKey,
   groupMembersKey,
@@ -33,7 +34,9 @@ import {
   type MessagesData,
   sendMessageMutationOptions,
   unreadMessagesQueryOptions,
+  watchDms,
 } from "../messaging-hooks";
+import * as realtime from "../realtime";
 import * as dms from "../dms-service";
 import * as service from "../messaging-service";
 import { MessagingError, MESSAGES_PAGE_SIZE } from "../messaging-service";
@@ -45,6 +48,11 @@ vi.mock("../dms-service", async (importOriginal) => ({
   declineRequest: vi.fn(async () => {}),
   blockAndReportRequest: vi.fn(async () => {}),
   fetchDmFlags: vi.fn(async (_cfg: unknown, ids: string[]) => ids.filter((id) => id !== "u3")),
+}));
+
+vi.mock("../realtime", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../realtime")>()),
+  subscribeDms: vi.fn(() => () => {}),
 }));
 
 vi.mock("../messaging-service", async (importOriginal) => ({
@@ -443,4 +451,19 @@ it("useDmFlags batches the ids asked at once into one profile_dm_flags call", as
   expect(dms.fetchDmFlags).toHaveBeenCalledTimes(1);
   expect(dms.fetchDmFlags).toHaveBeenCalledWith(cfg, ["u2", "u3", "u4"]);
   expect(dmFlagQueryOptions(off, "u2").enabled).toBe(false);
+});
+
+it("a DM change on my own channel refetches my requests, conversations and badge only", () => {
+  const cfg = dmsCfg();
+  const keys = [DM_REQUESTS_KEY, CONVERSATIONS_KEY, UNREAD_MESSAGES_KEY, messagesKey("c1")];
+  for (const k of keys) qc.setQueryData(k, { v: 1 });
+  const stop = watchDms(cfg, qc);
+  const [subCfg, onChange] = vi.mocked(realtime.subscribeDms).mock.calls.at(-1)!;
+  expect(subCfg).toBe(cfg);
+  onChange();
+  expect(keys.map((k) => qc.getQueryState(k)!.isInvalidated)).toEqual([true, true, true, false]);
+  stop();
+  vi.mocked(realtime.subscribeDms).mockClear();
+  watchDms(on(), qc)(); // groups only: no DM channel
+  expect(realtime.subscribeDms).not.toHaveBeenCalled();
 });

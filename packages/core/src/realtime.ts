@@ -2,10 +2,12 @@
 // carrying database changes of its messages (RLS applied; a like is an UPDATE of
 // like_count), the typing broadcast and the `members` broadcast (groups/004), authorised by the realtime.messages policies of
 // messaging/001_messaging.sql. Every subscriber of a conversation shares the channel.
+// DMs (dms/005): one more private channel per member, `dms:<my id>`, on which the
+// server says a DM of mine changed (a new DM or request for me, my request accepted).
 
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 
-import { messagingSettings, type ResolvedCommunityConfig } from "./config";
+import { dmsSettings, messagingSettings, type ResolvedCommunityConfig } from "./config";
 import { requireUid } from "./service";
 
 export const CHANGE_DEBOUNCE_MS = 150;
@@ -34,7 +36,9 @@ type Entry = {
   releaseTimer?: ReturnType<typeof setTimeout>;
 };
 
+/** Keyed by conversation id, or `DMS_KEY` for my own channel. */
 type Registry = { open: Map<string, Entry>; closing: Map<string, Promise<unknown>> };
+const DMS_KEY = "dms";
 const registries = new WeakMap<SupabaseClient, Registry>();
 
 function registry(client: SupabaseClient) {
@@ -50,7 +54,15 @@ function changed(entry: Entry) {
   }, CHANGE_DEBOUNCE_MS);
 }
 
-function open(cfg: ResolvedCommunityConfig, client: SupabaseClient, conversationId: string) {
+/** Opens the channel `topic(uid)` (none when it returns null) once authorised, with the
+ * events `bind` listens to; every (re)join calls onChange. */
+function open(
+  cfg: ResolvedCommunityConfig,
+  client: SupabaseClient,
+  key: string,
+  topic: (uid: string | null) => string | null,
+  bind: (channel: RealtimeChannel, entry: Entry) => RealtimeChannel,
+) {
   const entry: Entry = {
     channel: null,
     listeners: new Set(),
@@ -70,12 +82,24 @@ function open(cfg: ResolvedCommunityConfig, client: SupabaseClient, conversation
       console.warn("[community] realtime auth failed", e);
     }
     // client.channel(topic) hands back a channel of that topic still closing: wait for it.
-    await reg.closing.get(conversationId);
-    if (reg.open.get(conversationId) !== entry) return; // released meanwhile
-    const channel = client.channel(`conversation:${conversationId}`, {
-      config: { private: true },
-    });
+    await reg.closing.get(key);
+    if (reg.open.get(key) !== entry) return; // released meanwhile
+    const name = topic(entry.uid);
+    if (!name) return;
+    const channel = client.channel(name, { config: { private: true } });
     entry.channel = channel;
+    bind(channel, entry).subscribe((status) => {
+      entry.joined = status === "SUBSCRIBED";
+      // Every (re)join refetches: what changed before the join, or while the socket was
+      // down (a sleeping web tab, a lost network), never arrives as an event.
+      if (entry.joined) changed(entry);
+    });
+  })();
+  return entry;
+}
+
+function bindConversation(conversationId: string) {
+  return (channel: RealtimeChannel, entry: Entry) =>
     channel
       .on(
         "postgres_changes",
@@ -98,15 +122,42 @@ function open(cfg: ResolvedCommunityConfig, client: SupabaseClient, conversation
       .on("broadcast", { event: "typing" }, ({ payload }) => {
         const userId = (payload as { userId?: unknown } | undefined)?.userId;
         if (typeof userId === "string") for (const l of entry.listeners) l.onTyping(userId);
-      })
-      .subscribe((status) => {
-        entry.joined = status === "SUBSCRIBED";
-        // Every (re)join refetches: what changed before the join, or while the socket was
-        // down (a sleeping web tab, a lost network), never arrives as an event.
-        if (entry.joined) changed(entry);
       });
-  })();
-  return entry;
+}
+
+/** A listener on the registry entry `key` (opened by `create` when it has none), with
+ * the shared release: the last unsubscribe closes the channel a moment later. */
+function listen(
+  client: SupabaseClient,
+  key: string,
+  create: () => Entry,
+  handlers: ConversationHandlers,
+): () => void {
+  const reg = registry(client);
+  let entry = reg.open.get(key);
+  if (!entry) reg.open.set(key, (entry = create()));
+  clearTimeout(entry.releaseTimer);
+  const own = entry;
+  own.listeners.add(handlers);
+  return () => {
+    own.listeners.delete(handlers);
+    if (own.listeners.size > 0) return;
+    clearTimeout(own.releaseTimer);
+    own.releaseTimer = setTimeout(() => {
+      if (own.listeners.size > 0 || reg.open.get(key) !== own) return;
+      reg.open.delete(key);
+      clearTimeout(own.changeTimer);
+      own.joined = false;
+      if (!own.channel) return; // never opened
+      const closing = client
+        .removeChannel(own.channel)
+        .catch(() => {})
+        .finally(() => {
+          if (reg.closing.get(key) === closing) reg.closing.delete(key);
+        });
+      reg.closing.set(key, closing);
+    }, RELEASE_DELAY_MS);
+  };
 }
 
 /** Listens to a conversation's changes and typing while subscribed. `onChange` is
@@ -118,31 +169,42 @@ export function subscribeConversation(
 ): () => void {
   if (!messagingSettings(cfg) || !cfg.supabase) return () => {};
   const client = cfg.supabase;
-  const reg = registry(client);
-  let entry = reg.open.get(conversationId);
-  if (!entry) reg.open.set(conversationId, (entry = open(cfg, client, conversationId)));
-  clearTimeout(entry.releaseTimer);
-  const own = entry;
-  own.listeners.add(handlers);
-  return () => {
-    own.listeners.delete(handlers);
-    if (own.listeners.size > 0) return;
-    clearTimeout(own.releaseTimer);
-    own.releaseTimer = setTimeout(() => {
-      if (own.listeners.size > 0 || reg.open.get(conversationId) !== own) return;
-      reg.open.delete(conversationId);
-      clearTimeout(own.changeTimer);
-      own.joined = false;
-      if (!own.channel) return; // never opened
-      const closing = client
-        .removeChannel(own.channel)
-        .catch(() => {})
-        .finally(() => {
-          if (reg.closing.get(conversationId) === closing) reg.closing.delete(conversationId);
-        });
-      reg.closing.set(conversationId, closing);
-    }, RELEASE_DELAY_MS);
-  };
+  return listen(
+    client,
+    conversationId,
+    () =>
+      open(
+        cfg,
+        client,
+        conversationId,
+        () => `conversation:${conversationId}`,
+        bindConversation(conversationId),
+      ),
+    handlers,
+  );
+}
+
+/** dms/005: calls `onChange` (debounced, and on every (re)join) when the server says a
+ * DM of mine changed: a new DM or request for me, or my request accepted. One channel,
+ * `dms:<my id>`, shared by every subscriber. Returns the unsubscribe. */
+export function subscribeDms(cfg: ResolvedCommunityConfig, onChange: () => void): () => void {
+  if (!dmsSettings(cfg) || !cfg.supabase) return () => {};
+  const client = cfg.supabase;
+  return listen(
+    client,
+    DMS_KEY,
+    // shortcut: the channel keeps the uid it opened with; a sign-in as someone else
+    // while a subscriber stays mounted keeps listening to the old id until it unmounts.
+    () =>
+      open(
+        cfg,
+        client,
+        DMS_KEY,
+        (uid) => (uid ? `dms:${uid}` : null),
+        (channel, entry) => channel.on("broadcast", { event: "changed" }, () => changed(entry)),
+      ),
+    { onChange, onTyping: () => {} },
+  );
 }
 
 /** Tells the conversation's other readers that I'm typing: at most once per 3 s, and

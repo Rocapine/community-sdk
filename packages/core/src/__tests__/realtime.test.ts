@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { resolveConfig } from "../config";
-import { sendTyping, subscribeConversation } from "../realtime";
+import { sendTyping, subscribeConversation, subscribeDms } from "../realtime";
 
 vi.mock("../service", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../service")>()),
@@ -36,7 +36,7 @@ function fakeChannel(topic: string, opts: unknown) {
   return ch;
 }
 
-function setup() {
+function setup(modules: Record<string, unknown> = { groups: {} }) {
   const channels: ReturnType<typeof fakeChannel>[] = [];
   const order: string[] = [];
   const client = {
@@ -63,7 +63,7 @@ function setup() {
     supabase: client as never,
     appName: "t",
     topics: [],
-    modules: { polls: false, push: false, inbox: false, reaction: false, groups: {} },
+    modules: { polls: false, push: false, inbox: false, reaction: false, ...modules },
   });
   return { client, cfg, channels, order };
 }
@@ -250,4 +250,36 @@ it("re-opening while the old channel is closing waits for it, then opens a live 
   await vi.advanceTimersByTimeAsync(150);
   expect(h.onChange).toHaveBeenCalledTimes(1);
   again();
+});
+
+it("dms/005: one private channel of my own, whose `changed` calls onChange", async () => {
+  const { cfg, client, channels } = setup({ dms: {} });
+  const onChange = vi.fn();
+  const other = vi.fn();
+  const stop = subscribeDms(cfg, onChange);
+  const stopOther = subscribeDms(cfg, other); // the badge and the list share it
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.channel).toHaveBeenCalledTimes(1);
+  expect(channels[0]!.topic).toBe("dms:uid1");
+  expect(channels[0]!.opts).toEqual({ config: { private: true } });
+  expect(channels[0]!.bindings.map((b) => [b.type, b.filter.event])).toEqual([
+    ["broadcast", "changed"],
+  ]);
+  channels[0]!.fire("broadcast", { event: "changed", payload: { id: "c1" } });
+  channels[0]!.fire("broadcast", { event: "changed", payload: { id: "c2" } });
+  await vi.advanceTimersByTimeAsync(150);
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(other).toHaveBeenCalledTimes(1);
+  stop();
+  stopOther();
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(client.removeChannel).toHaveBeenCalledWith(channels[0]);
+});
+
+it("dms/005: no channel of my own without the dms module", async () => {
+  const { cfg, client } = setup();
+  const stop = subscribeDms(cfg, vi.fn());
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.channel).not.toHaveBeenCalled();
+  stop();
 });

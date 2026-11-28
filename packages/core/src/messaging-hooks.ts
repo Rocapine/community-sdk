@@ -87,7 +87,7 @@ import type { ChatMessage, CommunityProfile, Conversation, Group } from "./model
 import { createOnlineBatcher } from "./presence";
 import { PRESENCE_POLL_MS } from "./presence-hooks";
 import { useCommunityConfig } from "./provider";
-import { CHANGE_DEBOUNCE_MS, sendTyping, subscribeConversation } from "./realtime";
+import { CHANGE_DEBOUNCE_MS, sendTyping, subscribeConversation, subscribeDms } from "./realtime";
 
 export const TYPING_TTL_MS = 5000;
 // Like the inbox: the badge stays honest while the app is open, even without push.
@@ -136,8 +136,32 @@ export function accountLinkedQueryOptions(cfg: ResolvedCommunityConfig) {
   };
 }
 
-/** My active conversations, latest activity first. */
+/** My pending requests, my conversations and the badge: what a DM change can move. */
+const invalidateDms = (queryClient: QueryClient) =>
+  Promise.all(
+    [DM_REQUESTS_KEY, CONVERSATIONS_KEY, UNREAD_MESSAGES_KEY].map((queryKey) =>
+      queryClient.invalidateQueries({ queryKey }),
+    ),
+  );
+
+/** The subscription behind `useDmsLive`, split out so it can be driven without React:
+ * the server's `changed` on my own channel (dms/005) refetches my pending requests, my
+ * conversations and the badge. Nothing with dms off. Returns the unsubscribe. */
+export function watchDms(cfg: ResolvedCommunityConfig, queryClient: QueryClient): () => void {
+  if (!dmsEnabled(cfg)) return () => {};
+  return subscribeDms(cfg, () => void invalidateDms(queryClient));
+}
+
+/** Keeps my DM requests, conversations and badge live while mounted (`watchDms`). */
+export function useDmsLive(): void {
+  const cfg = useCommunityConfig();
+  const queryClient = useQueryClient();
+  useEffect(() => watchDms(cfg, queryClient), [cfg, queryClient]);
+}
+
+/** My active conversations, latest activity first. Live for DMs (`useDmsLive`). */
 export function useConversations() {
+  useDmsLive();
   return useQuery(conversationsQueryOptions(useCommunityConfig()));
 }
 
@@ -184,6 +208,7 @@ export function messagingBadgeQueries(cfg: ResolvedCommunityConfig) {
 }
 
 export function useMessagingBadge(): { count: number; dot: boolean } {
+  useDmsLive();
   const q = messagingBadgeQueries(useCommunityConfig());
   const f = useQuery(q.followed).data;
   const c = useQuery(q.all).data;
@@ -826,17 +851,11 @@ export function dmRequestsQueryOptions(cfg: ResolvedCommunityConfig) {
   };
 }
 
-/** DM requests waiting for my answer, newest first. */
+/** DM requests waiting for my answer, newest first. Live (`useDmsLive`). */
 export function useDmRequests() {
+  useDmsLive();
   return useQuery(dmRequestsQueryOptions(useCommunityConfig()));
 }
-
-const invalidateDms = (queryClient: QueryClient) =>
-  Promise.all(
-    [DM_REQUESTS_KEY, CONVERSATIONS_KEY, UNREAD_MESSAGES_KEY].map((queryKey) =>
-      queryClient.invalidateQueries({ queryKey }),
-    ),
-  );
 
 export type DmSource = "profile" | "newMessage" | "contextMenu";
 

@@ -482,7 +482,9 @@ pencil when `entryPoints` holds `"newMessage"`. It searches by name through
 shows a "type a name" hint until something is typed.
 
 **Header.** The `"dms"` header item opens the Messages page on its Conversations tab, with
-the unread badge (DMs and pending requests). With `messaging.homeLayout: "segmented"` the
+the unread badge (DMs and pending requests). The badge, the conversation list and the
+Requests row update live: a new DM or request for me, or my request accepted, arrives on my
+own private Realtime channel (`dms:<my id>`, ids only, backend `dms/005`). With `messaging.homeLayout: "segmented"` the
 groups live on the home, so put `"dms"` in the header there rather than `"groups"`
 (`resolveHeaderZones` drops a `"groups"` item in a dms-only app, which has no Groups tab).
 `"messages"` remains available in either layout.
