@@ -308,13 +308,16 @@ function Conversation({
 
   // Closed: no more reads nor Realtime. A blocked DM keeps both (the server filters the
   // blocked member's messages), so an unblock (dms/004's broadcast) reopens it live.
-  const messages = useMessages(left || (closed && closed !== "blocked") ? null : conversationId);
+  const messages = useMessages(left || (closed && closed !== "blocked") ? null : conversationId, {
+    dm: isDm,
+  });
   // A request leaves no read state.
   useMarkConversationRead(active ? conversationId : null, isFocused);
   // Previewers see who is typing too; only members type (the composer). A DM joins the
   // typing channel only while live: never from a request, nor across a block.
   const { typingUserIds, notifyTyping } = useTyping(
     kind === null || closed || (isDm && !active) ? null : conversationId,
+    { dm: isDm },
   );
   const peerRead = usePeerRead(isDm && active ? conversationId : null);
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { resolveConfig } from "../config";
-import { sendTyping, subscribeConversation, subscribeDms } from "../realtime";
+import { REFUSED_RETRY_MAX_MS, sendTyping, subscribeConversation, subscribeDms } from "../realtime";
 
 vi.mock("../service", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../service")>()),
@@ -303,8 +303,8 @@ const refusal = new Error(
   "Unauthorized: You do not have permissions to read from this Channel topic: conversation:c1",
 );
 
-it("a join refused for authorisation is closed, not retried, until a DM changes", async () => {
-  const { cfg, client, channels } = setup({ dms: {} });
+it("a DM's join refused for authorisation is closed, not retried, until a DM changes", async () => {
+  const { cfg, client, channels } = setup({ dms: {} }); // without groups, every conversation is a DM
   const h = handlers();
   const stop = subscribeConversation(cfg, "c1", h); // a cold-opened blocked DM
   const stopDms = subscribeDms(cfg, "uid1", vi.fn());
@@ -345,4 +345,69 @@ it("a refused join asks again when the screen opens again; other errors keep ret
   expect(client.channel).toHaveBeenCalledTimes(2);
   stop();
   again();
+});
+
+it("a refused group join retries after 12 s, doubling up to 5 min, until it joins", async () => {
+  const { cfg, client, channels } = setup({ groups: {}, dms: {} });
+  const h = handlers();
+  const stop = subscribeConversation(cfg, "g1", h); // a removed member's screen
+  await vi.advanceTimersByTimeAsync(0);
+  const refuse = async () => {
+    channels.at(-1)!.status!("CHANNEL_ERROR", refusal);
+    await vi.advanceTimersByTimeAsync(0);
+  };
+  const opensAfter = async (ms: number) => {
+    const before = client.channel.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(ms - 1);
+    expect(client.channel).toHaveBeenCalledTimes(before);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(client.channel).toHaveBeenCalledTimes(before + 1);
+  };
+  await refuse();
+  await opensAfter(12_000);
+  await refuse();
+  await opensAfter(24_000);
+  for (let i = 0; i < 6; i++)
+    (await refuse(), await vi.advanceTimersByTimeAsync(REFUSED_RETRY_MAX_MS));
+  await refuse();
+  await opensAfter(REFUSED_RETRY_MAX_MS); // capped
+  // Readmitted: it joins and refetches; a later refusal starts again at 12 s.
+  channels.at(-1)!.status!("SUBSCRIBED");
+  await vi.advanceTimersByTimeAsync(150);
+  expect(h.onChange).toHaveBeenCalledTimes(1);
+  await refuse();
+  await opensAfter(12_000);
+  stop();
+  await vi.advanceTimersByTimeAsync(1000);
+  await refuse(); // closed meanwhile: the callback of a removed channel is ignored
+  const opened = client.channel.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(REFUSED_RETRY_MAX_MS);
+  expect(client.channel).toHaveBeenCalledTimes(opened);
+});
+
+it("with groups on, a conversation the screen knows is a DM waits instead of retrying", async () => {
+  const { cfg, client, channels } = setup({ groups: {}, dms: {} });
+  const stop = subscribeConversation(cfg, "c1", handlers(), { dm: true });
+  const stopDms = subscribeDms(cfg, "uid1", vi.fn());
+  await vi.advanceTimersByTimeAsync(0);
+  channels[0]!.status!("CHANNEL_ERROR", refusal);
+  await vi.advanceTimersByTimeAsync(REFUSED_RETRY_MAX_MS * 2);
+  expect(client.channel).toHaveBeenCalledTimes(2); // the DM channel and my own
+  channels[1]!.fire("broadcast", { event: "changed", payload: { id: "c1" } });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.channel).toHaveBeenCalledTimes(3);
+  stop();
+  stopDms();
+});
+
+it("a DM learnt late (the screen confirms it) stops a pending group retry", async () => {
+  const { cfg, client, channels } = setup({ groups: {}, dms: {} });
+  const unsure = subscribeConversation(cfg, "c1", handlers()); // kind not known yet
+  await vi.advanceTimersByTimeAsync(0);
+  const sure = subscribeConversation(cfg, "c1", handlers(), { dm: true });
+  unsure();
+  channels[0]!.status!("CHANNEL_ERROR", refusal);
+  await vi.advanceTimersByTimeAsync(REFUSED_RETRY_MAX_MS * 2);
+  expect(client.channel).toHaveBeenCalledTimes(1);
+  sure();
 });
