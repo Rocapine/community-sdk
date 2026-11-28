@@ -394,7 +394,11 @@ online (`groups/007` leaves the reader out of every "online" count), and only wh
 **Web.** The screens run on react-native-web: a message's menu opens on right click or
 the "…" shown on hover and focus (long press on touch), a double click likes, Reply is in
 the menu (no swipe), and the menu's Copy copies a message (bubbles take no text selection,
-so a double click doesn't select a word).
+so a double click doesn't select a word). In the composer, Enter sends and Shift+Enter adds
+a line. A stack navigator hides the screen it leaves with `aria-hidden` while the clicked
+button keeps focus, and Chrome warns about it: the example app's root layout drops that
+focus on mouse clicks (a capture `click` listener, web only); copy it if your host shows
+the warning.
 
 **Analytics.** New `COMMUNITY_EVENTS`: `messagesOpened`, `conversationOpened`,
 `messageSent`, `messageLiked`, `messageTranslated`, `messageEdited`, `messageDeleted`,
