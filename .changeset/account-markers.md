@@ -9,8 +9,9 @@
   A profile adopted again as the account's profile loses both markers.
 - `account_delete_profile` stamps `account_deleted_at`: a deleted account counts as a member until
   then, its posts always count.
-- Deleting a banned account no longer escapes the ban: `account_bans` keeps a sha256 of the
-  account's `provider:subject` (never the subject itself), and the next profile that account links
+- Deleting a banned account no longer escapes the ban: `account_bans` keeps a keyed sha256 of the
+  account's `provider:subject` (never the subject itself; the key, `account_ban_key`, is made once per
+  database and readable by no API role), and the next profile that account links
   (a new link only: a later sign-in never undoes an unban) is banned, with a `ban` moderation action by `account ban`. `account_unban(profile)` (service
   role) lifts it; the dashboard's unban calls it. Deleting a profile that is not banned drops its
   account's leftover rows, so a ban lifted without `account_unban` doesn't come back.
