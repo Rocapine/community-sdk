@@ -16,8 +16,9 @@ declare
   n int;
   z uuid := gen_random_uuid(); w uuid := gen_random_uuid(); v uuid := gen_random_uuid(); u uuid := gen_random_uuid();
   q uuid := gen_random_uuid(); q2 uuid := gen_random_uuid(); q3 uuid := gen_random_uuid();
+  q4 uuid := gen_random_uuid(); q5 uuid := gen_random_uuid();
   r1 uuid := gen_random_uuid(); r2 uuid := gen_random_uuid();
-  ban_hash text := encode(extensions.digest('test:subject-ban', 'sha256'), 'hex');
+  ban_hash text := encode(sha256(convert_to('test:subject-ban', 'UTF8')), 'hex');
   failed boolean;
   -- Every "table.column" that merge_profiles moves; a new foreign key to profiles must be added to
   -- merge_profiles AND here.
@@ -296,7 +297,7 @@ begin
 
   -- Markers (accounts/003): account_link_and_merge marks each merged profile with its main, and a
   -- profile already merged into it follows. account_delete_profile stamps account_deleted_at.
-  insert into auth.users (id) values (z), (w), (v), (u), (q), (q2), (q3);
+  insert into auth.users (id) values (z), (w), (v), (u), (q), (q2), (q3), (q4), (q5);
   update public.profiles set merged_into = z where id = w;
   perform public.account_link_and_merge('test', 'subject-1', m, array[z, m]);
   assert (select merged_into from public.profiles where id = z) = m, 'a merged profile points at its main';
@@ -325,7 +326,7 @@ begin
   assert not exists (select 1 from public.account_bans b where b::text like '%subject-ban%'), 'never the subject in clear';
   perform public.account_link_and_merge('test', 'subject-free', u, '{}');
   perform public.account_delete_profile(u);
-  assert not exists (select 1 from public.account_bans where subject_hash = encode(extensions.digest('test:subject-free', 'sha256'), 'hex')),
+  assert not exists (select 1 from public.account_bans where subject_hash = encode(sha256(convert_to('test:subject-free', 'UTF8')), 'hex')),
     'a deleted account that was not banned leaves no ban';
 
   -- The account comes back on a fresh profile: banned, with one moderation action, once.
@@ -359,6 +360,22 @@ begin
   assert not exists (select 1 from public.account_bans where subject_hash = ban_hash), 'account_unban finds a deleted profile''s ban';
   perform public.account_link_and_merge('test', 'subject-ban', q3, '{}');
   assert not (select is_banned from public.profiles where id = q3), 'unbanned after deletion, it comes back unbanned';
+
+  -- A stale ban heals: banned and deleted (a row), back banned on q4, unbanned with a plain
+  -- is_banned = false (no account_unban), deleted again: the row goes, the next return is not banned.
+  update public.profiles set is_banned = true where id = q3;
+  perform public.account_delete_profile(q3);
+  delete from public.account_links where profile_id = q3;
+  perform public.account_link_and_merge('test', 'subject-ban', q4, '{}');
+  assert (select is_banned from public.profiles where id = q4), 'back banned on q4';
+  update public.profiles set is_banned = false where id = q4;
+  assert exists (select 1 from public.account_bans where subject_hash = ban_hash), 'a plain unban leaves the row';
+  perform public.account_delete_profile(q4);
+  delete from public.account_links where profile_id = q4;
+  assert not exists (select 1 from public.account_bans where subject_hash = ban_hash),
+    'deleting the unbanned profile drops the stale row';
+  perform public.account_link_and_merge('test', 'subject-ban', q5, '{}');
+  assert not (select is_banned from public.profiles where id = q5), 'and the account comes back unbanned';
 
   -- Service role only.
   foreach r in array array['authenticated', 'anon'] loop

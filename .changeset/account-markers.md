@@ -12,5 +12,11 @@
 - Deleting a banned account no longer escapes the ban: `account_bans` keeps a sha256 of the
   account's `provider:subject` (never the subject itself), and the next profile that account links
   (a new link only: a later sign-in never undoes an unban) is banned, with a `ban` moderation action by `account ban`. `account_unban(profile)` (service
-  role) lifts it; the dashboard's unban calls it.
+  role) lifts it; the dashboard's unban calls it. Deleting a profile that is not banned drops its
+  account's leftover rows, so a ban lifted without `account_unban` doesn't come back.
 - Run `npx @rocapine/community upgrade` and `supabase db push`. `merge_profiles` is unchanged.
+- Release order: deploy the dashboard's brick 23 before accounts `003` reaches a host database (its
+  unban calls `account_unban`; a ban lifted without it is still dropped when the profile is deleted
+  again). A host that imported history with an importer that empties the placeholders members claim
+  must set `merged_into` on those placeholders before core `021` reaches production, or they count
+  as members.

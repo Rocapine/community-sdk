@@ -9,9 +9,14 @@
 --                          new and the account is in account_bans, bans p_main with one moderation
 --                          action.
 --   account_delete_profile also stamps account_deleted_at and, when the profile is banned, adds each
---                          of its account links to account_bans (account-delete unlinks after it).
+--                          of its account links to account_bans (account-delete unlinks after it);
+--                          when it is not banned, drops its links' rows there (account_unban), so a
+--                          ban lifted without account_unban heals on the next deletion.
 --   account_unban          drops the account_bans rows of a profile: its links' and those it was
 --                          deleted from. The dashboard calls it when it unbans the profile.
+-- Limits: after a second deletion of a banned account, profile_id moves to the latest profile, so
+-- unbanning an older deleted profile doesn't lift the account's ban. A ban placed after the deletion
+-- doesn't follow the account (no link is left to hash).
 -- Bodies are 001's / 002's otherwise. merge_profiles is not redefined. Service-role only. Requires
 -- core/021. Fully idempotent.
 
@@ -28,13 +33,14 @@ create index if not exists account_bans_profile_idx on public.account_bans (prof
 alter table public.account_bans enable row level security;
 revoke all on table public.account_bans from public, anon, authenticated;
 
--- The ban key of an account: sha256 of 'provider:subject', hex.
+-- The ban key of an account: sha256 of 'provider:subject' (UTF-8), hex. Postgres's built-in sha256,
+-- no pgcrypto.
 create or replace function public.account_ban_hash(p_provider text, p_subject text)
 returns text
 language sql immutable
-set search_path = public, extensions
+set search_path = public
 as $$
-  select encode(extensions.digest(p_provider || ':' || p_subject, 'sha256'), 'hex');
+  select encode(sha256(convert_to(p_provider || ':' || p_subject, 'UTF8')), 'hex');
 $$;
 
 -- Links (provider, subject) to p_main if the link is missing, then merges each p_merge profile into
@@ -93,7 +99,8 @@ $$;
 -- Account deletion, step one: resets the profile's identity, host ids, badges and streak, drops its push
 -- rows and revokes every session (auth.refresh_tokens cascade), in one transaction. The edge function
 -- then unlinks. Stamps account_deleted_at (the first deletion's, on a retry) and, when the profile is
--- banned, keeps the ban of each linked account in account_bans.
+-- banned, keeps the ban of each linked account in account_bans; when it is not, drops the account's
+-- stale rows there (a profile unbanned without account_unban).
 create or replace function public.account_delete_profile(p_profile uuid)
 returns void
 language plpgsql volatile security definer
@@ -105,6 +112,8 @@ begin
     select provider, public.account_ban_hash(provider, subject), p_profile
       from public.account_links where profile_id = p_profile
     on conflict (provider, subject_hash) do update set profile_id = excluded.profile_id;
+  else
+    perform public.account_unban(p_profile);
   end if;
   perform public.reset_profile_identity_for(p_profile);
   -- The host's ids go too: a candidates hook keyed on them must never adopt this profile again.
