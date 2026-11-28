@@ -361,8 +361,11 @@ export async function fetchProfile(
     .from("profiles")
     .select(cfg.modules.badges ? `${PROFILE_SELECT}, ${PROFILE_BADGE_COLUMNS}` : PROFILE_SELECT)
     .eq("id", userId)
-    .single();
+    // Not .single(): a hidden row (blocked either way, or gone) would be a 406 request.
+    .maybeSingle();
   if (error) throw error;
+  // The error .single() gives, so isProfileUnavailable and the callers see no change.
+  if (!data) throw Object.assign(new Error("profile unavailable"), { code: "PGRST116" });
   return mapProfileRow(data as unknown as ProfileRow, cfg.authorFallback());
 }
 
