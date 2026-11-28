@@ -80,7 +80,7 @@ timestamptz null`, added by core `021` (so the metrics can read them without the
 - New table `account_bans (provider text, subject_hash text, banned_at, primary key (provider,
 subject_hash))`, service role only. `subject_hash` is a sha256 of `provider:subject` computed in SQL
   with Postgres's built-in `sha256` (no pgcrypto: `encode(sha256(convert_to(provider || ':' || subject,
-  'UTF8')), 'hex')`; the session hash in `account_session_calls` is computed in TypeScript and can't be
+'UTF8')), 'hex')`; the session hash in `account_session_calls` is computed in TypeScript and can't be
   reused from SQL).
 - `account_delete_profile`: if the profile is banned and still linked, record its (provider,
   subject hash) in `account_bans` before the link goes.
