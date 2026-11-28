@@ -15,6 +15,7 @@ declare
   r record;
   n0 int;
   n int;
+  rep uuid;
 begin
   select array_agg(id) into ids from (
     select id from public.profiles where not is_banned and not is_admin limit 5
@@ -204,6 +205,8 @@ begin
       'no account: no new request';
     perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
     perform public.messaging_set_settings('{"dmsRequireAccount": false}');
+  else
+    raise notice 'dms.sql: no accounts module, the account-required re-request case is skipped';
   end if;
   update public.messages set created_at = now() - interval '25 minutes'
   where conversation_id = ac and body like 'silent%';
@@ -415,6 +418,8 @@ begin
     reset role;
     perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
     perform public.messaging_set_settings('{"dmsRequireAccount": false}');
+  else
+    raise notice 'dms.sql: no accounts module, the account-required start case is skipped';
   end if;
 
   -- Block and report a request; the dashboard reads a reported DM message only.
@@ -494,6 +499,22 @@ begin
   set local role authenticated;
   perform public.decline_request(a2b);
   reset role;
+  -- The cooldown passes; B writes again but A2 refuses DMs: a refused re-request, so A2's
+  -- row stays declined with a past visible_from. X reports that message.
+  update public.messages set created_at = now() - interval '30 minutes' where conversation_id = a2b;
+  update public.conversation_members set visible_from = now() - interval '10 minutes'
+  where conversation_id = a2b and user_id = a2;
+  update public.dm_declines set until = now() - interval '10 minutes' where sender_id = b and recipient_id = a2;
+  update public.profiles set accepts_dms = false where id = a2;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  m := public.send_message(a2b, 'refused re-request');
+  reset role;
+  update public.profiles set accepts_dms = true where id = a2;
+  assert (select state from public.conversation_members where conversation_id = a2b and user_id = a2) = 'declined',
+    'the re-request was refused';
+  insert into public.reports (reporter_id, reported_user_id, message_id, reason) values (x, b, m.id, 'spam')
+    returning id into rep;
   -- X declined A2 (above) but is active with A: active (no visible_from) + declined (future).
   perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
   set local role authenticated;
@@ -509,8 +530,10 @@ begin
   assert (select count(*) from public.conversations where id in (ab, a2b)) = 1, 'two DMs with B become one';
   select p.conversation_id into ab from public.dm_pairs p where p.user_a = least(a, b) and p.user_b = greatest(a, b);
   assert ab is not null and (select count(*) from public.messages where conversation_id = ab) = n
-    and not exists (select 1 from public.messages where body = 'from b to a2' and author_id = b),
-    'with their messages, minus the request A2 declined';
+    and not exists (select 1 from public.messages where body = 'from b to a2' and author_id = b)
+    and not exists (select 1 from public.messages where body = 'refused re-request' and author_id = b),
+    'with their messages, minus the request A2 declined and the refused re-request';
+  assert (select message_id is null and details = 'refused re-request' from public.reports where id = rep), 'the report keeps the body';
   assert (select count(*) from public.conversation_members where conversation_id = ab) = 2
     and (select state from public.conversation_members where conversation_id = ab and user_id = b) = 'active'
     and (select state = 'active' and visible_from is null from public.conversation_members

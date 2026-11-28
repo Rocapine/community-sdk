@@ -743,10 +743,12 @@ begin
     v_peer := public.dm_peer_of(p_conversation, v_uid);
     perform public.dm_lock_pair(v_uid, v_peer);
     if exists (select 1 from conversation_members
-               where conversation_id = p_conversation and user_id = v_peer and state = 'declined')
-       and public.dm_request_refusal(v_uid, v_peer) is null then
-      update conversation_members set state = 'request', visible_from = now()
-      where conversation_id = p_conversation and user_id = v_peer;
+               where conversation_id = p_conversation and user_id = v_peer and state = 'declined') then
+      -- Only for a declined row: the refusal check logs a request when it passes.
+      if public.dm_request_refusal(v_uid, v_peer) is null then
+        update conversation_members set state = 'request', visible_from = now()
+        where conversation_id = p_conversation and user_id = v_peer;
+      end if;
     end if;
   end if;
 
@@ -855,8 +857,9 @@ $$;
 
 -- messaging/001's, plus DMs, first: a DM between the two is dropped (it would be with
 -- oneself); two DMs with one member become one, the older, which takes the other's
--- messages. Messages a member never saw (before their row's visible_from) are deleted
--- first, so no merged row can reveal them; each person's kept row then takes the
+-- messages. Messages a member never saw (before their row's visible_from, or any
+-- while their row is declined) are deleted first, so no merged row can reveal them (a
+-- report on one keeps its body in details); each person's kept row then takes the
 -- state and visible_from of the more open of their two rows (active, request,
 -- declined), an active row never keeping a future visible_from. Pairs, declines and
 -- the request log move to main.
@@ -885,9 +888,20 @@ begin
     select id into v_keep from conversations where id in (v_main_conv, v_other_conv)
     order by created_at, id limit 1;
     v_drop := case when v_keep = v_main_conv then v_other_conv else v_main_conv end;
+    -- Never seen: before the row's visible_from, or anything while it is declined (a
+    -- re-request a new DM's checks refused leaves a past visible_from). A report on
+    -- one keeps the body in its details (when empty); message_id goes null.
+    update reports r set details = m.body
+    from messages m
+    join conversation_members cm on cm.conversation_id = m.conversation_id
+    where r.message_id = m.id and m.conversation_id in (v_keep, v_drop)
+      and cm.user_id <> m.author_id
+      and (m.created_at < cm.visible_from or cm.state = 'declined')
+      and coalesce(r.details, '') = '';
     delete from messages m using conversation_members cm
     where m.conversation_id in (v_keep, v_drop) and cm.conversation_id = m.conversation_id
-      and cm.user_id <> m.author_id and m.created_at < cm.visible_from;
+      and cm.user_id <> m.author_id
+      and (m.created_at < cm.visible_from or cm.state = 'declined');
     update conversation_members k set
       state = case when public.dm_state_rank(d.state) < public.dm_state_rank(k.state)
                    then d.state else k.state end,
