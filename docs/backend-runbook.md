@@ -688,7 +688,10 @@ Then `supabase db push`, `messaging_set_settings` with the `dms*` keys above, an
   `dms/002_push` (DM pushes, `push_tokens.notify_dms`, `claim_message_push` with a `kind`),
   `dms/003_flags_search_read` (`search_dm_members`, `has_dm` in `profile_dm_flags`, the
   live "Seen" broadcast) and `dms/004_block_broadcast` (a block between two members of a DM
-  broadcasts `members` on its channel, so an open DM closes its composer at once). All
+  broadcasts `members` on its channel, so an open DM closes its composer at once) and
+  `dms/005_requests_sent_live` (a request counts against `dmsRequestsPerDay` when its
+  first message is sent: `dm_request_refusal` only reads the budget, `dm_log_request`
+  spends it from `send_message`). All
   idempotent; `dms/002` needs the push module (skipped with a notice when `push_tokens`
   is missing).
 - **Functions.** No new secret and no new function: `notify-message` (messaging + push)

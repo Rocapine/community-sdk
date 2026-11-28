@@ -417,14 +417,14 @@ migrations, the order and the traps (adding `push` or `groups` after `dms` re-ru
 modules: { dms: { firstMessage: "requests", entryPoints: ["profile", "newMessage"] } },
 ```
 
-| Option                    | Default       | Meaning                                                                                                                                                                     |
-| ------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dms.firstMessage`        | `"direct"`    | A first message lands in the recipient's conversations (`"direct"`), or waits in their Requests until they accept (`"requests"`). Backend key `dmsFirstMessage`.            |
-| `dms.entryPoints`         | `["profile"]` | Where "Message" appears: a member's `"profile"`, the `"newMessage"` picker (a pencil on the Messages page), the `"contextMenu"` of a post, comment or message. Client only. |
-| `dms.readReceipts`        | `false`       | "Seen" under my last message once the other member read it. Never on a request. Backend key `dmsReadReceipts`.                                                              |
-| `dms.requireAccount`      | `false`       | Both members need a linked app account (accounts module) to start a DM. Backend key `dmsRequireAccount`.                                                                    |
-| `dms.requestsPerDay`      | `5`           | New requests a member may start per day (`firstMessage: "requests"` only), at least 1. Backend key `dmsRequestsPerDay`.                                                     |
-| `dms.declineCooldownDays` | `30`          | After a decline, the sender can't start a new request to that member for this long (0 = no wait). Backend key `dmsDeclineCooldownDays`.                                     |
+| Option                    | Default       | Meaning                                                                                                                                                                                        |
+| ------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dms.firstMessage`        | `"direct"`    | A first message lands in the recipient's conversations (`"direct"`), or waits in their Requests until they accept (`"requests"`). Backend key `dmsFirstMessage`.                               |
+| `dms.entryPoints`         | `["profile"]` | Where "Message" appears: a member's `"profile"`, the `"newMessage"` picker (a pencil on the Messages page), the `"contextMenu"` of a post, comment or message. Client only.                    |
+| `dms.readReceipts`        | `false`       | "Seen" under my last message once the other member read it. Never on a request. Backend key `dmsReadReceipts`.                                                                                 |
+| `dms.requireAccount`      | `false`       | Both members need a linked app account (accounts module) to start a DM. Backend key `dmsRequireAccount`.                                                                                       |
+| `dms.requestsPerDay`      | `5`           | Requests a member may send per day (`firstMessage: "requests"` only), at least 1: one counts when its first message is sent, not when "Message" opens the DM. Backend key `dmsRequestsPerDay`. |
+| `dms.declineCooldownDays` | `30`          | After a decline, the sender can't start a new request to that member for this long (0 = no wait). Backend key `dmsDeclineCooldownDays`.                                                        |
 
 As for groups, keep the app's values equal to `messaging_settings`: dev builds warn when
 they differ. The shared `messaging.*` options (moderation, translation, typing, `badge`,

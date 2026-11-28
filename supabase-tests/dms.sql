@@ -10,6 +10,7 @@ declare
   ids uuid[];
   a uuid; b uuid; c uuid; x uuid; a2 uuid;
   ab uuid; ac uuid; cx uuid; a2c uuid; a2x uuid; a2b uuid; ax uuid; cb uuid; g uuid;
+  xa uuid; xb uuid; xc uuid; xa2 uuid;
   m public.messages;
   m_ab public.messages;
   r record;
@@ -670,6 +671,60 @@ begin
   else
     raise notice 'dms/004 or realtime.send missing: block broadcast not checked';
   end if;
+
+  -- dms/005: a request counts when it is sent. Opening "Message" without writing logs
+  -- nothing and is never refused for the budget; past it, the first message is refused.
+  -- (A budget of 3 here: this test has five members, so four recipients for X.)
+  delete from public.blocks where blocker_id = any (ids) or blocked_id = any (ids);
+  delete from public.conversations where id in (
+    select conversation_id from public.dm_pairs where x in (user_a, user_b));
+  delete from public.dm_declines where sender_id = x or recipient_id = x;
+  delete from public.dm_request_log where sender_id = x;
+  update public.profiles set accepts_dms = true where id = any (ids);
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"dmsFirstMessage": "requests", "dmsRequestsPerDay": 3}');
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  xa := public.start_dm(a);
+  xb := public.start_dm(b);
+  xc := public.start_dm(c);
+  xa2 := public.start_dm(a2);
+  reset role;
+  assert not exists (select 1 from public.dm_request_log where sender_id = x),
+    'opening four DMs logs no request, and the fourth (past a budget of 3) is not refused';
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not exists (select 1 from public.list_dm_requests() l where l.conversation_id = xa),
+    'the recipient never sees an empty request';
+  reset role;
+  update public.profiles set accepts_dms = false where id = b;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.send_message(xb, 'b turned DMs off since');
+    assert false, 'a first message runs a new DM''s checks';
+  exception when raise_exception then
+    assert sqlerrm = 'dms_off', 'got ' || sqlerrm;
+  end;
+  reset role;
+  update public.profiles set accepts_dms = true where id = b;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.send_message(xa, 'request 1');
+  perform public.send_message(xa, 'request 1, more');
+  perform public.send_message(xb, 'request 2');
+  perform public.send_message(xc, 'request 3');
+  begin
+    perform public.send_message(xa2, 'request 4');
+    assert false, 'the fourth sent request is over the budget';
+  exception when raise_exception then
+    assert sqlerrm = 'too_many_requests', 'got ' || sqlerrm;
+  end;
+  reset role;
+  assert (select count(*) from public.dm_request_log where sender_id = x) = 3,
+    'one log row per sent request, none for a later message';
+  assert not exists (select 1 from public.messages where conversation_id = xa2),
+    'the refused first message is not stored';
 
   raise exception 'DMS_TESTS_PASSED';
 end $$;
