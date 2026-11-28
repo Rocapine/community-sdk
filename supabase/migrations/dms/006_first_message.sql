@@ -17,6 +17,11 @@
 -- - merge_messaging (dms/001's) moves over a row that exists only in the dropped DM.
 -- - The author of a DM message can't read its cached translations: one would tell them
 --   the recipient read it (a request, or read receipts off).
+-- - Sending on `conversation:<id>` also needs can_read_conversation (messaging/001's
+--   policy only checked membership): a member of a DM across a block sends nothing.
+--   Only matters with dms (a group member who can't read is not a member).
+-- - A block or an unblock (dms/004's) also sends `changed` on both members' `dms:<id>`
+--   channels, so a pending request leaves (or comes back to) the recipient's lists live.
 -- Requires messaging/001–006 and dms/001–005. Idempotent.
 
 -- ============ ROWS NOBODY WROTE TO ============
@@ -476,6 +481,55 @@ create policy "read translations of readable messages" on public.message_transla
                and exists (select 1 from public.conversations c
                            where c.id = m.conversation_id and c.kind = 'dm'))));
 
+-- messaging/001's, plus can_read_conversation: never across a block in a DM. A member
+-- may send any event there (typing, but also `read`, `changed`, `members`); those only
+-- make the others refetch what the server computes.
+drop policy if exists "messaging: members send on conversation channels" on realtime.messages;
+create policy "messaging: members send on conversation channels" on realtime.messages
+  for insert to authenticated
+  with check (
+    case when realtime.topic() ~ '^conversation:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      then public.is_conversation_member(split_part(realtime.topic(), ':', 2)::uuid)
+        and public.can_read_conversation(split_part(realtime.topic(), ':', 2)::uuid)
+      else false end
+  );
+
+-- ============ LIVE BLOCKS ============
+-- dms/004's, plus `changed` on both members' own channels: a request a block withdraws
+-- (or an unblock brings back) leaves the recipient's Requests and lists at once, though
+-- they never joined the DM's channel.
+create or replace function public.dms_broadcast_block()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_row public.blocks := coalesce(new, old);
+  v_conversation uuid;
+begin
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is null then
+    return null;
+  end if;
+  select d.conversation_id into v_conversation
+  from public.dm_pairs d
+  where d.user_a = least(v_row.blocker_id, v_row.blocked_id)
+    and d.user_b = greatest(v_row.blocker_id, v_row.blocked_id);
+  if v_conversation is not null then
+    perform realtime.send(
+      jsonb_build_object('id', v_conversation),
+      'members',
+      'conversation:' || v_conversation::text,
+      true
+    );
+    perform realtime.send(jsonb_build_object('id', v_conversation), 'changed',
+                          'dms:' || v_row.blocker_id::text, true);
+    perform realtime.send(jsonb_build_object('id', v_conversation), 'changed',
+                          'dms:' || v_row.blocked_id::text, true);
+  end if;
+  return null;
+end;
+$$;
+
+revoke all on function public.dms_broadcast_block() from public, anon, authenticated;
 revoke execute on function public.start_dm(uuid) from public, anon;
 revoke execute on function public.send_message(uuid, text, uuid, text, text, text) from public, anon;
 revoke execute on function public.dm_peers() from public, anon;

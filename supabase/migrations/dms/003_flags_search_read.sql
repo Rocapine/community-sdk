@@ -6,7 +6,8 @@
 -- - search_dm_members: the "new message" picker, members the caller may start a DM with.
 -- - mark_conversation_read (messaging/001's) broadcasts `read` on the conversation's
 --   private channel when a DM member with read receipts on reads a new message of the
---   peer's, so the peer's "Seen" updates live. Only the server sends it.
+--   peer's, so the peer's "Seen" updates live. A member could send one too (messaging/001's
+--   send policy admits any event): it only makes the peer refetch dm_peer_read.
 -- Requires messaging/001 and dms/001. Idempotent.
 
 drop function if exists public.profile_dm_flags(uuid[]);

@@ -955,6 +955,36 @@ begin
   assert exists (select 1 from public.message_translations where message_id = m.id), 'the reader reads it';
   reset role;
 
+  -- Across a block: nobody sends on the DM's channel, and both members' own channels
+  -- hear of it.
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    perform set_config('realtime.topic', 'conversation:' || ab, true);
+    set local role authenticated;
+    insert into realtime.messages (topic, extension, event, payload, private)
+    values ('conversation:' || ab, 'broadcast', 'typing', '{}', true);
+    reset role;
+    select count(*) into n0 from realtime.messages
+    where topic in ('dms:' || a, 'dms:' || b) and event = 'changed' and payload ->> 'id' = ab::text;
+    insert into public.blocks (blocker_id, blocked_id) values (a, b);
+    assert (select count(*) from realtime.messages
+            where topic in ('dms:' || a, 'dms:' || b) and event = 'changed' and payload ->> 'id' = ab::text) = n0 + 2,
+      'a block tells both members'' lists';
+    set local role authenticated;
+    begin
+      insert into realtime.messages (topic, extension, event, payload, private)
+      values ('conversation:' || ab, 'broadcast', 'typing', '{}', true);
+      assert false, 'a blocked DM member sends nothing';
+    exception when insufficient_privilege then
+      null;
+    end;
+    reset role;
+    perform set_config('realtime.topic', '', true);
+    delete from public.blocks where blocker_id = a and blocked_id = b;
+  else
+    raise notice 'realtime.send missing: dms/006 channel checks skipped';
+  end if;
+
   -- Merge with a row on one side only: C opened a DM with B alone (the older), A2 wrote
   -- to B. One DM survives with both members, and B still reads A2's message.
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
