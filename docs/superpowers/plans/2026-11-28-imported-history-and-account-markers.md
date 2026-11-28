@@ -17,7 +17,7 @@
 - Never redefine `merge_profiles` (the messaging branch does, in its `accounts/003_merge_hooks.sql`, which will be renumbered `004`).
 - Migration headers follow the existing style (`-- community-sdk <module>/<file> (schema v1)`, what it changes, "Fully idempotent."); every migration is idempotent (`if not exists`, `create or replace`, guarded `alter`).
 - `merged_into` and `account_deleted_at` are not client-writable (same treatment as `is_placeholder`: no grant to authenticated).
-- A ban key is never the subject in clear: `account_bans.subject_hash = encode(extensions.digest(provider || ':' || subject, 'sha256'), 'hex')` (computed in SQL; ruling: the session hash in `account_session_calls` is computed in TypeScript and can't be reused from SQL).
+- A ban key is never the subject in clear: `account_bans.subject_hash = encode(sha256(convert_to(provider || ':' || subject, 'UTF8')), 'hex')` (Postgres's built-in sha256, no pgcrypto) (computed in SQL; ruling: the session hash in `account_session_calls` is computed in TypeScript and can't be reused from SQL).
 - Placeholders join on their first contribution: join date = earliest of their posts' and comments' `created_at`, else their own `created_at`.
 - Merged profiles (`merged_into is not null`) are left out of every metric and every dashboard list, search and count; deleted-account profiles count as members until `account_deleted_at` and their content always counts.
 - Dashboard copy (exact): chip "Deleted account"; filter label "Deleted accounts"; card notice "This member deleted their account. Their posts stay."; card line label "App account"; merged item view "Merged into <name>".

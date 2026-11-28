@@ -60,10 +60,11 @@ Three SDK changes since 0.21 make the dashboard mislead, and one leaves a hole i
   members up to their deletion and their content always counts (my call: they were real members).
 - Same signatures and JSON shapes as today: the dashboard needs no change for this part.
 
-### SDK: markers (accounts `003`)
+### SDK: markers (columns in core `021`, set by accounts `003`)
 
 - `profiles.merged_into uuid null references profiles(id)` and `profiles.account_deleted_at
-timestamptz null`. Not client-writable (same grants as `is_placeholder`).
+timestamptz null`, added by core `021` (so the metrics can read them without the accounts module).
+  Not client-writable (same grants as `is_placeholder`).
 - `merged_into` is set by `account_link_and_merge` right after each `merge_profiles(p_main, x)`
   call, not inside `merge_profiles` (anti-goal).
 - **Only merges from now on are marked** (my call): a profile merged before this migration can't be
@@ -77,8 +78,10 @@ timestamptz null`. Not client-writable (same grants as `is_placeholder`).
 ### SDK: bans that survive deletion (accounts `003`)
 
 - New table `account_bans (provider text, subject_hash text, banned_at, primary key (provider,
-subject_hash))`, service role only. `subject_hash` is a sha256 of `provider:subject` computed in SQL (the session hash in
-  `account_session_calls` is computed in TypeScript and can't be reused from SQL).
+subject_hash))`, service role only. `subject_hash` is a sha256 of `provider:subject` computed in SQL
+  with Postgres's built-in `sha256` (no pgcrypto: `encode(sha256(convert_to(provider || ':' || subject,
+  'UTF8')), 'hex')`; the session hash in `account_session_calls` is computed in TypeScript and can't be
+  reused from SQL).
 - `account_delete_profile`: if the profile is banned and still linked, record its (provider,
   subject hash) in `account_bans` before the link goes.
 - `account_link_and_merge`: when the (provider, subject) being linked is in `account_bans`, the main

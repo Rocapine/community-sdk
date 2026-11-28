@@ -485,7 +485,11 @@ A banned profile's ban outlives the deletion: `account_bans` keeps a sha256 of
 the account's `provider:subject` (never the subject itself), and the next
 profile that account links is banned, with a `ban` moderation action by
 `account ban`. `account_unban(profile)` (service role; the dashboard's unban
-calls it) lifts it (`accounts/003_markers_and_bans.sql`). The app calls
+calls it) lifts it (`accounts/003_markers_and_bans.sql`); a ban lifted
+without it is dropped when that profile is deleted again. A ban placed after the
+deletion doesn't follow the account (no link is left), and after a second
+deletion the ban belongs to the latest profile: unbanning an older deleted
+profile doesn't lift it. The app calls
 `deleteAccountProfile()` before disabling its own account, or its backend
 calls the function with the service role:
 
