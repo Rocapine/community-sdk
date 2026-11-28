@@ -16,6 +16,7 @@ declare
   n int;
   z uuid := gen_random_uuid(); w uuid := gen_random_uuid(); v uuid := gen_random_uuid(); u uuid := gen_random_uuid();
   q uuid := gen_random_uuid(); q2 uuid := gen_random_uuid(); q3 uuid := gen_random_uuid();
+  r1 uuid := gen_random_uuid(); r2 uuid := gen_random_uuid();
   ban_hash text := encode(extensions.digest('test:subject-ban', 'sha256'), 'hex');
   failed boolean;
   -- Every "table.column" that merge_profiles moves; a new foreign key to profiles must be added to
@@ -303,6 +304,16 @@ begin
   assert (select merged_into from public.profiles where id = m) is null, 'main is never marked, even in its own merge list';
   assert (select account_deleted_at is not null from public.profiles where id = o), 'delete stamps account_deleted_at';
 
+  -- A profile merged away or deleted earlier, adopted again as main (candidates hook): both markers
+  -- cleared, even when the profile it was merged into is in its own merge list; nobody points at itself.
+  insert into auth.users (id) values (r1), (r2);
+  update public.profiles set merged_into = r2, account_deleted_at = now() where id = r1;
+  perform public.account_link_and_merge('test', 'subject-readopt', r1, array[r2]);
+  assert (select merged_into is null and account_deleted_at is null from public.profiles where id = r1),
+    're-adopted main loses both markers';
+  assert (select merged_into from public.profiles where id = r2) = r1, 'the merged profile points at main';
+  assert not exists (select 1 from public.profiles where merged_into = id), 'no profile is merged into itself';
+
   -- A ban survives account deletion: v is linked and banned, then deleted as account-delete does
   -- (account_delete_profile, then the link goes). Only the hash is kept, never the subject.
   perform public.account_link_and_merge('test', 'subject-ban', v, '{}');
@@ -324,6 +335,12 @@ begin
   assert (select count(*) from public.moderation_actions where target_user_id = q) = 1, 'one moderation action, not one per sign-in';
   assert exists (select 1 from public.moderation_actions where target_user_id = q and action = 'ban'
                    and actor_email = 'account ban' and note = 'banned account came back'), 'the action says why';
+
+  -- Unbanned without account_unban (a plain is_banned = false): a later sign-in does not ban it again.
+  update public.profiles set is_banned = false where id = q;
+  assert not public.account_link_and_merge('test', 'subject-ban', q, '{}'), 'a later sign-in is not a new link';
+  assert not (select is_banned from public.profiles where id = q), 'a later sign-in never undoes an unban';
+  assert (select count(*) from public.moderation_actions where target_user_id = q) = 1, 'and writes no new ban action';
 
   -- Unbanned while linked: the hash goes, the next profile of the account is not banned.
   perform public.account_unban(q);

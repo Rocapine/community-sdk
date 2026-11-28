@@ -4,8 +4,10 @@
 --   account_bans           (provider, hash of the subject) of each banned account that was deleted, and
 --                          the profile it was deleted from. Never the subject in clear.
 --   account_link_and_merge also sets merged_into = p_main on each merged profile (and on any profile
---                          already merged into one of them), and bans p_main, with one moderation
---                          action, when the account is in account_bans.
+--                          already merged into one of them), clears both markers on p_main (a
+--                          merged or deleted profile can be adopted again), and, when the link is
+--                          new and the account is in account_bans, bans p_main with one moderation
+--                          action.
 --   account_delete_profile also stamps account_deleted_at and, when the profile is banned, adds each
 --                          of its account links to account_bans (account-delete unlinks after it).
 --   account_unban          drops the account_bans rows of a profile: its links' and those it was
@@ -62,13 +64,20 @@ begin
     if x <> p_main then
       -- A profile merged into x earlier follows it, so no marker points at an emptied profile.
       perform set_config('community.trusted', 'on', true);
-      update public.profiles set merged_into = p_main where id = x or merged_into = x;
+      -- Never p_main itself: it may be the profile merged into x earlier.
+      update public.profiles set merged_into = p_main where (id = x or merged_into = x) and id <> p_main;
       perform set_config('community.trusted', '', true);
     end if;
   end loop;
+  -- p_main is in use again: a candidates hook may adopt a profile merged away or deleted earlier.
+  perform set_config('community.trusted', 'on', true);
+  update public.profiles set merged_into = null, account_deleted_at = null
+   where id = p_main and (merged_into is not null or account_deleted_at is not null);
+  perform set_config('community.trusted', '', true);
   -- The ban stays in account_bans until the dashboard lifts it (account_unban): an account banned
-  -- once is banned on every profile it comes back on. Not banned already, so one action per return.
-  if exists (select 1 from public.account_bans
+  -- once is banned on every profile it comes back on. Only on a new link (the one way a deleted
+  -- account comes back), so a later sign-in never undoes an unban; not banned already, so one action.
+  if inserted > 0 and exists (select 1 from public.account_bans
              where provider = p_provider and subject_hash = public.account_ban_hash(p_provider, p_subject))
      and not (select is_banned from public.profiles where id = p_main) then
     perform set_config('community.trusted', 'on', true);
