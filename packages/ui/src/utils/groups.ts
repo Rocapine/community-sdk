@@ -70,6 +70,18 @@ export function lastMessagePreview(
   return dm ? text : t("messages.author", { name: authorName ?? "", text });
 }
 
+/** A DM row's line and count. Across a block (no peer, either way) neither side reads
+ * the DM: the "can't write" line instead of a preview (never my own older message),
+ * and no count. */
+export function dmRowSummary(
+  c: Pick<Conversation, "peerId" | "lastMessage" | "unread">,
+  myUid: string | null,
+  t: TFn,
+): { preview: string; unread: number } {
+  if (!c.peerId) return { preview: t("chat.blocked"), unread: 0 };
+  return { preview: lastMessagePreview(c.lastMessage, myUid, null, t, true), unread: c.unread };
+}
+
 /** The host gate before joining: the screen's own `beforeJoinGroup`, else the feed's
  * `beforeCompose` when `requireAccount: "feed"`, else none. */
 export function joinGate(

@@ -41,7 +41,7 @@ import { SegmentedTabs } from "../components/SegmentedTabs";
 import { NewMessageSheet } from "../components/NewMessageSheet";
 import { RequestsScreen } from "./RequestsScreen";
 import { hubView, shownInList, showRequestsRow } from "../utils/chat";
-import { lastMessagePreview } from "../utils/groups";
+import { dmRowSummary, lastMessagePreview } from "../utils/groups";
 import { useMessageMember } from "../utils/messageMember";
 import { isQueryLoading } from "../utils/query";
 import { formatTimeAgo, useNow } from "../utils/time";
@@ -299,7 +299,8 @@ function RowEnd({ c, now }: { c: Conversation; now: number }) {
 }
 
 /** One of my DMs: the peer's avatar (online dot), name, last message, time and unread
- * count. Across a block the list has no peer: "Blocked member", no picture. */
+ * count. Across a block the list has no peer: "Blocked member", no picture, the
+ * "can't write" line and no count. */
 const DmConversationRow = memo(function DmConversationRow({
   conversation: c,
   now,
@@ -314,11 +315,11 @@ const DmConversationRow = memo(function DmConversationRow({
   const myUid = useMyUid();
   const peer = useProfile(c.peerId).data;
   const name = peer?.name ?? (c.peerId ? "" : t("dms.blockedMember"));
-  const preview = lastMessagePreview(c.lastMessage, myUid, null, t, true);
+  const { preview, unread: count } = dmRowSummary(c, myUid, t);
   // DMs are always followed: their count never greys.
-  const row = { ...c, notify: true };
-  const unread = c.unread > 0;
-  const unreadLabel = unread ? t("messages.unread", { count: c.unread }) : null;
+  const row = { ...c, notify: true, unread: count };
+  const unread = count > 0;
+  const unreadLabel = unread ? t("messages.unread", { count }) : null;
 
   return (
     <Pressable
