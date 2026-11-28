@@ -158,7 +158,8 @@ export default function ConfigTab() {
         </View>
         <Text style={styles.hint}>
           Set the same values on the backend with messaging_set_settings (dmsFirstMessage,
-          dmsReadReceipts).
+          dmsReadReceipts); dmsRequireAccount, dmsRequestsPerDay and dmsDeclineCooldownDays keep
+          their defaults here. entryPoints is client-only.
         </Text>
       </Section>
 
