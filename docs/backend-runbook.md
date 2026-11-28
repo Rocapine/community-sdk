@@ -468,7 +468,11 @@ signed-in device registers again on the account profile). Its sessions are
 revoked (`auth.sessions`, refresh tokens cascade): a device still holding the
 merged profile's refresh token is signed out instead of acting as the empty
 profile. The caller's new session is minted after the merge, so the device that
-signs in stays signed in (`accounts/002_merge_and_delete.sql`).
+signs in stays signed in (`accounts/002_merge_and_delete.sql`). The merged
+profile's `merged_into` points at the account profile (`accounts/003`): the
+dashboard leaves it out of every count and list.
+
+Core `021` builds the author indexes on `posts` and `comments` before it alters `profiles`, in one transaction. On a large production database, build them beforehand with `create index concurrently if not exists` (check they are valid: a failed concurrent build leaves an invalid index that `if not exists` skips), or push at low traffic with a `lock_timeout`.
 
 ### Account deletion
 
@@ -477,7 +481,17 @@ signs in stays signed in (`accounts/002_merge_and_delete.sql`).
 (badges and streaks modules: its old posts stop showing them), clears its `revenuecat_id` and
 `amplitude_id` (so no candidates hook adopts it again), deletes its push rows, revokes
 every session (all devices drop it), moves the synthetic email off and
-deletes the link. The profile becomes an ordinary orphan. The app calls
+deletes the link. The profile becomes an ordinary orphan, stamped
+`account_deleted_at` (it counts as a member until then; its posts always count).
+A banned profile's ban outlives the deletion: `account_bans` keeps a sha256 of
+the account's `provider:subject` (never the subject itself), and the next
+profile that account links is banned, with a `ban` moderation action by
+`account ban`. `account_unban(profile)` (service role; the dashboard's unban
+calls it) lifts it (`accounts/003_markers_and_bans.sql`); a ban lifted
+without it is dropped when that profile is deleted again. A ban placed after the
+deletion doesn't follow the account (no link is left), and after a second
+deletion the ban belongs to the latest profile: unbanning an older deleted
+profile doesn't lift it. The app calls
 `deleteAccountProfile()` before disabling its own account, or its backend
 calls the function with the service role:
 
@@ -500,6 +514,7 @@ AW=<appwrite endpoint>; AWP=<appwrite project id>; AWK=<appwrite server key>
 # Schema and functions (both idempotent).
 supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_accounts.sql
 supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_merge_and_delete.sql
+supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_markers_and_bans.sql
 supabase functions deploy account-session account-delete --project-ref $REF
 
 # A throwaway account and its proof.
