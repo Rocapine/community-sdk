@@ -28,6 +28,8 @@ begin
   delete from public.dm_declines where sender_id = any (ids) or recipient_id = any (ids);
   delete from public.dm_request_log where sender_id = any (ids) or recipient_id = any (ids);
   update public.profiles set accepts_dms = true where id = any (ids);
+  -- Unique names for the picker checks (sandbox profiles may have none).
+  update public.profiles set username = 'Zqdm' || substr(md5(id::text), 1, 10) where id = any (ids);
   if to_regclass('public.account_links') is not null then
     delete from public.account_links where profile_id = any (ids);
   end if;
@@ -353,8 +355,17 @@ begin
   reset role;
   perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
   set local role authenticated;
+  select * into r from public.profile_dm_flags(array[b]) f;
+  assert not r.accepts_dms and r.has_dm, 'flags: B refuses DMs, but A already has one with B';
+  assert exists (select 1 from public.search_dm_members((select username from public.profiles where id = b)) s
+                 where s.user_id = b), 'the picker keeps B for A (existing DM)';
   perform public.send_message(ab, 'existing DMs keep working');
   assert public.start_dm(b) = ab, 'and open';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not exists (select 1 from public.search_dm_members((select username from public.profiles where id = b)) s
+                     where s.user_id = b), 'the picker leaves B out for C (no DM, switch off)';
   reset role;
   perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
   set local role authenticated;
@@ -558,6 +569,55 @@ begin
   assert not exists (select 1 from public.conversation_members where user_id = a2), 'A2 has no memberships left';
   assert not exists (select 1 from public.dm_pairs where a2 in (user_a, user_b)), 'nor pairs';
   assert not exists (select 1 from public.dm_declines where a2 in (sender_id, recipient_id)), 'nor declines';
+
+  -- dms/003: banned members leave the flags and the picker; the picker escapes % and _,
+  -- never lists the caller and caps its limit.
+  update public.profiles set is_banned = true where id = c;
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not exists (select 1 from public.profile_dm_flags(array[c])), 'no flags for a banned member';
+  assert not exists (select 1 from public.search_dm_members((select username from public.profiles where id = c)) s
+                     where s.user_id = c), 'the picker leaves a banned member out';
+  assert not exists (select 1 from public.search_dm_members('%')), '% is a literal';
+  assert not exists (select 1 from public.search_dm_members('  ')), 'an empty query lists no one';
+  assert not exists (select 1 from public.search_dm_members((select username from public.profiles where id = a)) s
+                     where s.user_id = a), 'never myself';
+  assert (select count(*) from public.search_dm_members('e', 500)) <= 50, 'at most 50';
+  reset role;
+  update public.profiles set is_banned = false where id = c;
+
+  -- dms/003: `read` broadcast only for an active DM member with read receipts on.
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.messaging_set_settings('{"dmsReadReceipts": true}');
+    update public.conversation_members set last_read_at = now() - interval '1 minute'
+    where conversation_id = ab and user_id = b;
+    select count(*) into n0 from realtime.messages where topic = 'conversation:' || ab and event = 'read';
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.mark_conversation_read(ab);
+    reset role;
+    select count(*) into n from realtime.messages where topic = 'conversation:' || ab and event = 'read';
+    assert n = n0 + 1, 'a DM read with receipts on broadcasts `read`';
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.mark_conversation_read(ab);
+    reset role;
+    assert (select count(*) from realtime.messages where topic = 'conversation:' || ab and event = 'read') = n,
+      'a read mark that did not move sends nothing';
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.messaging_set_settings('{"dmsReadReceipts": false}');
+    update public.conversation_members set last_read_at = now() - interval '1 minute'
+    where conversation_id = ab and user_id = b;
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.mark_conversation_read(ab);
+    reset role;
+    assert (select count(*) from realtime.messages where topic = 'conversation:' || ab and event = 'read') = n,
+      'receipts off: no broadcast';
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.messaging_set_settings('{"dmsReadReceipts": true}');
+  end if;
 
   raise exception 'DMS_TESTS_PASSED';
 end $$;
