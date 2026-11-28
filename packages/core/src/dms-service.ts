@@ -109,7 +109,8 @@ export async function fetchDmFlags(cfg: ResolvedCommunityConfig, ids: string[]):
 export async function fetchAcceptsDms(cfg: ResolvedCommunityConfig): Promise<boolean> {
   requireDms(cfg);
   const uid = await requireUid(cfg);
-  // No row only when my profile isn't there yet: the column's default is true.
+  // No row when my profile isn't there yet (the column's default is true) or I'm banned
+  // (start_dm refuses me anyway): true either way.
   return (await flagRows(cfg, [uid]))[0]?.accepts_dms ?? true;
 }
 

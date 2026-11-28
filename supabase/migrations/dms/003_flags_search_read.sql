@@ -5,8 +5,8 @@
 --   type changes, so it is dropped and created again.
 -- - search_dm_members: the "new message" picker, members the caller may start a DM with.
 -- - mark_conversation_read (messaging/001's) broadcasts `read` on the conversation's
---   private channel when a DM member with read receipts on moves their read mark, so
---   the peer's "Seen" updates live. Only the server sends it.
+--   private channel when a DM member with read receipts on reads a new message of the
+--   peer's, so the peer's "Seen" updates live. Only the server sends it.
 -- Requires messaging/001 and dms/001. Idempotent.
 
 drop function if exists public.profile_dm_flags(uuid[]);
@@ -56,29 +56,37 @@ as $$
   limit least(greatest(coalesce(p_limit, 20), 1), 50);
 $$;
 
--- messaging/001's, plus the `read` broadcast for a DM with read receipts on.
+-- messaging/001's, plus the `read` broadcast: only in a DM with read receipts on, when
+-- this read took in a message of the peer's not read before, and with dm_peer_read's
+-- checks from the peer's side (both active, no block either way, nothing the reader
+-- declined counted), so the peer's "Seen" refetches only when it can change.
 create or replace function public.mark_conversation_read(p_conversation uuid)
 returns void
 language plpgsql volatile security definer set search_path = public
 as $$
 declare
-  v_moved boolean;
+  v_me public.conversation_members;
 begin
-  with old as (
-    select last_read_at from conversation_members
-    where conversation_id = p_conversation and user_id = auth.uid() and state = 'active'
-  ), upd as (
-    update conversation_members set last_read_at = now()
-    where conversation_id = p_conversation and user_id = auth.uid() and state = 'active'
-    returning 1
-  )
-  select exists (select 1 from upd)
-    and coalesce((select last_read_at from old) is distinct from now(), false)
-  into v_moved;
-  if v_moved
-     and exists (select 1 from conversations where id = p_conversation and kind = 'dm')
+  select * into v_me from conversation_members
+  where conversation_id = p_conversation and user_id = auth.uid() and state = 'active';
+  if not found then
+    return;
+  end if;
+  update conversation_members set last_read_at = now()
+  where conversation_id = p_conversation and user_id = auth.uid() and state = 'active';
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null
      and coalesce((public.messaging_setting('dmsReadReceipts'))::boolean, false)
-     and to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+     and exists (select 1 from conversations where id = p_conversation and kind = 'dm')
+     and exists (
+       select 1 from conversation_members o
+       join messages m on m.conversation_id = o.conversation_id and m.author_id = o.user_id
+       where o.conversation_id = p_conversation and o.user_id <> auth.uid()
+         and o.state = 'active'
+         and not (o.user_id = any (public.blocked_member_ids()))
+         and m.status = 'visible'
+         and m.created_at > coalesce(v_me.last_read_at, '-infinity')
+         and m.created_at >= coalesce(v_me.visible_from, '-infinity')
+     ) then
     perform realtime.send(
       jsonb_build_object('id', p_conversation),
       'read',

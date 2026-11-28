@@ -415,7 +415,9 @@ $$;
 -- What the "Message" button needs for up to 200 members: whether they take DMs and
 -- have an account (true without the accounts module). Never an account id; blocked
 -- members (either way) get no row.
-create or replace function public.profile_dm_flags(p_ids uuid[])
+-- Dropped first: dms/003 adds a column, which create or replace can't take back.
+drop function if exists public.profile_dm_flags(uuid[]);
+create function public.profile_dm_flags(p_ids uuid[])
 returns table (user_id uuid, accepts_dms boolean, has_account boolean)
 language sql stable security definer set search_path = public
 as $$

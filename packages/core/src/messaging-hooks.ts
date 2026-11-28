@@ -862,20 +862,25 @@ const forgetRequest = (queryClient: QueryClient, conversationId: string) =>
 
 export type ReportReason = Parameters<typeof blockAndReportRequest>[2];
 
-/** The options behind `useAcceptRequest` / `useDeclineRequest` / `useBlockAndReportRequest`
- * (`reason` is block's only). */
-export function requestAnswerMutationOptions(
+type AnswerAction = "accept" | "decline" | "block";
+/** What each answer takes: block also needs the report's reason. */
+export type RequestAnswerVars<A extends AnswerAction> = A extends "block"
+  ? { conversationId: string; reason: ReportReason }
+  : { conversationId: string };
+
+/** The options behind `useAcceptRequest` / `useDeclineRequest` / `useBlockAndReportRequest`. */
+export function requestAnswerMutationOptions<A extends AnswerAction>(
   cfg: ResolvedCommunityConfig,
   queryClient: QueryClient,
-  action: "accept" | "decline" | "block",
-): UseMutationOptions<void, Error, { conversationId: string; reason?: ReportReason }> {
+  action: A,
+): UseMutationOptions<void, Error, RequestAnswerVars<A>> {
   return {
-    mutationFn: ({ conversationId, reason }) =>
+    mutationFn: (v) =>
       action === "accept"
-        ? acceptRequest(cfg, conversationId)
+        ? acceptRequest(cfg, v.conversationId)
         : action === "decline"
-          ? declineRequest(cfg, conversationId)
-          : blockAndReportRequest(cfg, conversationId, reason ?? "other"),
+          ? declineRequest(cfg, v.conversationId)
+          : blockAndReportRequest(cfg, v.conversationId, (v as RequestAnswerVars<"block">).reason),
     onSuccess: (_d, { conversationId }) => {
       if (action !== "accept") forgetRequest(queryClient, conversationId);
       emitEvent(
@@ -895,7 +900,7 @@ export function requestAnswerMutationOptions(
   };
 }
 
-const useRequestAnswer = (action: "accept" | "decline" | "block") =>
+const useRequestAnswer = <A extends AnswerAction>(action: A) =>
   useMutation(requestAnswerMutationOptions(useCommunityConfig(), useQueryClient(), action));
 
 export const useAcceptRequest = () => useRequestAnswer("accept");

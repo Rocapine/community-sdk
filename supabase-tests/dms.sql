@@ -586,10 +586,15 @@ begin
   reset role;
   update public.profiles set is_banned = false where id = c;
 
-  -- dms/003: `read` broadcast only for an active DM member with read receipts on.
+  -- dms/003: `read` broadcast only when a DM member with read receipts on reads a new
+  -- message of the peer's (both active, no block).
   if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
     perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
     perform public.messaging_set_settings('{"dmsReadReceipts": true}');
+    perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.send_message(ab, 'read me');
+    reset role;
     update public.conversation_members set last_read_at = now() - interval '1 minute'
     where conversation_id = ab and user_id = b;
     select count(*) into n0 from realtime.messages where topic = 'conversation:' || ab and event = 'read';
@@ -605,6 +610,26 @@ begin
     reset role;
     assert (select count(*) from realtime.messages where topic = 'conversation:' || ab and event = 'read') = n,
       'a read mark that did not move sends nothing';
+    -- Nothing new since the old mark (a focus, a remount): nothing sent.
+    update public.conversation_members set last_read_at = now() + interval '1 second'
+    where conversation_id = ab and user_id = b;
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.mark_conversation_read(ab);
+    reset role;
+    assert (select count(*) from realtime.messages where topic = 'conversation:' || ab and event = 'read') = n,
+      'no new peer message read: no broadcast';
+    -- A block either way: nothing sent.
+    insert into public.blocks (blocker_id, blocked_id) values (a, b);
+    update public.conversation_members set last_read_at = now() - interval '1 minute'
+    where conversation_id = ab and user_id = b;
+    perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    perform public.mark_conversation_read(ab);
+    reset role;
+    assert (select count(*) from realtime.messages where topic = 'conversation:' || ab and event = 'read') = n,
+      'blocked: no broadcast';
+    delete from public.blocks where blocker_id = a and blocked_id = b;
     perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
     perform public.messaging_set_settings('{"dmsReadReceipts": false}');
     update public.conversation_members set last_read_at = now() - interval '1 minute'
