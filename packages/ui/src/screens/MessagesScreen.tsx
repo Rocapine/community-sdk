@@ -25,6 +25,7 @@ import {
 import { memo, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   Pressable,
   RefreshControl,
@@ -156,13 +157,25 @@ function Messages({
   const header = showGroups ? (exploreAtBottom ? null : explore) : requestsRow;
   const newMessage = !showGroups && !!dmsSettings(cfg)?.entryPoints.includes("newMessage");
 
+  const refetchRequests = requests.refetch;
+  // Android's back closes the nested Requests, not the Messages page under it.
+  useEffect(() => {
+    if (!nested) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      setNested(false);
+      void refetchRequests();
+      return true;
+    });
+    return () => sub.remove();
+  }, [nested, refetchRequests]);
+
   if (nested)
     return (
       <RequestsScreen
         onOpenRequest={onOpenConversation}
         onBack={() => {
           setNested(false);
-          void requests.refetch();
+          void refetchRequests();
         }}
       />
     );
