@@ -283,14 +283,18 @@ export function subscribeDms(
         client,
         key,
         (sessionUid) => (sessionUid === uid ? key : null),
-        (channel, entry) =>
-          channel.on("broadcast", { event: "changed" }, () => {
-            changed(entry);
-            retryRefused(client);
-          }),
-        true,
+        (channel, entry) => channel.on("broadcast", { event: "changed" }, () => changed(entry)),
+        false, // my own channel: a refusal backs off like a group's
       ),
-    { onChange, onTyping: () => {} },
+    {
+      // A `changed` (debounced), or a (re)join: a block or unblock missed while the
+      // socket was down, so a refused DM asks again either way.
+      onChange: () => {
+        retryRefused(client);
+        onChange();
+      },
+      onTyping: () => {},
+    },
   );
 }
 

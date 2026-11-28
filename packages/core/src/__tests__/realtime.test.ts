@@ -317,14 +317,14 @@ it("a DM's join refused for authorisation is closed, not retried, until a DM cha
   expect(client.channel).toHaveBeenCalledTimes(2);
   // An unblock: dms/006 says `changed` on my channel, so the DM asks once more.
   mine!.fire("broadcast", { event: "changed", payload: { id: "c1" } });
-  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(150); // debounced;
   expect(channels.map((c) => c.topic)).toEqual(["conversation:c1", "dms:uid1", "conversation:c1"]);
   channels[2]!.status!("SUBSCRIBED");
   await vi.advanceTimersByTimeAsync(150);
   expect(h.onChange).toHaveBeenCalledTimes(1); // the rejoin refetches
   // A later `changed` leaves a joined channel alone.
   mine!.fire("broadcast", { event: "changed", payload: { id: "c2" } });
-  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(150); // debounced;
   expect(client.channel).toHaveBeenCalledTimes(3);
   stop();
   stopDms();
@@ -394,7 +394,7 @@ it("with groups on, a conversation the screen knows is a DM waits instead of ret
   await vi.advanceTimersByTimeAsync(REFUSED_RETRY_MAX_MS * 2);
   expect(client.channel).toHaveBeenCalledTimes(2); // the DM channel and my own
   channels[1]!.fire("broadcast", { event: "changed", payload: { id: "c1" } });
-  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(150); // debounced;
   expect(client.channel).toHaveBeenCalledTimes(3);
   stop();
   stopDms();
@@ -410,4 +410,32 @@ it("a DM learnt late (the screen confirms it) stops a pending group retry", asyn
   await vi.advanceTimersByTimeAsync(REFUSED_RETRY_MAX_MS * 2);
   expect(client.channel).toHaveBeenCalledTimes(1);
   sure();
+});
+
+it("a refused DM asks again when my channel rejoins (a block change missed while offline)", async () => {
+  const { cfg, client, channels } = setup({ dms: {} });
+  const stop = subscribeConversation(cfg, "c1", handlers());
+  const stopDms = subscribeDms(cfg, "uid1", vi.fn());
+  await vi.advanceTimersByTimeAsync(0);
+  channels[0]!.status!("CHANNEL_ERROR", refusal);
+  await vi.advanceTimersByTimeAsync(0);
+  channels[1]!.status!("CHANNEL_ERROR", new Error("socket down"));
+  channels[1]!.status!("SUBSCRIBED"); // back online: no `changed` arrived meanwhile
+  await vi.advanceTimersByTimeAsync(150);
+  expect(channels.map((c) => c.topic)).toEqual(["conversation:c1", "dms:uid1", "conversation:c1"]);
+  stop();
+  stopDms();
+});
+
+it("my own DM channel, refused, backs off like a group's", async () => {
+  const { cfg, client, channels } = setup({ dms: {} });
+  const stop = subscribeDms(cfg, "uid1", vi.fn());
+  await vi.advanceTimersByTimeAsync(0);
+  channels[0]!.status!("CHANNEL_ERROR", refusal);
+  await vi.advanceTimersByTimeAsync(11_999);
+  expect(client.channel).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(client.channel).toHaveBeenCalledTimes(2);
+  expect(channels[1]!.topic).toBe("dms:uid1");
+  stop();
 });
