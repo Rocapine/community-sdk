@@ -39,6 +39,13 @@ From the team (2026-11-04):
   wait for brick 19.
 - **2026-11-10 — Where:** the Rocapine Cloudflare account (where `unchaind-dashboard` runs too),
   at `community.rocapi.ne`, in the repo [`Rocapine/community-dashboard`](https://github.com/Rocapine/community-dashboard).
+- **2026-11-28 — Imported history is community content:** what a history import brings (the
+  placeholders' posts, comments and reactions) counts in Activity like the new community's own
+  content. Core `019` leaves it out today; an SDK change is proposed below.
+- **2026-11-28 — Team accounts live in the dashboard:** they are used from the dashboard or by an
+  agent, not signed into on a phone. The case where a launch phone holding a team account signs into
+  an app account (the merge moves its posts to that person and drops the team flag) is accepted as
+  unlikely; no rule.
 - **2026-11-13 — Communities and access (brick 13):** the dashboard opens to every Rocapinian,
   per app. Anyone can add an app (its Supabase URL and secret key, checked before saving) and
   becomes its Owner; each person sees only the apps they were given, as Viewer, Editor or Owner,
@@ -167,6 +174,7 @@ Proposed while building the dashboard; each is an SDK change for the SDK owner t
 | Restoring hidden content runs the publish side effects (inbox, push to the post author, translation)                           | A restored comment reaches its post author like a normal one                                      | M    | proposed |
 | A marker on merged and deleted profiles (`profiles.merged_into`, a deleted flag)                                               | Members and `members_total` stop showing and counting the empty rows a merge or a deletion leaves | S    | proposed |
 | A ban that survives account deletion (keep it on the provider subject, or refuse a new profile for a banned subject)           | Deleting an account no longer escapes a ban                                                       | M    | proposed |
+| Count placeholders' content in `admin_daily_metrics` and `admin_activity_breakdown` (core `019` leaves it out)                 | Imported history shows in Activity as community content (decided 2026-11-28)                      | S    | proposed |
 
 ## SDK coverage
 
@@ -205,5 +213,4 @@ What each SDK feature gives the dashboard to manage. Update a row when the SDK c
 
 ## Open questions
 
-- **2026-11-28 — Imported history in Activity:** core `019` leaves out only content held by placeholders; history imported onto members who already existed counts on its original dates. Should Activity leave it out too?
-- **2026-11-28 — Team phones and accounts:** `merge_profiles` does not carry `is_admin` or `is_house`, so a team phone that signs into an app account with an existing profile turns its posts into a member's. Team rule (team phones don't sign in) or SDK change?
+None right now.
