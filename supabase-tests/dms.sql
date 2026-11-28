@@ -943,6 +943,18 @@ begin
       'A learns of the acceptance';
   end if;
 
+  -- The author of a DM message never reads its translations; the reader does.
+  insert into public.message_translations (message_id, locale, body) values (m.id, 'fr', 'premier');
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert not exists (select 1 from public.message_translations where message_id = m.id),
+    'the author can''t tell the message was translated';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert exists (select 1 from public.message_translations where message_id = m.id), 'the reader reads it';
+  reset role;
+
   -- Merge with a row on one side only: C opened a DM with B alone (the older), A2 wrote
   -- to B. One DM survives with both members, and B still reads A2's message.
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);

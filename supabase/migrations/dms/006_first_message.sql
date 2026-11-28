@@ -15,6 +15,8 @@
 --   start_dm (a recipient's row nobody wrote to) are deleted.
 -- - dm_peers takes the peer from dm_pairs, so a DM the caller opened alone has one.
 -- - merge_messaging (dms/001's) moves over a row that exists only in the dropped DM.
+-- - The author of a DM message can't read its cached translations: one would tell them
+--   the recipient read it (a request, or read receipts off).
 -- Requires messaging/001–006 and dms/001–005. Idempotent.
 
 -- ============ ROWS NOBODY WROTE TO ============
@@ -460,6 +462,19 @@ begin
   end if;
 end;
 $$;
+
+-- ============ READ STATE ============
+-- messaging/001's, except that the author of a DM message doesn't read its translations:
+-- a cached one would tell them the other member read it (a request, receipts off).
+drop policy if exists "read translations of readable messages" on public.message_translations;
+create policy "read translations of readable messages" on public.message_translations
+  for select to authenticated
+  using (exists (
+    select 1 from public.messages m
+    where m.id = message_translations.message_id
+      and not (m.author_id = (select auth.uid())
+               and exists (select 1 from public.conversations c
+                           where c.id = m.conversation_id and c.kind = 'dm'))));
 
 revoke execute on function public.start_dm(uuid) from public, anon;
 revoke execute on function public.send_message(uuid, text, uuid, text, text, text) from public, anon;
