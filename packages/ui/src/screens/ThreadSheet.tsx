@@ -85,6 +85,7 @@ import { Avatar, MyAvatar } from "../components/Avatar";
 import { MemberBadgeRow } from "../components/MemberBadge";
 import { ClampedBody } from "../components/ClampedBody";
 import { NoticeCard } from "../components/NoticeCard";
+import { useActionMenu } from "../components/chat/MessageMenu";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { ImageViewerContext, useImageViewerOverlay } from "../components/ImageViewer";
 import { PostImage } from "../components/PostImage";
@@ -173,6 +174,7 @@ export function ThreadSheet({
   const blockUser = useBlockUser();
   const deleteContent = useDeleteContent();
   const pinMenu = usePinMenu();
+  const { show: showMenu, sheet: menuSheet } = useActionMenu();
   // The sheet is a Modal: close it before the host pushes the conversation.
   const messageMember = useMessageMember(
     onOpenMessages &&
@@ -433,27 +435,32 @@ export function ThreadSheet({
   const openPostMenu = (p: FeedPost) => {
     if (p.isOwn) {
       const askDelete = () =>
-        Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
-          { text: t("menu.cancel"), style: "cancel" },
-          {
-            text: t("menu.delete"),
-            style: "destructive",
-            onPress: () => {
-              onClose();
-              deleteContent.mutate({ kind: "post", id: p.id, postId: p.id });
+        Alert.alert(
+          t("menu.deletePostTitle"),
+          t("menu.deletePostBody"),
+          [
+            { text: t("menu.cancel"), style: "cancel" },
+            {
+              text: t("menu.delete"),
+              style: "destructive",
+              onPress: () => {
+                onClose();
+                deleteContent.mutate({ kind: "post", id: p.id, postId: p.id });
+              },
             },
-          },
-        ]);
+          ],
+          { cancelable: true },
+        );
       const pin = pinMenu(p);
       if (pin.length === 0) return askDelete();
-      Alert.alert(p.authorName, undefined, [
+      showMenu(p.authorName, [
         ...pin,
         { text: t("menu.delete"), style: "destructive", onPress: askDelete },
         { text: t("menu.cancel"), style: "cancel" },
       ]);
       return;
     }
-    Alert.alert(p.authorName, undefined, [
+    showMenu(p.authorName, [
       ...pinMenu(p),
       ...messageMember.menuItems(p.authorId),
       {
@@ -497,7 +504,7 @@ export function ThreadSheet({
 
   const openCommentMenu = (c: ThreadComment) => {
     if (c.isOwn) {
-      Alert.alert(t("menu.deleteCommentTitle"), undefined, [
+      showMenu(t("menu.deleteCommentTitle"), [
         { text: t("menu.cancel"), style: "cancel" },
         {
           text: t("menu.delete"),
@@ -507,7 +514,7 @@ export function ThreadSheet({
       ]);
       return;
     }
-    Alert.alert(c.authorName, undefined, [
+    showMenu(c.authorName, [
       ...messageMember.menuItems(c.authorId),
       {
         text: t("menu.reportComment"),
@@ -711,6 +718,7 @@ export function ThreadSheet({
         target={reportTarget}
         onClose={() => setReportTarget(null)}
       />
+      {menuSheet}
     </>
   );
 }

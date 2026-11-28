@@ -74,6 +74,7 @@ import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
 import { Avatar } from "../components/Avatar";
 import { ImageViewerHost } from "../components/ImageViewer";
+import { useActionMenu } from "../components/chat/MessageMenu";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { PressableScale } from "../components/PressableScale";
 import { useRenderMemberBadge } from "../components/MemberBadge";
@@ -145,6 +146,7 @@ export function ProfileScreen({
   );
   const deleteContent = useDeleteContent();
   const pinMenu = usePinMenu();
+  const { show: showMenu, sheet: menuSheet } = useActionMenu();
   const messageMember = useMessageMember(onOpenMessages);
   const dmFlag = useDmFlags(useMemo(() => [userId], [userId]))[userId] === true;
   const showMessage =
@@ -187,24 +189,29 @@ export function ProfileScreen({
   const openPostMenu = (post: FeedPost) => {
     if (post.isOwn) {
       const askDelete = () =>
-        Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
-          { text: t("menu.cancel"), style: "cancel" },
-          {
-            text: t("menu.delete"),
-            style: "destructive",
-            onPress: () => deleteContent.mutate({ kind: "post", id: post.id, postId: post.id }),
-          },
-        ]);
+        Alert.alert(
+          t("menu.deletePostTitle"),
+          t("menu.deletePostBody"),
+          [
+            { text: t("menu.cancel"), style: "cancel" },
+            {
+              text: t("menu.delete"),
+              style: "destructive",
+              onPress: () => deleteContent.mutate({ kind: "post", id: post.id, postId: post.id }),
+            },
+          ],
+          { cancelable: true },
+        );
       const pin = pinMenu(post);
       if (pin.length === 0) return askDelete();
-      Alert.alert(post.authorName, undefined, [
+      showMenu(post.authorName, [
         ...pin,
         { text: t("menu.delete"), style: "destructive", onPress: askDelete },
         { text: t("menu.cancel"), style: "cancel" },
       ]);
       return;
     }
-    Alert.alert(post.authorName, undefined, [
+    showMenu(post.authorName, [
       ...pinMenu(post),
       ...messageMember.menuItems(post.authorId),
       {
@@ -445,6 +452,7 @@ export function ProfileScreen({
           target={reportTarget}
           onClose={() => setReportTarget(null)}
         />
+        {menuSheet}
       </View>
     </ImageViewerHost>
   );

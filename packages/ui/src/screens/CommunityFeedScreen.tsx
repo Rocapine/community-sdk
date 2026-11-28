@@ -123,6 +123,7 @@ import { ComposerSheet } from "../components/ComposerSheet";
 import { RulesSheet } from "../components/RulesSheet";
 import { openComposerGuarded, type CommentGate } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
+import { useActionMenu } from "../components/chat/MessageMenu";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
 import { MyAvatar } from "../components/Avatar";
@@ -268,6 +269,7 @@ export function CommunityFeedScreen({
   const blockUser = useBlockUser();
   const deleteContent = useDeleteContent();
   const pinMenu = usePinMenu();
+  const { show: showMenu, sheet: menuSheet } = useActionMenu();
   const topicStyles = useTopicStyles();
   // Read through a ref: the post menu stays memoized (see `renderItem`).
   const messageMenuItems = useMessageMember(onOpenMessages).menuItems;
@@ -551,24 +553,29 @@ export function CommunityFeedScreen({
     (post: FeedPost) => {
       if (post.isOwn) {
         const askDelete = () =>
-          Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
-            { text: t("menu.cancel"), style: "cancel" },
-            {
-              text: t("menu.delete"),
-              style: "destructive",
-              onPress: () => deleteContent.mutate({ kind: "post", id: post.id, postId: post.id }),
-            },
-          ]);
+          Alert.alert(
+            t("menu.deletePostTitle"),
+            t("menu.deletePostBody"),
+            [
+              { text: t("menu.cancel"), style: "cancel" },
+              {
+                text: t("menu.delete"),
+                style: "destructive",
+                onPress: () => deleteContent.mutate({ kind: "post", id: post.id, postId: post.id }),
+              },
+            ],
+            { cancelable: true },
+          );
         const pin = pinMenu(post);
         if (pin.length === 0) return askDelete();
-        Alert.alert(post.authorName, undefined, [
+        showMenu(post.authorName, [
           ...pin,
           { text: t("menu.delete"), style: "destructive", onPress: askDelete },
           { text: t("menu.cancel"), style: "cancel" },
         ]);
         return;
       }
-      Alert.alert(post.authorName, undefined, [
+      showMenu(post.authorName, [
         ...pinMenu(post),
         ...messageMenu.current(post.authorId),
         {
@@ -606,7 +613,7 @@ export function CommunityFeedScreen({
         { text: t("menu.cancel"), style: "cancel" },
       ]);
     },
-    [t, deleteContent, blockUser, pinMenu],
+    [t, deleteContent, blockUser, pinMenu, showMenu],
   );
 
   // Memoized so `FlatList` only reconciles the visible window when one of
@@ -1020,6 +1027,7 @@ export function CommunityFeedScreen({
             onClose={() => setReportTarget(null)}
           />
           {notice && <NoticeCard kind={notice} onDismiss={() => setNotice(null)} />}
+          {menuSheet}
         </View>
       </ImageViewerHost>
     </GroupLinkContext.Provider>
