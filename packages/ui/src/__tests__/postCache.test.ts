@@ -16,11 +16,12 @@ import { findCachedPost, subscribeToPostListCaches } from "../utils/postCache";
  * enough to drive both functions without importing `@tanstack/react-query`'s
  * actual `QueryClient` (which would need a real cache/store behind it). */
 function makeFakeQueryClient(entries: Array<[readonly unknown[], unknown]> = []) {
-  const listeners: Array<(event: { query: { queryKey: readonly unknown[] } }) => void> = [];
+  type Event = { type?: string; query: { queryKey: readonly unknown[] } };
+  const listeners: Array<(event: Event) => void> = [];
   return {
     client: {
       getQueryCache: () => ({
-        subscribe: (listener: (event: { query: { queryKey: readonly unknown[] } }) => void) => {
+        subscribe: (listener: (event: Event) => void) => {
           listeners.push(listener);
           return () => {
             const i = listeners.indexOf(listener);
@@ -31,8 +32,8 @@ function makeFakeQueryClient(entries: Array<[readonly unknown[], unknown]> = [])
       getQueriesData: ({ queryKey }: { queryKey: readonly unknown[] }) =>
         entries.filter(([key]) => key[0] === queryKey[0] && key[1] === queryKey[1]),
     } as any,
-    emit: (queryKey: readonly unknown[]) => {
-      for (const listener of listeners) listener({ query: { queryKey } });
+    emit: (queryKey: readonly unknown[], type = "updated") => {
+      for (const listener of listeners) listener({ type, query: { queryKey } });
     },
     listenerCount: () => listeners.length,
   };
@@ -156,6 +157,27 @@ describe("subscribeToPostListCaches", () => {
     subscribeToPostListCaches(client, "p1", onStoreChange);
 
     emit(["someOtherFeature", "list"]);
+
+    expect(onStoreChange).not.toHaveBeenCalled();
+  });
+
+  it("ignores other community caches, e.g. a presence lookup an Avatar starts", () => {
+    const { client, emit } = makeFakeQueryClient();
+    const onStoreChange = vi.fn();
+    subscribeToPostListCaches(client, "p1", onStoreChange);
+
+    emit(["community", "presence", "online", "u1"]);
+    emit(["community", "profile", "u1"]);
+
+    expect(onStoreChange).not.toHaveBeenCalled();
+  });
+
+  it("ignores `added`: it fires while another component renders, and holds no data", () => {
+    const { client, emit } = makeFakeQueryClient();
+    const onStoreChange = vi.fn();
+    subscribeToPostListCaches(client, "p1", onStoreChange);
+
+    emit(["community", "userPosts", "u1", "src"], "added");
 
     expect(onStoreChange).not.toHaveBeenCalled();
   });
