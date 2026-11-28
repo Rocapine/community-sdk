@@ -14,8 +14,9 @@
 // state, no typing. Accepting turns the screen live in place; declining or blocking
 // closes it. With read receipts, "Seen" goes under my last message once the peer read it.
 //
-// The host pads the top (like every screen); the screen pads the bottom (safe area,
-// keyboard). Renders nothing when no messaging module is on.
+// The host pads the top (like every screen); the screen pads the bottom (the safe area
+// the host left, the keyboard where it covers the screen). Renders nothing when no
+// messaging module is on.
 import {
   COMMUNITY_EVENTS,
   MessagingError,
@@ -58,18 +59,21 @@ import {
   ActivityIndicator,
   AppState,
   FlatList,
+  Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type TextInputInstance,
+  type ViewInstance,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { Avatar } from "../components/Avatar";
-import { useKeyboardHeight } from "../components/ComposerSheet";
 import { GroupReviewNotice } from "../components/GroupFormSheet";
 import { GroupLinkContext, type GroupLink } from "../components/GroupAttachment";
 import { ImageViewerHost } from "../components/ImageViewer";
@@ -85,6 +89,7 @@ import { TypingLine } from "../components/chat/TypingLine";
 import {
   canDeleteMessage,
   closedReason,
+  composerBottomSpace,
   conversationIdentity,
   dmState,
   findOrLoadMessage,
@@ -140,6 +145,38 @@ type Row = {
 
 /** A callback whose identity never changes but that always runs the latest closure,
  * so memoized rows don't re-render on each keystroke. */
+/** The space under the composer (see composerBottomSpace): the screen's bottom edge
+ * in the window, measured at layout and again on each keyboard move (a modal may have
+ * been mid-animation at layout). */
+function useBottomSpace(insetBottom: number) {
+  const ref = useRef<ViewInstance>(null);
+  const windowHeight = useWindowDimensions().height;
+  const [screenBottom, setScreenBottom] = useState<number | null>(null);
+  const [keyboard, setKeyboard] = useState<{ top: number; height: number } | null>(null);
+  const measure = useCallback(
+    () => ref.current?.measureInWindow((_x, y, _w, h) => setScreenBottom(y + h)),
+    [],
+  );
+  useEffect(() => {
+    const ios = Platform.OS === "ios";
+    const show = Keyboard.addListener(ios ? "keyboardWillShow" : "keyboardDidShow", (e) => {
+      measure();
+      const { screenY, height } = e.endCoordinates;
+      setKeyboard(height > 0 ? { top: screenY, height } : null);
+    });
+    const hide = Keyboard.addListener(ios ? "keyboardWillHide" : "keyboardDidHide", () => {
+      measure();
+      setKeyboard(null);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [measure]);
+  const space = composerBottomSpace({ keyboard, screenBottom, windowHeight, insetBottom });
+  return { ref, measure, ...space };
+}
+
 function useStable<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
   const ref = useRef(fn);
   ref.current = fn;
@@ -191,7 +228,7 @@ function Conversation({
   const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
-  const keyboardHeight = useKeyboardHeight(insets.bottom);
+  const bottom = useBottomSpace(insets.bottom);
   const settings = messagingSettings(cfg)!;
   const myUid = useMyUid();
   const me = useProfile(myUid).data;
@@ -662,11 +699,18 @@ function Conversation({
           detail: replyPreview(replyTo, t),
         }
       : null;
-  const bottomPad = keyboardHeight > 0 ? theme.spacing(2) : insets.bottom + theme.spacing(2);
+  const bottomPad = bottom.inset + theme.spacing(2);
 
   return (
     // The bubbles' gestures need a gesture root; the host may not have one.
-    <GestureHandlerRootView style={[styles.root, { paddingBottom: keyboardHeight }]}>
+    <GestureHandlerRootView style={[styles.root, { paddingBottom: bottom.keyboard }]}>
+      {/* Where the screen ends in the window, for the keyboard and safe-area space. */}
+      <View
+        ref={bottom.ref}
+        onLayout={bottom.measure}
+        pointerEvents="none"
+        style={StyleSheet.absoluteFill}
+      />
       <ScreenBackground />
       <View style={styles.header}>
         <Pressable

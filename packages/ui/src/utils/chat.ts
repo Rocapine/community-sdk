@@ -307,3 +307,22 @@ export function hubView(p: {
   if (groups && p.dms) return p.hubLayout;
   return p.dms ? "dms" : groups ? "groups" : null;
 }
+
+/** The space under the composer, from where the screen really ends in the window
+ * (`screenBottom`, null until measured): with the keyboard up, only the part of it that
+ * covers the screen (0 under Android's adjustResize, less under a host's own bottom
+ * padding or tab bar); else the part of the bottom safe area the screen reaches (0 when
+ * the host already pads it). */
+export function composerBottomSpace(p: {
+  keyboard: { top: number; height: number } | null;
+  screenBottom: number | null;
+  windowHeight: number;
+  insetBottom: number;
+}): { keyboard: number; inset: number } {
+  if (p.keyboard) {
+    const covered = p.screenBottom === null ? p.keyboard.height : p.screenBottom - p.keyboard.top;
+    return { keyboard: Math.max(0, covered), inset: 0 };
+  }
+  const below = p.screenBottom === null ? 0 : Math.max(0, p.windowHeight - p.screenBottom);
+  return { keyboard: 0, inset: Math.max(0, p.insetBottom - below) };
+}

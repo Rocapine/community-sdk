@@ -129,7 +129,8 @@ export function ChatComposer({
           placeholderTextColor={theme.colors.textFaint}
           maxLength={maxLength}
           multiline
-          style={styles.input}
+          // iOS keeps a cleared multiline field at its last height: empty is one line.
+          style={[styles.input, text === "" && styles.inputEmpty]}
         />
         <Pressable
           onPress={onSend}
@@ -203,6 +204,7 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textPrimary,
       ...noFocusRingMultiline,
     },
+    inputEmpty: { height: SEND },
     send: {
       width: SEND,
       height: SEND,

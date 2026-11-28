@@ -4,6 +4,7 @@ import { makeT } from "../i18n";
 import {
   canDeleteMessage,
   closedReason,
+  composerBottomSpace,
   dayLabel,
   screenErrorCode,
   findOrLoadMessage,
@@ -308,5 +309,43 @@ describe("msUntilNextDay", () => {
     const now = new Date(2026, 9, 24, 12);
     const at = new Date(now.getTime() + msUntilNextDay(now) - 1000);
     expect([at.getDate(), at.getHours(), at.getMinutes()]).toEqual([25, 0, 0]);
+  });
+});
+
+describe("composerBottomSpace", () => {
+  const H = 852;
+  const kb = { top: H - 336, height: 336 };
+  it("pads only the keyboard part that covers the screen", () => {
+    // Screen down to the window bottom: the whole keyboard.
+    expect(
+      composerBottomSpace({ keyboard: kb, screenBottom: H, windowHeight: H, insetBottom: 34 }),
+    ).toEqual({ keyboard: 336, inset: 0 });
+    // The host pads the home indicator (or a tab bar sits under the screen): that much less.
+    expect(
+      composerBottomSpace({ keyboard: kb, screenBottom: H - 34, windowHeight: H, insetBottom: 34 }),
+    ).toEqual({ keyboard: 302, inset: 0 });
+    // Android adjustResize: the screen already ends above the keyboard.
+    expect(
+      composerBottomSpace({
+        keyboard: kb,
+        screenBottom: H - 336,
+        windowHeight: H,
+        insetBottom: 24,
+      }),
+    ).toEqual({ keyboard: 0, inset: 0 });
+    // Not measured yet: the keyboard's height.
+    expect(
+      composerBottomSpace({ keyboard: kb, screenBottom: null, windowHeight: H, insetBottom: 34 }),
+    ).toEqual({ keyboard: 336, inset: 0 });
+  });
+  it("keeps the safe area the screen reaches with the keyboard closed", () => {
+    const at = (screenBottom: number | null) =>
+      composerBottomSpace({ keyboard: null, screenBottom, windowHeight: H, insetBottom: 34 });
+    expect(at(H)).toEqual({ keyboard: 0, inset: 34 });
+    expect(at(H - 34)).toEqual({ keyboard: 0, inset: 0 });
+    expect(at(H - 10)).toEqual({ keyboard: 0, inset: 24 });
+    expect(at(null)).toEqual({ keyboard: 0, inset: 34 });
+    // Measured mid-transition (off screen): never more than the inset.
+    expect(at(H * 2)).toEqual({ keyboard: 0, inset: 34 });
   });
 });
