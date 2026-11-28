@@ -19,6 +19,8 @@ export type ConversationHandlers = {
   onTyping(userId: string): void;
   /** groups/004: someone joined, left or was removed (the member count changed). */
   onMembers?(): void;
+  /** dms/003: a DM member moved their read mark (read receipts on; server-sent only). */
+  onRead?(): void;
 };
 
 type Entry = {
@@ -89,6 +91,9 @@ function open(cfg: ResolvedCommunityConfig, client: SupabaseClient, conversation
       .on("broadcast", { event: "changed" }, () => changed(entry))
       .on("broadcast", { event: "members" }, () => {
         for (const l of entry.listeners) l.onMembers?.();
+      })
+      .on("broadcast", { event: "read" }, () => {
+        for (const l of entry.listeners) l.onRead?.();
       })
       .on("broadcast", { event: "typing" }, ({ payload }) => {
         const userId = (payload as { userId?: unknown } | undefined)?.userId;

@@ -58,6 +58,7 @@ import {
   DMS_KEY,
   DM_REQUESTS_KEY,
   GROUPS_KEY,
+  MESSAGES_KEY,
   GROUPS_SEARCH_KEY,
   UNREAD_MESSAGES_KEY,
   groupKey,
@@ -166,18 +167,30 @@ export function messagingBadge(
   return { count: followedUnread ?? 0, dot: false };
 }
 
-export function useMessagingBadge(): { count: number; dot: boolean } {
-  const cfg = useCommunityConfig();
+/** The badge's queries: only those `messaging.badge` reads are enabled (DM requests:
+ * with dms and `all` only). */
+export function messagingBadgeQueries(cfg: ResolvedCommunityConfig) {
   const badge = messagingSettings(cfg)?.badge ?? "followed";
   const followed = unreadMessagesQueryOptions(cfg);
   const all = conversationsQueryOptions(cfg);
   const requests = dmRequestsQueryOptions(cfg);
-  const f = useQuery({ ...followed, enabled: followed.enabled && badge !== "all" }).data;
-  const c = useQuery({ ...all, enabled: all.enabled && badge === "all" }).data;
-  const r = useQuery({ ...requests, enabled: requests.enabled && badge === "all" }).data;
+  return {
+    badge,
+    on: all.enabled,
+    followed: { ...followed, enabled: followed.enabled && badge !== "all" },
+    all: { ...all, enabled: all.enabled && badge === "all" },
+    requests: { ...requests, enabled: requests.enabled && badge === "all" },
+  };
+}
+
+export function useMessagingBadge(): { count: number; dot: boolean } {
+  const q = messagingBadgeQueries(useCommunityConfig());
+  const f = useQuery(q.followed).data;
+  const c = useQuery(q.all).data;
+  const r = useQuery(q.requests).data;
   // A disabled query keeps its cached data: answer the module-off case here.
-  return all.enabled
-    ? messagingBadge(badge, f, c, requests.enabled ? (r?.length ?? 0) : 0)
+  return q.on
+    ? messagingBadge(q.badge, f, c, q.requests.enabled ? (r?.length ?? 0) : 0)
     : { count: 0, dot: false };
 }
 
@@ -821,64 +834,77 @@ const invalidateDms = (queryClient: QueryClient) =>
     ),
   );
 
-/** Opens (or creates) my DM with a member; resolves to its conversation id. `source`:
- * where it was started, for analytics. */
-export function useStartDm() {
-  const cfg = useCommunityConfig();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ recipientId }: { recipientId: string; source: DmSource }) =>
-      startDm(cfg, recipientId),
+export type DmSource = "profile" | "newMessage" | "contextMenu";
+
+/** The options behind `useStartDm`, split out so they can be driven without React. */
+export function startDmMutationOptions(
+  cfg: ResolvedCommunityConfig,
+  queryClient: QueryClient,
+): UseMutationOptions<string, Error, { recipientId: string; source: DmSource }> {
+  return {
+    mutationFn: ({ recipientId }) => startDm(cfg, recipientId),
     onSuccess: (conversationId, { source }) => {
       void invalidateDms(queryClient);
       emitEvent(cfg, COMMUNITY_EVENTS.dmStarted, { conversationId, source });
     },
-  });
+  };
 }
 
-export type DmSource = "profile" | "newMessage" | "contextMenu";
+/** Opens (or creates) my DM with a member; resolves to its conversation id. `source`:
+ * where it was started, for analytics. */
+export function useStartDm() {
+  return useMutation(startDmMutationOptions(useCommunityConfig(), useQueryClient()));
+}
 
-function useRequestAnswer(
-  answer: (cfg: ResolvedCommunityConfig, conversationId: string) => Promise<void>,
-  event: (typeof COMMUNITY_EVENTS)["dmRequestAccepted" | "dmRequestDeclined"],
-) {
-  const cfg = useCommunityConfig();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ conversationId }: { conversationId: string }) => answer(cfg, conversationId),
+/** A declined (or blocked) request's messages are never shown again: drop them from the cache. */
+const forgetRequest = (queryClient: QueryClient, conversationId: string) =>
+  queryClient.removeQueries({ queryKey: [...MESSAGES_KEY, conversationId] });
+
+export type ReportReason = Parameters<typeof blockAndReportRequest>[2];
+
+/** The options behind `useAcceptRequest` / `useDeclineRequest` / `useBlockAndReportRequest`
+ * (`reason` is block's only). */
+export function requestAnswerMutationOptions(
+  cfg: ResolvedCommunityConfig,
+  queryClient: QueryClient,
+  action: "accept" | "decline" | "block",
+): UseMutationOptions<void, Error, { conversationId: string; reason?: ReportReason }> {
+  return {
+    mutationFn: ({ conversationId, reason }) =>
+      action === "accept"
+        ? acceptRequest(cfg, conversationId)
+        : action === "decline"
+          ? declineRequest(cfg, conversationId)
+          : blockAndReportRequest(cfg, conversationId, reason ?? "other"),
     onSuccess: (_d, { conversationId }) => {
-      void invalidateDms(queryClient);
-      emitEvent(cfg, event, { conversationId });
+      if (action !== "accept") forgetRequest(queryClient, conversationId);
+      emitEvent(
+        cfg,
+        action === "accept"
+          ? COMMUNITY_EVENTS.dmRequestAccepted
+          : action === "decline"
+            ? COMMUNITY_EVENTS.dmRequestDeclined
+            : COMMUNITY_EVENTS.dmRequestBlocked,
+        { conversationId },
+      );
+      // A block hides the sender everywhere, like useBlockUser.
+      void (action === "block"
+        ? queryClient.invalidateQueries({ queryKey: ["community"] })
+        : invalidateDms(queryClient));
     },
-  });
+  };
 }
 
-export const useAcceptRequest = () =>
-  useRequestAnswer(acceptRequest, COMMUNITY_EVENTS.dmRequestAccepted);
+const useRequestAnswer = (action: "accept" | "decline" | "block") =>
+  useMutation(requestAnswerMutationOptions(useCommunityConfig(), useQueryClient(), action));
+
+export const useAcceptRequest = () => useRequestAnswer("accept");
 
 /** Silent for the sender. */
-export const useDeclineRequest = () =>
-  useRequestAnswer(declineRequest, COMMUNITY_EVENTS.dmRequestDeclined);
+export const useDeclineRequest = () => useRequestAnswer("decline");
 
-/** Blocks the sender, reports the request and declines it. */
-export function useBlockAndReportRequest() {
-  const cfg = useCommunityConfig();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      conversationId,
-      reason,
-    }: {
-      conversationId: string;
-      reason: Parameters<typeof blockAndReportRequest>[2];
-    }) => blockAndReportRequest(cfg, conversationId, reason),
-    onSuccess: (_d, { conversationId }) => {
-      emitEvent(cfg, COMMUNITY_EVENTS.dmRequestBlocked, { conversationId });
-      // A block hides the sender everywhere, like useBlockUser.
-      void queryClient.invalidateQueries({ queryKey: ["community"] });
-    },
-  });
-}
+/** Blocks the sender, reports the request (`reason`) and declines it. */
+export const useBlockAndReportRequest = () => useRequestAnswer("block");
 
 /** My "Receive direct messages" switch; null until known or with dms off. */
 export function useAcceptsDms(): boolean | null {
@@ -921,8 +947,8 @@ export function peerReadQueryOptions(cfg: ResolvedCommunityConfig, conversationI
 }
 
 /** When the DM's peer last read it ("Seen", under my last message only); null when read
- * receipts are off, on a request, or not known yet. Refetched on each change of the
- * conversation and on focus. */
+ * receipts are off, on a request, or not known yet. Refetched when the peer reads (the
+ * server's `read` broadcast), on each change of the conversation and on focus. */
 export function usePeerRead(conversationId: string | null): string | null {
   const cfg = useCommunityConfig();
   const queryClient = useQueryClient();
@@ -931,8 +957,11 @@ export function usePeerRead(conversationId: string | null): string | null {
   const live = opts.enabled;
   useEffect(() => {
     if (!live || !conversationId) return;
+    const refetch = () =>
+      void queryClient.invalidateQueries({ queryKey: peerReadKey(conversationId) });
     return subscribeConversation(cfg, conversationId, {
-      onChange: () => void queryClient.invalidateQueries({ queryKey: peerReadKey(conversationId) }),
+      onChange: refetch,
+      onRead: refetch,
       onTyping: () => {},
     });
   }, [cfg, queryClient, conversationId, live]);
@@ -947,20 +976,22 @@ function dmFlagBatcher(cfg: ResolvedCommunityConfig) {
   return b;
 }
 
-/** Per member id: whether I may start a DM with them (the "Message" button). False while
- * loading or with dms off. */
+export function dmFlagQueryOptions(cfg: ResolvedCommunityConfig, userId: string) {
+  return {
+    queryKey: dmFlagKey(userId),
+    queryFn: () => dmFlagBatcher(cfg)(userId),
+    enabled: dmsEnabled(cfg),
+    staleTime: 60_000,
+    retry: 1,
+  };
+}
+
+/** Per member id: whether I may message them (the "Message" button): an existing DM, or
+ * a new one they accept. False while loading or with dms off. */
 export function useDmFlags(ids: string[]): Record<string, boolean> {
   const cfg = useCommunityConfig();
   const enabled = dmsEnabled(cfg);
-  const results = useQueries({
-    queries: ids.map((id) => ({
-      queryKey: dmFlagKey(id),
-      queryFn: () => dmFlagBatcher(cfg)(id),
-      enabled,
-      staleTime: 60_000,
-      retry: 1,
-    })),
-  });
+  const results = useQueries({ queries: ids.map((id) => dmFlagQueryOptions(cfg, id)) });
   const values = results.map((r) => r.data === true);
   // A stable object while the answers don't change.
   // eslint-disable-next-line react-hooks/exhaustive-deps

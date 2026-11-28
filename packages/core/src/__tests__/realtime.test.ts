@@ -218,6 +218,18 @@ it("a member count change (broadcast `members`, groups/004) calls onMembers only
   stopBare();
 });
 
+it("a read mark (broadcast `read`, dms/003) calls onRead only", async () => {
+  const { cfg, channels } = setup();
+  const h = { ...handlers(), onRead: vi.fn() };
+  const stop = subscribeConversation(cfg, "c1", h);
+  await vi.advanceTimersByTimeAsync(0);
+  channels[0]!.fire("broadcast", { event: "read", payload: { id: "c1" } });
+  await vi.advanceTimersByTimeAsync(150);
+  expect(h.onRead).toHaveBeenCalledTimes(1);
+  expect(h.onChange).not.toHaveBeenCalled();
+  stop();
+});
+
 it("re-opening while the old channel is closing waits for it, then opens a live one", async () => {
   const { cfg, client, channels } = setup();
   let closed!: (v: string) => void;

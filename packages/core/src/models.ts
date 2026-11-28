@@ -546,7 +546,9 @@ export type Conversation = {
   groupStatus: GroupStatus | null;
   /** A DM's other member (dms module); null for a group, or a DM across a block. */
   peerId: string | null;
-  /** My side of a DM (dms module): `"request"` until I accept it; null for a group. */
+  /** My side of a DM (dms module); null for a group. The conversation list only holds
+   * my active conversations, so it is always `"active"` there: requests come from
+   * `useDmRequests`. */
   requestState: "active" | "request" | null;
 };
 

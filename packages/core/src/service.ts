@@ -73,7 +73,7 @@ const COMMENTS_SELECT =
 /** Embedded only when the reader has a resolved translation locale. */
 const COMMENT_TRANSLATIONS_SELECT = "comment_translations(locale, source_locale, content)";
 
-export const PROFILE_SELECT = "id, username, handle, is_admin, bio, avatar_url";
+const PROFILE_SELECT = "id, username, handle, is_admin, bio, avatar_url";
 
 /** Embedded only when the badges module is on: the columns don't exist on other
  * installs. A second, aliased embed of the author keeps the base select

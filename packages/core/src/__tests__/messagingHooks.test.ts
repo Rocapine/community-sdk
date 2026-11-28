@@ -8,6 +8,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { resolveConfig } from "../config";
 import {
   CONVERSATIONS_KEY,
+  DM_REQUESTS_KEY,
   GROUPS_SEARCH_KEY,
   groupKey,
   groupMembersKey,
@@ -20,8 +21,12 @@ import {
   createTypingTracker,
   invalidateGroup,
   messagesQueryOptions,
+  dmFlagQueryOptions,
   dmRequestsQueryOptions,
   groupsEnabled,
+  messagingBadgeQueries,
+  requestAnswerMutationOptions,
+  startDmMutationOptions,
   messagingBadge,
   peerReadQueryOptions,
   refreshNewestMessages,
@@ -29,9 +34,18 @@ import {
   sendMessageMutationOptions,
   unreadMessagesQueryOptions,
 } from "../messaging-hooks";
+import * as dms from "../dms-service";
 import * as service from "../messaging-service";
 import { MessagingError, MESSAGES_PAGE_SIZE } from "../messaging-service";
 import type { ChatMessage, Conversation } from "../models";
+
+vi.mock("../dms-service", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../dms-service")>()),
+  startDm: vi.fn(async () => "c9"),
+  declineRequest: vi.fn(async () => {}),
+  blockAndReportRequest: vi.fn(async () => {}),
+  fetchDmFlags: vi.fn(async (_cfg: unknown, ids: string[]) => ids.filter((id) => id !== "u3")),
+}));
 
 vi.mock("../messaging-service", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../messaging-service")>()),
@@ -368,4 +382,65 @@ it("invalidateGroup marks the group, its members, my conversations and the searc
   await invalidateGroup(qc, "g1");
   const stale = keys.map((k) => qc.getQueryState(k)!.isInvalidated);
   expect(stale).toEqual([true, true, true, true, true, false, false]);
+});
+
+const dmsCfg = (onEvent = vi.fn(), messaging = {}) =>
+  resolveConfig({ ...base, modules: { ...mods, dms: {} }, messaging, host: { onEvent } });
+
+it("useStartDm emits community_dm_started with the conversation and the source", async () => {
+  const onEvent = vi.fn();
+  const cfg = dmsCfg(onEvent);
+  const result = await new MutationObserver(qc, startDmMutationOptions(cfg, qc)).mutate({
+    recipientId: "u2",
+    source: "newMessage",
+  });
+  expect(result).toBe("c9");
+  expect(dms.startDm).toHaveBeenCalledWith(cfg, "u2");
+  expect(onEvent).toHaveBeenCalledWith("community_dm_started", {
+    conversationId: "c9",
+    source: "newMessage",
+  });
+});
+
+it("declining or blocking a request drops its messages from the cache", async () => {
+  const onEvent = vi.fn();
+  const cfg = dmsCfg(onEvent);
+  for (const [action, event] of [
+    ["decline", "community_dm_request_declined"],
+    ["block", "community_dm_request_blocked"],
+  ] as const) {
+    qc.setQueryData(messagesKey("c1"), { pages: [[msg("m1", at(1))]], pageParams: [undefined] });
+    await new MutationObserver(qc, requestAnswerMutationOptions(cfg, qc, action)).mutate({
+      conversationId: "c1",
+      reason: "spam",
+    });
+    expect(qc.getQueryData(messagesKey("c1"))).toBeUndefined();
+    expect(onEvent).toHaveBeenLastCalledWith(event, { conversationId: "c1" });
+  }
+  expect(dms.blockAndReportRequest).toHaveBeenCalledWith(cfg, "c1", "spam");
+});
+
+it("the badge reads DM requests only with dms and badge all", () => {
+  expect(messagingBadgeQueries(dmsCfg(undefined, { badge: "all" })).requests.enabled).toBe(true);
+  expect(messagingBadgeQueries(dmsCfg()).requests.enabled).toBe(false); // followed: server counts them
+  expect(
+    messagingBadgeQueries(
+      resolveConfig({ ...base, modules: { ...mods, groups: {} }, messaging: { badge: "all" } }),
+    ).requests.enabled,
+  ).toBe(false);
+  expect(messagingBadgeQueries(dmsCfg()).requests.queryKey).toEqual(DM_REQUESTS_KEY);
+});
+
+it("useDmFlags batches the ids asked at once into one profile_dm_flags call", async () => {
+  vi.useFakeTimers();
+  const cfg = dmsCfg();
+  vi.mocked(dms.fetchDmFlags).mockClear();
+  const answers = Promise.all(
+    ["u2", "u3", "u4"].map((id) => dmFlagQueryOptions(cfg, id).queryFn()),
+  );
+  await vi.advanceTimersByTimeAsync(30);
+  expect(await answers).toEqual([true, false, true]);
+  expect(dms.fetchDmFlags).toHaveBeenCalledTimes(1);
+  expect(dms.fetchDmFlags).toHaveBeenCalledWith(cfg, ["u2", "u3", "u4"]);
+  expect(dmFlagQueryOptions(off, "u2").enabled).toBe(false);
 });

@@ -4,8 +4,8 @@
 
 import { dmsSettings, type ResolvedCommunityConfig } from "./config";
 import { callRpc } from "./messaging-service";
-import { mapProfileRow, type CommunityProfile, type DmRequest, type ProfileRow } from "./models";
-import { PROFILE_SELECT, requireUid } from "./service";
+import { mapProfileRow, type CommunityProfile, type DmRequest } from "./models";
+import { requireUid } from "./service";
 
 export const MEMBER_SEARCH_LIMIT = 20;
 
@@ -89,18 +89,19 @@ export async function fetchPeerRead(
   );
 }
 
-type FlagRow = { user_id: string; accepts_dms: boolean; has_account: boolean };
+type FlagRow = { user_id: string; accepts_dms: boolean; has_account: boolean; has_dm: boolean };
 
 const flagRows = async (cfg: ResolvedCommunityConfig, ids: string[]) =>
   (await dmsRpc<FlagRow[] | null>(cfg, "profile_dm_flags", { p_ids: ids })) ?? [];
 
-/** Among `ids` (up to 200), the members I may start a DM with: they take DMs, have an
- * account when the app requires one, and no block stands between us (`profile_dm_flags`). */
+/** Among `ids` (up to 200), the members I may message: an existing DM opens whatever
+ * their switch says; a new one needs them to take DMs and, when the app requires it, an
+ * account. Blocked (either way) and banned members have no row (`profile_dm_flags`). */
 export async function fetchDmFlags(cfg: ResolvedCommunityConfig, ids: string[]): Promise<string[]> {
   if (ids.length === 0) return [];
   const needsAccount = dmsSettings(cfg)?.requireAccount === true;
   return (await flagRows(cfg, ids))
-    .filter((r) => r.accepts_dms && (r.has_account || !needsAccount))
+    .filter((r) => r.has_dm || (r.accepts_dms && (r.has_account || !needsAccount)))
     .map((r) => r.user_id);
 }
 
@@ -108,40 +109,36 @@ export async function fetchDmFlags(cfg: ResolvedCommunityConfig, ids: string[]):
 export async function fetchAcceptsDms(cfg: ResolvedCommunityConfig): Promise<boolean> {
   requireDms(cfg);
   const uid = await requireUid(cfg);
+  // No row only when my profile isn't there yet: the column's default is true.
   return (await flagRows(cfg, [uid]))[0]?.accepts_dms ?? true;
 }
 
-/** Members whose name contains `query`, for the "new message" picker: me, blocked
- * members (RLS) and those who don't take DMs left out. */
+type MemberRow = { user_id: string; username: string | null; avatar_url: string | null };
+
+/** Members whose name contains `query`, for the "new message" picker: those I may
+ * message, never me, nor banned or blocked members (`search_dm_members`). */
 export async function searchMembers(
   cfg: ResolvedCommunityConfig,
   query: string,
 ): Promise<CommunityProfile[]> {
-  requireDms(cfg);
   const cleaned = query.trim();
+  requireDms(cfg);
   if (!cleaned) return [];
-  const uid = await requireUid(cfg);
-  // Twice the page: some will drop out at the DM check below.
-  // shortcut: banned members aren't readable client-side, so they can show (start_dm then
-  // refuses `not_found`); filter server-side if a picker RPC ever lands.
-  const { data, error } = await cfg
-    .requireClient()
-    .from("profiles")
-    .select(PROFILE_SELECT)
-    .ilike("username", `%${cleaned}%`)
-    .neq("id", uid)
-    .order("username")
-    .limit(MEMBER_SEARCH_LIMIT * 2);
-  if (error) throw error;
-  const rows = (data ?? []) as unknown as ProfileRow[];
-  const open = new Set(
-    await fetchDmFlags(
-      cfg,
-      rows.map((r) => r.id),
+  const rows = await dmsRpc<MemberRow[] | null>(cfg, "search_dm_members", {
+    p_query: cleaned,
+    p_limit: MEMBER_SEARCH_LIMIT,
+  });
+  return (rows ?? []).map((r) =>
+    mapProfileRow(
+      {
+        id: r.user_id,
+        username: r.username,
+        avatar_url: r.avatar_url,
+        handle: null,
+        is_admin: null,
+        bio: null,
+      },
+      cfg.authorFallback(),
     ),
   );
-  return rows
-    .filter((r) => open.has(r.id))
-    .slice(0, MEMBER_SEARCH_LIMIT)
-    .map((r) => mapProfileRow(r, cfg.authorFallback()));
 }

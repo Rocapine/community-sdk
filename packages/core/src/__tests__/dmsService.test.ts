@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  acceptRequest,
+  blockAndReportRequest,
+  declineRequest,
   fetchDmFlags,
   fetchDmRequests,
   fetchPeerRead,
   searchMembers,
+  setAcceptsDms,
   startDm,
 } from "../dms-service";
 import { resetIdentity } from "../identity";
@@ -130,62 +134,60 @@ describe("fetchPeerRead", () => {
 });
 
 describe("fetchDmFlags", () => {
-  it("lists the members I may start a DM with", async () => {
+  it("lists the members I may message: an existing DM, or a new one they accept", async () => {
     const flags = [
-      { user_id: "u2", accepts_dms: true, has_account: true },
-      { user_id: "u3", accepts_dms: false, has_account: true },
-      { user_id: "u4", accepts_dms: true, has_account: false },
+      { user_id: "u2", accepts_dms: true, has_account: true, has_dm: false },
+      { user_id: "u3", accepts_dms: false, has_account: true, has_dm: false },
+      { user_id: "u4", accepts_dms: true, has_account: false, has_dm: false },
+      { user_id: "u6", accepts_dms: false, has_account: false, has_dm: true },
     ];
     const client = fakeClient({ rpc: () => ({ data: flags, error: null }) });
-    expect(await fetchDmFlags(cfgWith(client, dmsOnly), ["u2", "u3", "u4", "u5"])).toEqual([
+    expect(await fetchDmFlags(cfgWith(client, dmsOnly), ["u2", "u3", "u4", "u5", "u6"])).toEqual([
       "u2",
       "u4",
+      "u6",
     ]);
     const strict = fakeClient({ rpc: () => ({ data: flags, error: null }) });
     const cfg = cfgWith(strict, { ...dmsOnly, dms: { requireAccount: true } });
-    expect(await fetchDmFlags(cfg, ["u2", "u3", "u4"])).toEqual(["u2"]);
+    expect(await fetchDmFlags(cfg, ["u2", "u3", "u4", "u6"])).toEqual(["u2", "u6"]);
+  });
+});
+
+describe("request answers and the switch", () => {
+  it("send the RPCs' argument names", async () => {
+    const client = fakeClient({});
+    const cfg = cfgWith(client, dmsOnly);
+    await acceptRequest(cfg, "c1");
+    await declineRequest(cfg, "c2");
+    await blockAndReportRequest(cfg, "c3", "spam");
+    await setAcceptsDms(cfg, false);
+    expect(rpcArgs(client, "accept_request")).toEqual({ p_conversation: "c1" });
+    expect(rpcArgs(client, "decline_request")).toEqual({ p_conversation: "c2" });
+    expect(rpcArgs(client, "block_and_report_request")).toEqual({
+      p_conversation: "c3",
+      p_reason: "spam",
+    });
+    expect(rpcArgs(client, "set_accepts_dms")).toEqual({ p_on: false });
   });
 });
 
 describe("searchMembers", () => {
-  it("searches usernames and keeps those who take DMs", async () => {
+  it("asks search_dm_members (the server filters) and maps its rows", async () => {
     const client = fakeClient({
-      tables: {
-        profiles: {
-          data: [
-            {
-              id: "u2",
-              username: "Ann",
-              handle: "ann",
-              is_admin: false,
-              bio: null,
-              avatar_url: null,
-            },
-            {
-              id: "u3",
-              username: "Anna",
-              handle: "anna",
-              is_admin: false,
-              bio: null,
-              avatar_url: null,
-            },
-          ],
-          error: null,
-        },
-      },
-      rpc: () => ({ data: [{ user_id: "u2", accepts_dms: true, has_account: true }], error: null }),
+      rpc: () => ({
+        data: [{ user_id: "u2", username: "Ann", avatar_url: "https://a/1.jpg" }],
+        error: null,
+      }),
     });
-    const found = await searchMembers(cfgWith(client, dmsOnly), "  an ");
-    expect(found.map((p) => p.id)).toEqual(["u2"]);
-    const calls = client.queries.profiles![0]!.calls;
-    expect(calls[0]![1]![0]).not.toContain("*");
-    expect(calls).toContainEqual(["ilike", ["username", "%an%"]]);
-    expect(calls).toContainEqual(["neq", ["id", "uid1"]]);
+    const [p] = await searchMembers(cfgWith(client, dmsOnly), "  an ");
+    expect(rpcArgs(client, "search_dm_members")).toEqual({ p_query: "an", p_limit: 20 });
+    expect([p!.id, p!.name, p!.avatarUrl]).toEqual(["u2", "Ann", "https://a/1.jpg"]);
+    expect(client.from).not.toHaveBeenCalled();
   });
 
   it("returns nothing for an empty query", async () => {
     const client = fakeClient({});
     expect(await searchMembers(cfgWith(client, dmsOnly), " ")).toEqual([]);
-    expect(client.from).not.toHaveBeenCalled();
+    expect(client.rpc).not.toHaveBeenCalled();
   });
 });
