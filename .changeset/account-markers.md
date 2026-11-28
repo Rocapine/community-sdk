@@ -18,5 +18,5 @@
 - Release order: deploy the dashboard's brick 23 before accounts `003` reaches a host database (its
   unban calls `account_unban`; a ban lifted without it is still dropped when the profile is deleted
   again). A host that imported history with an importer that empties the placeholders members claim
-  must set `merged_into` on those placeholders before core `021` reaches production, or they count
-  as members.
+  must set `merged_into` on those placeholders in the same push, right after core `021` (a host
+  migration ordered after it), or they count as members.

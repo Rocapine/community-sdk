@@ -472,6 +472,8 @@ signs in stays signed in (`accounts/002_merge_and_delete.sql`). The merged
 profile's `merged_into` points at the account profile (`accounts/003`): the
 dashboard leaves it out of every count and list.
 
+Core `021` builds the author indexes on `posts` and `comments` before it alters `profiles`, in one transaction. On a large production database, build them beforehand with `create index concurrently if not exists` (check they are valid: a failed concurrent build leaves an invalid index that `if not exists` skips), or push at low traffic with a `lock_timeout`.
+
 ### Account deletion
 
 `account-delete` resets the account profile's name, handle, bio and avatar

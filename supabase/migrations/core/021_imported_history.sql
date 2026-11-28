@@ -11,12 +11,13 @@
 -- Moderation's team_actions leaves out the automatic bans of the accounts module (actor 'account ban').
 -- Indexes posts and comments by author for the join dates, and profiles by merged_into.
 -- Same signatures and JSON shapes as core/019. Requires core/019. Fully idempotent.
+-- On a large production database, build the two author indexes beforehand with `create index concurrently if not exists` (check they are valid: a failed concurrent build leaves an invalid index that `if not exists` skips), or push at low traffic with a `lock_timeout`.
 
-alter table public.profiles add column if not exists merged_into uuid null references public.profiles(id) on delete set null;
-alter table public.profiles add column if not exists account_deleted_at timestamptz null;
 -- A placeholder's join date (admin_daily_metrics) looks up its first post and comment.
 create index if not exists posts_author_created_idx on public.posts (author_id, created_at);
 create index if not exists comments_author_created_idx on public.comments (author_id, created_at);
+alter table public.profiles add column if not exists merged_into uuid null references public.profiles(id) on delete set null;
+alter table public.profiles add column if not exists account_deleted_at timestamptz null;
 create index if not exists profiles_merged_into_idx on public.profiles (merged_into) where merged_into is not null;
 
 create or replace function public.admin_daily_metrics(from_date date, to_date date, tz text default 'UTC')

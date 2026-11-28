@@ -16,10 +16,11 @@
 - Moderation's team actions leave out the accounts module's automatic bans (`account ban`).
 - Indexes on `posts (author_id, created_at)`, `comments (author_id, created_at)` and
   `profiles (merged_into)`: a placeholder's join date is an index lookup.
+  On a large production database, build the two author indexes beforehand with `create index concurrently if not exists` (and check they are valid), or push at low traffic with a `lock_timeout`: the file runs in one transaction.
 - Run `npx @rocapine/community upgrade` and `supabase db push`. Same function signatures and JSON
   shapes: the dashboard needs no change.
 - Release order: deploy the dashboard's brick 23 before accounts `003` reaches a host database (its
   unban calls `account_unban`; a ban lifted without it is still dropped when the profile is deleted
   again). A host that imported history with an importer that empties the placeholders members claim
-  must set `merged_into` on those placeholders before core `021` reaches production, or they count
-  as members.
+  must set `merged_into` on those placeholders in the same push, right after core `021` (a host
+  migration ordered after it), or they count as members.
