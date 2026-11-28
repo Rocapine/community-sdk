@@ -133,6 +133,16 @@ describe("runInit", () => {
     expect(files.some((f) => f.includes("_community_messaging_messaging"))).toBe(true);
   });
 
+  it("installs messaging with dms, after groups' place in the order", async () => {
+    const result = await runInit(baseOptions({ modules: ["core", "dms"] }));
+    expect(result.manifest.modules).toEqual(["core", "messaging", "dms"]);
+    const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
+    const messaging = files.findIndex((f) => f.includes("_community_messaging_messaging"));
+    const dms = files.findIndex((f) => f.includes("_community_dms_dms"));
+    expect(messaging).toBeGreaterThan(-1);
+    expect(dms).toBeGreaterThan(messaging);
+  });
+
   it("installs presence after core", async () => {
     const result = await runInit(baseOptions({ modules: ["core", "presence"] }));
     expect(result.manifest.modules).toEqual(["core", "presence"]);

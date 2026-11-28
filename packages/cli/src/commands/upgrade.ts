@@ -87,11 +87,12 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   // spurious warnings for e.g. an existing inbox-without-reaction install).
   // Two implications still apply: streaks/002 moves the streak onto badges, so an
   // install that has streaks gets badges too; groups need the messaging core and the
-  // posts' attachment column (their share card).
+  // posts' attachment column (their share card); dms need the messaging core.
   const installed = [
     ...manifest.modules,
     ...(manifest.modules.includes("streaks") ? ["badges"] : []),
     ...(manifest.modules.includes("groups") ? ["messaging", "attachments"] : []),
+    ...(manifest.modules.includes("dms") ? ["messaging"] : []),
   ];
   const canonicalModules =
     options.addModules && options.addModules.length > 0
