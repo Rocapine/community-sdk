@@ -380,6 +380,7 @@ export const es419: Record<string, string> = {
   "dms.new.hint": "Escribe un nombre para encontrar a un miembro.",
   "dms.error.tooManyRequests": "Hoy ya no puedes iniciar más conversaciones. Inténtalo mañana.",
   "dms.error.dmsOff": "Este miembro no recibe mensajes directos.",
+  "a11y.dms": "Mensajes directos",
   "profile.receiveDms": "Recibir mensajes directos",
   "profile.receiveDmsHelper":
     "Si está desactivado, nadie puede iniciar una conversación nueva contigo. Las que ya tienes siguen.",

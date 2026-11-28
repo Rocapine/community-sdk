@@ -378,6 +378,7 @@ export const ptBR: Record<string, string> = {
   "dms.new.hint": "Digite um nome para encontrar um membro.",
   "dms.error.tooManyRequests": "Você não pode começar mais conversas hoje. Tente de novo amanhã.",
   "dms.error.dmsOff": "Este membro não recebe mensagens diretas.",
+  "a11y.dms": "Mensagens diretas",
   "profile.receiveDms": "Receber mensagens diretas",
   "profile.receiveDmsHelper":
     "Desativado, ninguém pode começar uma conversa nova com você. As que já existem continuam.",

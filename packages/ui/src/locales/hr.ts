@@ -392,6 +392,7 @@ export const hr: Record<string, string> = {
   "dms.new.hint": "Upiši ime da pronađeš člana.",
   "dms.error.tooManyRequests": "Danas ne možeš započeti više razgovora. Pokušaj sutra.",
   "dms.error.dmsOff": "Ovaj član ne prima privatne poruke.",
+  "a11y.dms": "Privatne poruke",
   "profile.receiveDms": "Primaj privatne poruke",
   "profile.receiveDmsHelper":
     "Kad je isključeno, nitko ne može započeti novi razgovor s tobom. Postojeći se nastavljaju.",

@@ -420,6 +420,7 @@ export const pl: Record<string, string> = {
   "dms.new.hint": "Wpisz nazwę członka, którego szukasz.",
   "dms.error.tooManyRequests": "Dziś nie możesz już zacząć kolejnej rozmowy. Spróbuj jutro.",
   "dms.error.dmsOff": "Ta osoba nie odbiera prywatnych wiadomości.",
+  "a11y.dms": "Prywatne wiadomości",
   "profile.receiveDms": "Odbieraj prywatne wiadomości",
   "profile.receiveDmsHelper":
     "Gdy to jest wyłączone, nikt nie może zacząć z tobą nowej rozmowy. Obecne trwają dalej.",

@@ -704,7 +704,7 @@ export function CommunityFeedScreen({
         return (
           <MessagesButton
             key={index}
-            kind="messages"
+            kind="dms"
             onPress={() => onOpenMessages!({ tab: "conversations" })}
           />
         );
@@ -1066,14 +1066,22 @@ function InboxBell({ onPress }: { onPress: () => void }) {
 
 /** A `messages` / `groups` header item, with the unread badge per `messaging.badge`. Its
  * own component so the badge query only runs when the item shows. */
-function MessagesButton({ kind, onPress }: { kind: "messages" | "groups"; onPress: () => void }) {
+function MessagesButton({
+  kind,
+  onPress,
+}: {
+  kind: "messages" | "groups" | "dms";
+  onPress: () => void;
+}) {
   const theme = useCommunityTheme();
   const t = useT();
   const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
   const badge = useMessagingBadge();
-  const Icon = kind === "messages" ? icons.messages : icons.groups;
-  const label = t(kind === "messages" ? "messages.title" : "groups.home.groups");
+  const Icon = kind === "groups" ? icons.groups : icons.messages;
+  const label = t(
+    kind === "groups" ? "groups.home.groups" : kind === "dms" ? "a11y.dms" : "messages.title",
+  );
   return (
     <PressableScale
       onPress={onPress}

@@ -386,6 +386,7 @@ export const frVous: Record<string, string> = {
   "dms.error.tooManyRequests":
     "Vous ne pouvez plus démarrer de conversation aujourd'hui. Réessayez demain.",
   "dms.error.dmsOff": "Ce membre ne reçoit pas de messages privés.",
+  "a11y.dms": "Messages privés",
   "profile.receiveDms": "Recevoir des messages privés",
   "profile.receiveDmsHelper":
     "Désactivé, personne ne peut démarrer de nouvelle conversation avec vous. Celles en cours continuent.",

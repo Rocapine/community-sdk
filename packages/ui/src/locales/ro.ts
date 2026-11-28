@@ -393,6 +393,7 @@ export const ro: Record<string, string> = {
   "dms.new.hint": "Scrie un nume ca să găsești un membru.",
   "dms.error.tooManyRequests": "Azi nu mai poți începe alte conversații. Încearcă mâine.",
   "dms.error.dmsOff": "Acest membru nu primește mesaje directe.",
+  "a11y.dms": "Mesaje directe",
   "profile.receiveDms": "Primește mesaje directe",
   "profile.receiveDmsHelper":
     "Dacă e oprit, nimeni nu poate începe o conversație nouă cu tine. Cele în curs continuă.",

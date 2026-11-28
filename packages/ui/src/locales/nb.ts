@@ -371,6 +371,7 @@ export const nb: Record<string, string> = {
   "dms.new.hint": "Skriv et navn for å finne et medlem.",
   "dms.error.tooManyRequests": "Du kan ikke starte flere samtaler i dag. Prøv igjen i morgen.",
   "dms.error.dmsOff": "Dette medlemmet tar ikke imot private meldinger.",
+  "a11y.dms": "Private meldinger",
   "profile.receiveDms": "Motta private meldinger",
   "profile.receiveDmsHelper":
     "Når den er av, kan ingen starte en ny samtale med deg. Samtalene du har, fortsetter.",

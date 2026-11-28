@@ -372,6 +372,7 @@ export const sv: Record<string, string> = {
   "dms.error.tooManyRequests":
     "Du kan inte starta fler konversationer i dag. Försök igen i morgon.",
   "dms.error.dmsOff": "Den här medlemmen tar inte emot direktmeddelanden.",
+  "a11y.dms": "Direktmeddelanden",
   "profile.receiveDms": "Ta emot direktmeddelanden",
   "profile.receiveDmsHelper":
     "När det är av kan ingen starta en ny konversation med dig. Pågående fortsätter.",

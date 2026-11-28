@@ -373,6 +373,7 @@ export const ko: Record<string, string> = {
   "dms.error.tooManyRequests":
     "오늘은 더 이상 새 대화를 시작할 수 없어요. 내일 다시 시도해 주세요.",
   "dms.error.dmsOff": "이 멤버는 다이렉트 메시지를 받지 않아요.",
+  "a11y.dms": "다이렉트 메시지",
   "profile.receiveDms": "다이렉트 메시지 받기",
   "profile.receiveDmsHelper": "끄면 아무도 새 대화를 시작할 수 없어요. 진행 중인 대화는 계속돼요.",
   "inbox.dmAccepted": "{name}님이 메시지 요청을 수락했어요",

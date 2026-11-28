@@ -408,6 +408,7 @@ export const de: Record<string, string> = {
   "dms.error.tooManyRequests":
     "Du kannst heute keine weiteren Unterhaltungen beginnen. Versuch es morgen noch einmal.",
   "dms.error.dmsOff": "Dieses Mitglied empfängt keine Direktnachrichten.",
+  "a11y.dms": "Direktnachrichten",
   "profile.receiveDms": "Direktnachrichten empfangen",
   "profile.receiveDmsHelper":
     "Wenn das aus ist, kann niemand eine neue Unterhaltung mit dir beginnen. Bestehende laufen weiter.",
