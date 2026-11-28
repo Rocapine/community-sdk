@@ -644,5 +644,32 @@ begin
     perform public.messaging_set_settings('{"dmsReadReceipts": true}');
   end if;
 
+  -- dms/004: a block or an unblock between DM members broadcasts `members` on the DM's
+  -- channel, so open screens close (or reopen) their composer at once.
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null
+     and to_regprocedure('public.dms_broadcast_block()') is not null then
+    select count(*) into n0 from realtime.messages
+    where topic = 'conversation:' || ab and event = 'members';
+    insert into public.blocks (blocker_id, blocked_id) values (b, a);
+    assert (select count(*) from realtime.messages
+            where topic = 'conversation:' || ab and event = 'members') = n0 + 1,
+      'a block broadcasts members on the DM';
+    delete from public.blocks where blocker_id = b and blocked_id = a;
+    assert (select count(*) from realtime.messages
+            where topic = 'conversation:' || ab and event = 'members') = n0 + 2,
+      'an unblock broadcasts members on the DM';
+    -- No DM between them: no broadcast, no error.
+    select count(*) into n0 from realtime.messages where event = 'members';
+    delete from public.conversations where id in (
+      select conversation_id from public.dm_pairs
+      where user_a = least(c, x) and user_b = greatest(c, x));
+    insert into public.blocks (blocker_id, blocked_id) values (c, x);
+    delete from public.blocks where blocker_id = c and blocked_id = x;
+    assert (select count(*) from realtime.messages where event = 'members') = n0,
+      'no DM: no broadcast';
+  else
+    raise notice 'dms/004 or realtime.send missing: block broadcast not checked';
+  end if;
+
   raise exception 'DMS_TESTS_PASSED';
 end $$;

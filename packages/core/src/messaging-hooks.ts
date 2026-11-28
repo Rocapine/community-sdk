@@ -291,8 +291,12 @@ export function useMessages(conversationId: string | null) {
         void queryClient.invalidateQueries({ queryKey: UNREAD_MESSAGES_KEY });
       },
       onTyping: () => {},
-      // The member count, and for a member just removed the removed state.
-      onMembers: () => invalidateGroup(queryClient, conversationId),
+      // The member count, and for a member just removed the removed state; in a DM, a
+      // block or an unblock (dms/004): the list's peer and my pending requests.
+      onMembers: () => {
+        void invalidateGroup(queryClient, conversationId);
+        void queryClient.invalidateQueries({ queryKey: DM_REQUESTS_KEY }, { cancelRefetch: false });
+      },
     });
   }, [cfg, queryClient, conversationId, live]);
   return query;
