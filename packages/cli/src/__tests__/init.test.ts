@@ -132,12 +132,13 @@ describe("runInit", () => {
     expect(files.some((f) => f.includes("_community_presence_"))).toBe(true);
   });
 
-  it("init with --modules accounts installs account-session and account-delete and accounts/001-002", async () => {
+  it("init with --modules accounts installs account-session and account-delete and accounts/001-003", async () => {
     const result = await runInit(baseOptions({ modules: ["accounts"] }));
     expect(result.manifest.modules).toEqual(["core", "accounts"]);
     const files = fs.readdirSync(path.join(cwd, "supabase", "migrations")).sort();
-    expect(files.at(-2)).toMatch(/_community_accounts_accounts\.sql$/);
-    expect(files.at(-1)).toMatch(/_community_accounts_merge_and_delete\.sql$/);
+    expect(files.at(-3)).toMatch(/_community_accounts_accounts\.sql$/);
+    expect(files.at(-2)).toMatch(/_community_accounts_merge_and_delete\.sql$/);
+    expect(files.at(-1)).toMatch(/_community_accounts_markers_and_bans\.sql$/);
     const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions"));
     expect(fnDirs).toContain("account-session");
     expect(fnDirs).toContain("account-delete");

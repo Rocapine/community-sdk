@@ -468,6 +468,7 @@ describe("runUpgrade", () => {
     expect(manifest.modules).toContain("accounts");
     expect(manifest.installedTemplates).toContain("accounts/accounts");
     expect(manifest.installedTemplates).toContain("accounts/merge_and_delete");
+    expect(manifest.installedTemplates).toContain("accounts/markers_and_bans");
     const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions"));
     expect(fnDirs).toContain("account-session");
   });
