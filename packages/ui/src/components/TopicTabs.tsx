@@ -1,4 +1,4 @@
-// The feed's topic filter: a scrollable row of tabs, after Eve's community
+// The feed's topic filter: a scrollable row of tabs, after the first host app's community
 // header. One accent underline slides to the selected tab and takes its width;
 // each label's colour follows the underline (muted → primary as it arrives),
 // so switching tabs animates as one motion. Labels keep one weight, so

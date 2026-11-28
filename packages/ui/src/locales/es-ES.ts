@@ -1,15 +1,15 @@
 // Spanish (Spain) catalog for @rocapine/community-ui.
 //
-// Ported from Eve's Rhythm's i18n/es-ES/community.json (source app's repo —
+// Ported from the first host app's i18n/es-ES/community.json (source app's repo —
 // comment only, no runtime dependency on that app), flattened to the same
 // dot-key scheme as en.ts (see the internal port notes for the key-rename table:
 // prayedForYou.* -> reaction.*, aSister -> someone, _one/_other ->
 // .one/.other). Degendered in-language ("hermana(s)" -> neutral phrasing)
-// and de-branded ("Eve" / "Eve's Rhythm" removed) to match en.ts's neutral
-// meaning. Keys en.ts added that Eve's JSON lacks (menu.cancel, menu.delete,
+// and de-branded (the source app's name removed) to match en.ts's neutral
+// meaning. Keys en.ts added that the first host app's JSON lacks (menu.cancel, menu.delete,
 // profile.save) were translated fresh from the app-wide common.json values
 // (Cancelar / Eliminar / Guardar) and reaction.* was translated fresh from
-// the en value (Eve's JSON only has prayer-flavored copy there).
+// the en value (the first host app's JSON only has prayer-flavored copy there).
 export const esES: Record<string, string> = {
   title: "Comunidad",
 

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Team accounts created and edited in Members, and a mail-style composer with shared drafts that publishes as any team account, on the Unchaind community.
+**Goal:** Team accounts created and edited in Members, and a mail-style composer with shared drafts that publishes as any team account, on the host app community.
 
-**Architecture:** Three PRs in order. (1) `~/Developer/community-sdk`: a core migration adding `post_drafts` and `publish_post_draft()`, an images migration so the nightly sweep keeps draft images, roadmap updates; released as 0.16.0. (2) `~/Developer/unchaind`: SDK bump and `upgrade`, migrations pushed to sandbox (prod by Guillaume). (3) `~/Developer/community-dashboard`: Worker routes (team accounts, handles, drafts, features probe) as tested planners like V1, and the UI (team account form in the member panel, docked composer windows).
+**Architecture:** Three PRs in order. (1) `~/Developer/community-sdk`: a core migration adding `post_drafts` and `publish_post_draft()`, an images migration so the nightly sweep keeps draft images, roadmap updates; released as 0.16.0. (2) the host app repo: SDK bump and `upgrade`, migrations pushed to sandbox (prod by the maintainer). (3) `~/Developer/community-dashboard`: Worker routes (team accounts, handles, drafts, features probe) as tested planners like V1, and the UI (team account form in the member panel, docked composer windows).
 
 **Tech Stack:** Postgres/PL/pgSQL (Supabase), the `@rocapine/community` CLI, Vite 8 + React 19 + TS 6 + Tailwind v4 + shadcn, wouter, TanStack Query, `@supabase/supabase-js` 2 (Worker only), Vitest 4 + happy-dom, Wrangler 4.
 
@@ -12,8 +12,8 @@
 
 ## Global Constraints
 
-- Backends: scratch `cozfrhmbjrvotpwjnqmu` (agents may change anything), Unchaind sandbox `vjcdpodsrpemanfvrshh` (agents may push migrations and write test data), Unchaind prod `doiafuhoourjtqsmzook`: read-only; Guillaume runs the prod migration, hand him the exact command.
-- SDK release (npm publish of 0.16.0) and every merge wait for Guillaume's OK after he tested (memory: verify before merge).
+- Backends: scratch `cozfrhmbjrvotpwjnqmu` (agents may change anything), the host app's sandbox project (agents may push migrations and write test data), the host app's production project: read-only; the maintainer runs the prod migration, hand him the exact command.
+- SDK release (npm publish of 0.16.0) and every merge wait for the maintainer's OK after he tested (memory: verify before merge).
 - Dashboard: the browser never sees a Supabase key or URL with a key; every data call is `/api/*`, JSON, `cache-control: no-store`; non-GET requests are JSON (the router's CSRF rule), so uploads are base64 in JSON.
 - The actor recorded everywhere (`moderation_actions.actor_email`, `post_drafts.created_by/updated_by`) is the Access email.
 - A post has at most one of: image, poll, attachment (SDK rule, `packages/core/src/service.ts:505-516`). Poll: 2 to 4 options. Text: 1 to 2000 characters to publish.
@@ -29,8 +29,8 @@
 1. **Two people on the same draft**: a save with a stale `version` must not overwrite; the composer shows who changed it. → Task 8 (`PUT drafts` 409 test), Task 11 (conflict banner test).
 2. **A draft image when the author changes, or the draft is discarded**: the image must end under the publishing author's folder, and a discarded draft's image is left to the sweep (not kept forever). → Task 1 SQL assertions, Task 8 test.
 3. **Publishing a draft whose author lost admin since it was written, with Pin or Notify on**: refused with a clear error, nothing published. → Task 1 SQL assertion, Task 11 error-toast test.
-4. **A community without the 0.16 migration (prod before Guillaume migrates it)**: composer and "+ New team account" are disabled with the reason; no write is attempted. → Task 5 probe test, Task 9/10 disabled-state tests.
-5. **Name or handle edge cases**: emoji-only or accented names for the handle prefill, a handle taken between the check and the save, a non-admin named "Unchaind Team". → Task 6 (`handleFromName`), Task 7 (race and rules tests).
+4. **A community without the 0.16 migration (prod before the maintainer migrates it)**: composer and "+ New team account" are disabled with the reason; no write is attempted. → Task 5 probe test, Task 9/10 disabled-state tests.
+5. **Name or handle edge cases**: emoji-only or accented names for the handle prefill, a handle taken between the check and the save, a non-admin named "Acme Team". → Task 6 (`handleFromName`), Task 7 (race and rules tests).
 
 ---
 
@@ -102,17 +102,17 @@ Expected: the second command fails with exactly `POST_DRAFTS_TESTS_PASSED`.
 - [ ] **Step 1:** Run `node packages/cli/scripts/copy-templates.mjs`, then `npm run typecheck && npm test && npx prettier --check .` at the root; fix any template list expectation. Expected: green.
 - [ ] **Step 2:** Changeset text: new `core/post_drafts` and `images/draft_images` templates, service-role only, used by the community dashboard; no app change needed.
 - [ ] **Step 3:** Roadmap, as listed in the spec's "Roadmap updates" section: replace the "three kinds" decision (lines 42-45) with the 2026-11-11 decision; add the shared-drafts decision; rewrite the brick 4 row (SDK change "yes", status "in progress"); brick 6 row gains "comment and reply as a team account"; brick 7 row says it builds on `post_drafts.publish_at` and `publish_post_draft`; SDK coverage table gains the two templates; "Last reviewed" line → 2026-11-11, SDK 0.16.0. `npx prettier --write docs`.
-- [ ] **Step 4:** Commit `chore: release templates, changeset and roadmap for post drafts`; push; open the PR (no recording: nothing visible). Stop for Guillaume's OK; after merge, the release PR / `npm run release` only on his go.
+- [ ] **Step 4:** Commit `chore: release templates, changeset and roadmap for post drafts`; push; open the PR (no recording: nothing visible). Stop for the maintainer's OK; after merge, the release PR / `npm run release` only on his go.
 
-## Part 2 — Unchaind (`~/Developer/unchaind`, branch `chore/community-sdk-0.16`)
+## Part 2 — the host app (the host app repo, branch `chore/community-sdk-0.16`)
 
 ### Task 4: Upgrade to 0.16.0 and migrate sandbox
 
 **Files:** `package.json`, `package-lock.json`, `community-sdk.json`, new files under `supabase/migrations/`.
 
 - [ ] **Step 1:** `npm i @rocapine/community-core@0.16.0 @rocapine/community-ui@0.16.0` and `npx @rocapine/community@0.16.0 upgrade`. Expected: two new migration files (`…_community_core_post_drafts.sql`, `…_community_images_draft_images.sql`), `community-sdk.json` lists them.
-- [ ] **Step 2:** Push to sandbox: `npx supabase db push --linked` against `vjcdpodsrpemanfvrshh` (as previous upgrades did), then run `supabase-tests/post-drafts.sql` from the SDK repo against sandbox. Expected: `POST_DRAFTS_TESTS_PASSED`.
-- [ ] **Step 3:** `npm test` and typecheck green; commit `chore(community): SDK 0.16 — post drafts for the dashboard`; PR (no recording: nothing visible in the app). Hand Guillaume the prod command for after merge: `npx supabase db push --db-url <prod>` or the repo's usual prod push, written out in the PR body.
+- [ ] **Step 2:** Push to sandbox: `npx supabase db push --linked` against the sandbox project (as previous upgrades did), then run `supabase-tests/post-drafts.sql` from the SDK repo against sandbox. Expected: `POST_DRAFTS_TESTS_PASSED`.
+- [ ] **Step 3:** `npm test` and typecheck green; commit `chore(community): SDK 0.16 — post drafts for the dashboard`; PR (no recording: nothing visible in the app). Hand the maintainer the prod command for after merge: `npx supabase db push --db-url <prod>` or the repo's usual prod push, written out in the PR body.
 
 ## Part 3 — Dashboard (`~/Developer/community-dashboard`, branch `feat/brick4-team-composer`)
 
@@ -134,7 +134,7 @@ src/app/members/TeamAccountForm.tsx
 src/app/composer/useComposer.ts  open windows state (context)
 src/app/composer/ComposerDock.tsx, ComposerWindow.tsx, DraftsMenu.tsx, fields/*.tsx
 src/app/composer/image.ts        browser JPEG re-encode
-wrangler.jsonc                   topics for Unchaind prod, sandbox, previews
+wrangler.jsonc                   topics for the host app prod, sandbox, previews
 ```
 
 ### Task 5: Registry topics and the features probe
@@ -157,7 +157,7 @@ wrangler.jsonc                   topics for Unchaind prod, sandbox, previews
 
 - [ ] **Step 1: Tests.** `parseCommunities` keeps `topics` / `attachmentTypes` and defaults them to `[]`; rejects a topic without `id`. `probeFeatures` with a mock client: all present → all true; `post_drafts` answering `PGRST205` → `drafts: false`; a `500` error → throws. `visibleTopics`: an event topic with `from 2026-11-01, until 2026-12-01` is in on `2026-11-30`, out on `2026-12-01`; `adminOnly` out when `isAdmin` false.
 - [ ] **Step 2:** Run `npx vitest run test/communities.test.ts test/features.test.ts` → FAIL.
-- [ ] **Step 3:** Implement. In `wrangler.jsonc`, add to the three Unchaind entries (prod, sandbox, previews): `"attachmentTypes": ["verse"]` and the topic list from Unchaind's `COMMUNITY_TOPICS` (`git show origin/main:services/community/communityConfig.ts` in `~/Developer/unchaind`), labels from its `en` locale `community.topics.<id>`, the `no-nut-november` window copied.
+- [ ] **Step 3:** Implement. In `wrangler.jsonc`, add to the three host app entries (prod, sandbox, previews): `"attachmentTypes": ["verse"]` and the topic list from the host app's `COMMUNITY_TOPICS` (`git show origin/main:services/community/communityConfig.ts` in the host app repo), labels from its `en` locale `community.topics.<id>`, the `no-nut-november` window copied.
 - [ ] **Step 4:** Tests PASS; `npm run build` green.
 - [ ] **Step 5: Commit** `feat: community topics in the registry and a features probe`
 
@@ -165,7 +165,7 @@ wrangler.jsonc                   topics for Unchaind prod, sandbox, previews
 
 **Files:**
 
-- Create: `src/app/attachments/verse/bookNames.ts`, `bibleRefParser.ts`, `verseAttachment.ts` (ported from `~/Developer/unchaind` `origin/main`: `lib/bookNames.ts`, `lib/bibleRefParser.ts`, `lib/community/verseAttachment.ts`; drop the `logger` import and `@/lib/types` / `@rocapine/community-core` type imports in favour of local types)
+- Create: `src/app/attachments/verse/bookNames.ts`, `bibleRefParser.ts`, `verseAttachment.ts` (ported from the host app repo `origin/main`: `lib/bookNames.ts`, `lib/bibleRefParser.ts`, `lib/community/verseAttachment.ts`; drop the `logger` import and `@/lib/types` / `@rocapine/community-core` type imports in favour of local types)
 - Create: `src/app/attachments/types.ts`, `src/shared/handles.ts`
 - Test: `test/verse.test.ts` (port of `__tests__/lib/bibleRefParser.test.ts` and `__tests__/lib/community/verseAttachment.test.ts` plus the cases below), `test/handles.test.ts`
 
@@ -199,7 +199,7 @@ wrangler.jsonc                   topics for Unchaind prod, sandbox, previews
   - Routes: `GET team-accounts` → `TeamAccount[]` (all `is_house`, by name); `POST team-accounts` (create) → `TeamAccount`; `PATCH team-accounts/:id` → `TeamAccount`; `GET handles/:handle` → `{ available: boolean }`. Errors: 400 with the codes above, 409 `handle_taken`, 404 for a non-team id.
 
 - [ ] **Step 1: Tests** (pure + handlers with a mocked client, like `test/members.test.ts`):
-  - `validateTeamInput`: name of 1 char → `bad_name`; bio of 301 → `bad_bio`; admin with handle `Ab` → `bad_handle`; non-admin named "Unchaind Team" with appName "Unchaind" → `reserved_name`; admin named "Unchaind" with handle `unchaind` → null; non-admin with a `handle` field → `bad_handle` (only admins choose).
+  - `validateTeamInput`: name of 1 char → `bad_name`; bio of 301 → `bad_bio`; admin with handle `Ab` → `bad_handle`; non-admin named "Acme Team" with appName "Acme" → `reserved_name`; admin named "Acme" with handle `acme` → null; non-admin with a `handle` field → `bad_handle` (only admins choose).
   - Create: calls the auth admin API, then updates `profiles` with `username, bio, is_house true, is_admin, username_set_by_user true` (+ `handle, handle_set_by_user true` for admins), then a second update `username_checked_at` (now), then inserts `moderation_actions` `create_team_account` with `target_user_id`.
   - A unique violation (`23505`) on the handle → 409 `handle_taken`.
   - PATCH on a profile with `is_house false` → 404; PATCH writes `update_team_account`.
@@ -235,7 +235,7 @@ wrangler.jsonc                   topics for Unchaind prod, sandbox, previews
   - `api.test.ts`: `apiPut` / `apiDelete` send `content-type: application/json`.
 - [ ] **Step 2:** `npx vitest run test/drafts.test.ts test/api.test.ts` → FAIL.
 - [ ] **Step 3:** Implement (`rpc("publish_post_draft", { p_draft_id, p_version, p_actor: email })`).
-- [ ] **Step 4:** PASS; on sandbox via `npm run dev` + `curl`: create a draft, upload an image, publish; the post shows in the Unchaind sandbox feed.
+- [ ] **Step 4:** PASS; on sandbox via `npm run dev` + `curl`: create a draft, upload an image, publish; the post shows in the host app sandbox feed.
 - [ ] **Step 5: Commit** `feat(worker): shared drafts and publishing`
 
 ### Task 9: Team account form in Members
@@ -295,7 +295,7 @@ wrangler.jsonc                   topics for Unchaind prod, sandbox, previews
   - Admin gating: picking a non-admin account hides admin-only topics, unticks and hides Notify and Pin; picking an admin shows them.
   - One extra at a time: adding an image disables Poll and Verse (and each way round), per Global Constraints; extras the community's `Features` lacks are not shown.
   - Verse: typing "phil 4:6-7" shows "Philippians 4:6-7 ✓" and stores `{ type: "verse", id: "50.4.6-7" }`; "foo" shows "Not a reference".
-  - Publish: disabled until an account, a topic and 1-2000 characters are set; success closes the window and toasts "Published as Unchaind"; a `not_admin` error toasts "Unchaind is no longer an admin: untick Pin and Notify everyone" and keeps the window.
+  - Publish: disabled until an account, a topic and 1-2000 characters are set; success closes the window and toasts "Published as Acme"; a `not_admin` error toasts "Acme is no longer an admin: untick Pin and Notify everyone" and keeps the window.
   - Discard draft: confirmation, then `DELETE` and the window closes.
 - [ ] **Step 2:** FAIL.
 - [ ] **Step 3:** Implement (mockup v1 section 2 for the field layout). "Write a post as …" in a team account's panel calls `openComposer({ authorId })`.
@@ -305,7 +305,7 @@ wrangler.jsonc                   topics for Unchaind prod, sandbox, previews
 ### Task 12: End-to-end on sandbox, recording, PR
 
 - [ ] **Step 1:** `npm run dev` against sandbox (`.dev.vars`), in the browser pane: create an admin account "Pastor James" (`@pastorjames`) and a non-admin one; edit one of the existing team accounts; open two drafts, minimize one, expand the other; open the same draft in a second tab, edit both, see the conflict; publish one post each with image, poll and verse, the admin one with Notify and Pin.
-- [ ] **Step 2:** On the iOS simulator (Argent, `argent-device-interact` skill; Unchaind dev build on sandbox, Expo launch params from `~/.claude/rules/expo-launch.md`): the three posts are visible, translated, the admin one pinned, the push and inbox row arrived, the verse card opens the reader.
+- [ ] **Step 2:** On the iOS simulator (Argent, `argent-device-interact` skill; the host app dev build on sandbox, Expo launch params from `~/.claude/rules/expo-launch.md`): the three posts are visible, translated, the admin one pinned, the push and inbox row arrived, the verse card opens the reader.
 - [ ] **Step 3:** Recording per `~/.claude/rules/pr-video.md`: a walkthrough of the dashboard steps (Argent on the Chromium preview, or the pane) and of the app showing the result; compress with the rule's ffmpeg command.
-- [ ] **Step 4:** Push, open the PR (body: what, how tested, the recordings, "prod: features turn on once Guillaume migrates Unchaind prod"). Check the preview deployment on its sandbox community. Stop for Guillaume's test and OK.
+- [ ] **Step 4:** Push, open the PR (body: what, how tested, the recordings, "prod: features turn on once the maintainer migrates the host app prod"). Check the preview deployment on its sandbox community. Stop for the maintainer's test and OK.
 - [ ] **Step 5:** After merge: roadmap brick 4 status → done in a small docs PR in `community-sdk`; update memory `community-dashboard-roadmap.md`.

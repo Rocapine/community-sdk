@@ -1,7 +1,7 @@
 // Community guidelines gate. Ported from the mold's `CommunityRulesSheet`
 // (`sdk/client/components/community/CommunityRulesSheet.tsx`), rebuilt on
 // this package's own `CommunitySheet` (Task 10) and theme/i18n (no
-// Eve-specific `eve.cream`/`eve.ink` literals, no local haptics wrapper —
+// app-specific color literals, no local haptics wrapper —
 // raw `expo-haptics`, matching `CommunityPost`/`NoticeCard`'s convention).
 //
 // No store: acceptance state is owned entirely by the host through
@@ -11,7 +11,7 @@
 // comment box) decides whether to show this sheet at all.
 //
 // The brief describes "4 rules from i18n keys rules.1..4" generically; the
-// catalog (Task 9, ported from Eve's actual copy) names them semantically
+// catalog (Task 9, ported from the first host app's actual copy) names them semantically
 // instead of numbering them — `rules.kind` / `rules.medical` / `rules.hateful`
 // / `rules.report` — so those are the 4 keys read below.
 

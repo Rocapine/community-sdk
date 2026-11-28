@@ -17,7 +17,7 @@ make admin). Making a team account an admin is enough to publish as an admin fro
 
 ## Goals
 
-- One dashboard for the Unchaind community, sandbox and production, switchable in one click.
+- One dashboard for the host app community, sandbox and production, switchable in one click.
 - Review in one place everything that needs a human: open reports and AI-hidden content, with
   every action logged with who did it.
 - Find any member, see their record, ban or unban them, make them admin or not.
@@ -25,9 +25,9 @@ make admin). Making a team account an admin is enough to publish as an admin fro
 
 ## Non-goals (V1)
 
-- Other apps (Eve's Rhythm, Nightward): later, brick 19.
+- Other apps (the first host app, another host app): later, brick 19.
 - Composer, managed profiles, scheduling, stats, feed explorer, settings: later bricks.
-- Octopus: users left on old app versions are moderated by Octopus itself.
+- The previous vendor: users left on old app versions are moderated by the previous vendor itself.
 - Roles inside the dashboard: everyone allowed in can do everything.
 - Any change to the SDK. V1 uses the schema of SDK 0.15 as it is.
 
@@ -43,8 +43,8 @@ make admin). Making a team account an admin is enough to publish as an admin fro
   deployed by Workers Builds on every merge to `main`. Repo `Rocapine/community-dashboard`
   (local: `~/Developer/community-dashboard`).
 - **Access:** Cloudflare Access (team `rocapine.cloudflareaccess.com`) with the rule "emails
-  ending in `@rocapine.com`", like `unchaind-dashboard`. No login of our own.
-- **Stack** (copy `~/Developer/unchaind-dashboard`): Vite + React 19 + Tailwind v4 + shadcn/ui
+  ending in `@rocapine.com`", like an internal dashboard. No login of our own.
+- **Stack** (copy the internal dashboard repo): Vite + React 19 + Tailwind v4 + shadcn/ui
   served as static assets from `dist/`; a hand-written Worker for `/api/*`
   (`assets.run_worker_first: ["/api/*"]`, SPA fallback). No Next.js.
 - **Data:** each community (app × environment) is its own Supabase project. The SDK has no admin
@@ -71,8 +71,8 @@ measure; tone: calm, precise, not showy).
 
 A left sidebar, always visible:
 
-- **Community switcher** at the top: app (Unchaind) and environment (Sandbox / Production). The
-  selected community is in the URL (`/unchaind/prod/queue`, `/unchaind/sandbox/members/<id>`),
+- **Community switcher** at the top: app (the host app) and environment (Sandbox / Production). The
+  selected community is in the URL (`/acme/prod/queue`, `/acme/sandbox/members/<id>`),
   so a link can be shared. The dashboard opens on the last community used (localStorage),
   production otherwise.
 - **Production is unmistakable:** an orange line across the top of the window and an orange
@@ -85,11 +85,11 @@ review queue with the matching filter. Nothing else in V1.
 
 ### Theme
 
-Light and dark from the start, the two-state toggle of `unchaind-dashboard` and
+Light and dark from the start, the two-state toggle of an internal dashboard and
 `onboarding-studio` (see [Lea Verou](https://lea.verou.me/blog/2026/dark-mode-toggles/)):
 follow the system until the user flips it; flipping back to the system's theme forgets the
 override. Copy `src/app/theme.ts` and the inline script in `index.html` from
-`unchaind-dashboard`, and its `.dark` class approach in `index.css`.
+An internal dashboard, and its `.dark` class approach in `index.css`.
 
 ### Community registry
 
@@ -97,19 +97,19 @@ A list of communities in `wrangler.jsonc` `vars` (no secrets in it), for example
 
 ```jsonc
 "COMMUNITIES": [
-  { "app": "unchaind", "env": "prod", "name": "Unchaind",
-    "supabaseUrl": "https://doiafuhoourjtqsmzook.supabase.co",
-    "keySecret": "SUPABASE_KEY_UNCHAIND_PROD",
+  { "app": "acme", "env": "prod", "name": "Acme",
+    "supabaseUrl": "https://<production-project-ref>.supabase.co",
+    "keySecret": "SUPABASE_KEY_ACME_PROD",
     "amplitudeUserUrl": "…{id}…", "revenuecatCustomerUrl": "…{id}…" },
-  { "app": "unchaind", "env": "sandbox", "name": "Unchaind",
-    "supabaseUrl": "https://vjcdpodsrpemanfvrshh.supabase.co",
-    "keySecret": "SUPABASE_KEY_UNCHAIND_SANDBOX", "…": "…" }
+  { "app": "acme", "env": "sandbox", "name": "Acme",
+    "supabaseUrl": "https://<sandbox-project-ref>.supabase.co",
+    "keySecret": "SUPABASE_KEY_ACME_SANDBOX", "…": "…" }
 ]
 ```
 
 Adding a community later = one entry + one secret. `GET /api/communities` returns the list
 without secret names. The Amplitude and RevenueCat URL templates are filled by the builder from
-the Unchaind Amplitude project and RevenueCat project; a missing template hides the link.
+the host app Amplitude project and RevenueCat project; a missing template hides the link.
 
 ### Identity
 
@@ -120,7 +120,7 @@ goes into `moderation_actions.actor_email`, `reports.resolved_by`, and `reviewed
 comments. Local development (`wrangler dev`) has no Access: a `DEV_ACCESS_EMAIL` var, set only in
 `.dev.vars`, replaces the check there. It must never be set in production.
 
-Known gotcha from `unchaind-dashboard`: when the Access session expires, `/api/*` answers 200
+Known gotcha from an internal dashboard: when the Access session expires, `/api/*` answers 200
 with an HTML login page. The client treats any non-JSON answer as "session expired" and reloads
 the page, which goes through Access again.
 
@@ -130,8 +130,8 @@ Workers Builds connected to `Rocapine/community-dashboard`, deploying `main`. Cu
 `community.rocapi.ne` (check that the `rocapi.ne` zone is on the Rocapine account; if not,
 stop and ask). An Access application on that hostname with the `@rocapine.com` rule.
 
-The "Rocapine" Cloudflare account is the one `unchaind-dashboard` runs on: the account
-formerly named "Sammy", renamed "Rocapine" (account id `cd3f38fcaf8dca226a6c08ebc2616089`); its Access team is
+The "Rocapine" Cloudflare account is the one an internal dashboard runs on: the account
+the Rocapine account; its Access team is
 `rocapine.cloudflareaccess.com`. The builder does the Cloudflare setup with wrangler and the
 Cloudflare API when its credentials have the rights, and hands off to the team (with exact
 steps) for anything it cannot do. The Access application's AUD goes into a Worker var for the
@@ -248,7 +248,7 @@ post or comment there opens it in the review-queue detail view (same component),
 - **Unban** (when banned): `is_banned = false`, log `unban`. Hidden content stays hidden.
 
 **A ban covers one profile** (decided by the team): each app links its users to community
-profiles in its own way (Unchaind: an anonymous session per device), so the dashboard does not
+profiles in its own way (the host app: an anonymous session per device), so the dashboard does not
 guess who is the same person. It only **informs**: when another profile with the same
 `revenuecat_id` or the same `amplitude_id` is banned, the member panel and the author summary in
 the review queue show "Another profile with the same RevenueCat (or Amplitude) id is banned",
@@ -275,7 +275,7 @@ The builder may reshape these; what matters is that the browser never talks to S
 - Unit tests (Vitest): the JWT check (valid, wrong audience, expired, missing), the theme's
   `nextThemeAction`, the queue membership rule, each action's writes (against a mocked
   PostgREST).
-- End to end against **Unchaind sandbox** only: create reports and AI-hidden items there, run
+- End to end against **host app sandbox** only: create reports and AI-hidden items there, run
   every action, check the rows and the log. Never test writes on production.
 - Before saying a brick is done: deployed on `community.rocapi.ne`, Access works from a
   `@rocapine.com` account and refuses another one.
@@ -283,10 +283,10 @@ The builder may reshape these; what matters is that the browser never talks to S
 ## What needs the team (outside code)
 
 - Create the GitHub repo `Rocapine/community-dashboard`.
-- Create a secret key in each Unchaind Supabase project (sandbox and production) and set them as
+- Create a secret key in each host app Supabase project (sandbox and production) and set them as
   Worker secrets.
 - Cloudflare: Workers Builds connection, custom domain, Access application.
-- The Amplitude project and RevenueCat project of Unchaind, for the member links.
+- The Amplitude project and RevenueCat project of the host app, for the member links.
 
 ## Left to the builder
 
@@ -295,7 +295,7 @@ The builder may reshape these; what matters is that the browser never talks to S
 - Exact shadcn components and the token values, within the visual direction above.
 - Pagination mechanics, loading and empty states, error copy.
 - How the queue query is built (a few PostgREST queries merged in the Worker is fine at
-  Unchaind's volume).
+  the expected volume).
 
 ## After V1
 

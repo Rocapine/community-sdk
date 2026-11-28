@@ -1,9 +1,9 @@
 # Images in posts and comments — design
 
-Date: 2026-10-25. Status: approved by Guillaume 2026-10-25, awaiting implementation plan.
+Date: 2026-10-25. Status: approved by the maintainer 2026-10-25, awaiting implementation plan.
 Scope: `@rocapine/community-core`, `@rocapine/community-ui`, `@rocapine/community` (CLI) and the
-Supabase backend templates. First consumer: Unchaind (main is on SDK 0.10.x; its 1.15 isn't
-released yet). Flow: SDK PR → Guillaume publishes to npm → separate Unchaind PR that consumes it.
+Supabase backend templates. First consumer: The host app (main is on SDK 0.10.x; its 1.15 isn't
+released yet). Flow: SDK PR → the maintainer publishes to npm → separate the host app PR that consumes it.
 
 ## 1. Intent
 
@@ -11,7 +11,7 @@ Members can share a photo from their photo library in the community: one image p
 one image per comment, alone or with text. The image is moderated like the text, before anyone
 else sees it.
 
-## 2. Decisions taken with Guillaume
+## 2. Decisions taken with the maintainer
 
 | Question                  | Decision                                                                                                                                                                                                                                                                      |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -23,7 +23,7 @@ else sees it.
 | Storage                   | A new public bucket `post-images`, modeled on `avatars`. The file lives as long as its post/comment: deleted when the author deletes the item (or the row goes), never on a hide. Exception: an image flagged `sexual/minors` is deleted at once (no illegal content stored). |
 | Image + poll              | Not combined: a post carries a poll **or** an image, never both.                                                                                                                                                                                                              |
 | Push and inbox excerpts   | When the item has no text, the excerpt shows a localized "Photo" label.                                                                                                                                                                                                       |
-| Release                   | Rides in Unchaind **1.15** (not shipped yet; it's the build that introduces the in-house community, so no installed client predates images). The 1.15 native build must include `expo-image-manipulator`.                                                                     |
+| Release                   | Rides in the host app **1.15** (not shipped yet; it's the build that introduces the in-house community, so no installed client predates images). The 1.15 native build must include `expo-image-manipulator`.                                                                 |
 | Moderation dashboard      | **Out of scope**: it keeps showing text only.                                                                                                                                                                                                                                 |
 | Translation               | Unchanged; only text is translated.                                                                                                                                                                                                                                           |
 | Feed rendering            | Mockup **A**: inside the card's padding, rounded corners, aspect ratio kept, height capped at **4:5** (taller images are center-cropped to 4:5; landscape images show whole). Tapping opens it full screen.                                                                   |
@@ -35,7 +35,7 @@ else sees it.
 
 Mockups (local, not committed): `.superpowers/brainstorm/*/content/feed-image.html`,
 `compose-and-comments.html`, `compose-v2.html`. Note: in `compose-v2.html` neither composer
-option is the chosen one; the composer row described above (Guillaume's correction) is.
+option is the chosen one; the composer row described above (the maintainer's correction) is.
 
 ## 3. Goals, non-goals, anti-goals
 
@@ -49,7 +49,7 @@ Non-goals (v1):
 - Image + poll on the same post.
 - Editing an image after publication (posts and comments aren't editable today anyway).
 - Per-app corner radius / spacing presets and the edge-to-edge image variant (**B**) — a
-  separate follow-up Guillaume wants later; build the image component so a host theme could
+  separate follow-up the maintainer wants later; build the image component so a host theme could
   later switch it to edge-to-edge without a rewrite, but don't build that option now.
 - Searching images, alt text written by users.
 
@@ -59,7 +59,7 @@ Anti-goals (would be a failure even if it works):
 - An image's location metadata reaching the server.
 - A layout jump when an image loads in the feed (the frame must have its final size before the
   pixels arrive).
-- Hosts that don't opt in (Eve, Nightward) seeing any change in behavior, queries or UI.
+- Hosts that don't opt in (other host apps) seeing any change in behavior, queries or UI.
 
 ## 4. Constraints from the existing code
 
@@ -85,10 +85,10 @@ Anti-goals (would be a failure even if it works):
   icon-only buttons, every new string in all catalogs).
 - `prettier --check .` runs in CI.
 
-## 5. Calls made by me (Claude), for Guillaume to check while reading
+## 5. Calls made by me (Claude), for the maintainer to check while reading
 
 1. **Opt-in module `modules.images`** (default off), with `supabase/migrations/images/` installed
-   by `community init/upgrade`. Unchaind turns it on; Eve and Nightward are untouched.
+   by `community init/upgrade`. The host app turns it on; the other host apps are untouched.
 2. **Upload size**: long edge downscaled to 1600 px, JPEG quality ~0.8; bucket cap 2 MB,
    `image/jpeg` only. Downscaling needs `expo-image-manipulator`, which becomes **required when
    `modules.images` is on** (it's what strips the GPS data) — the UI hides the image buttons and
@@ -107,7 +107,7 @@ Anti-goals (would be a failure even if it works):
    dependency. Opening it from inside `ThreadSheet` must use `ctx.presentModal`-style handoff —
    a Modal over the thread Modal froze the app before (0.4.2 bug).
 8. **Images are moderated strictly, whatever the text policy.** `MODERATION_EXCLUDED_CATEGORIES`
-   exists so an app can let people _talk_ about sex/addiction (plausible for Unchaind); it must not
+   exists so an app can let people _talk_ about sex/addiction (plausible for the host app); it must not
    loosen image moderation. An item with an image gets two OpenAI calls (free): the text with the
    normal rules, the image alone with the full `SCORE_HIDE` list; one verdict = union. (A single
    combined call can't tell which part drove a score.) Avatars become strict the same way.
@@ -123,8 +123,8 @@ Anti-goals (would be a failure even if it works):
 Exact schema (column names, the relaxed check), the moderation call shape in `moderate-one` and
 `daily-moderation`, query/select changes (only when the module is on, like polls/translation),
 the image component's internals, cache handling of optimistic images, test split, changeset
-(minor for core/ui/cli), and the Unchaind consumption PR (enable the module, `community upgrade`,
-`db push` on the sandbox `vjcdpodsrpemanfvrshh`; prod `doiafuhoourjtqsmzook` is Guillaume's).
+(minor for core/ui/cli), and the host app consumption PR (enable the module, `community upgrade`,
+`db push` on the sandbox; prod is the maintainer's).
 
-Process constraints: Guillaume tests UI changes himself on a local setup before any merge or
+Process constraints: The maintainer tests UI changes himself on a local setup before any merge or
 release; every PR with a visible change embeds a screen recording.

@@ -208,7 +208,7 @@ the right account, the backend confirms it without opening a new session.
 
 Optional, defaults to `{}` — omitting `feed` entirely keeps today's behavior
 byte-identical. It exists for a host that stores extra columns on `posts` the
-shared schema doesn't know about (e.g. Nightward's `posts.seed_likes`
+shared schema doesn't know about (e.g. Another host app's `posts.seed_likes`
 top-up), without forking the query or mapping layer:
 
 ```ts

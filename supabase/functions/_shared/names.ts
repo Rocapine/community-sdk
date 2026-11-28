@@ -1,5 +1,5 @@
 // Display name / handle rules shared by update-profile and the daily sweep:
-// the app's own name is reserved (no "Unchaind Team" impersonating the app),
+// the app's own name is reserved (no "Acme Team" impersonating the app),
 // a few staff-sounding handles too, and a taken handle gets a free suggestion.
 
 const APP_NAME = Deno.env.get("COMMUNITY_APP_NAME") ?? "";
@@ -13,7 +13,7 @@ function collapse(s: string): string {
     .replace(/[^a-z0-9]/g, "");
 }
 
-/** True when `value` contains the app's name. Short names (< 4 chars, "Eve") only match a whole word so "Steve" stays allowed. */
+/** True when `value` contains the app's name. Short names (< 4 chars, "Ace") only match a whole word so "Grace" stays allowed. */
 export function containsAppName(value: string, appName: string = APP_NAME): boolean {
   const app = collapse(appName);
   if (app === "") return false;

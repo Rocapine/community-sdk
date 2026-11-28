@@ -1,6 +1,6 @@
 // A post's poll — feed card and thread sheet both render this. Ported from
 // the mold's `PollBlock` (`sdk/client/components/community/PollBlock.tsx`,
-// mirrored unchanged in Eve's Rhythm). Options stay plain tappable rows
+// mirrored unchanged in the first host app). Options stay plain tappable rows
 // until the reader votes (or owns the post); then they become result bars.
 // Tapping another option moves the vote.
 //

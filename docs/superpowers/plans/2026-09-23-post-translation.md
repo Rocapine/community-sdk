@@ -22,7 +22,7 @@
 - Migration templates use the `__SUPABASE_PROJECT_URL__` / `__SUPABASE_ANON_KEY__` placeholders (the CLI substitutes them); guard anything touching `poll_options` with `if to_regclass('public.poll_options') is not null`.
 - Every task ends with `npm run build && npm run typecheck && npm test && npx prettier --check .` green (run from the repo root; functions additionally `deno check`).
 - Commits: conventional messages, end with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`. Work on branch `feat/translation`.
-- Working directory for all commands: `/Users/glsx/Developer/community-sdk`. Deno is not installed globally: use `npx -y deno@2` with the config `{"compilerOptions":{"lib":["deno.window"],"strict":true}}` written to a scratch file (see Task 2).
+- Working directory for all commands: `~/Developer/community-sdk`. Deno is not installed globally: use `npx -y deno@2` with the config `{"compilerOptions":{"lib":["deno.window"],"strict":true}}` written to a scratch file (see Task 2).
 
 ---
 
@@ -1557,7 +1557,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 ### Task 11b: `upgrade --add-modules` — install a module on an already-initialized backend
 
-**Why:** `runUpgrade` only re-syncs modules already in `community-sdk.json` and `runInit` refuses an initialized dir, so there is no CLI path to add `translation` (or any module) to Eve's Rhythm / Nightward. The spec requires the module to be CLI-installed.
+**Why:** `runUpgrade` only re-syncs modules already in `community-sdk.json` and `runInit` refuses an initialized dir, so there is no CLI path to add `translation` (or any module) to the first host app / another host app. The spec requires the module to be CLI-installed.
 
 **Files:**
 
@@ -1587,13 +1587,13 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 ### Task 12: Install on the scratch project and verify end to end
 
-**Files:** none in the repo (scratch project `cozfrhmbjrvotpwjnqmu`; Eve worktree for the app-side check is created at `/Users/glsx/Developer/eden-sdk-translation-qa` from Eve's `main`).
+**Files:** none in the repo (scratch project `cozfrhmbjrvotpwjnqmu`; the first host app worktree for the app-side check is created at `~/Developer/host-app-translation-qa` from the first host app's `main`).
 
 **Interfaces:** consumes everything above via the built CLI (`node packages/cli/lib/index.js` or `npm exec -w @rocapine/community -- community …`).
 
 - [ ] **Step 1: Apply the module to scratch**
 
-From a scratch checkout of Eve (`git -C ~/Developer/eden-s-rythm worktree add ~/Developer/eden-sdk-translation-qa main`), run the built CLI: `node /Users/glsx/Developer/community-sdk/packages/cli/lib/index.js upgrade --add-modules translation` (it copies `…_community_translation_translations.sql` and the two functions and re-syncs `notify-comment`/`broadcast-post`). Then, against scratch only:
+From a scratch checkout of the first host app (`git -C ~/Developer/first-host-app worktree add ~/Developer/host-app-translation-qa main`), run the built CLI: `node ~/Developer/community-sdk/packages/cli/lib/index.js upgrade --add-modules translation` (it copies `…_community_translation_translations.sql` and the two functions and re-syncs `notify-comment`/`broadcast-post`). Then, against scratch only:
 
 ```bash
 supabase link --project-ref cozfrhmbjrvotpwjnqmu
@@ -1613,11 +1613,11 @@ Expected JSON with `posts` and `comments` > 0 and `failed: 0`. Then (SQL editor 
 
 - [ ] **Step 3: Trigger path**
 
-Create a post from the Eve QA build (worktree `.env` pointed at scratch, see memory `community-sdk-dev-environment`), wait ~5 s, verify its rows appear without the sweep. Do the same with a comment.
+Create a post from the first host app QA build (worktree `.env` pointed at scratch, see memory `community-sdk-dev-environment`), wait ~5 s, verify its rows appear without the sweep. Do the same with a comment.
 
 - [ ] **Step 4: App-side check**
 
-In the Eve QA worktree, `npm install ../community-sdk/packages/core ../community-sdk/packages/ui` (file links need the metro `watchFolders` + dedupe shims that were removed in 9f5b7ed — re-add them temporarily in the worktree only, or `npm pack` both packages and install the tarballs, which needs no shim). Enable `translation: { locales: [...] }` in `lib/community-config.ts` (same list as the secret). Switch the simulator app language to Spanish (es-419): feed shows Spanish text with "Traducido del inglés · Ver original", tapping toggles; a poll shows translated labels; thread comments translated; inbox excerpts translated; posting a comment from a second seeded account with a push token yields a Spanish push body. Revert the worktree, remove it (`git worktree remove --force`), remove the scratch `.env` edits.
+In the first host app QA worktree, `npm install ../community-sdk/packages/core ../community-sdk/packages/ui` (file links need the metro `watchFolders` + dedupe shims that were removed in 9f5b7ed — re-add them temporarily in the worktree only, or `npm pack` both packages and install the tarballs, which needs no shim). Enable `translation: { locales: [...] }` in `lib/community-config.ts` (same list as the secret). Switch the simulator app language to Spanish (es-419): feed shows Spanish text with "Traducido del inglés · Ver original", tapping toggles; a poll shows translated labels; thread comments translated; inbox excerpts translated; posting a comment from a second seeded account with a push token yields a Spanish push body. Revert the worktree, remove it (`git worktree remove --force`), remove the scratch `.env` edits.
 
 - [ ] **Step 5: Push the branch and open the PR**
 

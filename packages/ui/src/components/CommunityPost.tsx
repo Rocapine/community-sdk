@@ -1,8 +1,8 @@
-// Feed/thread post row, flat and X-style (after Eve's `PostRow`): the avatar
+// Feed/thread post row, flat and X-style (after the first host app's `PostRow`): the avatar
 // in a first column, everything else in a second one, nothing under the
 // avatar; `name › topic · time` on one line with the menu at its end. Ported from the mold's `CommunityPost`
 // (`sdk/client/components/community/CommunityPost.tsx`), reconciled with
-// Eve's Rhythm's newer copy (`components/app/community/CommunityPost.tsx`)
+// the first host app's newer copy (`components/app/community/CommunityPost.tsx`)
 // for the reaction footer — that host's "prayer" affordance (HandsPraying,
 // `onPray`) is generalized here into a host-configurable "reaction" module
 // (`cfg.modules.reaction`, `useReactToPost`), with a neutral HandHeart icon

@@ -1,7 +1,7 @@
 # Community SDK — online presence (who is here right now)
 
-Date: 2026-11-12 · Owner: Guillaume · Reviewed with Stan (Slack, 2026-11-12)
-First consumer: Unchaind. Tested first in `examples/expo-app`.
+Date: 2026-11-12 · Owner: The maintainer
+First consumer: The host app. Tested first in `examples/expo-app`.
 
 ## Intent
 
@@ -19,7 +19,7 @@ here gets a green dot; someone who isn't gets nothing — no grey dot, no "Inact
 - A green dot on the avatar of every member who is online right now and lets it show.
 - A live count of people online, in the community header.
 - A per-member setting to hide one's own status, on by default.
-- Generic and configurable in the SDK, so each app tunes it; Unchaind uses it with the
+- Generic and configurable in the SDK, so each app tunes it; the host app uses it with the
   values below.
 
 ## Non-goals
@@ -29,7 +29,7 @@ here gets a green dot; someone who isn't gets nothing — no grey dot, no "Inact
 - Reciprocity (WhatsApp-style "hide yours, lose theirs").
 - Per-screen presence ("in the community right now"): the app as a whole counts.
 - Presence-driven notifications ("X is online"), typing indicators, an online-members list.
-- A rollout flag in Unchaind, and analytics on the header pill.
+- A rollout flag in the host app, and analytics on the header pill.
 
 ## Anti-goals (a failure even if it works)
 
@@ -45,18 +45,18 @@ here gets a green dot; someone who isn't gets nothing — no grey dot, no "Inact
 
 - **Online** = the app is in the foreground, on any screen (not only the community), **plus a
   grace period after it leaves the foreground**. Default 5 minutes, a per-project backend setting (`presence_set_grace_minutes`), never a client parameter.
-  Unchaind uses 5 minutes.
+  The host app uses 5 minutes.
 - A member is shown online (dot) only if online **and** their status is visible.
 - **Everyone online counts in the header number, including members who hid their status**
   (they are counted anonymously; nothing identifies them).
 - **Only members who already have a community identity count** (my call, after the builder
   check). Presence never creates one: no heartbeat until the app has an identity, so an app
-  that gates the community behind onboarding or a paywall (Unchaind does, in
+  that gates the community behind onboarding or a paywall (the host app does, in
   `useCommunityIdentity`) doesn't count or create anonymous users for people who can't open
   the community. The heartbeat then runs app-wide for as long as the identity exists.
 - Banned members are neither counted nor shown online (my call). Official/admin accounts
   are counted and shown like anyone else.
-- **Blocks hide presence both ways** (Guillaume): if either member blocked the other, neither
+- **Blocks hide presence both ways** (the maintainer): if either member blocked the other, neither
   sees the other's dot. Both still count, anonymously, in the total. The online-ids lookup
   filters by the viewer's blocks in both directions. Blocking itself is being audited and
   improved separately; reuse whatever "is there a block between us" helper that work lands.
@@ -80,7 +80,7 @@ here gets a green dot; someone who isn't gets nothing — no grey dot, no "Inact
 - Everywhere the SDK draws a member avatar: feed posts, the thread's post, comments, replies,
   the profile header, and the profile's post list.
 - On the profile header the dot is alone (no "Active" text). The dot is static everywhere.
-- Green = the theme's `success` colour (Unchaind: `#22C55E`).
+- Green = the theme's `success` colour (the host app: `#22C55E`).
 - Accessibility: the avatar's label includes "online" when the dot shows.
 
 ### The header count
@@ -94,12 +94,12 @@ here gets a green dot; someone who isn't gets nothing — no grey dot, no "Inact
   press effect.
 - The dot **pulses only while the pill is expanded**; collapsed, it is still.
 - The number is the real count. A configurable **minimum** hides the pill below it; default
-  **0** (always shown) in the SDK and in Unchaind for now.
+  **0** (always shown) in the SDK and in the host app for now.
 - Accessibility: always announced in full ("12 people online"), collapsed or not.
 - Reduce Motion: no pulses, and the collapse switches without animation.
 
-Validated mockups (Unchaind theme, light and dark):
-`unchaind/.superpowers/brainstorm/35310-1794483398/content/` — `header-counter-collapse-v2.html`
+Validated mockups (the host app theme, light and dark):
+`acme/.superpowers/brainstorm/35310-1794483398/content/` — `header-counter-collapse-v2.html`
 (header pill, interactive), `active-dot.html` (option 1B), `profile-and-setting.html` (profile
 
 - option 2A).
@@ -112,7 +112,7 @@ Validated mockups (Unchaind theme, light and dark):
 - A new header item, e.g. `"online"`, in `FeedHeaderItem` (`packages/ui/src/utils/headerZones.ts`).
   It renders nothing when the module is off. `DEFAULT_FEED_HEADER` is unchanged.
 - The avatar dot is drawn **by the SDK around whatever avatar is rendered**, so apps with a
-  custom `renderAvatar` (Unchaind) get it with no work. `online` is also passed to
+  custom `renderAvatar` (the host app) get it with no work. `online` is also passed to
   `renderAvatar`'s props so an app can draw its own if it wants (my call).
 - One analytics event through `emitEvent`: the visibility switch toggled, with the new value
   (e.g. `community_presence_visibility_changed { visible }`). Nothing on the pill.
@@ -148,22 +148,22 @@ Whatever the builder picks must keep: the grace across backgrounding, hidden mem
 counted but never identifiable, no timestamps reaching clients, and a cost that holds for a
 few thousand concurrent members.
 
-## Unchaind integration (decided)
+## Host app integration (decided)
 
 - Enable `modules.presence` with the defaults (5 min, minimum 0, collapse after 3 s).
 - New community header (`app/(blended)/community/index.tsx`):
   `left: [logo, "online"]`, `center: []`, `right: ["inbox", "profile"]`.
-  **Search is removed from the header, and so from Unchaind's community altogether**
-  (Guillaume: intended; the header item was its only entry point). The logo is the rock-and-cross icon
+  **Search is removed from the header, and so from the host app's community altogether**
+  (the maintainer: intended; the header item was its only entry point). The logo is the rock-and-cross icon
   (`applogo-black.png` / `applogo-white.png`) at roughly its current visual size.
 - Presence counts the whole app, so the heartbeat must run app-wide once the community
   identity exists (it is created in `app/(blended)/_layout.tsx` via `useCommunityIdentity`,
   past onboarding and the subscription gate), not only while the community tab is open.
 - No Amplitude flag: it ships on with the release that carries the SDK bump.
-- Map the new SDK event in Unchaind's `onEvent` adapter like the existing community events.
+- Map the new SDK event in the host app's `onEvent` adapter like the existing community events.
 - Check both themes; the community is shared by both design systems' entry points.
-- Migrations: sandbox Supabase first, prod after Guillaume's OK.
-- The Unchaind PR carries a screen recording (walkthrough: header pill expand/collapse, dots
+- Migrations: sandbox Supabase first, prod after the maintainer's OK.
+- The host app PR carries a screen recording (walkthrough: header pill expand/collapse, dots
   in feed and thread, profile, the switch).
 
 ## Left to the builder
@@ -175,4 +175,4 @@ few thousand concurrent members.
   sheets).
 - Whether "cold start" is detected per JS runtime or per native launch, as long as tab
   switches and foreground returns never re-expand the pill.
-- Release versioning and the order of SDK release → Unchaind bump.
+- Release versioning and the order of SDK release → the host app bump.

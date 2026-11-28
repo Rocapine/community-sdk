@@ -1,13 +1,13 @@
 # Community dashboard, brick 5: Activity
 
-Date: 2026-11-12. Status: approved by Guillaume on 2026-11-13 (palette v3 pending his look). Roadmap:
+Date: 2026-11-12. Status: approved by the maintainer on 2026-11-13 (palette v3 pending his look). Roadmap:
 [docs/dashboard-roadmap.md](../../dashboard-roadmap.md)
 
-**Amended on 2026-11-13** after Guillaume saw the first build: the section "Amendment 1" below
+**Amended on 2026-11-13** after the maintainer saw the first build: the section "Amendment 1" below
 overrides the older sections where they disagree (a page of its own, more panels, indexes).
-Amendment 1 approved by Guillaume on 2026-11-13.
+Amendment 1 approved by the maintainer on 2026-11-13.
 
-## Amendment 2 (2026-11-13): after Guillaume's review of the page
+## Amendment 2 (2026-11-13): after the maintainer's review of the page
 
 - **Engagement** is a Bklit `funnel-chart` (members → active → contributors, share of members).
 - **Languages** sits beside the heatmap; the contributor buckets move to the Moderation row,
@@ -28,10 +28,10 @@ Amendment 1 approved by Guillaume on 2026-11-13.
 
 ## Amendment 1 (2026-11-13): a page of its own
 
-Guillaume's feedback on the first build, in his words: Activity deserves its own page, with an
+The maintainer's feedback on the first build, in his words: Activity deserves its own page, with an
 overview on Home and a "See all" button; the topic panel must be a Bklit chart too; load times
 are judged on production data, with Bklit loading states where needed; add the indexes if they
-cost little; show more numbers, as Octopus does; and let him look at all of it with production
+cost little; show more numbers, as the previous vendor does; and let him look at all of it with production
 data. Below, how each one lands. Everything else in this spec stands.
 
 ### Where it lives
@@ -55,7 +55,7 @@ data. Below, how each one lands. Everything else in this spec stands.
    Contributions, Contributors, New posters, Replied within 24 h.
 2. **Posts and comments per day** (today's area chart), 8 columns; beside it, 4 columns,
    **Engagement**: all members (profiles at the period's end) → active → contributors, as three horizontal bars with
-   their count and share (Octopus "Engagement", without readers, which we can't count).
+   their count and share (the previous vendor "Engagement", without readers, which we can't count).
 3. **Contributions** table (today's), 6 columns; **Posts per topic**, 6 columns, now a Bklit
    horizontal `BarChart`: the topic label and its count both sit in the category axis label
    ("Quitting porn 439"), so a short bar never hides its number; one colour (slot 1).
@@ -76,8 +76,7 @@ data. Below, how each one lands. Everything else in this spec stands.
 ### New definitions (my calls, to confirm)
 
 - **New members**: profiles created in the period, house accounts out. The SDK creates a
-  profile at the first anonymous sign-in, when the app first uses the community. Production
-  check: 11,117 profiles since 20 Oct, against 8,354 monthly users on Octopus in October, so
+  profile at the first anonymous sign-in, when the app first uses the community. So
   "opened the community at least once" is the right reading.
 - **Active members**: distinct members who posted, commented, liked, voted or reacted in the
   period. Its share is out of the members who existed at the period's end.
@@ -119,8 +118,7 @@ lists get a same-size `Skeleton`. The page asks for both functions in parallel; 
 
 ### Speed on production
 
-Production Unchaind today: 691 posts, 1,224 comments, 4,459 likes, 11,117 profiles, all since
-20 Oct. On a copy of those rows, 017 answers a 30-day call in 110 ms without the new indexes.
+On a copy of production rows, 017 answers a 30-day call in 110 ms without the new indexes.
 Speed is measured again on production (`explain analyze`, read only) once 017 is applied there.
 
 ### Production data for review
@@ -148,7 +146,7 @@ from `admin_daily_metrics`: posts, comments, new posters, reply rate within 24 h
 topic. House accounts excluded."
 
 `admin_daily_metrics` exists since SDK 0.1, but it doesn't give those numbers right (see "The
-function today"). Guillaume decided (2026-11-12) to fix it in the SDK, which makes brick 5 an
+function today"). The maintainer decided (2026-11-12) to fix it in the SDK, which makes brick 5 an
 SDK change.
 
 ## Goals
@@ -156,18 +154,18 @@ SDK change.
 - On Home, a section **Activity** with a 7 / 30 / 90-day toggle. Each number is compared with
   the period just before it: "▲ 8 %", or in points for a rate.
 - The roadmap's numbers: posts, comments, new posters, the reply rate within 24 h, posts per
-  topic. Plus three that Guillaume picked from the Octopus dashboard's Reports and Insights
+  topic. Plus three that the maintainer picked from the third-party community dashboard's Reports and Insights
   pages (2026-11-12): **contributions** (posts, comments, likes, poll votes, reactions) with
   their breakdown, **unanswered posts**, and **members by number of contributions**.
 - The team's own accounts (house accounts) are left out of every number.
 - Days follow the browser's time zone, like the Scheduled week.
-- Charts made with **Bklit UI** (decided by Guillaume), restyled through our CSS variables.
+- Charts made with **Bklit UI** (decided by the maintainer), restyled through our CSS variables.
 - A **chart palette** of 7 colours that the whole dashboard can reuse later.
 
 ## Non-goals
 
 - Views, visits, sessions, time in the app and retention. The SDK doesn't track app opens or
-  post views. Octopus shows these; for us they belong to brick 15 (Community vs. app, from
+  post views. The previous vendor shows these; for us they belong to brick 15 (Community vs. app, from
   Amplitude).
 - Top contributors, topics on the rise, sentiment: brick 14 (Insights). (Most engaged posts: Amendment 1.)
 - A link from "unanswered posts" to the list of those posts: brick 6 (Feed explorer) has the
@@ -179,7 +177,7 @@ SDK change.
 
 - A wrong number shown as right. The old function counted the team's posts and self-replies
   (see below). A number the backend can't give is left out, never estimated.
-- A colour pair that Guillaume, who is colour-blind, can't tell apart. Colour never carries
+- A colour pair that colour-blind users can't tell apart. Colour never carries
   meaning alone: every rise or drop also has ▲ / ▼ and a sign, and every series has a label.
 - "Wow" charts. Calm, readable, the same visual weight as the rest of Home.
 
@@ -216,7 +214,7 @@ create or replace function public.admin_daily_metrics(from_date date, to_date da
 revoke execute on function public.admin_daily_metrics(date, date, text) from public, anon, authenticated;
 ```
 
-The same name, as Guillaume asked ("fix the function"). The old two-argument signature is
+The same name, as the maintainer asked ("fix the function"). The old two-argument signature is
 dropped: keeping it next to a three-argument one with a default would make a two-argument call
 ambiguous. A call with two arguments still works and means UTC, as before. `tz` must be a valid
 IANA zone; anything else raises `invalid_time_zone`.
@@ -231,7 +229,7 @@ counts run through `execute` only when `to_regclass('public.poll_votes')` /
 `to_regclass('public.post_reactions')` is not null, so core installs without them. A missing
 module gives `null` for that count, not 0: the dashboard hides the row.
 
-### Definitions (decided by Guillaume, 2026-11-12)
+### Definitions (decided by the maintainer, 2026-11-12)
 
 - **Member:** a profile with `is_house = false`. Every count below is about members only.
 - **Post / comment:** any status but `deleted`, so AI-hidden and pending items count. The
@@ -296,10 +294,10 @@ back. Cases: house accounts excluded everywhere; a self-reply doesn't count; a d
 doesn't count; a team reply counts; a post under 24 h old is out of the rate and out of
 "unanswered"; a deleted first post doesn't make a new poster; a row at 23:30 UTC falls on the
 next day in Europe/Paris; an invalid zone raises; a two-argument call still works. Run against
-the Unchaind sandbox only.
+the host app sandbox only.
 
 Copy the migration into `packages/cli/templates/migrations/core/` as the other migrations are.
-It ships in the next SDK release, through the repo's usual release PR (like #81). Guillaume
+It ships in the next SDK release, through the repo's usual release PR (like #81). The maintainer
 applies it to production; I apply it to the sandbox only.
 
 ## The dashboard change
@@ -374,7 +372,7 @@ tokens can't reach.
 
 Seven tokens in `src/app/index.css`, light and dark, in oklch like the rest. Built from our blue
 (`--primary`), orange (`--prod`) and red (`--destructive`). Every pair, not only neighbours, is
-checked under protanopia and deuteranopia, and spread mainly by lightness. Version 3. Guillaume
+checked under protanopia and deuteranopia, and spread mainly by lightness. Version 3. The maintainer
 (colour-blind) found amber too close to orange and violet too close to blue in version 1 (all-pairs
 ΔE 1.2 and 1.5), then dark orange still too close to bronze in version 2 (8.4).
 
@@ -407,7 +405,7 @@ Brick 5 uses slots 1 and 2 and the blue ramp. Slots 3 to 5 are there for later b
   the old data meanwhile; a missing module hides its row. In the pattern of
   `test/scheduledWeek.test.tsx`.
 - Pure helpers (change in % and points, period bounds) unit-tested.
-- Manual: a local `wrangler dev` (any port except 8799) against the Unchaind sandbox with the
+- Manual: a local `wrangler dev` (any port except 8799) against the host app sandbox with the
   migration applied, then a Playwright WebKit walkthrough video for the PR.
 
 ### Roadmap
@@ -419,7 +417,7 @@ coverage row for `admin_daily_metrics` notes the rewrite and the release that ca
 ## Left to the builder
 
 - The exact Bklit components and props, chart heights, spacing, and the stat cards' layout at
-  narrow widths, within the order above. Guillaume will give feedback once he sees it running.
+  narrow widths, within the order above. The maintainer will give feedback once he sees it running.
 - How to write the SQL efficiently (CTEs or `execute`), as long as a 90-day call stays fast on
   the sandbox. Time it and report the time in the PR.
 - Copy wording beyond the labels named here, in English, with no hint text under fields.

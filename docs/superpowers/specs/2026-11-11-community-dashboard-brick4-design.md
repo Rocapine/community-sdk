@@ -8,7 +8,7 @@ hint lines removed below).
 
 ## Why
 
-The team seeds and animates the community with its own accounts: an "Unchaind" admin account for
+The team seeds and animates the community with its own accounts: an "Acme" admin account for
 app news, and the 8 "Team" accounts created on phones at launch to liven up the feed. Today posting
 as one of them means holding the phone that created it. Brick 4 lets anyone on the team create
 these accounts and publish as any of them from the dashboard, and keep posts as shared drafts.
@@ -55,7 +55,7 @@ these accounts and publish as any of them from the dashboard, and keep posts as 
    account gets a handle like a member's (`@pastorjames-4821`), made by the SDK trigger. Checked
    in the SDK: `profiles` keeps a handle that is given explicitly and only generates one when it
    is null (core/009), so this needs no SDK change.
-4. **Attachments.** Unchaind installs the attachments module (SDK 0.15, Unchaind #219) with one
+4. **Attachments.** The host app installs the attachments module (SDK 0.15, the host app #219) with one
    type, `verse`, id `book.chapter.verse[-verseEnd]` (e.g. `43.3.16`, `50.4.6-7`). The admin types
    a reference ("phil 4:6-7", "Jean 3:16"); the dashboard parses it in the app's languages and
    shows the canonical reference ("Philippians 4:6-7 ✓") or an error.
@@ -99,14 +99,14 @@ these accounts and publish as any of them from the dashboard, and keep posts as 
   app name and the handles `admin`, `support`, `official`, `team`, `moderator`
   (`supabase/functions/_shared/names.ts`), and the nightly `daily-moderation` sweep blanks any
   unchecked username containing the app name. **Admin team accounts are exempt** (the brand
-  account is "Unchaind" / `@unchaind`); **non-admin team accounts follow the app's rules**, since
+  account is "Acme" / `@acme`); **non-admin team accounts follow the app's rules**, since
   they look like members. Either way, a name written by the dashboard counts as already checked:
   it must not be reset to unchecked and blanked overnight (today a service-role write of
   `username` resets `username_checked_at` through the `profiles_names` trigger, core/009). The
   builder picks the mechanism (a second update setting `username_checked_at`, or an SDK change to
   the trigger) and covers it with a test.
-- **Current state of Unchaind prod** (checked 2026-11-11): the 8 team accounts are all non-admin
-  and there is no admin account yet. The "Unchaind" admin account is created from the dashboard,
+- **Current state of the host app prod** (checked 2026-11-11): the team accounts are all non-admin
+  and there is no admin account yet. The "Acme" admin account is created from the dashboard,
   so no "make an existing member a team account" action is needed.
 - Every create and edit is written to `moderation_actions` with the actor's email.
 
@@ -147,7 +147,7 @@ these accounts and publish as any of them from the dashboard, and keep posts as 
 - **Verse** (if attachments with the `verse` type): a reference field; shows the canonical
   reference and "✓ found", or why it is not understood.
 - **Notify everyone** and **Pin**: offered only when the account is an admin (same rule as the
-  app). Unchaind's push copy and inbox handle the rest (`broadcast_requested`).
+  app). The host app's push copy and inbox handle the rest (`broadcast_requested`).
 - Footer: save state ("Saved · edited by Marie 2 min ago"), **Publish**.
 
 Which of image / poll / verse may combine in one post is decided by what the app supports; the
@@ -165,11 +165,11 @@ builder checks the app's composer and offers the same combinations.
   `moderation_actions` (actor email, post id, author id). All of it in one transaction (see SDK
   change). The existing triggers then translate it, push it and add inbox rows as for an app post.
 - After publishing: a toast with "Open in the queue/feed" is out of scope until brick 6; a plain
-  "Published as Unchaind" toast is enough.
+  "Published as Acme" toast is enough.
 
 ## Topics
 
-The topic ids live in each app's code today (Unchaind: `COMMUNITY_TOPICS`, ids such as
+The topic ids live in each app's code today (the host app: `COMMUNITY_TOPICS`, ids such as
 `prayer-requests`, `testimonies`; an event topic has `from` / `until`; none is admin-only today).
 Until brick 9 moves topics to the database, the dashboard's community registry (`COMMUNITIES`)
 gets a `topics` list per community: id, label (English), `adminOnly`, `from`, `until`. Event
@@ -178,9 +178,9 @@ until brick 9; the roadmap notes it.
 
 ## Verse references
 
-The verse parser is Unchaind-specific: the dashboard gets a small per-app "attachment types"
-extension, and for Unchaind a `verse` type that reuses the book-name list and reference parser of
-the Unchaind repo (`lib/bookNames.ts`, `lib/bibleRefParser.ts`, `lib/community/verseAttachment.ts`)
+The verse parser is specific to the host app: the dashboard gets a small per-app "attachment types"
+extension, and for the host app a `verse` type that reuses the book-name list and reference parser of
+the host app repo (`lib/bookNames.ts`, `lib/bibleRefParser.ts`, `lib/community/verseAttachment.ts`)
 copied into the dashboard, with their tests. It accepts the app's languages, abbreviations, and a
 verse range in one chapter. The registry says which attachment types a community has.
 
@@ -192,7 +192,7 @@ new data (my call).
 ## SDK change: shared drafts (core)
 
 A new core migration (next number in `core/`), released in an SDK minor version, applied to
-Unchaind sandbox then prod (prod only with the usual approval).
+The host app sandbox then prod (prod only with the usual approval).
 
 - **`post_drafts`** table: id, `author_id` (profiles), the post fields (topic, content, image path
   and size, poll options, attachment), `notify`, `pin`, **`publish_at` (null; used by brick 7)**,
@@ -216,8 +216,8 @@ Unchaind sandbox then prod (prod only with the usual approval).
 The dashboard deploys to production on every merge, and serves every community in the registry.
 So it **probes each community** (does `post_drafts` exist?) and, where the migration is missing,
 shows the composer and "+ New team account" disabled with "Needs community SDK x.y". Nothing
-writes to a community before its migration. Order: SDK release → Unchaind sandbox migrated →
-dashboard PR (tested on the preview, sandbox) → merge → Unchaind prod migrated when Guillaume
+writes to a community before its migration. Order: SDK release → the host app sandbox migrated →
+dashboard PR (tested on the preview, sandbox) → merge → the host app prod migrated when the maintainer
 approves, which turns the features on there.
 
 ## API sketch (Worker)
@@ -242,18 +242,18 @@ All under the existing `/api/c/:app/:env/…` scope, Access-checked, CSRF-guarde
 - SDK: migration test that `publish_post_draft` inserts a visible post with options / image /
   attachment, pins, requests the broadcast, deletes the draft, logs; that the images sweep keeps
   draft images; that `authenticated` cannot read `post_drafts`.
-- End to end on the Unchaind **sandbox** (dashboard preview, then local): create an admin account
+- End to end on the host app **sandbox** (dashboard preview, then local): create an admin account
   with a custom handle and a non-admin one; edit one of the existing team accounts; two drafts at
   once, minimized and expanded; reopen a draft from another browser; publish a post with image,
   poll and verse, with Notify and Pin; check it in the app on the simulator (visible, translated,
   pinned, push and inbox row received, verse card opens the reader). Production stays read-only
-  until Guillaume approves.
+  until the maintainer approves.
 
 ## What needs the team (outside code)
 
-- Approve and release the SDK version with the drafts migration; apply it to Unchaind sandbox,
+- Approve and release the SDK version with the drafts migration; apply it to the host app sandbox,
   then prod.
-- Fill the topic list in `COMMUNITIES` for Unchaind (labels in English).
+- Fill the topic list in `COMMUNITIES` for the host app (labels in English).
 
 ## Roadmap updates in the same PR (CLAUDE.md rule)
 

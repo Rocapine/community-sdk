@@ -1,12 +1,12 @@
 # Default names, host name seeding, editable name + handle
 
-Decided with Guillaume on 2026-10-26.
+Decided with the maintainer on 2026-10-26.
 
 ## Goal
 
 Every community profile always has a display name and a handle. A new user is
 "User 4821" / `@user-4821` (or the app's own prefix: "Frère 4821" /
-`@brother-4821` on Unchaind). An app may share its own user name with the
+`@brother-4821` on the host app). An app may share its own user name with the
 community; when it does, the profile starts from that name. The user can then
 edit their photo, display name and handle from the community profile.
 
@@ -23,7 +23,7 @@ edit their photo, display name and handle from the community profile.
    The label is resolved in the **user's** language and never re-translated
    (a name is an identity, not content).
 2. **Sharing the app's name is the app's choice.** `host.getDisplayName()`
-   returns the name (Eve, Nightward) or `null` (Unchaind). No new option.
+   returns the name (other host apps) or `null` (the host app). No new option.
 3. **The app's name seeds, the user wins.** `syncProfileFromHost` keeps writing
    the app's name (and follows its changes) until the user edits their name in
    the community (`username_set_by_user`); from then on a client write of

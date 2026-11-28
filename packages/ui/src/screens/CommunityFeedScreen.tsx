@@ -2,7 +2,7 @@
 // flat infinite-scrolling `FlatList` of posts, the `+` button that opens the
 // full-screen composer, and the thread/report-sheet orchestration that
 // opening a post or its menu needs. Ported from the mold's `app/community.tsx`
-// (route → component), merged with Eve's Rhythm's newer community screen for
+// (route → component), merged with the first host app's newer community screen for
 // the search bar, the "N new posts" pill, the tabs and the `+` composer.
 //
 // Router-free transformations (task brief):
@@ -30,12 +30,12 @@
 //    tab a member gets no `+`; an admin gets it, with that topic preselected.
 //  - The reaction ("pray for") affordance lives entirely inside
 //    `CommunityPost` via `cfg.modules.reaction` + `useReactToPost`; a host
-//    wanting Eve's third-person prayer flow builds it as a
+//    wanting the first host app's third-person prayer flow builds it as a
 //    `renderReactionButton`/`renderPostFooter` slot via `PostSlots`.
 //  - Moderation and publish-failure notices: the composer reports them
 //    (`onModerationRejected`, `onPublishFailed`) and this screen shows a
 //    `NoticeCard`.
-//  - `onOpenInbox`: not in either source (Eve's bell lives on its Home tab,
+//  - `onOpenInbox`: not in either source (the first host app's bell lives on its Home tab,
 //    outside the community screen entirely). Rendered as an optional bell
 //    button next to the search toggle, shown only when both the prop is
 //    given and `cfg.modules.inbox` is on — a host wires it to Task 13's
@@ -205,7 +205,7 @@ export function CommunityFeedScreen({
 
   useEffect(() => {
     emitEvent(cfg, COMMUNITY_EVENTS.opened);
-    // Mount-only: the mold/Eve fire this from a `useFocusEffect` (screen
+    // Mount-only: the mold/the first host app fire this from a `useFocusEffect` (screen
     // gains focus); this component has no router-provided focus signal, so
     // it fires once, matching the brief's "useFocusEffect -> useEffect on
     // mount" transformation.

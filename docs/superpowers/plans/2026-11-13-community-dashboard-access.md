@@ -10,7 +10,7 @@
 
 **Spec:** [docs/superpowers/specs/2026-11-12-community-dashboard-access-design.md](../specs/2026-11-12-community-dashboard-access-design.md)
 
-**Repo:** all code is in `Rocapine/community-dashboard` (`/Users/glsx/Developer/community-dashboard`), on a branch `feat/brick13-communities-access`. Only Task 12's roadmap line touches this SDK repo.
+**Repo:** all code is in `Rocapine/community-dashboard` (`~/Developer/community-dashboard`), on a branch `feat/brick13-communities-access`. Only Task 12's roadmap line touches this SDK repo.
 
 ## Global Constraints
 
@@ -35,7 +35,7 @@
 
 ## Review Focus
 
-1. **Email case.** Access may hand `Stan@Rocapine.com`; `DASHBOARD_ADMINS` may hold `" stan@rocapine.com "`. Both must match the lowercase row. Test in Task 3.
+1. **Email case.** Access may hand `Admin@Rocapine.com`; `DASHBOARD_ADMINS` may hold `" admin@rocapine.com "`. Both must match the lowercase row. Test in Task 3.
 2. **Pasted key with whitespace or a newline.** Trimmed before the check and before encryption, or the stored key fails later. Test in Task 5.
 3. **URL pasted from the Supabase dashboard** with a trailing `/` or capitals: normalized, not refused. Test in Task 5.
 4. **Two people adding the same project at once.** The UNIQUE constraint answers 409 `project_taken`, not a 500. Test in Task 6.
@@ -43,7 +43,7 @@
 
 ## Before Task 1: Cloudflare resources (done 2026-11-13)
 
-Created with Guillaume's authorization: D1 `community-dashboard` (id `7562373c-7e31-43d7-8c18-4dced8f4d2a7`) and
+Created with the maintainer's authorization: D1 `community-dashboard` and
 `community-dashboard-preview` (id `5ea5dc87-b4cd-4e6e-a55b-2c9b97ce97dd`), both WEUR; Worker secret `MASTER_KEY_V1`
 and a different Preview base config secret `MASTER_KEY_V1` (32 random bytes, base64, never printed). Tasks 1–10 don't
 need them (tests use a local D1 stand-in); Task 11 puts the ids in `wrangler.jsonc`.
@@ -115,7 +115,7 @@ CREATE INDEX audit_app ON audit(app, id DESC);
 - Produces: `interface KeyBox { ciphertext: string; iv: string; version: number }` (base64 strings).
 - Produces: `encryptKey(env: Env, aad: string, plain: string): Promise<KeyBox>` — uses `MASTER_KEY_V${env.MASTER_KEY_VERSION}`; `decryptKey(env: Env, aad: string, box: KeyBox): Promise<string>` — uses `MASTER_KEY_V${box.version}`. `aad` is `` `${app}/${env}` `` so a ciphertext can't be moved to another row. Master keys are base64 of 32 random bytes; a missing or wrong-length master key throws `Error("master key v<n> unavailable")` (no key material in the message).
 
-- [ ] **Step 1: Failing tests:** `it("round-trips a key")`; `it("uses a fresh iv each time")` (two encryptions of the same key differ); `it("fails with another row's aad")` (`decryptKey(env, "unchaind/sandbox", boxFromProd)` rejects); `it("decrypts with the version stored on the row")` (encrypt under v1, set `MASTER_KEY_VERSION: "2"` with both keys present, decrypt still works, new encryptions carry `version: 2`); `it("throws without the master key, naming no secret")`.
+- [ ] **Step 1: Failing tests:** `it("round-trips a key")`; `it("uses a fresh iv each time")` (two encryptions of the same key differ); `it("fails with another row's aad")` (`decryptKey(env, "acme/sandbox", boxFromProd)` rejects); `it("decrypts with the version stored on the row")` (encrypt under v1, set `MASTER_KEY_VERSION: "2"` with both keys present, decrypt still works, new encryptions carry `version: 2`); `it("throws without the master key, naming no secret")`.
 - [ ] **Step 2:** run → FAIL. **Step 3:** implement with `crypto.subtle` AES-GCM, 12-byte iv, `additionalData` = UTF-8 of `aad`. **Step 4:** run → PASS.
 - [ ] **Step 5: Commit** `feat(registry): encrypt Supabase keys under a versioned master key`.
 
@@ -128,7 +128,7 @@ CREATE INDEX audit_app ON audit(app, id DESC);
 - Produces: `type Role = "viewer" | "editor" | "owner"` in `src/shared/types.ts`.
 - Produces: `normEmail(e: string): string` (trim + lowercase); `isAdmin(env: Env, email: string): boolean` (`DASHBOARD_ADMINS` is comma-separated); `atLeast(have: Role, need: Role): boolean`; `requiredRole(method: string, routeKey: string): Role` where `routeKey` is the router's `"METHOD first-segment"` and `OWNER_ROUTES = new Set(["GET settings", "PUT settings", "POST key", "DELETE community"])`; `roleFor(env: Env, email: string, app: string): Promise<Role | null>` (admin → `"owner"`, else the `access` row, else `null`).
 
-- [ ] **Step 1: Failing tests:** `isAdmin` true for `"Stan@Rocapine.com"` when `DASHBOARD_ADMINS: " stan@rocapine.com ,guillaume@rocapine.com"` (Review Focus 1); `requiredRole("GET","queue") === "viewer"`, `("POST","items") === "editor"`, `("PUT","settings") === "owner"`, `("DELETE","community") === "owner"`; `atLeast("editor","viewer")` true, `atLeast("viewer","editor")` false; `roleFor` returns the row's role for a mixed-case email, `null` without a row, `"owner"` for an admin without a row.
+- [ ] **Step 1: Failing tests:** `isAdmin` true for `"Admin@Rocapine.com"` when `DASHBOARD_ADMINS: " admin@rocapine.com ,owner@rocapine.com"` (Review Focus 1); `requiredRole("GET","queue") === "viewer"`, `("POST","items") === "editor"`, `("PUT","settings") === "owner"`, `("DELETE","community") === "owner"`; `atLeast("editor","viewer")` true, `atLeast("viewer","editor")` false; `roleFor` returns the row's role for a mixed-case email, `null` without a row, `"owner"` for an admin without a row.
 - [ ] **Step 2:** run → FAIL. **Step 3:** implement. **Step 4:** run → PASS.
 - [ ] **Step 5: Commit** `feat(registry): per-app roles and dashboard admins`.
 
@@ -153,7 +153,7 @@ CREATE INDEX audit_app ON audit(app, id DESC);
 Behaviour in `route()`: `/api/communities` → `listVisible`; `/api/me` → `{ email, isAdmin, admins }`; `/api/c/:app/:env/…` → `loadCommunity` (null → 404 `unknown_community`), handler lookup (none → 404 `not_found`), then `atLeast(role, requiredRole(method, rest[0]))` else 403 `forbidden`. `communities.ts` keeps only `parseCommunities` and its type, renamed `LegacyCommunity`, for Task 7.
 
 - [ ] **Step 1: Update the existing tests** to build their env with `testEnv(makeD1())` + `seedCommunity` instead of `COMMUNITIES`; the "lists communities" expectation gains `role: "owner"`; the "internal error" test breaks D1 instead (e.g. a `DB` whose `prepare` throws). Remove the `findCommunity`/`toPublic` cases from `communities.test.ts`.
-- [ ] **Step 2: New failing tests** in `test/router.test.ts`: `it("lists only the apps the caller can see")` (viewer of app A, nothing on app B → only A, with `role: "viewer"`); `it("a community the caller can't see is unknown")` → 404 `unknown_community`; `it("a viewer can read but not write")` (GET summary 200, POST items 403 `forbidden`, and an Editor gets 403 on a route key in `OWNER_ROUTES` once Task 6 adds them); `it("a preview never serves prod")` (`PREVIEW: "1"`, prod seeded → list without it, `/api/c/unchaind/prod/summary` 404); `it("me says whether the caller is a dashboard admin")`. In `test/registry.test.ts`: `loadCommunity` decrypts the seeded key into `secretKey`, and `toPublic` output has no `secretKey`, `supabaseUrl` or link URLs.
+- [ ] **Step 2: New failing tests** in `test/router.test.ts`: `it("lists only the apps the caller can see")` (viewer of app A, nothing on app B → only A, with `role: "viewer"`); `it("a community the caller can't see is unknown")` → 404 `unknown_community`; `it("a viewer can read but not write")` (GET summary 200, POST items 403 `forbidden`, and an Editor gets 403 on a route key in `OWNER_ROUTES` once Task 6 adds them); `it("a preview never serves prod")` (`PREVIEW: "1"`, prod seeded → list without it, `/api/c/acme/prod/summary` 404); `it("me says whether the caller is a dashboard admin")`. In `test/registry.test.ts`: `loadCommunity` decrypts the seeded key into `secretKey`, and `toPublic` output has no `secretKey`, `supabaseUrl` or link URLs.
 - [ ] **Step 3:** `npx vitest run` → the new tests FAIL. **Step 4:** implement. **Step 5:** `npm test` → all PASS; `npm run build` and `npm run lint` clean.
 - [ ] **Step 6: Commit** `feat(registry): serve communities from D1 with per-app roles`.
 
@@ -203,7 +203,7 @@ Behaviour in `route()`: `/api/communities` → `listVisible`; `/api/me` → `{ e
 
 The last-owner guard is one statement (`… WHERE NOT (role = 'owner' AND (SELECT count(*) FROM access WHERE app = ? AND role = 'owner') = 1)`) checked through `meta.changes`, so two concurrent removals can't both pass. A new community's settings start as `{ amplitudeUserUrl: null, revenuecatCustomerUrl: null, topics: [], attachmentTypes: [] }`. Audit `detail` holds e.g. `{ email, role }` or `{ field }`, never a key or URL template value.
 
-- [ ] **Step 1: Failing tests** (`test/registryRoutes.test.ts`, stubbing `checkCommunity`): a new app makes the caller Owner and writes `app_added` + `community_added`; adding to an existing app as Editor → 403; `env: "prod"` without `confirmProd` → 400 `confirm_prod`; in a preview → 400 `prod_in_preview`; the same URL under another app → 409 `project_taken`, including when the UNIQUE violation comes from the insert itself (two adds racing, Review Focus 4); `app: "api"` / `"Bad Id"` → `bad_app_id`, an existing id with `name` → `app_taken` (Review Focus 5); granting `x@gmail.com` → 400 `bad_email`; granting `Stan@Rocapine.com` stores `stan@rocapine.com`; removing or downgrading the last Owner → 409 `last_owner`, an admin can still add a new Owner; `DELETE /api/apps/:app` as Owner (not admin) → 403, as admin with a community → 409 `has_communities`, without → ok and audit rows still there; `GET /api/apps/:app` as Editor → 403; key change with a failing check leaves the old ciphertext in place; no audit row's `detail` and no response body contains the secret key string (scan every response and the whole `audit` table). `test/settings.test.ts`: duplicate topic id, `from` after `until`, `http://` link, link without `{id}` → each `bad_settings` with its `field`. `test/slug.test.ts`: `slugify("Eve's Rhythm") === "eves-rhythm"`, `slugify("  Nightward 2 ")` → `"nightward-2"`.
+- [ ] **Step 1: Failing tests** (`test/registryRoutes.test.ts`, stubbing `checkCommunity`): a new app makes the caller Owner and writes `app_added` + `community_added`; adding to an existing app as Editor → 403; `env: "prod"` without `confirmProd` → 400 `confirm_prod`; in a preview → 400 `prod_in_preview`; the same URL under another app → 409 `project_taken`, including when the UNIQUE violation comes from the insert itself (two adds racing, Review Focus 4); `app: "api"` / `"Bad Id"` → `bad_app_id`, an existing id with `name` → `app_taken` (Review Focus 5); granting `x@gmail.com` → 400 `bad_email`; granting `Admin@Rocapine.com` stores `stan@rocapine.com`; removing or downgrading the last Owner → 409 `last_owner`, an admin can still add a new Owner; `DELETE /api/apps/:app` as Owner (not admin) → 403, as admin with a community → 409 `has_communities`, without → ok and audit rows still there; `GET /api/apps/:app` as Editor → 403; key change with a failing check leaves the old ciphertext in place; no audit row's `detail` and no response body contains the secret key string (scan every response and the whole `audit` table). `test/settings.test.ts`: duplicate topic id, `from` after `until`, `http://` link, link without `{id}` → each `bad_settings` with its `field`. `test/slug.test.ts`: `slugify("Acme's Hub") === "acmes-hub"`, `slugify("  Moon App 2 ")` → `"moon-app-2"`.
 - [ ] **Step 2:** run → FAIL. **Step 3:** implement. **Step 4:** `npm test` → PASS; build and lint clean.
 - [ ] **Step 5: Commit** `feat(registry): add communities, settings, keys and access from the API`.
 
@@ -248,7 +248,7 @@ The last-owner guard is one statement (`… WHERE NOT (role = 'owner' AND (SELEC
 - Consumes: `useApps()`, `slugify`, `APP_ID`, `POST /api/communities`, the check copy (Global Constraints).
 - Produces: a right-side `Sheet` with: App (select of the apps the caller owns, plus "New app" → Name, then Id prefilled by `slugify(name)` and editable), Environment (Sandbox / Production), Supabase URL, Secret key (`type="password"`, `autoComplete="off"`). Submit "Check and add". Production asks the confirm (`AlertDialog`, exact copy) before sending `confirmProd: true`. A failed step shows its exact copy next to the field it concerns (url → URL, key → key, schema/unreachable → under the form). On success: invalidate `communities` and `apps`, close, navigate to the new community.
 
-- [ ] **Step 1: Failing tests:** typing "Eve's Rhythm" prefills id `eves-rhythm`; a 422 `schema` shows "No community schema here: run the SDK's migrations first."; a 409 `project_taken` shows "This project is already in the dashboard."; choosing Production opens the confirm and nothing is sent until "Add"; the key field is a password input and its value is cleared when the sheet closes.
+- [ ] **Step 1: Failing tests:** typing "Acme's Hub" prefills id `acmes-hub`; a 422 `schema` shows "No community schema here: run the SDK's migrations first."; a 409 `project_taken` shows "This project is already in the dashboard."; choosing Production opens the confirm and nothing is sent until "Add"; the key field is a password input and its value is cleared when the sheet closes.
 - [ ] **Step 2:** run → FAIL. **Step 3:** implement. **Step 4:** run → PASS.
 - [ ] **Step 5: Commit** `feat(app): add a community from the switcher`.
 
@@ -269,19 +269,19 @@ The last-owner guard is one statement (`… WHERE NOT (role = 'owner' AND (SELEC
 
 **Files:** Modify `wrangler.jsonc`, `.dev.vars.example`, `CLAUDE.md`.
 
-- [ ] **Step 1: Config.** Top level: `"d1_databases": [{ "binding": "DB", "database_name": "community-dashboard", "database_id": "<id>", "migrations_dir": "migrations" }]`; vars `DASHBOARD_ADMINS` (Guillaume's and Stan's `@rocapine.com` addresses), `MASTER_KEY_VERSION: "1"`; `COMMUNITIES` stays until Task 12. `previews`: its own `d1_databases` (`community-dashboard-preview`), the same `DASHBOARD_ADMINS` and `MASTER_KEY_VERSION`, and `PREVIEW: "1"`. Keep the comment about previews being sandbox only. `.dev.vars.example` gains `MASTER_KEY_V1=` (any `openssl rand -base64 32` for local). `CLAUDE.md`: the key rule now says "keys are encrypted in D1 and decrypted only in the Worker", plus the D1 migration command.
-- [ ] **Step 2: Local run.** `npx wrangler d1 migrations apply DB --local`, `npm run build`, `npx wrangler dev` with `DEV_ACCESS_EMAIL` set to an admin. Import from config (Unchaind sandbox), then: the switcher lists only Unchaind sandbox; add the sandbox again → "This project is already in the dashboard."; grant a second `@rocapine.com` address Viewer, switch `DEV_ACCESS_EMAIL` to it → actions disabled, settings absent, write via `curl` → 403; edit a topic label and see it in the composer's topic picker; change the key to a wrong one → refused, old key still works. No prod: agents never use the prod key.
+- [ ] **Step 1: Config.** Top level: `"d1_databases": [{ "binding": "DB", "database_name": "community-dashboard", "database_id": "<id>", "migrations_dir": "migrations" }]`; vars `DASHBOARD_ADMINS` (the maintainer's and a second admin's `@rocapine.com` addresses), `MASTER_KEY_VERSION: "1"`; `COMMUNITIES` stays until Task 12. `previews`: its own `d1_databases` (`community-dashboard-preview`), the same `DASHBOARD_ADMINS` and `MASTER_KEY_VERSION`, and `PREVIEW: "1"`. Keep the comment about previews being sandbox only. `.dev.vars.example` gains `MASTER_KEY_V1=` (any `openssl rand -base64 32` for local). `CLAUDE.md`: the key rule now says "keys are encrypted in D1 and decrypted only in the Worker", plus the D1 migration command.
+- [ ] **Step 2: Local run.** `npx wrangler d1 migrations apply DB --local`, `npm run build`, `npx wrangler dev` with `DEV_ACCESS_EMAIL` set to an admin. Import from config (the host app sandbox), then: the switcher lists only the host app sandbox; add the sandbox again → "This project is already in the dashboard."; grant a second `@rocapine.com` address Viewer, switch `DEV_ACCESS_EMAIL` to it → actions disabled, settings absent, write via `curl` → 403; edit a topic label and see it in the composer's topic picker; change the key to a wrong one → refused, old key still works. No prod: agents never use the prod key.
 - [ ] **Step 3:** `npm test`, `npm run build`, `npm run lint` → clean.
 - [ ] **Step 4: Commit** `chore: D1 bindings, admins and master key config`.
-- [ ] **Step 5: PR.** Walkthrough video (Playwright WebKit, as for brick 7): no-access screen → import → add sandbox → settings sheet (topics, access) → viewer view. PR body lists the Cloudflare steps from "Before Task 1" and the deploy order: create DBs and secrets → `npx wrangler d1 migrations apply community-dashboard --remote` (and the preview DB) → merge → an admin clicks "Import communities from config" on community.rocapi.ne → check both Unchaind communities work. Wait for Guillaume's test and OK before merging.
+- [ ] **Step 5: PR.** Walkthrough video (Playwright WebKit, as for brick 7): no-access screen → import → add sandbox → settings sheet (topics, access) → viewer view. PR body lists the Cloudflare steps from "Before Task 1" and the deploy order: create DBs and secrets → `npx wrangler d1 migrations apply community-dashboard --remote` (and the preview DB) → merge → an admin clicks "Import communities from config" on community.rocapi.ne → check both the host app communities work. Wait for the maintainer's test and OK before merging.
 
 ### Task 12: Remove the old config (after the production import)
 
-Runs only once Guillaume confirms the import worked in production. Its own small PR.
+Runs only once the maintainer confirms the import worked in production. Its own small PR.
 
 **Files:** Modify `wrangler.jsonc`, `src/worker/env.ts`, `src/worker/registryRoutes.ts`, `src/app/registry/NoAccess.tsx`, `src/app/community.ts`; delete `src/worker/communities.ts`, `test/communities.test.ts`, `test/import.test.ts`; in this SDK repo, `docs/dashboard-roadmap.md`.
 
 - [ ] **Step 1:** Remove `COMMUNITIES` (both blocks), the import route, `canImport` and its button. `npm test`, build, lint clean.
-- [ ] **Step 2:** Guillaume deletes the old secrets: `npx wrangler secret delete SUPABASE_KEY_UNCHAIND_PROD`, `npx wrangler secret delete SUPABASE_KEY_UNCHAIND_SANDBOX`, and the Previews one in the dashboard.
+- [ ] **Step 2:** The maintainer deletes the old secrets: `npx wrangler secret delete SUPABASE_KEY_ACME_PROD`, `npx wrangler secret delete SUPABASE_KEY_ACME_SANDBOX`, and the Previews one in the dashboard.
 - [ ] **Step 3:** Roadmap (SDK repo): brick 13 `done` with the PR links.
-- [ ] **Step 4: Commit** `chore: drop the COMMUNITIES config`; PR; merge after Guillaume's OK.
+- [ ] **Step 4: Commit** `chore: drop the COMMUNITIES config`; PR; merge after the maintainer's OK.

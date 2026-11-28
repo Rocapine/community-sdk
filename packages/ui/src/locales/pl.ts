@@ -1,11 +1,11 @@
 // Polish catalog for @rocapine/community-ui.
 //
-// Ported from Eve's Rhythm's i18n/pl/community.json (source app's repo —
+// Ported from the first host app's i18n/pl/community.json (source app's repo —
 // comment only, no runtime dependency on that app), flattened to the same
 // dot-key scheme as en.ts (see the internal port notes for the key-rename table:
 // prayedForYou.* -> reaction.*, aSister -> someone, _one/_other ->
 // .one/.other). Degendered ("siostra/siostry" -> neutral phrasing) and
-// de-branded ("Eve's News" / "Eve's Rhythm" removed) to match en.ts's
+// de-branded (the source app's name removed) to match en.ts's
 // neutral meaning.
 //
 // Polish plurals: the runtime picks the CLDR category (`pluralCategory` in
@@ -15,7 +15,7 @@
 //
 // Polish gendering note: unlike the other 5 ported locales, Polish past-tense
 // verbs conjugate for the subject's grammatical gender (e.g. "polubiła" vs
-// "polubił"), so Eve's assumption of an all-female audience is baked into
+// "polubił"), so the first host app's assumption of an all-female audience is baked into
 // the verb forms themselves, not just nouns like "siostra". Degendering
 // required real restructuring, not word substitution:
 //  - single-named-subject verbs (post.reaction.received, inbox.liked/
@@ -31,7 +31,7 @@
 //    żadnych postów.").
 //  - "autorkę"/"jej" (feminine author/her) replaced with the neutral role
 //    phrase "osobę, która to napisała" / "tej osoby".
-// Keys en.ts added that Eve's JSON lacks (menu.cancel, menu.delete,
+// Keys en.ts added that the first host app's JSON lacks (menu.cancel, menu.delete,
 // profile.save) were translated fresh from the app-wide common.json values
 // (Anuluj / Usuń / Zapisz).
 export const pl: Record<string, string> = {

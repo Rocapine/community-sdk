@@ -12,13 +12,13 @@
 
 **Repos:**
 
-- SDK: `/Users/glsx/Developer/community-sdk/.claude/worktrees/dashboard-activity`, branch `feat/dashboard-activity`.
-- Dashboard: `/Users/glsx/Developer/community-dashboard/.claude/worktrees/brick5-activity-fe1b44`, branch `claude/brick5-activity-fe1b44`.
+- SDK: `~/Developer/community-sdk/.claude/worktrees/dashboard-activity`, branch `feat/dashboard-activity`.
+- Dashboard: `~/Developer/community-dashboard/.claude/worktrees/brick5-activity-fe1b44`, branch `claude/brick5-activity-fe1b44`.
 
 ## Global Constraints
 
-- SQL runs on the **Unchaind sandbox only**: `supabase db query --linked --project-ref vjcdpodsrpemanfvrshh --yes -f <file>`, **one statement per file**. Production `doiafuhoourjtqsmzook` is read-only: never write to it. Guillaume applies 017 to production. An agent refused a remote command stops and reports.
-- Stage files by name only, never `git add -A` (the SDK checkout has untracked files that are not ours). Commit locally; push and open PRs only once Guillaume agrees; never merge.
+- SQL runs on the **host app sandbox only**: `supabase db query --linked --project-ref <sandbox-project-ref> --yes -f <file>`, **one statement per file**. Production is read-only: never write to it. The maintainer applies 017 to production. An agent refused a remote command stops and reports.
+- Stage files by name only, never `git add -A` (the SDK checkout has untracked files that are not ours). Commit locally; push and open PRs only once the maintainer agrees; never merge.
 - A Supabase key never reaches the browser. No refactor of `src/worker/communities.ts`, `src/worker/access.ts` or the registry.
 - UI copy in English, no hint text under fields. Calm: no "wow" effects.
 - Colour never carries meaning alone: every change has ▲ / ▼ and a sign; every series has a label.
@@ -206,7 +206,7 @@ Bklit's own variables point at ours: `--chart-line-primary: var(--chart-1)`, `--
 - Consumes: `Activity`, `ActivityDays` (Shared types); `change`, `periodLabel`, `contributionsOf` (Task 5); `useFeatures(c).data?.activity`; Bklit stat card and `Sparkline` (Task 4).
 - Produces: `useActivity(c: PublicCommunity, days: ActivityDays): UseQueryResult<Activity>`, key `["activity", c.app, c.env, days, browserZone()]`, `placeholderData: keepPreviousData`, `staleTime: 5 * 60_000`, `retry` as in `ScheduledWeek` (no retry on `ApiError`). `ActivitySection()` with the panels slot that Task 7 fills.
 
-- [ ] **Step 1: Failing tests**, harness copied from `test/scheduledWeek.test.tsx` (App mounted on `/unchaind/sandbox`, `browserZone` = Europe/Paris, NOW `2026-11-12T10:00:00Z`, `fetch` answering `/features` with `activity` and `/activity` with a fixture):
+- [ ] **Step 1: Failing tests**, harness copied from `test/scheduledWeek.test.tsx` (App mounted on `/acme/sandbox`, `browserZone` = Europe/Paris, NOW `2026-11-12T10:00:00Z`, `fetch` answering `/features` with `activity` and `/activity` with a fixture):
   - `activity: false` → the heading "Activity" and "Activity needs the latest community SDK."; no `/activity` request.
   - Loading → a skeleton; a 500 → `role="alert"` with Retry, and Retry refetches.
   - Every number 0 → "No activity in this period".
@@ -243,7 +243,7 @@ Bklit's own variables point at ours: `--chart-line-primary: var(--chart-1)`, `--
 
 ### Task 8: Run it for real, record, prepare the PRs
 
-- [ ] With 017 on the sandbox: `npm run build && npx wrangler dev --port 8788 --host localhost`, open the Unchaind sandbox Home in light and dark, switch 7 / 30 / 90, compare a few numbers with a direct SQL call (sandbox), check narrow width.
+- [ ] With 017 on the sandbox: `npm run build && npx wrangler dev --port 8788 --host localhost`, open the host app sandbox Home in light and dark, switch 7 / 30 / 90, compare a few numbers with a direct SQL call (sandbox), check narrow width.
 - [ ] Record a Playwright WebKit walkthrough (`recordVideo`; playwright-core 1.58.2 at `~/.npm/_npx/af752b90495482d7/node_modules/playwright-core`): Home → Activity → toggle 7 / 90 → hover the area chart → dark mode. Compress: `ffmpeg -i in.webm -vcodec libx264 -crf 28 -vf scale=1280:-2 -an activity.mp4`.
-- [ ] Write both PR bodies (SDK: migration, timing from Task 1, roadmap; dashboard: bundle size before / after from Task 4, `![](./activity.mp4)` alone on its line, attached with `--attach ./activity.mp4`). **Stop for Guillaume's OK before pushing.**
+- [ ] Write both PR bodies (SDK: migration, timing from Task 1, roadmap; dashboard: bundle size before / after from Task 4, `![](./activity.mp4)` alone on its line, attached with `--attach ./activity.mp4`). **Stop for the maintainer's OK before pushing.**
 - [ ] After his OK and the PRs: roadmap brick 5 → "done" with the "Shipped:" links, its SDK change → "yes" and the added numbers named; the coverage row for `admin_daily_metrics` notes the rewrite and the release that carries it. Only that row and the coverage table.

@@ -7,7 +7,7 @@
 // instead of the mold's flat `{ reportedUserId, postId?, commentId? }`.
 // `authorId` is required on the target (not resolved by a lookup): the
 // screen that renders the "Report" menu item always already holds the full
-// post/comment object (mold/Eve pattern — `onMenu(post)` on `CommunityPost`,
+// post/comment object (mold/first-host-app pattern — `onMenu(post)` on `CommunityPost`,
 // Task 10), so it can pass `post.authorId`/`comment.authorId` straight
 // through. An earlier version of this file had `reportContent` resolve the
 // author itself via a `select author_id` on `posts`/`comments`, but that

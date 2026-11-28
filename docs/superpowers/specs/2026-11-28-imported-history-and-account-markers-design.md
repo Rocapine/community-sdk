@@ -1,6 +1,6 @@
 # Imported history, account markers, bans that survive deletion, and dashboard brick 23
 
-Status: draft 2026-11-28, waiting for Guillaume's review. Guillaume agreed to the four parts on
+Status: draft 2026-11-28, waiting for the maintainer's review. The maintainer agreed to the four parts on
 2026-11-28 and asked to do them now, before dashboard bricks 8 and 6. Calls marked "my call" are the
 builder's choices for him to check.
 
@@ -8,9 +8,9 @@ builder's choices for him to check.
 
 Three SDK changes since 0.21 make the dashboard mislead, and one leaves a hole in moderation:
 
-- **Imported history doesn't count.** A history import (Octopus → Unchaind, 19 Nov) creates
+- **Imported history doesn't count.** A history import (the previous vendor → the host app, 19 Nov) creates
   placeholder profiles (`profiles.is_placeholder`) that hold the imported posts. Core `019` leaves
-  everything they hold out of `admin_daily_metrics` and `admin_activity_breakdown`. Guillaume
+  everything they hold out of `admin_daily_metrics` and `admin_activity_breakdown`. The maintainer
   decided (2026-11-28) that imported history is the community's own content.
 - **Merged profiles look like members.** With the accounts module, signing into an app account on a
   new phone merges that phone's anonymous profile into the account's profile. The merged profile
@@ -33,7 +33,7 @@ Three SDK changes since 0.21 make the dashboard mislead, and one leaves a hole i
 ## Non-goals
 
 - Re-attributing imported posts to members once they claim their placeholder (the import tool's
-  job, already handled by `octopus_import.merge_into`).
+  job, already handled by the import tool's `merge_into`).
 - Warning before a team account or an admin is merged away (accepted risk, decided 2026-11-28).
 - Changing how merges or deletions work for the member; only markers are added.
 - Any UI in the app.
@@ -71,7 +71,7 @@ timestamptz null`, added by core `021` (so the metrics can read them without the
   told apart from a real member who never wrote anything, so it is left as it is rather than
   guessed at. The dashboard hides only marked profiles, never a silent real member.
 - `account_deleted_at` is set by `account_delete_profile`.
-- **Migration numbering** (needs Guillaume): this is `accounts/003`, and the unreleased messaging
+- **Migration numbering** (needs the maintainer): this is `accounts/003`, and the unreleased messaging
   branch's `accounts/003_merge_hooks.sql` becomes `004` when it rebases. The alternative (this
   becomes `004`) would make main depend on a file only the branch has.
 
@@ -105,8 +105,8 @@ subject_hash))`, service role only. `subject_hash` is a sha256 of `provider:subj
 ## Constraints
 
 - No change to `merge_profiles`.
-- SDK release then host migrations, as usual: SDK PR → release (Guillaume) → Unchaind PR copying
-  the migrations → sandbox, then prod `db push` by Guillaume. Agents never write to prod; the
+- SDK release then host migrations, as usual: SDK PR → release (the maintainer) → the host app PR copying
+  the migrations → sandbox, then prod `db push` by the maintainer. Agents never write to prod; the
   sandbox only through migrations.
 - Changesets for the SDK release; roadmap coverage rows and brick 23 updated in the same PR.
 

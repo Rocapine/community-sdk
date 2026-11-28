@@ -164,7 +164,7 @@ export type CommunityHostAdapters = {
 
 /**
  * Host-defined extension point for the raw `posts` row shape and its mapped
- * `FeedPost` output — added for hosts (e.g. Nightward) that store extra
+ * `FeedPost` output — added for hosts (e.g. Another host app) that store extra
  * columns on `posts` (like a seed-likes top-up) the shared schema doesn't
  * know about. Both fields are optional and default to a no-op, so a host
  * that never sets `feed` gets byte-identical behavior to before this existed.

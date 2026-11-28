@@ -175,7 +175,7 @@ function deriveTypography(
   return out;
 }
 
-// Neutral placeholder palette — no Eve (or any host app) branding. Hosts
+// Neutral placeholder palette — no host-app branding. Hosts
 // override via `CommunityUIProvider`'s `theme` prop / `mergeTheme`.
 const accent = "#4C6FFF";
 

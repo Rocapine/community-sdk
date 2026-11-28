@@ -1,4 +1,4 @@
--- Threaded replies and comment likes (after Eve's Rhythm's community v2).
+-- Threaded replies and comment likes (after the first host app's community v2).
 --
 -- Purely additive, safe for installed app versions: older clients never send
 -- parent_id (null = a top-level comment) and never read comment_likes. A reply

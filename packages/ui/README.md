@@ -323,7 +323,7 @@ The default, `DEFAULT_FEED_HEADER`, is `{ left: ["profile"], center: ["title"], 
 ```tsx
 <CommunityFeedScreen
   header={{
-    left: [{ logo: require("./lotus.png"), accessibilityLabel: "Eve" }],
+    left: [{ logo: require("./lotus.png"), accessibilityLabel: "Acme" }],
     center: ["title"],
     right: ["search"],
   }}

@@ -1,7 +1,7 @@
 // Pure helpers behind the thread's replies (no React Native imports, tested in node).
 
 /** The comments in display order: each top-level comment followed by every
- * reply in its subtree, one level deep (as on Eve's Rhythm and X). A reply
+ * reply in its subtree, one level deep (as on the first host app and X). A reply
  * whose parent is gone (hidden, deleted) shows as a top-level comment. Input
  * order (oldest first) is kept within each group. */
 export function threadRows<T extends { id: string; parentId: string | null }>(
