@@ -377,4 +377,25 @@ export const fr: Record<string, string> = {
   "groups.home.seeAll": "Tout voir",
   "groups.card.join": "Rejoindre le groupe",
   "groups.card.gone": "Ce groupe n'existe plus",
+  // DMs (dms module): the Conversations tab, requests, "Seen".
+  "messages.tabs.conversations": "Discussions",
+  "messages.requests": "Demandes de message",
+  "dms.empty": "Pas encore de discussion.",
+  "dms.requests.title": "Demandes",
+  "dms.requests.pending.one": "{count} en attente",
+  "dms.requests.pending.other": "{count} en attente",
+  "dms.requests.hint":
+    "Tant que tu n'as pas accepté, la personne ne sait pas que tu as vu son message.",
+  "dms.requests.empty": "Aucune demande de message.",
+  "dms.request.bar":
+    "{name} veut t'écrire. Tant que tu n'as pas accepté, cette personne ne sait pas que tu as lu.",
+  "dms.request.accept": "Accepter",
+  "dms.request.decline": "Refuser",
+  "dms.request.block": "Bloquer et signaler",
+  "dms.context.noGroups": "Aucun groupe en commun",
+  "dms.context.groups.one": "{count} groupe en commun",
+  "dms.context.groups.other": "{count} groupes en commun",
+  "dms.context.memberSince": "Membre depuis {date}",
+  "chat.blocked": "Tu ne peux pas écrire à ce membre.",
+  "chat.seen": "Vu",
 };

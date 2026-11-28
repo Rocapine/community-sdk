@@ -50,10 +50,14 @@ export function ReportSheet({
   visible,
   target,
   onClose,
+  onSubmitReason,
 }: {
   visible: boolean;
   target: ReportTarget | null;
   onClose: () => void;
+  /** Sends the report through the caller's own call instead (a DM request's "Block and
+   * report": the reason only, no details field). Resolving closes the sheet. */
+  onSubmitReason?: (reason: ReportReason) => Promise<void>;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -90,9 +94,21 @@ export function ReportSheet({
     if (visible) setSent(null);
   }, [visible]);
 
+  const [submitting, setSubmitting] = useState(false);
+  const pending = report.isPending || submitting;
   const submit = () => {
-    if (!target || !reason || report.isPending) return;
+    if (!target || !reason || pending) return;
     setFailed(false);
+    if (onSubmitReason) {
+      setSubmitting(true);
+      onSubmitReason(reason)
+        .then(close, () => {
+          setFailed(true);
+          Alert.alert(t("report.errorTitle"), t("report.errorBody"));
+        })
+        .finally(() => setSubmitting(false));
+      return;
+    }
     const reported = target;
     const offerBlock = reason === "harassment" && !!reported.authorName && !reported.authorAdmin;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
@@ -173,18 +189,20 @@ export function ReportSheet({
                 );
               })}
             </View>
-            <SheetTextInput
-              value={details}
-              onChangeText={setDetails}
-              placeholder={t("report.detailsPlaceholder")}
-              placeholderTextColor={theme.colors.textFaint}
-              multiline
-              style={styles.input}
-            />
+            {!onSubmitReason && (
+              <SheetTextInput
+                value={details}
+                onChangeText={setDetails}
+                placeholder={t("report.detailsPlaceholder")}
+                placeholderTextColor={theme.colors.textFaint}
+                multiline
+                style={styles.input}
+              />
+            )}
             <PressableScale
               onPress={submit}
-              disabled={!reason || report.isPending}
-              style={[styles.cta, (!reason || report.isPending) && styles.ctaDisabled]}
+              disabled={!reason || pending}
+              style={[styles.cta, (!reason || pending) && styles.ctaDisabled]}
             >
               <Text style={styles.ctaLabel}>{t("report.send")}</Text>
             </PressableScale>

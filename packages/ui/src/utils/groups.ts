@@ -61,12 +61,13 @@ export function lastMessagePreview(
   myUid: string | null,
   authorName: string | null,
   t: TFn,
+  /** A DM: the peer's message goes without their name. */
+  dm = false,
 ): string {
   if (!last) return t("messages.noMessages");
   const text = last.body ? last.body.replace(/\s+/g, " ").trim() : t("image.photo");
-  return last.authorId === myUid
-    ? t("messages.you", { text })
-    : t("messages.author", { name: authorName ?? "", text });
+  if (last.authorId === myUid) return t("messages.you", { text });
+  return dm ? text : t("messages.author", { name: authorName ?? "", text });
 }
 
 /** The host gate before joining: the screen's own `beforeJoinGroup`, else the feed's

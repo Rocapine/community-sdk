@@ -376,4 +376,25 @@ export const de: Record<string, string> = {
   "groups.home.seeAll": "Alle ansehen",
   "groups.card.join": "Der Gruppe beitreten",
   "groups.card.gone": "Diese Gruppe gibt es nicht mehr",
+  // DMs (dms module): the Conversations tab, requests, "Seen".
+  "messages.tabs.conversations": "Unterhaltungen",
+  "messages.requests": "Nachrichtenanfragen",
+  "dms.empty": "Noch keine Unterhaltungen.",
+  "dms.requests.title": "Anfragen",
+  "dms.requests.pending.one": "{count} ausstehend",
+  "dms.requests.pending.other": "{count} ausstehend",
+  "dms.requests.hint":
+    "Bis du annimmst, weiß die Person nicht, dass du die Nachricht gesehen hast.",
+  "dms.requests.empty": "Keine Nachrichtenanfragen.",
+  "dms.request.bar":
+    "{name} möchte dir schreiben. Bis du annimmst, weiß die Person nicht, dass du die Nachricht gelesen hast.",
+  "dms.request.accept": "Annehmen",
+  "dms.request.decline": "Ablehnen",
+  "dms.request.block": "Blockieren und melden",
+  "dms.context.noGroups": "Keine gemeinsamen Gruppen",
+  "dms.context.groups.one": "{count} gemeinsame Gruppe",
+  "dms.context.groups.other": "{count} gemeinsame Gruppen",
+  "dms.context.memberSince": "Mitglied seit {date}",
+  "chat.blocked": "Du kannst diesem Mitglied nicht schreiben.",
+  "chat.seen": "Gesehen",
 };

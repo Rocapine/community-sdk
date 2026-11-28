@@ -361,4 +361,27 @@ export const uk: Record<string, string> = {
   "groups.home.seeAll": "Переглянути всі",
   "groups.card.join": "Приєднатися до групи",
   "groups.card.gone": "Цієї групи більше не існує",
+  // DMs (dms module): the Conversations tab, requests, "Seen".
+  "messages.tabs.conversations": "Розмови",
+  "messages.requests": "Запити на листування",
+  "dms.empty": "Розмов поки немає.",
+  "dms.requests.title": "Запити",
+  "dms.requests.pending.one": "{count} в очікуванні",
+  "dms.requests.pending.few": "{count} в очікуванні",
+  "dms.requests.pending.other": "{count} в очікуванні",
+  "dms.requests.hint":
+    "Поки ти не приймеш запит, відправник не дізнається, що повідомлення прочитано.",
+  "dms.requests.empty": "Запитів немає.",
+  "dms.request.bar":
+    "{name} хоче тобі написати. Поки ти не приймеш запит, ця людина не дізнається, що повідомлення прочитано.",
+  "dms.request.accept": "Прийняти",
+  "dms.request.decline": "Відхилити",
+  "dms.request.block": "Заблокувати й поскаржитися",
+  "dms.context.noGroups": "Немає спільних груп",
+  "dms.context.groups.one": "{count} спільна група",
+  "dms.context.groups.few": "{count} спільні групи",
+  "dms.context.groups.other": "{count} спільних груп",
+  "dms.context.memberSince": "Дата приєднання: {date}",
+  "chat.blocked": "Ти не можеш написати цій людині.",
+  "chat.seen": "Переглянуто",
 };

@@ -387,4 +387,27 @@ export const pl: Record<string, string> = {
   "groups.home.seeAll": "Zobacz wszystkie",
   "groups.card.join": "Dołącz do grupy",
   "groups.card.gone": "Ta grupa już nie istnieje",
+  // DMs (dms module): the Conversations tab, requests, "Seen".
+  "messages.tabs.conversations": "Rozmowy",
+  "messages.requests": "Prośby o wiadomość",
+  "dms.empty": "Nie masz jeszcze rozmów.",
+  "dms.requests.title": "Prośby",
+  "dms.requests.pending.one": "{count} oczekująca",
+  "dms.requests.pending.few": "{count} oczekujące",
+  "dms.requests.pending.other": "{count} oczekujących",
+  "dms.requests.hint":
+    "Dopóki nie zaakceptujesz, nadawca nie dowie się, że wiadomość została wyświetlona.",
+  "dms.requests.empty": "Brak próśb o wiadomość.",
+  "dms.request.bar":
+    "{name} chce do ciebie napisać. Dopóki nie zaakceptujesz, ta osoba nie dowie się, że wiadomość została przeczytana.",
+  "dms.request.accept": "Akceptuj",
+  "dms.request.decline": "Odrzuć",
+  "dms.request.block": "Zablokuj i zgłoś",
+  "dms.context.noGroups": "Brak wspólnych grup",
+  "dms.context.groups.one": "{count} wspólna grupa",
+  "dms.context.groups.few": "{count} wspólne grupy",
+  "dms.context.groups.other": "{count} wspólnych grup",
+  "dms.context.memberSince": "Data dołączenia: {date}",
+  "chat.blocked": "Nie możesz pisać do tej osoby.",
+  "chat.seen": "Wyświetlono",
 };

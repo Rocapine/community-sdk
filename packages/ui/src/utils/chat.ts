@@ -1,7 +1,8 @@
-// Pure helpers of the chat screen (groups module): reply quotes and previews, day
-// separators, runs of bubbles, the swipe to reply, jumping to a quoted message, and the
-// line that replaces the composer.
-import type { Group, MessagingErrorCode } from "@rocapine/community-core";
+// Pure helpers of the chat screen (groups and dms modules): reply quotes and previews,
+// day separators, runs of bubbles, the swipe to reply, jumping to a quoted message, the
+// line that replaces the composer, a DM's request mode, "Seen" and the sender's context,
+// and the Messages page's layout.
+import type { DmRequest, Group, MessagingErrorCode } from "@rocapine/community-core";
 import type { TFn } from "../i18n";
 
 const QUOTE_LINES = 2;
@@ -176,4 +177,80 @@ export function sendErrorKey(code: MessagingErrorCode): string {
   if (code === "message_too_long") return "chat.error.tooLong";
   if (code === "rate_limited") return "chat.error.rateLimited";
   return "chat.error.generic";
+}
+
+// ============ DMS ============
+
+/** A DM opens in request mode (read-only; Accept / Decline / Block and report) while my
+ * side is a request: the list says so, or it is among my pending requests (the list
+ * only holds active conversations). Accepting on the screen ends it at once. */
+export function isRequestMode(
+  listState: "active" | "request" | null | undefined,
+  pending: boolean,
+  accepted: boolean,
+): boolean {
+  if (accepted || listState === "active") return false;
+  return listState === "request" || pending;
+}
+
+/** The message "Seen" goes under: my newest one (messages newest first), once the peer
+ * read up to it. Never an older one: the peer's read time may pass messages hidden from
+ * them. */
+export function seenMessageId(
+  messages: readonly { id: string; authorId: string; createdAt: string }[],
+  myUid: string | null,
+  peerRead: string | null,
+): string | null {
+  if (!peerRead || !myUid) return null;
+  const mine = messages.find((m) => m.authorId === myUid);
+  return mine && Date.parse(mine.createdAt) <= Date.parse(peerRead) ? mine.id : null;
+}
+
+/** The Requests row shows only when requests are waiting. */
+export const showRequestsRow = (count: number) => count > 0;
+
+/** Who sent a request: "Paris, Lyon +2 · Member since March 2026" (groups in common, up
+ * to 3 named, then since when they are a member, in the reader's locale). */
+export function senderContext(
+  r: Pick<DmRequest, "groupsInCommon" | "commonGroupNames" | "memberSince">,
+  locale: string,
+  t: TFn,
+): string {
+  const named = r.commonGroupNames.length;
+  const extra = r.groupsInCommon - named;
+  const groups =
+    named > 0
+      ? r.commonGroupNames.join(", ") + (extra > 0 ? ` +${extra}` : "")
+      : r.groupsInCommon > 0
+        ? t("dms.context.groups", { count: r.groupsInCommon })
+        : t("dms.context.noGroups");
+  let since: string;
+  try {
+    since = formatDay(new Date(r.memberSince), locale, { month: "long", year: "numeric" });
+  } catch {
+    since = r.memberSince.slice(0, 7);
+  }
+  return `${groups} · ${t("dms.context.memberSince", { date: since })}`;
+}
+
+/** Why a DM's composer gives way to a line: a block either way (the list has no peer
+ * across one, or a send said so). A request isn't in the list: `conversation` undefined. */
+export function dmClosedReason(
+  conversation: { peerId: string | null } | undefined,
+  errorCode: MessagingErrorCode | null,
+): "blocked" | null {
+  return errorCode === "blocked" || conversation?.peerId === null ? "blocked" : null;
+}
+
+/** What the Messages page shows: both halves as tabs or one list, or the one half that
+ * is on. With dms on and the home's "Feed | Groups" selector, groups live there. */
+export function hubView(p: {
+  groups: boolean;
+  dms: boolean;
+  hubLayout: "tabs" | "unified";
+  homeLayout: "header" | "segmented";
+}): "tabs" | "unified" | "dms" | "groups" | null {
+  const groups = p.groups && !(p.dms && p.homeLayout === "segmented");
+  if (groups && p.dms) return p.hubLayout;
+  return p.dms ? "dms" : groups ? "groups" : null;
 }

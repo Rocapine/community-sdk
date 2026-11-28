@@ -17,7 +17,8 @@ import { OnlineDot } from "./OnlineDot";
 /** Where an avatar is drawn: a post's author, a comment's, a profile's header, the
  * feed header's profile button, the composer, the thread's reply bar, the profile
  * edit sheet's preview, a row of the blocked-members list, a chat message's author,
- * a group's picture (`userId` null), a row of a group's member list. */
+ * a group's picture (`userId` null), a row of a group's member list, a DM's other member
+ * (the Messages list, the DM's header, a request). */
 export type AvatarPlacement =
   | "post"
   | "comment"
@@ -29,7 +30,8 @@ export type AvatarPlacement =
   | "blocked"
   | "message"
   | "group"
-  | "member";
+  | "member"
+  | "dm";
 
 export type AvatarRenderProps = {
   /** The member's community id; null when unknown (e.g. the viewer before sign-in). */

@@ -1,31 +1,46 @@
-// A group conversation (groups module; DMs later), validated mockup "bubbles": the
-// group's header (picture, name, "● X online" when other members are, notifications
-// bell), the messages newest at the bottom in runs by author with a separator between
-// days, "X is typing…", and the composer. A double tap likes a message, a swipe right
-// replies to it (native), a long press opens its menu. `mode: "preview"` reads the
-// group without joining: a "Join" bar replaces the composer, and joining turns the
-// screen into the member's chat in place. A member removed, or a group deleted, sees a line instead of the composer.
+// A conversation, validated mockup "bubbles": a group (groups module) or a DM (dms
+// module). The header: the group's picture, name, "● X online" when other members are,
+// notifications bell; a DM's peer avatar, name and "● Online" (tap: their profile). The
+// messages newest at the bottom in runs by author with a separator between days (names
+// over bubbles in groups only), "X is typing…", and the composer. A double tap likes a
+// message, a swipe right replies to it (native), a long press opens its menu.
+// `mode: "preview"` reads the group without joining: a "Join" bar replaces the composer,
+// and joining turns the screen into the member's chat in place. A member removed, or a
+// group deleted, sees a line instead of the composer; so does a DM across a block.
+//
+// A DM request I received opens read-only (validated mockup B): the sender's context
+// under the header (groups in common, member since) and a bar Accept / Decline / Block
+// and report instead of the composer. Nothing tells the sender I read it: no read
+// state, no typing. Accepting turns the screen live in place; declining or blocking
+// closes it. With read receipts, "Seen" goes under my last message once the peer read it.
 //
 // The host pads the top (like every screen); the screen pads the bottom (safe area,
-// keyboard). Renders nothing when the groups module is off.
+// keyboard). Renders nothing when no messaging module is on.
 import {
   COMMUNITY_EVENTS,
   MessagingError,
+  dmsSettings,
   emitEvent,
   groupsSettings,
   isOptimistic,
   messagingSettings,
   useAccountLinked,
+  useAcceptRequest,
+  useBlockAndReportRequest,
   useCommunityConfig,
   useConversations,
+  useDeclineRequest,
   useDeleteMessage,
+  useDmRequests,
   useEditMessage,
   useGroup,
   useGroupOnlineCounts,
+  useIsOnline,
   useJoinGroup,
   useMarkConversationRead,
   useMessages,
   useMyUid,
+  usePeerRead,
   useProfile,
   useRefreshGroupOnFocus,
   useSendMessage,
@@ -70,14 +85,18 @@ import { TypingLine } from "../components/chat/TypingLine";
 import {
   canDeleteMessage,
   closedReason,
+  dmClosedReason,
   findOrLoadMessage,
   groupByDay,
+  isRequestMode,
   localDay,
   msUntilNextDay,
   replyPreview,
   runFlags,
   screenErrorCode,
+  seenMessageId,
   sendErrorKey,
+  senderContext,
   type ChatAction,
 } from "../utils/chat";
 import { canCopy, copyText } from "../utils/clipboard";
@@ -90,7 +109,7 @@ export type ConversationScreenProps = {
   /** `"preview"`: read-only with a "Join" bar (a group the reader hasn't joined). */
   mode?: "member" | "preview";
   onOpenProfile(userId: string): void;
-  /** Tapping the header (group details). */
+  /** Tapping a group's header (group details). A DM's header opens `onOpenProfile`. */
   onOpenGroupDetails?(): void;
   /** Opens an attached item; defaults to the provider's `onOpenAttachment`. */
   onOpenAttachment?(attachment: PostAttachment): void;
@@ -144,7 +163,7 @@ export function ConversationScreen(props: ConversationScreenProps) {
         : null,
     [canOpen, hasGate],
   );
-  if (!groupsSettings(cfg)) return null;
+  if (!messagingSettings(cfg)) return null;
   return (
     <GroupLinkContext.Provider value={groupLink}>
       <ImageViewerHost>
@@ -176,8 +195,26 @@ function Conversation({
   const myUid = useMyUid();
   const me = useProfile(myUid).data;
 
-  const conversation = useConversations().data?.find((c) => c.id === conversationId);
-  const kind = conversation?.kind ?? "group";
+  const conversations = useConversations();
+  const conversation = conversations.data?.find((c) => c.id === conversationId);
+  // The list holds my active conversations only: a request I received comes from my
+  // pending requests. Without dms everything is a group (as before); with both modules,
+  // an id in neither list waits for both before it reads as a group.
+  const dmsOn = !!dmsSettings(cfg);
+  const requests = useDmRequests();
+  const request = requests.data?.find((r) => r.conversationId === conversationId);
+  const kind: "dm" | "group" | null =
+    conversation?.kind ??
+    (request
+      ? "dm"
+      : !dmsOn || mode === "preview"
+        ? "group"
+        : !groupsSettings(cfg)
+          ? "dm"
+          : isQueryLoading(conversations) || isQueryLoading(requests)
+            ? null
+            : "group");
+  const isDm = kind === "dm";
   const groupQuery = useGroup(kind === "group" ? conversationId : null);
   const group = groupQuery.data;
   const online =
@@ -202,22 +239,46 @@ function Conversation({
   useEffect(() => {
     if (group?.removed) setJoined(false);
   }, [group?.removed]);
-  const closed = closedReason(group, errorCode);
-  const active = member && !closed;
+  // ---- DM ----
+  const peerId = conversation?.peerId ?? request?.senderId ?? null;
+  const peer = useProfile(isDm ? peerId : null).data;
+  const peerOnline = useIsOnline(isDm ? peerId : null);
+  // Accepted here: live at once, before the lists catch up.
+  const [accepted, setAccepted] = useState(false);
+  const requestMode = isDm && isRequestMode(conversation?.requestState, !!request, accepted);
+  // Declined or blocked here: reads and the channel stop before the screen closes (the
+  // channel was authorized once, at join).
+  const [left, setLeft] = useState(false);
+
+  const closed =
+    kind === "group"
+      ? closedReason(group, errorCode)
+      : isDm
+        ? dmClosedReason(conversation, errorCode)
+        : null;
+  const active = member && !closed && !requestMode && kind !== null;
 
   // Closed: no more reads nor Realtime.
-  const messages = useMessages(closed ? null : conversationId);
+  const messages = useMessages(closed || left ? null : conversationId);
+  // A request leaves no read state.
   useMarkConversationRead(active ? conversationId : null, isFocused);
-  // Previewers see who is typing too; only members type (the composer).
-  const { typingUserIds, notifyTyping } = useTyping(closed ? null : conversationId);
+  // Previewers see who is typing too; only members type (the composer). A request's
+  // recipient doesn't join the typing channel.
+  const { typingUserIds, notifyTyping } = useTyping(
+    closed || left || requestMode || kind === null ? null : conversationId,
+  );
+  const peerRead = usePeerRead(isDm && active ? conversationId : null);
 
+  // Once per opening (the screen is keyed by conversation), once its kind is known.
+  const opened = useRef(false);
   useEffect(() => {
+    if (kind === null || opened.current) return;
+    opened.current = true;
     emitEvent(cfg, COMMUNITY_EVENTS.conversationOpened, { conversationId, kind });
     if (mode === "preview")
       emitEvent(cfg, COMMUNITY_EVENTS.groupPreviewed, { groupId: conversationId });
-    // Once per opening (the screen is keyed by conversation).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [kind]);
 
   // ---- composer ----
   const inputRef = useRef<TextInputInstance>(null);
@@ -239,6 +300,35 @@ function Conversation({
   const translate = useTranslateMessage();
   const join = useJoinGroup();
   const setNotify = useSetGroupNotify();
+  const acceptRequest = useAcceptRequest();
+  const declineRequest = useDeclineRequest();
+  const blockRequest = useBlockAndReportRequest();
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const answering = acceptRequest.isPending || declineRequest.isPending || left;
+  const leave = () => {
+    setLeft(true);
+    onBack();
+  };
+  const accept = () => {
+    if (answering) return;
+    setRequestError(null);
+    acceptRequest.mutate(
+      { conversationId },
+      {
+        onSuccess: () => setAccepted(true),
+        onError: () => setRequestError(t("groups.error.generic")),
+      },
+    );
+  };
+  const decline = () => {
+    if (answering) return;
+    setRequestError(null);
+    declineRequest.mutate(
+      { conversationId },
+      { onSuccess: leave, onError: () => setRequestError(t("groups.error.generic")) },
+    );
+  };
 
   const listRef = useRef<FlatList<Row>>(null);
   const fail = (action: ChatAction) => (e: unknown) =>
@@ -467,6 +557,11 @@ function Conversation({
       }),
     [pages],
   );
+  // "Seen" under my last message only (dm_peer_read may pass older hidden ones).
+  const seenId = useMemo(
+    () => (peerRead ? seenMessageId(pages?.flat() ?? [], myUid, peerRead) : null),
+    [pages, myUid, peerRead],
+  );
   const loadOlder = () => {
     if (messages.hasNextPage && !messages.isFetchingNextPage) void messages.fetchNextPage();
   };
@@ -500,7 +595,7 @@ function Conversation({
       if (item.day) return <DaySeparator day={item.day} today={today} />;
       const m = item.message!;
       const usable = !isOptimistic(m) && m.status !== "deleted" && m.status !== "hidden";
-      return (
+      const bubble = (
         <MessageBubble
           message={m}
           own={m.authorId === myUid}
@@ -517,11 +612,20 @@ function Conversation({
           onOpenAttachment={onOpenAttachment ? openAttachment : undefined}
         />
       );
+      if (m.id !== seenId) return bubble;
+      return (
+        <View>
+          {bubble}
+          <Text style={styles.seen}>{t("chat.seen")}</Text>
+        </View>
+      );
     },
-    [myUid, kind, translations, active, today, !!onOpenAttachment],
+    [myUid, kind, translations, active, today, !!onOpenAttachment, seenId, styles, t],
   );
 
   // ---- header ----
+  // Across a block the list has no peer: the default name.
+  const peerName = peer?.name ?? (isDm && !peerId ? cfg.authorFallback() : "");
   const notify = conversation?.notify ?? false;
   // Other members online only (groups/007 leaves me out), and nothing at 0.
   const onlineText = group ? onlineLabel(online, t) : null;
@@ -550,29 +654,64 @@ function Conversation({
         >
           <icons.back size={22} color={theme.colors.textPrimary} weight="bold" />
         </Pressable>
-        <Pressable
-          onPress={onOpenGroupDetails}
-          disabled={!onOpenGroupDetails || !group}
-          style={styles.headerInfo}
-          accessibilityRole={onOpenGroupDetails ? "button" : undefined}
-          accessibilityLabel={[group?.name, onlineText].filter(Boolean).join(", ") || undefined}
-        >
-          {group && (
+        {isDm ? (
+          <Pressable
+            onPress={() => peerId && onOpenProfile(peerId)}
+            disabled={!peerId}
+            style={styles.headerInfo}
+            accessibilityRole="button"
+            accessibilityLabel={
+              [peerName, peerOnline ? t("a11y.online") : null].filter(Boolean).join(", ") ||
+              undefined
+            }
+          >
             <Avatar
-              userId={null}
-              name={group.name}
-              url={group.imageUrl}
+              userId={peerId}
+              name={peerName}
+              url={peer?.avatarUrl ?? null}
               size={36}
-              placement="group"
+              placement="dm"
+              ringColor={theme.colors.background}
+              admin={peer?.admin ?? false}
+              handle={peer?.handle ?? null}
+              badges={peer?.badges}
             />
-          )}
-          <View style={styles.headerText}>
-            <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
-              {group?.name ?? ""}
-            </Text>
-            <OnlineLabel count={group ? online : 0} style={styles.subtitle} />
-          </View>
-        </Pressable>
+            <View style={styles.headerText}>
+              <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
+                {peerName}
+              </Text>
+              {peerOnline && (
+                <Text style={[styles.subtitle, { color: theme.colors.success }]}>
+                  {`● ${t("a11y.online")}`}
+                </Text>
+              )}
+            </View>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={onOpenGroupDetails}
+            disabled={!onOpenGroupDetails || !group}
+            style={styles.headerInfo}
+            accessibilityRole={onOpenGroupDetails ? "button" : undefined}
+            accessibilityLabel={[group?.name, onlineText].filter(Boolean).join(", ") || undefined}
+          >
+            {group && (
+              <Avatar
+                userId={null}
+                name={group.name}
+                url={group.imageUrl}
+                size={36}
+                placement="group"
+              />
+            )}
+            <View style={styles.headerText}>
+              <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
+                {group?.name ?? ""}
+              </Text>
+              <OnlineLabel count={group ? online : 0} style={styles.subtitle} />
+            </View>
+          </Pressable>
+        )}
         {active && kind === "group" && (
           <Pressable
             onPress={() => {
@@ -597,6 +736,9 @@ function Conversation({
       </View>
 
       <GroupReviewNotice group={group} />
+      {requestMode && request && (
+        <Text style={styles.context}>{senderContext(request, cfg.host.getLocale(), t)}</Text>
+      )}
 
       {isQueryLoading(messages) ? (
         <ActivityIndicator color={theme.colors.accent} style={styles.loader} />
@@ -634,8 +776,44 @@ function Conversation({
       <View style={{ paddingBottom: bottomPad }}>
         {closed ? (
           <Text style={styles.closed}>
-            {t(closed === "removed" ? "chat.removed" : "chat.groupDeleted")}
+            {t(
+              closed === "blocked"
+                ? "chat.blocked"
+                : closed === "removed"
+                  ? "chat.removed"
+                  : "chat.groupDeleted",
+            )}
           </Text>
+        ) : requestMode ? (
+          <View style={styles.joinBar}>
+            <Text style={styles.requestHint}>{t("dms.request.bar", { name: peerName })}</Text>
+            {requestError && <Text style={styles.error}>{requestError}</Text>}
+            <View style={styles.requestButtons}>
+              <PressableScale
+                onPress={accept}
+                disabled={answering}
+                haptic="medium"
+                style={[styles.join, styles.requestButton, answering && styles.disabled]}
+              >
+                <Text style={styles.joinLabel}>{t("dms.request.accept")}</Text>
+              </PressableScale>
+              <PressableScale
+                onPress={decline}
+                disabled={answering}
+                style={[styles.decline, styles.requestButton, answering && styles.disabled]}
+              >
+                <Text style={styles.declineLabel}>{t("dms.request.decline")}</Text>
+              </PressableScale>
+            </View>
+            <Pressable
+              onPress={() => setBlockOpen(true)}
+              disabled={answering}
+              style={styles.blockButton}
+              accessibilityRole="button"
+            >
+              <Text style={styles.blockLabel}>{t("dms.request.block")}</Text>
+            </Pressable>
+          </View>
         ) : !member ? (
           <>
             <TypingLine userIds={typingUserIds} />
@@ -688,6 +866,17 @@ function Conversation({
         target={reportTarget}
         onClose={() => setReportTarget(null)}
       />
+      {requestMode && peerId && (
+        <ReportSheet
+          visible={blockOpen}
+          target={{ kind: "message", id: conversationId, authorId: peerId }}
+          onClose={() => setBlockOpen(false)}
+          onSubmitReason={async (reason) => {
+            await blockRequest.mutateAsync({ conversationId, reason });
+            leave();
+          }}
+        />
+      )}
     </GestureHandlerRootView>
   );
 }
@@ -741,6 +930,43 @@ function makeStyles(theme: CommunityTheme) {
       alignItems: "center",
     },
     disabled: { opacity: 0.5 },
+    context: {
+      ...theme.typography.caption,
+      color: theme.colors.textMuted,
+      textAlign: "center",
+      paddingHorizontal: theme.spacing(6),
+      paddingVertical: theme.spacing(2),
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.hairline,
+    },
+    seen: {
+      ...theme.typography.caption,
+      color: theme.colors.textFaint,
+      textAlign: "right",
+      paddingHorizontal: theme.spacing(4),
+      marginTop: theme.spacing(0.5),
+    },
+    requestHint: {
+      ...theme.typography.meta,
+      color: theme.colors.textMuted,
+      textAlign: "center",
+    },
+    requestButtons: { flexDirection: "row", gap: theme.spacing(2) },
+    requestButton: { flex: 1 },
+    decline: {
+      backgroundColor: theme.colors.surfaceMuted,
+      borderRadius: theme.radius.pill,
+      paddingVertical: theme.spacing(3.5),
+      alignItems: "center",
+    },
+    declineLabel: {
+      ...theme.typography.label,
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      color: theme.colors.textPrimary,
+    },
+    blockButton: { alignSelf: "center", minHeight: 44, justifyContent: "center" },
+    blockLabel: { ...theme.typography.label, color: theme.colors.danger },
     joinLabel: {
       ...theme.typography.label,
       fontFamily: theme.fonts.bold,

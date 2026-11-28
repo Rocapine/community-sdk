@@ -1,16 +1,21 @@
 // The Messages page (validated mockup: tabs; `messaging.hubLayout: "unified"` the
-// single list). Direct messages don't exist yet, so only the groups half shows, without
-// tabs ("only one of the two modules on"): my groups, latest message first, each with
-// its picture (rounded square), the last message, its time and the unread count (grey
-// when the group is muted). `tabs` puts "Explore groups" on top, `unified` at the
-// bottom. A plain screen: the host pads the top. Renders nothing when groups is off.
+// single list). With groups and dms, "Conversations" (the Requests row on top when
+// requests wait, then my DMs: the peer's avatar with its online dot, name, last message,
+// time, unread count) and "Groups" (my groups, latest message first, each with its
+// picture as a rounded square, the last message, its time and the unread count, grey
+// when the group is muted; "Explore groups" on top). `unified` mixes both, Requests on
+// top and "Explore groups" at the bottom. With one module, that half without tabs (and
+// with dms and the home's "Feed | Groups" selector, groups live there). A plain screen:
+// the host pads the top. Renders nothing when no messaging module is on.
 import {
   COMMUNITY_EVENTS,
+  dmsSettings,
   emitEvent,
   groupsSettings,
   messagingSettings,
   useCommunityConfig,
   useConversations,
+  useDmRequests,
   useGroup,
   useMyUid,
   useProfile,
@@ -29,34 +34,60 @@ import {
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { Avatar } from "../components/Avatar";
+import { haptic } from "../components/PressableScale";
 import { ScreenBackground } from "../components/ScreenBackground";
+import { hubView, showRequestsRow } from "../utils/chat";
 import { lastMessagePreview } from "../utils/groups";
 import { isQueryLoading } from "../utils/query";
 import { formatTimeAgo, useNow } from "../utils/time";
 
 export type MessagesScreenProps = {
-  /** The tab to open on, once direct messages exist (ignored until then). */
+  /** The tab to open on (tabs layout, both modules on). Default `"conversations"`. */
   initialTab?: "conversations" | "groups";
+  /** Opens a conversation: a group or a DM. */
   onOpenConversation(id: string): void;
   onOpenExplore(): void;
+  /** Opens the DM requests (`RequestsScreen`). The Requests row shows only with it. */
+  onOpenRequests?(): void;
   onBack(): void;
 };
 
+type Tab = "conversations" | "groups";
+
+const byLatest = (a: Conversation, b: Conversation) =>
+  (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? "");
+const unreadOf = (list: Conversation[]) => list.reduce((n, c) => n + c.unread, 0);
+
 export function MessagesScreen(props: MessagesScreenProps) {
   const cfg = useCommunityConfig();
-  if (!groupsSettings(cfg)) return null;
+  if (!messagingSettings(cfg)) return null;
   return <Messages {...props} />;
 }
 
-function Messages({ onOpenConversation, onOpenExplore, onBack }: MessagesScreenProps) {
+function Messages({
+  initialTab = "conversations",
+  onOpenConversation,
+  onOpenExplore,
+  onOpenRequests,
+  onBack,
+}: MessagesScreenProps) {
   const cfg = useCommunityConfig();
   const t = useT();
   const theme = useCommunityTheme();
   const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
-  const unified = messagingSettings(cfg)?.hubLayout === "unified";
+  const settings = messagingSettings(cfg)!;
+  const view = hubView({
+    groups: !!groupsSettings(cfg),
+    dms: !!dmsSettings(cfg),
+    hubLayout: settings.hubLayout,
+    homeLayout: settings.homeLayout,
+  });
   const conversations = useConversations();
+  const requests = useDmRequests();
+  const requestCount = requests.data?.length ?? 0;
   const now = useNow();
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   useEffect(() => {
     emitEvent(cfg, COMMUNITY_EVENTS.messagesOpened);
@@ -68,19 +99,20 @@ function Messages({ onOpenConversation, onOpenExplore, onBack }: MessagesScreenP
   // change) must not show it, or iOS leaves the list pushed down under a stuck spinner.
   const [pulling, setPulling] = useState(false);
 
-  const groups = useMemo(
-    () =>
-      (conversations.data ?? [])
-        .filter((c) => c.kind === "group")
-        .sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? "")),
-    [conversations.data],
-  );
+  const all = useMemo(() => [...(conversations.data ?? [])].sort(byLatest), [conversations.data]);
+  const groups = useMemo(() => all.filter((c) => c.kind === "group"), [all]);
+  const dms = useMemo(() => all.filter((c) => c.kind === "dm"), [all]);
+  const showGroups = view === "groups" || (view === "tabs" && tab === "groups");
+  const data = view === "unified" ? all : showGroups ? groups : dms;
+  // Groups alone keep their layout: `unified` puts "Explore groups" at the bottom.
+  const exploreAtBottom =
+    view === "unified" || (view === "groups" && settings.hubLayout === "unified");
 
   const explore = (
     <Pressable
       onPress={onOpenExplore}
       style={({ pressed }) => [
-        unified ? styles.exploreBottom : styles.exploreTop,
+        exploreAtBottom ? styles.exploreBottom : styles.exploreTop,
         pressed && styles.pressed,
       ]}
       accessibilityRole="button"
@@ -89,6 +121,26 @@ function Messages({ onOpenConversation, onOpenExplore, onBack }: MessagesScreenP
       <Text style={styles.exploreLabel}>{t("messages.exploreGroups")}</Text>
     </Pressable>
   );
+
+  const requestsRow =
+    onOpenRequests && showRequestsRow(requestCount) ? (
+      <Pressable
+        onPress={onOpenRequests}
+        style={({ pressed }) => [styles.requestsRow, pressed && styles.pressed]}
+        accessibilityRole="button"
+        accessibilityLabel={`${t("messages.requests")}, ${t("dms.requests.pending", { count: requestCount })}`}
+      >
+        <icons.messages size={18} color={theme.colors.accent} weight="bold" />
+        <Text style={styles.requestsLabel} numberOfLines={1}>
+          {t("messages.requests")}
+        </Text>
+        <View style={styles.count}>
+          <Text style={styles.countLabel}>{requestCount > 99 ? "99+" : requestCount}</Text>
+        </View>
+      </Pressable>
+    ) : null;
+
+  const header = showGroups ? (exploreAtBottom ? null : explore) : requestsRow;
 
   return (
     <View style={styles.root}>
@@ -107,23 +159,70 @@ function Messages({ onOpenConversation, onOpenExplore, onBack }: MessagesScreenP
         </Text>
       </View>
 
+      {view === "tabs" && (
+        <View style={styles.segments} accessibilityRole="tablist">
+          {(["conversations", "groups"] as const).map((s) => {
+            const on = tab === s;
+            const label = t(s === "groups" ? "groups.home.groups" : "messages.tabs.conversations");
+            // A muted group doesn't count; DMs always do, and each request.
+            const count =
+              s === "groups"
+                ? unreadOf(groups.filter((c) => c.notify))
+                : unreadOf(dms) + requestCount;
+            return (
+              <Pressable
+                key={s}
+                onPress={() => {
+                  if (on) return;
+                  haptic("selection");
+                  setTab(s);
+                }}
+                style={[styles.segment, on && styles.segmentOn]}
+                // 34pt tall: the slop takes the target to 44pt.
+                hitSlop={{ top: 5, bottom: 5 }}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={
+                  count > 0 ? `${label}, ${t("messages.unread", { count })}` : label
+                }
+              >
+                <Text style={[styles.segmentLabel, on && styles.segmentLabelOn]} numberOfLines={1}>
+                  {label}
+                </Text>
+                {count > 0 && (
+                  <View style={[styles.segmentCount, on && styles.segmentCountOn]}>
+                    <Text style={[styles.segmentCountText, on && styles.segmentCountTextOn]}>
+                      {count > 99 ? "99+" : count}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
       {isQueryLoading(conversations) ? (
         <ActivityIndicator color={theme.colors.accent} style={styles.loader} />
       ) : conversations.isError && !conversations.data ? (
         <Text style={styles.empty}>{t("feed.unreachableRetry")}</Text>
       ) : (
         <FlatList
-          data={groups}
+          data={data}
           keyExtractor={(c) => c.id}
-          renderItem={({ item }) => (
-            <GroupConversationRow conversation={item} now={now} onPress={onOpenConversation} />
-          )}
-          ListHeaderComponent={unified ? null : explore}
-          ListFooterComponent={unified && groups.length > 0 ? explore : null}
+          renderItem={({ item }) =>
+            item.kind === "dm" ? (
+              <DmConversationRow conversation={item} now={now} onPress={onOpenConversation} />
+            ) : (
+              <GroupConversationRow conversation={item} now={now} onPress={onOpenConversation} />
+            )
+          }
+          ListHeaderComponent={header}
+          ListFooterComponent={exploreAtBottom && data.length > 0 ? explore : null}
           ListEmptyComponent={
             <View style={styles.emptyBlock}>
-              <Text style={styles.empty}>{t("messages.empty")}</Text>
-              {unified && explore}
+              <Text style={styles.empty}>{t(showGroups ? "messages.empty" : "dms.empty")}</Text>
+              {exploreAtBottom && explore}
             </View>
           }
           refreshControl={
@@ -131,7 +230,9 @@ function Messages({ onOpenConversation, onOpenExplore, onBack }: MessagesScreenP
               refreshing={pulling}
               onRefresh={() => {
                 setPulling(true);
-                void conversations.refetch().finally(() => setPulling(false));
+                void Promise.all([conversations.refetch(), requests.refetch()]).finally(() =>
+                  setPulling(false),
+                );
               }}
               tintColor={theme.colors.accent}
             />
@@ -141,6 +242,77 @@ function Messages({ onOpenConversation, onOpenExplore, onBack }: MessagesScreenP
     </View>
   );
 }
+
+/** A row's right side: the last message's time and the unread count (grey when muted). */
+function RowEnd({ c, now }: { c: Conversation; now: number }) {
+  const t = useT();
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.rowEnd}>
+      {c.lastMessageAt && <Text style={styles.time}>{formatTimeAgo(t, c.lastMessageAt, now)}</Text>}
+      {c.unread > 0 && (
+        <View style={[styles.count, !c.notify && styles.countMuted]}>
+          <Text style={[styles.countLabel, !c.notify && styles.countLabelMuted]}>
+            {c.unread > 99 ? "99+" : c.unread}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** One of my DMs: the peer's avatar (online dot), name, last message, time and unread
+ * count. Across a block the list has no peer: the default name, no avatar. */
+const DmConversationRow = memo(function DmConversationRow({
+  conversation: c,
+  now,
+  onPress,
+}: {
+  conversation: Conversation;
+  now: number;
+  onPress(id: string): void;
+}) {
+  const cfg = useCommunityConfig();
+  const t = useT();
+  const styles = useThemedStyles(makeStyles);
+  const myUid = useMyUid();
+  const peer = useProfile(c.peerId).data;
+  const name = peer?.name ?? (c.peerId ? "" : cfg.authorFallback());
+  const preview = lastMessagePreview(c.lastMessage, myUid, null, t, true);
+  // DMs are always followed: their count never greys.
+  const row = { ...c, notify: true };
+  const unread = c.unread > 0;
+  const unreadLabel = unread ? t("messages.unread", { count: c.unread }) : null;
+
+  return (
+    <Pressable
+      onPress={() => onPress(c.id)}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={[name, preview, unreadLabel].filter(Boolean).join(", ")}
+    >
+      <Avatar
+        userId={c.peerId}
+        name={name}
+        url={peer?.avatarUrl ?? null}
+        size={44}
+        placement="dm"
+        admin={peer?.admin ?? false}
+        handle={peer?.handle ?? null}
+        badges={peer?.badges}
+      />
+      <View style={styles.rowBody}>
+        <Text style={[styles.name, unread && styles.strong]} numberOfLines={1}>
+          {name}
+        </Text>
+        <Text style={[styles.preview, unread && styles.previewUnread]} numberOfLines={1}>
+          {preview}
+        </Text>
+      </View>
+      <RowEnd c={row} now={now} />
+    </Pressable>
+  );
+});
 
 /** One of my groups: picture, name, last message, time and unread count (grey when muted). */
 export const GroupConversationRow = memo(function GroupConversationRow({
@@ -193,18 +365,7 @@ export const GroupConversationRow = memo(function GroupConversationRow({
           {preview}
         </Text>
       </View>
-      <View style={styles.rowEnd}>
-        {c.lastMessageAt && (
-          <Text style={styles.time}>{formatTimeAgo(t, c.lastMessageAt, now)}</Text>
-        )}
-        {unread && (
-          <View style={[styles.count, !c.notify && styles.countMuted]}>
-            <Text style={[styles.countLabel, !c.notify && styles.countLabelMuted]}>
-              {c.unread > 99 ? "99+" : c.unread}
-            </Text>
-          </View>
-        )}
-      </View>
+      <RowEnd c={c} now={now} />
     </Pressable>
   );
 });
@@ -253,6 +414,66 @@ function makeStyles(theme: CommunityTheme) {
       borderStyle: "dashed",
       borderColor: theme.colors.borderStrong,
     },
+    requestsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(2.5),
+      paddingHorizontal: theme.spacing(4),
+      paddingVertical: theme.spacing(3.5),
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.hairline,
+    },
+    requestsLabel: {
+      flex: 1,
+      ...theme.typography.label,
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      color: theme.colors.textPrimary,
+    },
+    segments: {
+      flexDirection: "row",
+      marginHorizontal: theme.spacing(4),
+      marginTop: theme.spacing(1),
+      marginBottom: theme.spacing(2),
+      padding: 3,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.surfaceMuted,
+    },
+    segment: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing(1.5),
+      minHeight: 34,
+      borderRadius: theme.radius.sm,
+    },
+    segmentOn: { backgroundColor: theme.colors.accent },
+    segmentLabel: { ...theme.typography.label, color: theme.colors.textMuted },
+    segmentLabelOn: {
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      color: theme.colors.textInverse,
+    },
+    segmentCount: {
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 5,
+      backgroundColor: theme.colors.danger,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    segmentCountOn: { backgroundColor: theme.colors.textInverse },
+    segmentCountText: {
+      ...theme.typography.caption,
+      fontSize: 10,
+      lineHeight: 12,
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      color: theme.colors.textInverse,
+    },
+    segmentCountTextOn: { color: theme.colors.accent },
     exploreLabel: {
       ...theme.typography.label,
       color: theme.colors.accent,
