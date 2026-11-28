@@ -1,5 +1,52 @@
 # @rocapine/community
 
+## 0.21.10
+
+### Patch Changes
+
+- f3aaa9b: **Accounts: merged and deleted profiles are marked; a ban survives account deletion.** `accounts/003_markers_and_bans.sql` (no app change, needs core `021`):
+
+  - `account_link_and_merge` sets `merged_into` on each profile it merges (and on any profile already
+    merged into one of them), so the dashboard leaves merged profiles out of every count and list.
+    A profile adopted again as the account's profile loses both markers.
+  - `account_delete_profile` stamps `account_deleted_at`: a deleted account counts as a member until
+    then, its posts always count.
+  - Deleting a banned account no longer escapes the ban: `account_bans` keeps a keyed sha256 of the
+    account's `provider:subject` (never the subject itself; the key, `account_ban_key`, is made once per
+    database and readable by no API role), and the next profile that account links
+    (a new link only: a later sign-in never undoes an unban) is banned, with a `ban` moderation action by `account ban`. `account_unban(profile)` (service
+    role) lifts it; the dashboard's unban calls it. Deleting a profile that is not banned drops its
+    account's leftover rows, so a ban lifted without `account_unban` doesn't come back.
+  - Run `npx @rocapine/community upgrade` and `supabase db push`. `merge_profiles` is unchanged.
+  - Release order: deploy the dashboard's brick 23 before accounts `003` reaches a host database (its
+    unban calls `account_unban`; a ban lifted without it is still dropped when the profile is deleted
+    again). A host that imported history with an importer that empties the placeholders members claim
+    must set `merged_into` on those placeholders in the same push, right after core `021` (a host
+    migration ordered after it), or they count as members.
+
+- f3aaa9b: **Imported history counts in the dashboard's Activity.** `core/021_imported_history.sql` (no app change):
+
+  - Placeholder profiles (a history import) now count like any member: their posts, comments, likes,
+    poll votes and reactions show in Activity, and they count as contributors and active members.
+    Expect higher numbers on apps that imported history.
+  - A placeholder joins on its first post or comment (its creation date if it has none), not on the
+    import date, so new members and members total read as if the community had been there all along.
+  - Two markers on `profiles`, not client-writable: `merged_into` (a profile merged into another by
+    the accounts module) and `account_deleted_at`. A merged profile is in no count; a deleted account
+    counts as a member until its deletion and its content always counts. They stay empty until the
+    accounts module sets them.
+  - Moderation's team actions leave out the accounts module's automatic bans (`account ban`).
+  - Indexes on `posts (author_id, created_at)`, `comments (author_id, created_at)` and
+    `profiles (merged_into)`: a placeholder's join date is an index lookup.
+    On a large production database, build the two author indexes beforehand with `create index concurrently if not exists` (and check they are valid), or push at low traffic with a `lock_timeout`: the file runs in one transaction.
+  - Run `npx @rocapine/community upgrade` and `supabase db push`. Same function signatures and JSON
+    shapes: the dashboard needs no change.
+  - Release order: deploy the dashboard's brick 23 before accounts `003` reaches a host database (its
+    unban calls `account_unban`; a ban lifted without it is still dropped when the profile is deleted
+    again). A host that imported history with an importer that empties the placeholders members claim
+    must set `merged_into` on those placeholders in the same push, right after core `021` (a host
+    migration ordered after it), or they count as members.
+
 ## 0.21.9
 
 ### Patch Changes

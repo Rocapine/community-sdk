@@ -1,6 +1,6 @@
 -- Groups module (groups/001_groups.sql, 004_members_changed.sql, 005_storage_sweep.sql,
 -- 006_review_fixes.sql, 007_online_others.sql, messaging/005_review_fixes.sql,
--- accounts/003_merge_hooks.sql).
+-- accounts/004_merge_hooks.sql).
 -- Run against a backend with messaging/001…006 and groups/001…007 applied:
 --   npx supabase db query --project-ref <ref> --linked --yes -f supabase-tests/groups.sql
 -- It creates five auth users (so five profiles: a creator, b, c members, x outsider, adm an

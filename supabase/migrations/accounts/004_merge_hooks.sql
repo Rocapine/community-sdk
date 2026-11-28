@@ -1,6 +1,7 @@
--- community-sdk accounts/003_merge_hooks.sql (schema v1)
+-- community-sdk accounts/004_merge_hooks.sql (schema v1)
 -- Patch of accounts/002, which stays as released: merge_profiles also hands the merged profile's
 -- messaging data to main through merge_messaging() (groups module), when that is installed.
+-- accounts/003 doesn't redefine merge_profiles; its account_link_and_merge calls this one.
 -- The body is 002's otherwise. Service-role only, as in 001 (create or replace keeps the grants).
 -- Fully idempotent.
 
