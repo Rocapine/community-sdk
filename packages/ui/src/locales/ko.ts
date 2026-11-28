@@ -369,6 +369,7 @@ export const ko: Record<string, string> = {
   "dms.new.title": "새 메시지",
   "dms.new.search": "멤버 검색…",
   "dms.new.empty": "찾는 멤버가 없어요.",
+  "dms.new.hint": "이름을 입력해 멤버를 찾아보세요.",
   "dms.error.tooManyRequests":
     "오늘은 더 이상 새 대화를 시작할 수 없어요. 내일 다시 시도해 주세요.",
   "profile.receiveDms": "다이렉트 메시지 받기",

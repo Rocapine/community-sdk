@@ -377,6 +377,7 @@ export const el: Record<string, string> = {
   "dms.new.title": "Νέο μήνυμα",
   "dms.new.search": "Αναζήτηση μέλους…",
   "dms.new.empty": "Δεν βρέθηκε κανείς.",
+  "dms.new.hint": "Γράψε ένα όνομα για να βρεις ένα μέλος.",
   "dms.error.tooManyRequests":
     "Δεν μπορείς να ξεκινήσεις άλλες συζητήσεις σήμερα. Δοκίμασε ξανά αύριο.",
   "profile.receiveDms": "Λήψη προσωπικών μηνυμάτων",

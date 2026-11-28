@@ -382,6 +382,7 @@ export const frVous: Record<string, string> = {
   "dms.new.title": "Nouveau message",
   "dms.new.search": "Rechercher un membre…",
   "dms.new.empty": "Aucun résultat.",
+  "dms.new.hint": "Tapez un nom pour trouver un membre.",
   "dms.error.tooManyRequests":
     "Vous ne pouvez plus démarrer de conversation aujourd'hui. Réessayez demain.",
   "profile.receiveDms": "Recevoir des messages privés",

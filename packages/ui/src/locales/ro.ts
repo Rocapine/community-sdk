@@ -390,6 +390,7 @@ export const ro: Record<string, string> = {
   "dms.new.title": "Mesaj nou",
   "dms.new.search": "Caută un membru…",
   "dms.new.empty": "Niciun rezultat.",
+  "dms.new.hint": "Scrie un nume ca să găsești un membru.",
   "dms.error.tooManyRequests": "Azi nu mai poți începe alte conversații. Încearcă mâine.",
   "profile.receiveDms": "Primește mesaje directe",
   "profile.receiveDmsHelper":

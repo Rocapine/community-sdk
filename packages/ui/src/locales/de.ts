@@ -404,6 +404,7 @@ export const de: Record<string, string> = {
   "dms.new.title": "Neue Nachricht",
   "dms.new.search": "Mitglied suchen…",
   "dms.new.empty": "Niemanden gefunden.",
+  "dms.new.hint": "Gib einen Namen ein, um ein Mitglied zu finden.",
   "dms.error.tooManyRequests":
     "Du kannst heute keine weiteren Unterhaltungen beginnen. Versuch es morgen noch einmal.",
   "profile.receiveDms": "Direktnachrichten empfangen",

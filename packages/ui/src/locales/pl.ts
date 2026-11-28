@@ -417,6 +417,7 @@ export const pl: Record<string, string> = {
   "dms.new.title": "Nowa wiadomość",
   "dms.new.search": "Szukaj członka…",
   "dms.new.empty": "Nikogo nie znaleziono.",
+  "dms.new.hint": "Wpisz nazwę członka, którego szukasz.",
   "dms.error.tooManyRequests": "Dziś nie możesz już zacząć kolejnej rozmowy. Spróbuj jutro.",
   "profile.receiveDms": "Odbieraj prywatne wiadomości",
   "profile.receiveDmsHelper":

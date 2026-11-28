@@ -391,6 +391,7 @@ export const uk: Record<string, string> = {
   "dms.new.title": "Нове повідомлення",
   "dms.new.search": "Знайти учасника…",
   "dms.new.empty": "Нікого не знайдено.",
+  "dms.new.hint": "Введи ім’я, щоб знайти учасника.",
   "dms.error.tooManyRequests": "Сьогодні вже не можна почати нове листування. Спробуй завтра.",
   "profile.receiveDms": "Отримувати особисті повідомлення",
   "profile.receiveDmsHelper":

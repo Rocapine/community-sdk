@@ -477,8 +477,9 @@ menus use it; absent: no "Message" there) and received by `NotificationInboxScre
 `MessagesScreen` (Conversations tab: Requests row, my DMs; with groups and dms, tabs
 Conversations / Groups, or one list with `hubLayout: "unified"`) and `ConversationScreen`
 serve DMs unchanged. `NewMessageSheet` is internal: `MessagesScreen` opens it from its
-pencil when `entryPoints` holds `"newMessage"`. It lists members who take DMs (plus any
-member I already have a DM with) and searches through `search_dm_members`.
+pencil when `entryPoints` holds `"newMessage"`. It searches by name through
+`search_dm_members` (members who take DMs, plus any member I already have a DM with) and
+shows a "type a name" hint until something is typed.
 
 **Header.** The `"dms"` header item opens the Messages page on its Conversations tab, with
 the unread badge (DMs and pending requests). With `messaging.homeLayout: "segmented"` the

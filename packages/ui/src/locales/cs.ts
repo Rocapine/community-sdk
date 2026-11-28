@@ -387,6 +387,7 @@ export const cs: Record<string, string> = {
   "dms.new.title": "Nová zpráva",
   "dms.new.search": "Hledat člena…",
   "dms.new.empty": "Nikoho jsme nenašli.",
+  "dms.new.hint": "Napiš jméno člena, kterého hledáš.",
   "dms.error.tooManyRequests": "Dnes už nemůžeš začít další konverzaci. Zkus to zítra.",
   "profile.receiveDms": "Přijímat soukromé zprávy",
   "profile.receiveDmsHelper":

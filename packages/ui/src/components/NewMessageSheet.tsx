@@ -74,7 +74,9 @@ export function NewMessageSheet({
         </View>
         {isLoading ? (
           <ActivityIndicator color={theme.colors.accent} style={styles.loader} />
-        ) : query.trim() && members.length === 0 ? (
+        ) : !query.trim() ? (
+          <Text style={styles.empty}>{t("dms.new.hint")}</Text>
+        ) : members.length === 0 ? (
           <Text style={styles.empty}>{t("dms.new.empty")}</Text>
         ) : (
           members.map((m) => (

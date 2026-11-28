@@ -387,6 +387,7 @@ export const ru: Record<string, string> = {
   "dms.new.title": "Новое сообщение",
   "dms.new.search": "Найти участника…",
   "dms.new.empty": "Никого не нашлось.",
+  "dms.new.hint": "Введи имя, чтобы найти участника.",
   "dms.error.tooManyRequests": "Сегодня больше нельзя начать новую переписку. Попробуй завтра.",
   "profile.receiveDms": "Получать личные сообщения",
   "profile.receiveDmsHelper":

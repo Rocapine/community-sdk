@@ -389,6 +389,7 @@ export const hr: Record<string, string> = {
   "dms.new.title": "Nova poruka",
   "dms.new.search": "Traži člana…",
   "dms.new.empty": "Nitko nije pronađen.",
+  "dms.new.hint": "Upiši ime da pronađeš člana.",
   "dms.error.tooManyRequests": "Danas ne možeš započeti više razgovora. Pokušaj sutra.",
   "profile.receiveDms": "Primaj privatne poruke",
   "profile.receiveDmsHelper":

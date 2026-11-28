@@ -374,6 +374,7 @@ export const ptPT: Record<string, string> = {
   "dms.new.title": "Nova mensagem",
   "dms.new.search": "Procurar um membro…",
   "dms.new.empty": "Nenhum resultado.",
+  "dms.new.hint": "Escreve um nome para encontrares um membro.",
   "dms.error.tooManyRequests": "Hoje já não podes começar mais conversas. Tenta de novo amanhã.",
   "profile.receiveDms": "Receber mensagens diretas",
   "profile.receiveDmsHelper":

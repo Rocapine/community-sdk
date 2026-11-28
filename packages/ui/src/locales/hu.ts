@@ -371,6 +371,7 @@ export const hu: Record<string, string> = {
   "dms.new.title": "Új üzenet",
   "dms.new.search": "Tag keresése…",
   "dms.new.empty": "Nincs találat.",
+  "dms.new.hint": "Írj be egy nevet, hogy megtalálj egy tagot.",
   "dms.error.tooManyRequests": "Ma már nem kezdhetsz több beszélgetést. Próbáld újra holnap.",
   "profile.receiveDms": "Közvetlen üzenetek fogadása",
   "profile.receiveDmsHelper":

@@ -378,6 +378,7 @@ export const esES: Record<string, string> = {
   "dms.new.title": "Nuevo mensaje",
   "dms.new.search": "Buscar un miembro…",
   "dms.new.empty": "No hemos encontrado a nadie.",
+  "dms.new.hint": "Escribe un nombre para encontrar a un miembro.",
   "dms.error.tooManyRequests": "Hoy ya no puedes iniciar más conversaciones. Inténtalo mañana.",
   "profile.receiveDms": "Recibir mensajes directos",
   "profile.receiveDmsHelper":

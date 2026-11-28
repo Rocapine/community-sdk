@@ -379,6 +379,7 @@ export const it: Record<string, string> = {
   "dms.new.title": "Nuovo messaggio",
   "dms.new.search": "Cerca un membro…",
   "dms.new.empty": "Nessun risultato.",
+  "dms.new.hint": "Scrivi un nome per trovare un membro.",
   "dms.error.tooManyRequests": "Oggi non puoi iniziare altre conversazioni. Riprova domani.",
   "profile.receiveDms": "Ricevi messaggi diretti",
   "profile.receiveDmsHelper":

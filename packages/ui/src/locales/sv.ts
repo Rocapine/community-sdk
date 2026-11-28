@@ -368,6 +368,7 @@ export const sv: Record<string, string> = {
   "dms.new.title": "Nytt meddelande",
   "dms.new.search": "Sök efter en medlem…",
   "dms.new.empty": "Ingen hittades.",
+  "dms.new.hint": "Skriv ett namn för att hitta en medlem.",
   "dms.error.tooManyRequests":
     "Du kan inte starta fler konversationer i dag. Försök igen i morgon.",
   "profile.receiveDms": "Ta emot direktmeddelanden",

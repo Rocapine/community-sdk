@@ -367,6 +367,7 @@ export const da: Record<string, string> = {
   "dms.new.title": "Ny besked",
   "dms.new.search": "Søg efter et medlem…",
   "dms.new.empty": "Ingen fundet.",
+  "dms.new.hint": "Skriv et navn for at finde et medlem.",
   "dms.error.tooManyRequests": "Du kan ikke starte flere samtaler i dag. Prøv igen i morgen.",
   "profile.receiveDms": "Modtag private beskeder",
   "profile.receiveDmsHelper":

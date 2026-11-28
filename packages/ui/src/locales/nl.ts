@@ -371,6 +371,7 @@ export const nl: Record<string, string> = {
   "dms.new.title": "Nieuw bericht",
   "dms.new.search": "Zoek een lid…",
   "dms.new.empty": "Niemand gevonden.",
+  "dms.new.hint": "Typ een naam om een lid te vinden.",
   "dms.error.tooManyRequests":
     "Je kunt vandaag geen gesprekken meer beginnen. Probeer het morgen opnieuw.",
   "profile.receiveDms": "Directe berichten ontvangen",

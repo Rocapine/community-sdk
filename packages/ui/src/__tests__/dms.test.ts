@@ -290,6 +290,7 @@ describe("DM copy", () => {
     "dms.new.title",
     "dms.new.search",
     "dms.new.empty",
+    "dms.new.hint",
     "dms.error.tooManyRequests",
     "profile.receiveDms",
     "profile.receiveDmsHelper",
