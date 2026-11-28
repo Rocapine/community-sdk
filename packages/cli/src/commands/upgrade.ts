@@ -108,6 +108,9 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   // order, sorted within each module — identical ordering rule to init. ----
   type PendingMigration = { moduleName: Module; templateFilename: string; rawSql: string };
   const pending: PendingMigration[] = [];
+  // groups/003 recreates list_conversations without the DM read rules: an install that
+  // has dms and adds groups gets its (idempotent) dms migrations again, after groups'.
+  const reapplyDms = manifest.modules.includes("dms") && addedModules.includes("groups");
   for (const moduleName of canonicalModules) {
     const moduleSrcDir = path.join(migrationsSrcRoot, moduleName);
     if (!fs.existsSync(moduleSrcDir)) continue;
@@ -118,7 +121,7 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
 
     for (const filename of filenames) {
       const id = migrationTemplateId(moduleName, templateBaseName(filename));
-      if (installedTemplateIds.has(id)) continue;
+      if (installedTemplateIds.has(id) && !(reapplyDms && moduleName === "dms")) continue;
       pending.push({
         moduleName,
         templateFilename: filename,

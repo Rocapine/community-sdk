@@ -14,11 +14,12 @@
 -- can_read_conversation (DMs: the two members only, never across a block), the
 -- messages read policy (visible_from), send_message (messaging/006: a new request
 -- after the cooldown), list_conversations (groups/003 or messaging/001, whichever is
--- installed: visible_from), unread_followed_messages (DMs always followed, plus one
--- per pending request), messaging_on_account_delete (eraseDms) and merge_messaging
--- (two DMs with one member become one). A host that adds groups after dms must run
--- this file again once groups is in: groups/003 recreates list_conversations without
--- visible_from. mark_conversation_read and unread_followed_messages_for need no
+-- installed: visible_from), set_message_like (visible_from), unread_followed_messages
+-- (DMs always followed, plus one per pending request), messaging_on_account_delete
+-- (eraseDms) and merge_messaging (two DMs with one member become one). groups/003
+-- recreates list_conversations without visible_from, so a host adding groups after
+-- dms runs this file again once groups is in (`upgrade --add-modules groups` copies
+-- it again). mark_conversation_read and unread_followed_messages_for need no
 -- change (the first already skips a request, the second runs the function above).
 --
 -- dm_pairs, dm_declines and dm_request_log have no client access: the RPCs below read
@@ -194,6 +195,46 @@ begin
   where conversation_id = p_conversation and user_id <> p_uid;
   insert into dm_declines (sender_id, recipient_id, until) values (v_peer, p_uid, v_until)
   on conflict (sender_id, recipient_id) do update set until = excluded.until;
+end;
+$$;
+
+-- Why p_sender may not start a request to p_recipient now (null: they may, and in
+-- requests mode the request is logged). Shared by start_dm (which raises it) and the
+-- after-cooldown request in send_message (which then keeps the message silent).
+-- Blocks are checked by both callers before.
+create or replace function public.dm_request_refusal(p_sender uuid, p_recipient uuid)
+returns text
+language plpgsql volatile security definer set search_path = public
+as $$
+declare
+  v_recipient public.profiles;
+begin
+  select * into v_recipient from profiles where id = p_recipient;
+  if not found or v_recipient.is_banned then
+    return 'not_found';
+  end if;
+  if not v_recipient.accepts_dms then
+    return 'dms_off';
+  end if;
+  if coalesce((public.messaging_setting('dmsRequireAccount'))::boolean, false)
+     and not (public.has_account_link(p_sender) and public.has_account_link(p_recipient)) then
+    return 'account_required';
+  end if;
+  if exists (select 1 from dm_declines
+             where sender_id = p_sender and recipient_id = p_recipient and until > now()) then
+    return 'declined_recently';
+  end if;
+  if coalesce(public.messaging_setting('dmsFirstMessage') #>> '{}', 'direct') = 'requests' then
+    -- One count at a time per sender, so parallel requests can't all pass it.
+    perform pg_advisory_xact_lock(hashtextextended('dm_requests:' || p_sender, 0));
+    delete from dm_request_log where sender_id = p_sender and at <= now() - interval '1 day';
+    if (select count(*) from dm_request_log where sender_id = p_sender)
+       >= coalesce((public.messaging_setting('dmsRequestsPerDay'))::int, 5) then
+      return 'too_many_requests';
+    end if;
+    insert into dm_request_log (sender_id, recipient_id) values (p_sender, p_recipient);
+  end if;
+  return null;
 end;
 $$;
 
@@ -403,6 +444,7 @@ declare
   v_recipient public.profiles;
   v_conv uuid;
   v_state text;
+  v_refusal text;
 begin
   if v_uid is null then
     raise exception 'not_authenticated';
@@ -430,33 +472,16 @@ begin
     if v_state = 'request' then
       perform public.dm_accept(v_conv, v_uid);
     elsif v_state = 'declined' then
-      update conversation_members set state = 'active', visible_from = now(), last_read_at = now()
+      update conversation_members set state = 'active', visible_from = now()
       where conversation_id = v_conv and user_id = v_uid;
       delete from dm_declines where sender_id = p_recipient and recipient_id = v_uid;
     end if;
     return v_conv;
   end if;
 
-  if not v_recipient.accepts_dms then
-    raise exception 'dms_off';
-  end if;
-  if coalesce((public.messaging_setting('dmsRequireAccount'))::boolean, false)
-     and not (public.has_account_link(v_uid) and public.has_account_link(p_recipient)) then
-    raise exception 'account_required';
-  end if;
-  if exists (select 1 from dm_declines
-             where sender_id = v_uid and recipient_id = p_recipient and until > now()) then
-    raise exception 'declined_recently';
-  end if;
-  if v_mode = 'requests' then
-    -- One count at a time per sender, so parallel starts can't all pass it.
-    perform pg_advisory_xact_lock(hashtextextended('dm_requests:' || v_uid, 0));
-    delete from dm_request_log where sender_id = v_uid and at <= now() - interval '1 day';
-    if (select count(*) from dm_request_log where sender_id = v_uid)
-       >= coalesce((public.messaging_setting('dmsRequestsPerDay'))::int, 5) then
-      raise exception 'too_many_requests';
-    end if;
-    insert into dm_request_log (sender_id, recipient_id) values (v_uid, p_recipient);
+  v_refusal := public.dm_request_refusal(v_uid, p_recipient);
+  if v_refusal is not null then
+    raise exception '%', v_refusal;
   end if;
 
   insert into conversations (kind) values ('dm') returning id into v_conv;
@@ -539,7 +564,10 @@ begin
   order by m.created_at desc, m.id desc
   limit 1;
   perform public.dm_decline(p_conversation, v_uid);
-  insert into blocks (blocker_id, blocked_id) values (v_uid, v_peer) on conflict do nothing;
+  -- An in-app admin can't be blocked (blocked_member_ids() ignores it): report only.
+  if not coalesce((select is_admin from profiles where id = v_peer), false) then
+    insert into blocks (blocker_id, blocked_id) values (v_uid, v_peer) on conflict do nothing;
+  end if;
   if v_message is not null then
     insert into reports (reporter_id, reported_user_id, message_id, reason)
     values (v_uid, v_peer, v_message, p_reason);
@@ -599,7 +627,9 @@ as $$
 $$;
 
 -- When the peer last read the DM ("Seen"): only with dmsReadReceipts, both active,
--- not blocked. Null otherwise, so a request never tells its sender it was read.
+-- not blocked, and, after the peer reopened a DM they had declined, once the caller
+-- wrote since (no "Seen" on messages the peer never saw). Null otherwise, so a
+-- request never tells its sender it was read.
 create or replace function public.dm_peer_read(p_conversation uuid)
 returns timestamptz
 language sql stable security definer set search_path = public
@@ -611,12 +641,16 @@ as $$
   where cm.conversation_id = p_conversation and cm.user_id = auth.uid()
     and cm.state = 'active' and o.state = 'active'
     and coalesce((public.messaging_setting('dmsReadReceipts'))::boolean, false)
-    and not (o.user_id = any (public.blocked_member_ids()));
+    and not (o.user_id = any (public.blocked_member_ids()))
+    and (o.visible_from is null
+         or o.visible_from <= (select max(m.created_at) from messages m
+                               where m.conversation_id = cm.conversation_id and m.author_id = cm.user_id));
 $$;
 
 -- messaging/006's, plus, in a DM whose recipient declined: once the cooldown is over,
--- the message starts a new request that shows from it on (and logs it); within the
--- cooldown it is stored, readable by its author only.
+-- the message starts a new request that shows from it on, if a new DM's checks pass;
+-- otherwise (and within the cooldown) it is stored, readable by its author only. A
+-- reply can't quote a message the caller may not see.
 create or replace function public.send_message(
   p_conversation uuid,
   p_body text,
@@ -681,8 +715,13 @@ begin
      and p_image_path !~ ('^' || p_conversation || '/' || v_uid || '/[A-Za-z0-9_-]+\.(jpg|jpeg|png|webp)$') then
     raise exception 'invalid_image_path';
   end if;
+  -- Not to a message the caller may not see (before their visible_from).
   if p_reply_to is not null and not exists (
-    select 1 from messages where id = p_reply_to and conversation_id = p_conversation
+    select 1 from messages m
+    where m.id = p_reply_to and m.conversation_id = p_conversation
+      and m.created_at >= coalesce((select visible_from from conversation_members
+                                    where conversation_id = p_conversation and user_id = v_uid),
+                                   '-infinity')
   ) then
     raise exception 'invalid_reply';
   end if;
@@ -698,16 +737,16 @@ begin
     raise exception 'rate_limited';
   end if;
 
+  -- The new request runs a new DM's checks (dm_request_refusal); one that fails
+  -- leaves the recipient declined and the message silent, as during the cooldown.
   if v_kind = 'dm' then
     v_peer := public.dm_peer_of(p_conversation, v_uid);
     perform public.dm_lock_pair(v_uid, v_peer);
     if exists (select 1 from conversation_members
                where conversation_id = p_conversation and user_id = v_peer and state = 'declined')
-       and not exists (select 1 from dm_declines
-                       where sender_id = v_uid and recipient_id = v_peer and until > now()) then
+       and public.dm_request_refusal(v_uid, v_peer) is null then
       update conversation_members set state = 'request', visible_from = now()
       where conversation_id = p_conversation and user_id = v_peer;
-      insert into dm_request_log (sender_id, recipient_id) values (v_uid, v_peer);
     end if;
   end if;
 
@@ -723,6 +762,45 @@ begin
   update conversation_members set last_read_at = now()
   where conversation_id = p_conversation and user_id = v_uid;
   return v_msg;
+end;
+$$;
+
+-- messaging/001's, plus the caller's visible_from: a message they may not see can't be liked.
+create or replace function public.set_message_like(p_message uuid, p_liked boolean)
+returns void
+language plpgsql volatile security definer set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated';
+  end if;
+  if not p_liked then
+    delete from message_likes where message_id = p_message and user_id = v_uid;
+    if found then
+      update messages set like_count = greatest(like_count - 1, 0) where id = p_message;
+    end if;
+    return;
+  end if;
+  if public.current_user_banned() then
+    raise exception 'banned';
+  end if;
+  if not exists (
+    select 1 from messages m
+    join conversation_members cm
+      on cm.conversation_id = m.conversation_id and cm.user_id = v_uid and cm.state = 'active'
+    where m.id = p_message and m.status = 'visible'
+      and m.created_at >= coalesce(cm.visible_from, '-infinity')
+      and not (m.author_id = any (public.blocked_member_ids()))
+  ) then
+    raise exception 'not_found';
+  end if;
+  insert into message_likes (message_id, user_id) values (p_message, v_uid)
+  on conflict do nothing;
+  if found then
+    update messages set like_count = like_count + 1 where id = p_message;
+  end if;
 end;
 $$;
 
@@ -748,7 +826,8 @@ $$;
 
 -- ============ ACCOUNT DELETION ============
 -- messaging/001's, with eraseDms: the member's DM messages are deleted, group
--- messages kept (their image files are left to the storage sweep, groups/005).
+-- messages kept. Their image files stay in message-images: groups/005's sweep lists
+-- them when groups is installed; without groups nothing sweeps them yet.
 create or replace function public.messaging_on_account_delete(p_uid uuid)
 returns void
 language plpgsql volatile security definer set search_path = public
@@ -766,11 +845,21 @@ end;
 $$;
 
 -- ============ PROFILE MERGE ============
+-- The more open state first (merge_messaging).
+create or replace function public.dm_state_rank(p_state text)
+returns int
+language sql immutable
+as $$
+  select case p_state when 'active' then 0 when 'request' then 1 else 2 end;
+$$;
+
 -- messaging/001's, plus DMs, first: a DM between the two is dropped (it would be with
 -- oneself); two DMs with one member become one, the older, which takes the other's
--- messages. Each person's kept row takes the more open state of their two rows
--- (active, then request) and the later visible_from, so nothing either row hid shows.
--- Pairs, declines and the request log move to main.
+-- messages. Messages a member never saw (before their row's visible_from) are deleted
+-- first, so no merged row can reveal them; each person's kept row then takes the
+-- state and visible_from of the more open of their two rows (active, request,
+-- declined), an active row never keeping a future visible_from. Pairs, declines and
+-- the request log move to main.
 create or replace function public.merge_messaging(p_main uuid, p_other uuid)
 returns void
 language plpgsql volatile security definer set search_path = public
@@ -796,17 +885,22 @@ begin
     select id into v_keep from conversations where id in (v_main_conv, v_other_conv)
     order by created_at, id limit 1;
     v_drop := case when v_keep = v_main_conv then v_other_conv else v_main_conv end;
+    delete from messages m using conversation_members cm
+    where m.conversation_id in (v_keep, v_drop) and cm.conversation_id = m.conversation_id
+      and cm.user_id <> m.author_id and m.created_at < cm.visible_from;
     update conversation_members k set
-      state = case when 'active' in (k.state, d.state) then 'active'
-                   when 'request' in (k.state, d.state) then 'request'
-                   else k.state end,
-      visible_from = greatest(k.visible_from, d.visible_from),
+      state = case when public.dm_state_rank(d.state) < public.dm_state_rank(k.state)
+                   then d.state else k.state end,
+      visible_from = case when public.dm_state_rank(d.state) < public.dm_state_rank(k.state)
+                          then d.visible_from else k.visible_from end,
       joined_at = least(k.joined_at, d.joined_at),
       last_read_at = greatest(k.last_read_at, d.last_read_at),
       notify = k.notify or d.notify
     from conversation_members d
     where k.conversation_id = v_keep and d.conversation_id = v_drop
       and coalesce(nullif(k.user_id, p_other), p_main) = coalesce(nullif(d.user_id, p_other), p_main);
+    update conversation_members set visible_from = null
+    where conversation_id = v_keep and state = 'active' and visible_from > now();
     update messages set conversation_id = v_keep where conversation_id = v_drop;
     update conversations set last_message_at = (
       select max(created_at) from messages where conversation_id = v_keep
@@ -886,6 +980,8 @@ revoke execute on function public.dm_lock_pair(uuid, uuid) from public, anon, au
 revoke execute on function public.dm_accept(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.dm_decline(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.dm_peer_of(uuid, uuid) from public, anon, authenticated;
+revoke execute on function public.dm_request_refusal(uuid, uuid) from public, anon, authenticated;
+revoke execute on function public.dm_state_rank(text) from public, anon, authenticated;
 revoke execute on function public.dm_common_groups(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.set_accepts_dms(boolean) from public, anon;
 revoke execute on function public.profile_dm_flags(uuid[]) from public, anon;

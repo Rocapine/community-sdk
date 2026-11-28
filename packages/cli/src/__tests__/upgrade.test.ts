@@ -470,6 +470,34 @@ describe("runUpgrade", () => {
     expect(manifest.installedTemplates).toContain("images/images");
   });
 
+  it("re-copies the dms migrations after groups' when groups joins an install with dms", async () => {
+    await runInit({
+      cwd,
+      templatesDir,
+      projectUrl,
+      anonKey,
+      modules: ["core", "dms"],
+      now: new Date("2026-08-31T12:00:00Z"),
+      log: () => {},
+    });
+
+    const result = await runUpgrade(baseOptions({ addModules: ["groups"] }));
+
+    const lastGroups = result.addedMigrations
+      .map((f) => f.includes("_community_groups_"))
+      .lastIndexOf(true);
+    const dms = result.addedMigrations.findIndex((f) => f.includes("_community_dms_dms"));
+    expect(lastGroups).toBeGreaterThan(-1);
+    expect(dms).toBeGreaterThan(lastGroups);
+    expect(readManifest(cwd)!.modules).toEqual([
+      "core",
+      "attachments",
+      "messaging",
+      "groups",
+      "dms",
+    ]);
+  });
+
   it("adds the opt-in accounts module with addModules", async () => {
     await runInit({
       cwd,
