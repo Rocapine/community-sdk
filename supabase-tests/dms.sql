@@ -1,4 +1,4 @@
--- Direct messages (dms/001_dms.sql) on the messaging core.
+-- Direct messages (dms/001_dms.sql … 009_storage_sweep.sql) on the messaging core.
 -- Run against a backend with messaging and dms applied (groups optional):
 --   npx supabase db query --remote=<ref> --yes -f supabase-tests/dms.sql
 -- Five existing profiles (a, b, c, x, a2) write DMs to each other. Every timestamp
@@ -17,6 +17,9 @@ declare
   n0 int;
   n int;
   rep uuid;
+  sweep_m uuid;
+  swept text[];
+  failed boolean;
 begin
   select array_agg(id) into ids from (
     select id from public.profiles where not is_banned and not is_admin limit 5
@@ -1081,6 +1084,37 @@ begin
   set local role authenticated;
   assert (select count(*) from public.messages where conversation_id = cb and body = 'a2 to b') = 1,
     'B still reads A2''s message';
+  reset role;
+
+  -- dms/009 (or groups/005–006 where groups is in): the daily sweep lists a DM's image
+  -- files nothing holds after a day (an image uploaded for a first message the server
+  -- refused, or of an erased message), never one a message, its history or an open
+  -- report holds (here a deleted message's earlier image, reported), nor a fresh upload.
+  insert into public.messages (conversation_id, author_id, image_path, status)
+    values (cb, c, cb || '/' || c || '/sent.jpg', 'visible');
+  insert into public.messages (conversation_id, author_id, status)
+    values (cb, c, 'deleted') returning id into sweep_m;
+  insert into public.message_versions (message_id, image_path) values (sweep_m, cb || '/' || c || '/reported.jpg');
+  insert into storage.objects (bucket_id, name, created_at) values
+    ('message-images', cb || '/' || c || '/sent.jpg', now() - interval '2 days'),
+    ('message-images', cb || '/' || c || '/refused.jpg', now() - interval '2 days'),
+    ('message-images', cb || '/' || c || '/reported.jpg', now() - interval '2 days'),
+    ('message-images', cb || '/' || c || '/uploading.jpg', now());
+  insert into public.reports (reporter_id, reported_user_id, message_id, reason)
+    values (b, c, sweep_m, 'spam') returning id into rep;
+  select array_agg(u.name order by u.name) into swept
+    from public.messaging_images_unreferenced(100000) u
+   where u.bucket = 'message-images' and u.name like cb || '/%';
+  assert swept = array[cb || '/' || c || '/refused.jpg'],
+    'swept: the upload no message holds, got ' || coalesce(swept::text, 'nothing');
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  failed := false;
+  begin
+    perform public.messaging_images_unreferenced(1);
+  exception when insufficient_privilege then failed := true;
+  end;
+  assert failed, 'authenticated must not list sweepable files';
   reset role;
 
   raise exception 'DMS_TESTS_PASSED';

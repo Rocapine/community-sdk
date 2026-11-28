@@ -489,7 +489,7 @@ describe("runUpgrade", () => {
     const dms = result.addedMigrations.findIndex((f) => f.includes("_community_dms_dms"));
     expect(lastGroups).toBeGreaterThan(-1);
     expect(dms).toBeGreaterThan(lastGroups);
-    // Every dms file again, in order: dms/006 after dms/001, then 007 and 008.
+    // Every dms file again, in order: dms/006 after dms/001, then 007, 008 and 009.
     const firstMessage = result.addedMigrations.findIndex((f) =>
       f.includes("_community_dms_first_message"),
     );
@@ -500,8 +500,12 @@ describe("runUpgrade", () => {
     const recheck = result.addedMigrations.findIndex((f) =>
       f.includes("_community_dms_send_recheck"),
     );
+    const sweep = result.addedMigrations.findIndex((f) =>
+      f.includes("_community_dms_storage_sweep"),
+    );
     expect(emptyDm).toBeGreaterThan(firstMessage);
     expect(recheck).toBeGreaterThan(emptyDm);
+    expect(sweep).toBeGreaterThan(recheck);
     expect(readManifest(cwd)!.modules).toEqual([
       "core",
       "attachments",

@@ -220,6 +220,7 @@ What each SDK feature gives the dashboard to manage. Update a row when the SDK c
 | DM settings keys `dms*` in `messaging_set_settings` (dms `001`)                                             | 0.22                           | First message, receipts, account rule, request limits in settings               | 12, 22  |
 | DM pushes, `push_tokens.notify_dms` (dms `002`)                                                             | 0.22                           | Nothing; sent by `notify-message`                                               | —       |
 | DM request accepted in the notification center (dms `001`, inbox `005`)                                     | 0.22                           | Nothing; sent by acceptance                                                     | —       |
+| Chat image sweep without groups (dms `009`)                                                                 | 0.22                           | Nothing; run by `daily-moderation`                                              | —       |
 | Group events in the notification center (inbox `005`)                                                       | 0.22                           | Nothing; sent by moderation                                                     | —       |
 
 ## Open questions

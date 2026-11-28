@@ -649,7 +649,8 @@ read `account_links` only when the accounts module is installed; without it they
   `<conversation>/<uid>/<uuid>.<ext>`; readers get signed URLs), `group-images` (public,
   approved images only, written by moderation) and `group-images-pending` (private,
   `<uid>/<uuid>.<ext>`, copied to `group-images` on approval). `daily-moderation`
-  removes, through `messaging_images_unreferenced()` (`groups/005`, service role only),
+  removes, through `messaging_images_unreferenced()` (`groups/005`, or `dms/009` without
+  groups; service role only),
   every file of a deleted group (its picture and its messages' images) and any upload
   no row points at after a day (an image picked and never sent, an abandoned group form).
   A file a group or message that isn't deleted still points at, or that a message's edit
@@ -713,7 +714,9 @@ Then `supabase db push`, `messaging_set_settings` with the `dms*` keys above, an
   block tells the blocked member's `dms:<id>` only when they have a row) and
   `dms/008_send_recheck` (`send_message` checks the caller's own row again under the pair
   lock: of two first messages sent at once in requests mode, the second is refused
-  `not_a_member` instead of landing in the request its row just became). All
+  `not_a_member` instead of landing in the request its row just became) and
+  `dms/009_storage_sweep` (`messaging_images_unreferenced()` for installs without groups:
+  the daily sweep of `message-images`, below; created only when groups hasn't made it). All
   idempotent; `dms/002` needs the push module (skipped with a notice when `push_tokens`
   is missing).
 - **Functions.** No new secret and no new function: `notify-message` (messaging + push)
@@ -734,12 +737,13 @@ Then `supabase db push`, `messaging_set_settings` with the `dms*` keys above, an
   - **Config must match the backend.** With `modules.dms` on and `dms/001` missing, the
     conversation list breaks (`dm_peers` fails and takes the whole list with it). Run
     `db push` before shipping an app build that sets `modules.dms`.
-  - **DM-only installs have no storage sweep.** `messaging_images_unreferenced()` (the
-    daily sweep of the messaging buckets, called by `daily-moderation`) comes with
-    `groups/005`, not with `messaging` or `dms`; without it the function is a silent no-op.
-    A DM-only install therefore keeps the image files of erased DM messages (`eraseDms`,
-    `eraseAll`) and any upload nobody sent. Add `groups` (or run `groups/005` by hand) to
-    sweep them; `message-images` is private, so this is a storage cost, not a leak.
+  - **The storage sweep on a DM-only install** comes from `dms/009`:
+    `messaging_images_unreferenced()` (called by `daily-moderation`) lists the
+    `message-images` files no message nor message version holds after a day (an erased DM
+    message's image, `eraseDms` / `eraseAll`; an image uploaded for a first message the server
+    refused), never one an open report points at. `dms/009` creates it only when groups
+    hasn't; adding groups later replaces it with `groups/005–006`'s, which also sweeps the
+    group buckets, and re-running `dms/009` never undoes that.
   - **The Slack report path for a DM was not run live.** `report-to-slack`'s DM branch is
     unit-tested only (running it would post to the real channel): report one DM message from a
     sandbox first and check the line reads "Direct message from _a_ to _b_ (text not shown)".
