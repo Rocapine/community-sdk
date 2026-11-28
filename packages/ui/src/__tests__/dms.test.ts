@@ -24,9 +24,10 @@ import { sk } from "../locales/sk";
 import { sv } from "../locales/sv";
 import { uk } from "../locales/uk";
 import {
-  dmClosedReason,
+  conversationIdentity,
+  dmState,
+  groupClosed,
   hubView,
-  isRequestMode,
   seenMessageId,
   senderContext,
   showRequestsRow,
@@ -35,38 +36,133 @@ import { lastMessagePreview } from "../utils/groups";
 
 const t = makeT("en");
 
-describe("isRequestMode", () => {
-  it("is on while my side is a request, from the list or my pending requests", () => {
-    expect(isRequestMode("request", false, false)).toBe(true);
-    // The list only holds active conversations: a request comes from useDmRequests.
-    expect(isRequestMode(undefined, true, false)).toBe(true);
+describe("conversationIdentity", () => {
+  const base = {
+    listed: undefined,
+    request: undefined,
+    sticky: null,
+    dmsOn: true,
+    groupsOn: true,
+    preview: false,
+    loaded: true,
+  };
+  const dm = { kind: "dm" as const, peerId: "p", requestState: "active" as const };
+  it("reads a listed conversation, or a pending request as a DM", () => {
+    expect(conversationIdentity({ ...base, listed: dm })).toEqual({
+      kind: "dm",
+      peerId: "p",
+      confirmed: true,
+    });
+    expect(conversationIdentity({ ...base, request: { senderId: "s" } })).toEqual({
+      kind: "dm",
+      peerId: "s",
+      confirmed: true,
+    });
   });
-  it("is off for an active DM, a group, or once I accepted here", () => {
-    expect(isRequestMode("active", false, false)).toBe(false);
-    expect(isRequestMode("active", true, false)).toBe(false);
-    expect(isRequestMode(null, false, false)).toBe(false);
-    expect(isRequestMode(undefined, true, true)).toBe(false);
+  it("keeps a DM through the accept window (out of requests, not listed yet)", () => {
+    const sticky = { kind: "dm" as const, peerId: "s" };
+    expect(conversationIdentity({ ...base, sticky })).toEqual({ ...sticky, confirmed: true });
+    // Decline back-animation too: never flips to a group.
+    expect(conversationIdentity({ ...base, sticky, loaded: false }).kind).toBe("dm");
+  });
+  it("has no peer across a block, whatever it knew", () => {
+    const blocked = { ...dm, peerId: null, requestState: null };
+    expect(
+      conversationIdentity({ ...base, listed: blocked, sticky: { kind: "dm", peerId: "p" } })
+        .peerId,
+    ).toBeNull();
+  });
+  it("is a group without dms, or in a preview, as before", () => {
+    expect(conversationIdentity({ ...base, dmsOn: false, loaded: false }).kind).toBe("group");
+    expect(conversationIdentity({ ...base, preview: true, loaded: false }).kind).toBe("group");
+  });
+  it("waits for both lists, then guesses unconfirmed", () => {
+    expect(conversationIdentity({ ...base, loaded: false }).kind).toBeNull();
+    expect(conversationIdentity(base)).toEqual({ kind: "group", peerId: null, confirmed: false });
+    // Dms only.
+    expect(conversationIdentity({ ...base, groupsOn: false }).kind).toBe("dm");
+    expect(conversationIdentity({ ...base, groupsOn: false, loaded: false }).kind).toBeNull();
+  });
+});
+
+describe("dmState", () => {
+  const base = {
+    listed: undefined,
+    pending: false,
+    accepted: false,
+    left: false,
+    loaded: true,
+    errorCode: null,
+  };
+  const active = { peerId: "p", requestState: "active" as const };
+  it("is a request while mine to answer", () => {
+    expect(dmState({ ...base, pending: true })).toBe("request");
+    expect(dmState({ ...base, listed: { peerId: "p", requestState: "request" } })).toBe("request");
+  });
+  it("goes live at once on accept, before the lists catch up", () => {
+    expect(dmState({ ...base, pending: true, accepted: true })).toBe("active");
+    expect(dmState({ ...base, accepted: true })).toBe("active");
+    expect(dmState({ ...base, listed: active })).toBe("active");
+  });
+  it("stays left (closing) after a decline or a block here", () => {
+    expect(dmState({ ...base, left: true })).toBe("left");
+    expect(dmState({ ...base, pending: true, left: true })).toBe("left");
+  });
+  it("is blocked across a block, or when a send says so", () => {
+    expect(dmState({ ...base, listed: { peerId: null, requestState: null } })).toBe("blocked");
+    expect(dmState({ ...base, listed: active, errorCode: "blocked" })).toBe("blocked");
+    expect(dmState({ ...base, listed: active, errorCode: "rate_limited" })).toBe("active");
+  });
+  it("is unavailable once gone from both lists (a request withdrawn, a stale link)", () => {
+    expect(dmState(base)).toBe("unavailable");
+    expect(dmState({ ...base, loaded: false })).toBe("loading");
+  });
+});
+
+describe("groupClosed", () => {
+  it("says unavailable for an unconfirmed id that is no group", () => {
+    expect(groupClosed(null, null, false)).toBe("unavailable");
+  });
+  it("keeps the group lines otherwise", () => {
+    expect(groupClosed(null, null, true)).toBe("groupDeleted");
+    expect(groupClosed(undefined, null, false)).toBeNull();
+    expect(groupClosed(undefined, "not_a_member", true)).toBe("removed");
   });
 });
 
 describe("seenMessageId", () => {
+  const sending = (m: { id: string }) => m.id.startsWith("optimistic-");
   // Newest first, like a page of messages.
   const msgs = [
-    { id: "3", authorId: "peer", createdAt: "2026-11-28T10:03:00.000000+00:00" },
-    { id: "2", authorId: "me", createdAt: "2026-11-28T10:02:00.000000+00:00" },
-    { id: "1", authorId: "me", createdAt: "2026-11-28T10:01:00.000000+00:00" },
+    { id: "3", authorId: "peer", createdAt: "2026-11-28T10:03:00.000000+00:00", status: "visible" },
+    { id: "2", authorId: "me", createdAt: "2026-11-28T10:02:00.000000+00:00", status: "visible" },
+    { id: "1", authorId: "me", createdAt: "2026-11-28T10:01:00.000000+00:00", status: "visible" },
   ];
   it("goes under my newest message once the peer read it", () => {
-    expect(seenMessageId(msgs, "me", "2026-11-28T10:02:30+00:00")).toBe("2");
-    expect(seenMessageId(msgs, "me", "2026-11-28T10:02:00.000000+00:00")).toBe("2");
+    expect(seenMessageId(msgs, "me", "2026-11-28T10:02:30+00:00", sending)).toBe("2");
+    expect(seenMessageId(msgs, "me", "2026-11-28T10:02:00.000000+00:00", sending)).toBe("2");
   });
   it("never under an older message of mine, even read", () => {
-    expect(seenMessageId(msgs, "me", "2026-11-28T10:01:30+00:00")).toBeNull();
+    expect(seenMessageId(msgs, "me", "2026-11-28T10:01:30+00:00", sending)).toBeNull();
+  });
+  it("stays under the newest confirmed one while a send is in flight", () => {
+    const withSend = [
+      { id: "optimistic-1", authorId: "me", createdAt: "2026-11-28T10:05:00Z", status: "visible" },
+      ...msgs,
+    ];
+    expect(seenMessageId(withSend, "me", "2026-11-28T10:04:00Z", sending)).toBe("2");
+  });
+  it("skips my deleted or hidden tombstones", () => {
+    const tomb = [
+      { id: "4", authorId: "me", createdAt: "2026-11-28T10:04:00Z", status: "deleted" },
+      { id: "5", authorId: "me", createdAt: "2026-11-28T10:04:30Z", status: "hidden" },
+    ].reverse();
+    expect(seenMessageId([...tomb, ...msgs], "me", "2026-11-28T10:05:00Z", sending)).toBe("2");
   });
   it("is null without a read, or with no message of mine", () => {
-    expect(seenMessageId(msgs, "me", null)).toBeNull();
-    expect(seenMessageId(msgs.slice(0, 1), "me", "2026-11-28T11:00:00+00:00")).toBeNull();
-    expect(seenMessageId(msgs, null, "2026-11-28T11:00:00+00:00")).toBeNull();
+    expect(seenMessageId(msgs, "me", null, sending)).toBeNull();
+    expect(seenMessageId(msgs.slice(0, 1), "me", "2026-11-28T11:00:00+00:00", sending)).toBeNull();
+    expect(seenMessageId(msgs, null, "2026-11-28T11:00:00+00:00", sending)).toBeNull();
   });
 });
 
@@ -111,19 +207,6 @@ describe("senderContext", () => {
         makeT("fr"),
       ),
     ).toContain("mars 2026");
-  });
-});
-
-describe("dmClosedReason", () => {
-  it("is blocked across a block (no peer in the list) or when a send says so", () => {
-    expect(dmClosedReason({ peerId: null }, null)).toBe("blocked");
-    expect(dmClosedReason({ peerId: "p" }, "blocked")).toBe("blocked");
-    expect(dmClosedReason(undefined, "blocked")).toBe("blocked");
-  });
-  it("stays open otherwise (a request isn't in the list yet)", () => {
-    expect(dmClosedReason({ peerId: "p" }, null)).toBeNull();
-    expect(dmClosedReason(undefined, null)).toBeNull();
-    expect(dmClosedReason({ peerId: "p" }, "rate_limited")).toBeNull();
   });
 });
 
@@ -174,6 +257,9 @@ describe("DM copy", () => {
     "dms.context.memberSince",
     "chat.blocked",
     "chat.seen",
+    "chat.unavailable",
+    "dms.blockedMember",
+    "dms.request.error",
   ];
   const catalogs = {
     en,

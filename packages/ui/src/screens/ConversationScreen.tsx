@@ -85,10 +85,11 @@ import { TypingLine } from "../components/chat/TypingLine";
 import {
   canDeleteMessage,
   closedReason,
-  dmClosedReason,
+  conversationIdentity,
+  dmState,
   findOrLoadMessage,
   groupByDay,
-  isRequestMode,
+  groupClosed,
   localDay,
   msUntilNextDay,
   replyPreview,
@@ -198,22 +199,25 @@ function Conversation({
   const conversations = useConversations();
   const conversation = conversations.data?.find((c) => c.id === conversationId);
   // The list holds my active conversations only: a request I received comes from my
-  // pending requests. Without dms everything is a group (as before); with both modules,
-  // an id in neither list waits for both before it reads as a group.
+  // pending requests. Once known, a DM stays that DM for the screen's life (an accept or
+  // a decline refetches both lists, and it may sit in neither for a moment).
   const dmsOn = !!dmsSettings(cfg);
   const requests = useDmRequests();
   const request = requests.data?.find((r) => r.conversationId === conversationId);
-  const kind: "dm" | "group" | null =
-    conversation?.kind ??
-    (request
-      ? "dm"
-      : !dmsOn || mode === "preview"
-        ? "group"
-        : !groupsSettings(cfg)
-          ? "dm"
-          : isQueryLoading(conversations) || isQueryLoading(requests)
-            ? null
-            : "group");
+  const loaded = !isQueryLoading(conversations) && !isQueryLoading(requests);
+  const sticky = useRef<{ kind: "dm" | "group"; peerId: string | null } | null>(null);
+  const identity = conversationIdentity({
+    listed: conversation,
+    request,
+    sticky: sticky.current,
+    dmsOn,
+    groupsOn: !!groupsSettings(cfg),
+    preview: mode === "preview",
+    loaded,
+  });
+  if (identity.confirmed && identity.kind)
+    sticky.current = { kind: identity.kind, peerId: identity.peerId };
+  const { kind, peerId } = identity;
   const isDm = kind === "dm";
   const groupQuery = useGroup(kind === "group" ? conversationId : null);
   const group = groupQuery.data;
@@ -240,32 +244,40 @@ function Conversation({
     if (group?.removed) setJoined(false);
   }, [group?.removed]);
   // ---- DM ----
-  const peerId = conversation?.peerId ?? request?.senderId ?? null;
   const peer = useProfile(isDm ? peerId : null).data;
   const peerOnline = useIsOnline(isDm ? peerId : null);
   // Accepted here: live at once, before the lists catch up.
   const [accepted, setAccepted] = useState(false);
-  const requestMode = isDm && isRequestMode(conversation?.requestState, !!request, accepted);
   // Declined or blocked here: reads and the channel stop before the screen closes (the
   // channel was authorized once, at join).
   const [left, setLeft] = useState(false);
+  const state = isDm
+    ? dmState({ listed: conversation, pending: !!request, accepted, left, loaded, errorCode })
+    : null;
+  const requestMode = state === "request" || state === "left";
+  // An unblock (dms/004) brings the peer back in the list: a send refused as blocked no
+  // longer closes the composer.
+  useEffect(() => {
+    if (conversation?.peerId) setErrorCode((c) => (c === "blocked" ? null : c));
+  }, [conversation?.peerId]);
 
   const closed =
     kind === "group"
-      ? closedReason(group, errorCode)
-      : isDm
-        ? dmClosedReason(conversation, errorCode)
+      ? groupClosed(group, errorCode, identity.confirmed)
+      : state === "blocked" || state === "unavailable"
+        ? state
         : null;
-  const active = member && !closed && !requestMode && kind !== null;
+  const active = member && !closed && kind !== null && (!isDm || state === "active");
 
-  // Closed: no more reads nor Realtime.
-  const messages = useMessages(closed || left ? null : conversationId);
+  // Closed: no more reads nor Realtime. A blocked DM keeps both (the server filters the
+  // blocked member's messages), so an unblock (dms/004's broadcast) reopens it live.
+  const messages = useMessages(left || (closed && closed !== "blocked") ? null : conversationId);
   // A request leaves no read state.
   useMarkConversationRead(active ? conversationId : null, isFocused);
-  // Previewers see who is typing too; only members type (the composer). A request's
-  // recipient doesn't join the typing channel.
+  // Previewers see who is typing too; only members type (the composer). A DM joins the
+  // typing channel only while live: never from a request, nor across a block.
   const { typingUserIds, notifyTyping } = useTyping(
-    closed || left || requestMode || kind === null ? null : conversationId,
+    kind === null || closed || (isDm && !active) ? null : conversationId,
   );
   const peerRead = usePeerRead(isDm && active ? conversationId : null);
 
@@ -305,7 +317,8 @@ function Conversation({
   const blockRequest = useBlockAndReportRequest();
   const [requestError, setRequestError] = useState<string | null>(null);
   const [blockOpen, setBlockOpen] = useState(false);
-  const answering = acceptRequest.isPending || declineRequest.isPending || left;
+  const answering =
+    acceptRequest.isPending || declineRequest.isPending || blockRequest.isPending || left;
   const leave = () => {
     setLeft(true);
     onBack();
@@ -317,7 +330,7 @@ function Conversation({
       { conversationId },
       {
         onSuccess: () => setAccepted(true),
-        onError: () => setRequestError(t("groups.error.generic")),
+        onError: () => setRequestError(t("dms.request.error")),
       },
     );
   };
@@ -326,7 +339,7 @@ function Conversation({
     setRequestError(null);
     declineRequest.mutate(
       { conversationId },
-      { onSuccess: leave, onError: () => setRequestError(t("groups.error.generic")) },
+      { onSuccess: leave, onError: () => setRequestError(t("dms.request.error")) },
     );
   };
 
@@ -559,7 +572,7 @@ function Conversation({
   );
   // "Seen" under my last message only (dm_peer_read may pass older hidden ones).
   const seenId = useMemo(
-    () => (peerRead ? seenMessageId(pages?.flat() ?? [], myUid, peerRead) : null),
+    () => (peerRead ? seenMessageId(pages?.flat() ?? [], myUid, peerRead, isOptimistic) : null),
     [pages, myUid, peerRead],
   );
   const loadOlder = () => {
@@ -624,8 +637,7 @@ function Conversation({
   );
 
   // ---- header ----
-  // Across a block the list has no peer: the default name.
-  const peerName = peer?.name ?? (isDm && !peerId ? cfg.authorFallback() : "");
+  const peerName = peer?.name ?? (closed === "blocked" ? t("dms.blockedMember") : "");
   const notify = conversation?.notify ?? false;
   // Other members online only (groups/007 leaves me out), and nothing at 0.
   const onlineText = group ? onlineLabel(online, t) : null;
@@ -670,8 +682,7 @@ function Conversation({
               name={peerName}
               url={peer?.avatarUrl ?? null}
               size={36}
-              placement="dm"
-              ringColor={theme.colors.background}
+              placement="dmHeader"
               admin={peer?.admin ?? false}
               handle={peer?.handle ?? null}
               badges={peer?.badges}
@@ -779,9 +790,11 @@ function Conversation({
             {t(
               closed === "blocked"
                 ? "chat.blocked"
-                : closed === "removed"
-                  ? "chat.removed"
-                  : "chat.groupDeleted",
+                : closed === "unavailable"
+                  ? "chat.unavailable"
+                  : closed === "removed"
+                    ? "chat.removed"
+                    : "chat.groupDeleted",
             )}
           </Text>
         ) : requestMode ? (
@@ -814,7 +827,7 @@ function Conversation({
               <Text style={styles.blockLabel}>{t("dms.request.block")}</Text>
             </Pressable>
           </View>
-        ) : !member ? (
+        ) : kind === null || state === "loading" ? null : !member ? (
           <>
             <TypingLine userIds={typingUserIds} />
             <View style={styles.joinBar}>

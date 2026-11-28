@@ -34,8 +34,9 @@ import {
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { Avatar } from "../components/Avatar";
-import { haptic } from "../components/PressableScale";
 import { ScreenBackground } from "../components/ScreenBackground";
+import { SegmentedTabs } from "../components/SegmentedTabs";
+import { RequestsScreen } from "./RequestsScreen";
 import { hubView, showRequestsRow } from "../utils/chat";
 import { lastMessagePreview } from "../utils/groups";
 import { isQueryLoading } from "../utils/query";
@@ -47,7 +48,8 @@ export type MessagesScreenProps = {
   /** Opens a conversation: a group or a DM. */
   onOpenConversation(id: string): void;
   onOpenExplore(): void;
-  /** Opens the DM requests (`RequestsScreen`). The Requests row shows only with it. */
+  /** Opens the DM requests on the host's own route (`RequestsScreen`). Without it, the
+   * Requests row opens them inside this screen. */
   onOpenRequests?(): void;
   onBack(): void;
 };
@@ -88,6 +90,8 @@ function Messages({
   const requestCount = requests.data?.length ?? 0;
   const now = useNow();
   const [tab, setTab] = useState<Tab>(initialTab);
+  // The requests shown inside this screen (no `onOpenRequests`).
+  const [nested, setNested] = useState(false);
 
   useEffect(() => {
     emitEvent(cfg, COMMUNITY_EVENTS.messagesOpened);
@@ -122,25 +126,35 @@ function Messages({
     </Pressable>
   );
 
-  const requestsRow =
-    onOpenRequests && showRequestsRow(requestCount) ? (
-      <Pressable
-        onPress={onOpenRequests}
-        style={({ pressed }) => [styles.requestsRow, pressed && styles.pressed]}
-        accessibilityRole="button"
-        accessibilityLabel={`${t("messages.requests")}, ${t("dms.requests.pending", { count: requestCount })}`}
-      >
-        <icons.messages size={18} color={theme.colors.accent} weight="bold" />
-        <Text style={styles.requestsLabel} numberOfLines={1}>
-          {t("messages.requests")}
-        </Text>
-        <View style={styles.count}>
-          <Text style={styles.countLabel}>{requestCount > 99 ? "99+" : requestCount}</Text>
-        </View>
-      </Pressable>
-    ) : null;
+  const requestsRow = showRequestsRow(requestCount) ? (
+    <Pressable
+      onPress={onOpenRequests ?? (() => setNested(true))}
+      style={({ pressed }) => [styles.requestsRow, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={`${t("messages.requests")}, ${t("dms.requests.pending", { count: requestCount })}`}
+    >
+      <icons.messages size={18} color={theme.colors.accent} weight="bold" />
+      <Text style={styles.requestsLabel} numberOfLines={1}>
+        {t("messages.requests")}
+      </Text>
+      <View style={styles.count}>
+        <Text style={styles.countLabel}>{requestCount > 99 ? "99+" : requestCount}</Text>
+      </View>
+    </Pressable>
+  ) : null;
 
   const header = showGroups ? (exploreAtBottom ? null : explore) : requestsRow;
+
+  if (nested)
+    return (
+      <RequestsScreen
+        onOpenRequest={onOpenConversation}
+        onBack={() => {
+          setNested(false);
+          void requests.refetch();
+        }}
+      />
+    );
 
   return (
     <View style={styles.root}>
@@ -160,46 +174,25 @@ function Messages({
       </View>
 
       {view === "tabs" && (
-        <View style={styles.segments} accessibilityRole="tablist">
-          {(["conversations", "groups"] as const).map((s) => {
-            const on = tab === s;
-            const label = t(s === "groups" ? "groups.home.groups" : "messages.tabs.conversations");
-            // A muted group doesn't count; DMs always do, and each request.
-            const count =
-              s === "groups"
-                ? unreadOf(groups.filter((c) => c.notify))
-                : unreadOf(dms) + requestCount;
-            return (
-              <Pressable
-                key={s}
-                onPress={() => {
-                  if (on) return;
-                  haptic("selection");
-                  setTab(s);
-                }}
-                style={[styles.segment, on && styles.segmentOn]}
-                // 34pt tall: the slop takes the target to 44pt.
-                hitSlop={{ top: 5, bottom: 5 }}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: on }}
-                accessibilityLabel={
-                  count > 0 ? `${label}, ${t("messages.unread", { count })}` : label
-                }
-              >
-                <Text style={[styles.segmentLabel, on && styles.segmentLabelOn]} numberOfLines={1}>
-                  {label}
-                </Text>
-                {count > 0 && (
-                  <View style={[styles.segmentCount, on && styles.segmentCountOn]}>
-                    <Text style={[styles.segmentCountText, on && styles.segmentCountTextOn]}>
-                      {count > 99 ? "99+" : count}
-                    </Text>
-                  </View>
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
+        <SegmentedTabs<Tab>
+          items={[
+            {
+              key: "conversations",
+              label: t("messages.tabs.conversations"),
+              // Unread messages; requests have their own row.
+              count: unreadOf(dms),
+            },
+            {
+              key: "groups",
+              label: t("groups.home.groups"),
+              // A muted group doesn't count.
+              count: unreadOf(groups.filter((c) => c.notify)),
+            },
+          ]}
+          selected={tab}
+          onSelect={setTab}
+          style={styles.segments}
+        />
       )}
 
       {isQueryLoading(conversations) ? (
@@ -262,7 +255,7 @@ function RowEnd({ c, now }: { c: Conversation; now: number }) {
 }
 
 /** One of my DMs: the peer's avatar (online dot), name, last message, time and unread
- * count. Across a block the list has no peer: the default name, no avatar. */
+ * count. Across a block the list has no peer: "Blocked member", no picture. */
 const DmConversationRow = memo(function DmConversationRow({
   conversation: c,
   now,
@@ -272,12 +265,11 @@ const DmConversationRow = memo(function DmConversationRow({
   now: number;
   onPress(id: string): void;
 }) {
-  const cfg = useCommunityConfig();
   const t = useT();
   const styles = useThemedStyles(makeStyles);
   const myUid = useMyUid();
   const peer = useProfile(c.peerId).data;
-  const name = peer?.name ?? (c.peerId ? "" : cfg.authorFallback());
+  const name = peer?.name ?? (c.peerId ? "" : t("dms.blockedMember"));
   const preview = lastMessagePreview(c.lastMessage, myUid, null, t, true);
   // DMs are always followed: their count never greys.
   const row = { ...c, notify: true };
@@ -431,49 +423,10 @@ function makeStyles(theme: CommunityTheme) {
       color: theme.colors.textPrimary,
     },
     segments: {
-      flexDirection: "row",
       marginHorizontal: theme.spacing(4),
       marginTop: theme.spacing(1),
       marginBottom: theme.spacing(2),
-      padding: 3,
-      borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.surfaceMuted,
     },
-    segment: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: theme.spacing(1.5),
-      minHeight: 34,
-      borderRadius: theme.radius.sm,
-    },
-    segmentOn: { backgroundColor: theme.colors.accent },
-    segmentLabel: { ...theme.typography.label, color: theme.colors.textMuted },
-    segmentLabelOn: {
-      fontFamily: theme.fonts.bold,
-      fontWeight: theme.fontWeights.bold,
-      color: theme.colors.textInverse,
-    },
-    segmentCount: {
-      minWidth: 18,
-      height: 18,
-      borderRadius: 9,
-      paddingHorizontal: 5,
-      backgroundColor: theme.colors.danger,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    segmentCountOn: { backgroundColor: theme.colors.textInverse },
-    segmentCountText: {
-      ...theme.typography.caption,
-      fontSize: 10,
-      lineHeight: 12,
-      fontFamily: theme.fonts.bold,
-      fontWeight: theme.fontWeights.bold,
-      color: theme.colors.textInverse,
-    },
-    segmentCountTextOn: { color: theme.colors.accent },
     exploreLabel: {
       ...theme.typography.label,
       color: theme.colors.accent,

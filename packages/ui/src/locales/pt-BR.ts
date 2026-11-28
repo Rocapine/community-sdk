@@ -368,4 +368,7 @@ export const ptBR: Record<string, string> = {
   "dms.context.memberSince": "Membro desde {date}",
   "chat.blocked": "Você não pode escrever para este membro.",
   "chat.seen": "Visto",
+  "dms.blockedMember": "Membro bloqueado",
+  "chat.unavailable": "Esta conversa não está mais disponível.",
+  "dms.request.error": "Algo deu errado. Tente de novo.",
 };

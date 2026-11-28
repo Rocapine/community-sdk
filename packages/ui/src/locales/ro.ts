@@ -383,4 +383,7 @@ export const ro: Record<string, string> = {
   "dms.context.memberSince": "În comunitate din {date}",
   "chat.blocked": "Nu-i poți scrie acestei persoane.",
   "chat.seen": "Văzut",
+  "dms.blockedMember": "Persoană blocată",
+  "chat.unavailable": "Această conversație nu mai este disponibilă.",
+  "dms.request.error": "Ceva n-a mers. Încearcă din nou.",
 };

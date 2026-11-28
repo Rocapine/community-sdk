@@ -181,28 +181,80 @@ export function sendErrorKey(code: MessagingErrorCode): string {
 
 // ============ DMS ============
 
-/** A DM opens in request mode (read-only; Accept / Decline / Block and report) while my
- * side is a request: the list says so, or it is among my pending requests (the list
- * only holds active conversations). Accepting on the screen ends it at once. */
-export function isRequestMode(
-  listState: "active" | "request" | null | undefined,
-  pending: boolean,
-  accepted: boolean,
-): boolean {
-  if (accepted || listState === "active") return false;
-  return listState === "request" || pending;
+type Listed = {
+  kind: "dm" | "group";
+  peerId: string | null;
+  requestState: "active" | "request" | null;
+};
+
+/** What a conversation screen holds, from my list (active conversations), my pending
+ * requests, and what the screen already knew (`sticky`: once a DM, always that DM with
+ * that peer, through an accept or a decline while the lists refetch). Without dms, or in
+ * a group preview, a group. With dms and an id in neither list: nothing until both lists
+ * answered (`kind` null), then a group (with groups on) or a DM, unconfirmed. A listed DM
+ * across a block has no peer. */
+export function conversationIdentity(p: {
+  listed: Listed | undefined;
+  request: { senderId: string } | undefined;
+  sticky: { kind: "dm" | "group"; peerId: string | null } | null;
+  dmsOn: boolean;
+  groupsOn: boolean;
+  preview: boolean;
+  loaded: boolean;
+}): { kind: "dm" | "group" | null; peerId: string | null; confirmed: boolean } {
+  if (p.listed) return { kind: p.listed.kind, peerId: p.listed.peerId, confirmed: true };
+  if (p.request) return { kind: "dm", peerId: p.request.senderId, confirmed: true };
+  if (p.sticky) return { ...p.sticky, confirmed: true };
+  if (!p.dmsOn || p.preview) return { kind: "group", peerId: null, confirmed: true };
+  if (!p.loaded) return { kind: null, peerId: null, confirmed: false };
+  return { kind: p.groupsOn ? "group" : "dm", peerId: null, confirmed: false };
 }
 
-/** The message "Seen" goes under: my newest one (messages newest first), once the peer
- * read up to it. Never an older one: the peer's read time may pass messages hidden from
- * them. */
+export type DmState = "loading" | "request" | "active" | "blocked" | "unavailable" | "left";
+
+/** A DM screen's state. `left`: I declined or blocked it here (the screen is closing).
+ * `blocked`: a block either way (the list has no peer across one, or a send said so).
+ * `request`: mine to answer (read-only). Gone from both lists once they answered: a
+ * request withdrawn by a block, a declined DM, a stale link (`unavailable`). */
+export function dmState(p: {
+  listed: { peerId: string | null; requestState: "active" | "request" | null } | undefined;
+  pending: boolean;
+  accepted: boolean;
+  left: boolean;
+  loaded: boolean;
+  errorCode: MessagingErrorCode | null;
+}): DmState {
+  if (p.left) return "left";
+  if (p.errorCode === "blocked" || (p.listed && p.listed.peerId === null)) return "blocked";
+  if (p.accepted || p.listed?.requestState === "active") return "active";
+  if (p.pending || p.listed?.requestState === "request") return "request";
+  return p.loaded ? "unavailable" : "loading";
+}
+
+/** A group's closing line; an unconfirmed group (an id no list knew) that doesn't exist
+ * reads as unavailable, not deleted: it may be a DM I can't open any more. */
+export function groupClosed(
+  group: Group | null | undefined,
+  errorCode: MessagingErrorCode | null,
+  confirmed: boolean,
+): "removed" | "groupDeleted" | "unavailable" | null {
+  if (group === null && !confirmed) return "unavailable";
+  return closedReason(group, errorCode);
+}
+
+/** The message "Seen" goes under: my newest one (messages newest first) that is neither
+ * a deleted or hidden tombstone nor still sending (`sending`), once the peer read up to
+ * it. Never an older one: the peer's read time may pass messages hidden from them. */
 export function seenMessageId(
-  messages: readonly { id: string; authorId: string; createdAt: string }[],
+  messages: readonly { id: string; authorId: string; createdAt: string; status: string }[],
   myUid: string | null,
   peerRead: string | null,
+  sending: (m: { id: string }) => boolean,
 ): string | null {
   if (!peerRead || !myUid) return null;
-  const mine = messages.find((m) => m.authorId === myUid);
+  const mine = messages.find(
+    (m) => m.authorId === myUid && m.status !== "deleted" && m.status !== "hidden" && !sending(m),
+  );
   return mine && Date.parse(mine.createdAt) <= Date.parse(peerRead) ? mine.id : null;
 }
 
@@ -231,15 +283,6 @@ export function senderContext(
     since = r.memberSince.slice(0, 7);
   }
   return `${groups} · ${t("dms.context.memberSince", { date: since })}`;
-}
-
-/** Why a DM's composer gives way to a line: a block either way (the list has no peer
- * across one, or a send said so). A request isn't in the list: `conversation` undefined. */
-export function dmClosedReason(
-  conversation: { peerId: string | null } | undefined,
-  errorCode: MessagingErrorCode | null,
-): "blocked" | null {
-  return errorCode === "blocked" || conversation?.peerId === null ? "blocked" : null;
 }
 
 /** What the Messages page shows: both halves as tabs or one list, or the one half that

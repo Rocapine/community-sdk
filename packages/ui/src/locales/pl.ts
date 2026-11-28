@@ -410,4 +410,7 @@ export const pl: Record<string, string> = {
   "dms.context.memberSince": "Data dołączenia: {date}",
   "chat.blocked": "Nie możesz pisać do tej osoby.",
   "chat.seen": "Wyświetlono",
+  "dms.blockedMember": "Zablokowana osoba",
+  "chat.unavailable": "Ta rozmowa nie jest już dostępna.",
+  "dms.request.error": "Coś poszło nie tak. Spróbuj ponownie.",
 };

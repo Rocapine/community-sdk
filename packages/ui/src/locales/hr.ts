@@ -382,4 +382,7 @@ export const hr: Record<string, string> = {
   "dms.context.memberSince": "Datum pridruživanja: {date}",
   "chat.blocked": "Ovoj osobi ne možeš pisati.",
   "chat.seen": "Viđeno",
+  "dms.blockedMember": "Blokirana osoba",
+  "chat.unavailable": "Ovaj razgovor više nije dostupan.",
+  "dms.request.error": "Nešto je pošlo po zlu. Pokušaj ponovno.",
 };

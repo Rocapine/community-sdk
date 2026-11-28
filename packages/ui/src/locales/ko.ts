@@ -362,4 +362,7 @@ export const ko: Record<string, string> = {
   "dms.context.memberSince": "{date}부터 멤버",
   "chat.blocked": "이 멤버에게는 메시지를 보낼 수 없어요.",
   "chat.seen": "읽음",
+  "dms.blockedMember": "차단된 멤버",
+  "chat.unavailable": "더 이상 이용할 수 없는 대화예요.",
+  "dms.request.error": "문제가 생겼어요. 다시 시도해 주세요.",
 };

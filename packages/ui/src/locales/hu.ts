@@ -364,4 +364,7 @@ export const hu: Record<string, string> = {
   "dms.context.memberSince": "Tag {date} óta",
   "chat.blocked": "Ennek a tagnak nem írhatsz.",
   "chat.seen": "Látta",
+  "dms.blockedMember": "Letiltott tag",
+  "chat.unavailable": "Ez a beszélgetés már nem érhető el.",
+  "dms.request.error": "Hiba történt. Próbáld újra.",
 };

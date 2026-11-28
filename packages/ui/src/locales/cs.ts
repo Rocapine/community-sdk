@@ -380,4 +380,7 @@ export const cs: Record<string, string> = {
   "dms.context.memberSince": "Datum připojení: {date}",
   "chat.blocked": "Této osobě nemůžeš psát.",
   "chat.seen": "Zobrazeno",
+  "dms.blockedMember": "Zablokovaná osoba",
+  "chat.unavailable": "Tato konverzace už není dostupná.",
+  "dms.request.error": "Něco se pokazilo. Zkus to znovu.",
 };

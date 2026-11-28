@@ -371,4 +371,7 @@ export const esES: Record<string, string> = {
   "dms.context.memberSince": "Miembro desde {date}",
   "chat.blocked": "No puedes escribir a este miembro.",
   "chat.seen": "Visto",
+  "dms.blockedMember": "Miembro bloqueado",
+  "chat.unavailable": "Esta conversación ya no está disponible.",
+  "dms.request.error": "Algo salió mal. Inténtalo de nuevo.",
 };

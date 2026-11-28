@@ -381,4 +381,7 @@ export const sk: Record<string, string> = {
   "dms.context.memberSince": "Dátum pripojenia: {date}",
   "chat.blocked": "Tejto osobe nemôžeš písať.",
   "chat.seen": "Zobrazené",
+  "dms.blockedMember": "Zablokovaná osoba",
+  "chat.unavailable": "Táto konverzácia už nie je dostupná.",
+  "dms.request.error": "Niečo sa pokazilo. Skús to znova.",
 };

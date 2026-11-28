@@ -18,7 +18,8 @@ import { OnlineDot } from "./OnlineDot";
  * feed header's profile button, the composer, the thread's reply bar, the profile
  * edit sheet's preview, a row of the blocked-members list, a chat message's author,
  * a group's picture (`userId` null), a row of a group's member list, a DM's other member
- * (the Messages list, the DM's header, a request). */
+ * (`dm`: a row of the Messages list or the requests, with the online dot; `dmHeader`: the
+ * DM's header, which says "Online" in words instead). */
 export type AvatarPlacement =
   | "post"
   | "comment"
@@ -31,7 +32,8 @@ export type AvatarPlacement =
   | "message"
   | "group"
   | "member"
-  | "dm";
+  | "dm"
+  | "dmHeader";
 
 export type AvatarRenderProps = {
   /** The member's community id; null when unknown (e.g. the viewer before sign-in). */

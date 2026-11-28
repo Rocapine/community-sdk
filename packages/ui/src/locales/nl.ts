@@ -364,4 +364,7 @@ export const nl: Record<string, string> = {
   "dms.context.memberSince": "Lid sinds {date}",
   "chat.blocked": "Je kunt dit lid geen bericht sturen.",
   "chat.seen": "Gezien",
+  "dms.blockedMember": "Geblokkeerd lid",
+  "chat.unavailable": "Dit gesprek is niet meer beschikbaar.",
+  "dms.request.error": "Er ging iets mis. Probeer het opnieuw.",
 };

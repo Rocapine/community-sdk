@@ -124,7 +124,8 @@ import { NoticeCard } from "../components/NoticeCard";
 import { MyAvatar } from "../components/Avatar";
 import { firstTabLabelInset, TABS_ROW_HEIGHT, TopicTabs } from "../components/TopicTabs";
 import { OnlinePill } from "../components/OnlinePill";
-import { haptic, PressableScale } from "../components/PressableScale";
+import { PressableScale } from "../components/PressableScale";
+import { SegmentedTabs } from "../components/SegmentedTabs";
 import { GroupLinkContext, type GroupLink } from "../components/GroupAttachment";
 import { GroupsHome } from "../components/GroupsHome";
 import { joinGate } from "../utils/groups";
@@ -1082,40 +1083,15 @@ function HomeSegments({
     .filter((c) => c.kind === "group" && c.notify)
     .reduce((n, c) => n + c.unread, 0);
   return (
-    <View style={styles.segments} accessibilityRole="tablist">
-      {(["feed", "groups"] as const).map((s) => {
-        const on = segment === s;
-        const label = t(s === "feed" ? "groups.home.feed" : "groups.home.groups");
-        const count = s === "groups" ? unread : 0;
-        return (
-          <Pressable
-            key={s}
-            onPress={() => {
-              if (on) return;
-              haptic("selection");
-              onSelect(s);
-            }}
-            style={[styles.segment, on && styles.segmentOn]}
-            // 34pt tall: the slop takes the target to 44pt.
-            hitSlop={{ top: 5, bottom: 5 }}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: on }}
-            accessibilityLabel={count > 0 ? `${label}, ${t("messages.unread", { count })}` : label}
-          >
-            <Text style={[styles.segmentLabel, on && styles.segmentLabelOn]} numberOfLines={1}>
-              {label}
-            </Text>
-            {count > 0 && (
-              <View style={[styles.segmentCount, on && styles.segmentCountOn]}>
-                <Text style={[styles.segmentCountText, on && styles.segmentCountTextOn]}>
-                  {count > 99 ? "99+" : count}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        );
-      })}
-    </View>
+    <SegmentedTabs
+      items={[
+        { key: "feed", label: t("groups.home.feed"), count: 0 },
+        { key: "groups", label: t("groups.home.groups"), count: unread },
+      ]}
+      selected={segment}
+      onSelect={onSelect}
+      style={styles.segments}
+    />
   );
 }
 
@@ -1215,49 +1191,7 @@ function makeStyles(theme: CommunityTheme) {
       fontWeight: theme.fontWeights.bold,
       color: theme.colors.textInverse,
     },
-    segments: {
-      flexDirection: "row",
-      marginTop: theme.spacing(1),
-      marginBottom: theme.spacing(2.5),
-      padding: 3,
-      borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.surfaceMuted,
-    },
-    segment: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: theme.spacing(1.5),
-      minHeight: 34,
-      borderRadius: theme.radius.sm,
-    },
-    segmentOn: { backgroundColor: theme.colors.accent },
-    segmentLabel: { ...theme.typography.label, color: theme.colors.textMuted },
-    segmentLabelOn: {
-      fontFamily: theme.fonts.bold,
-      fontWeight: theme.fontWeights.bold,
-      color: theme.colors.textInverse,
-    },
-    segmentCount: {
-      minWidth: 18,
-      height: 18,
-      borderRadius: 9,
-      paddingHorizontal: 5,
-      backgroundColor: theme.colors.danger,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    segmentCountOn: { backgroundColor: theme.colors.textInverse },
-    segmentCountText: {
-      ...theme.typography.caption,
-      fontSize: 10,
-      lineHeight: 12,
-      fontFamily: theme.fonts.bold,
-      fontWeight: theme.fontWeights.bold,
-      color: theme.colors.textInverse,
-    },
-    segmentCountTextOn: { color: theme.colors.accent },
+    segments: { marginTop: theme.spacing(1), marginBottom: theme.spacing(2.5) },
     switchRow: {
       // The border sits inside the height: without its share the tab row
       // overflows by a hairline and scrolls vertically.

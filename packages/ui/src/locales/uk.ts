@@ -384,4 +384,7 @@ export const uk: Record<string, string> = {
   "dms.context.memberSince": "Дата приєднання: {date}",
   "chat.blocked": "Ти не можеш написати цій людині.",
   "chat.seen": "Переглянуто",
+  "dms.blockedMember": "Заблокований учасник",
+  "chat.unavailable": "Ця розмова більше недоступна.",
+  "dms.request.error": "Щось пішло не так. Спробуй ще раз.",
 };

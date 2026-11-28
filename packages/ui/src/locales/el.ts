@@ -370,4 +370,7 @@ export const el: Record<string, string> = {
   "dms.context.memberSince": "Ημερομηνία εγγραφής: {date}",
   "chat.blocked": "Δεν μπορείς να γράψεις σε αυτό το μέλος.",
   "chat.seen": "Προβλήθηκε",
+  "dms.blockedMember": "Αποκλεισμένο μέλος",
+  "chat.unavailable": "Αυτή η συζήτηση δεν είναι πια διαθέσιμη.",
+  "dms.request.error": "Κάτι πήγε στραβά. Δοκίμασε ξανά.",
 };

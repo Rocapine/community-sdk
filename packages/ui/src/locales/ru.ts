@@ -380,4 +380,7 @@ export const ru: Record<string, string> = {
   "dms.context.memberSince": "Дата вступления: {date}",
   "chat.blocked": "Ты не можешь написать этому человеку.",
   "chat.seen": "Просмотрено",
+  "dms.blockedMember": "Заблокированный участник",
+  "chat.unavailable": "Эта переписка больше недоступна.",
+  "dms.request.error": "Что-то пошло не так. Попробуй ещё раз.",
 };

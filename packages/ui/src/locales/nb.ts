@@ -361,4 +361,7 @@ export const nb: Record<string, string> = {
   "dms.context.memberSince": "Medlem siden {date}",
   "chat.blocked": "Du kan ikke skrive til dette medlemmet.",
   "chat.seen": "Sett",
+  "dms.blockedMember": "Blokkert medlem",
+  "chat.unavailable": "Denne samtalen er ikke lenger tilgjengelig.",
+  "dms.request.error": "Noe gikk galt. Prøv igjen.",
 };
