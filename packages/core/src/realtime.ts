@@ -3,7 +3,9 @@
 // like_count), the typing broadcast and the `members` broadcast (groups/004), authorised by the realtime.messages policies of
 // messaging/001_messaging.sql. Every subscriber of a conversation shares the channel.
 // DMs (dms/005): one more private channel per member, `dms:<my id>`, on which the
-// server says a DM of mine changed (a new DM or request for me, my request accepted).
+// server says a DM of mine changed (a new DM or request for me, my request accepted, a
+// block added or removed). A conversation join the server refuses (a blocked DM) waits
+// for that event, or the screen opening again, instead of retrying every few seconds.
 
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 
@@ -26,11 +28,17 @@ export type ConversationHandlers = {
 };
 
 type Entry = {
-  /** Null until opened (after auth, and after a previous channel of the topic closed). */
+  /** Null until opened (after auth, and after a previous channel of the topic closed),
+   * and while refused. */
   channel: RealtimeChannel | null;
   listeners: Set<ConversationHandlers>;
   uid: string | null;
   joined: boolean;
+  /** The server refused the join (not allowed to read the topic, e.g. a blocked DM):
+   * no retry until `retryRefused` or a new listener. */
+  refused: boolean;
+  /** Opens the channel (again). */
+  connect(): void;
   lastTypingAt: number;
   changeTimer?: ReturnType<typeof setTimeout>;
   releaseTimer?: ReturnType<typeof setTimeout>;
@@ -53,8 +61,40 @@ function changed(entry: Entry) {
   }, CHANGE_DEBOUNCE_MS);
 }
 
+/** Removes `entry`'s channel; reopening the key waits until it's gone. */
+function close(client: SupabaseClient, key: string, entry: Entry) {
+  const reg = registry(client);
+  entry.joined = false;
+  if (!entry.channel) return; // never opened
+  const closing = client
+    .removeChannel(entry.channel)
+    .catch(() => {})
+    .finally(() => {
+      if (reg.closing.get(key) === closing) reg.closing.delete(key);
+    });
+  entry.channel = null;
+  reg.closing.set(key, closing);
+}
+
+/** A join the server refused because the caller may not read the topic (Realtime's
+ * "Unauthorized: You do not have permissions to read from this Channel topic"). */
+const isRefused = (err: Error | undefined) => /unauthori[sz]ed/i.test(err?.message ?? "");
+
+/** dms/006 sends `changed` on both members' own channels when a block is added or
+ * removed: a refused conversation channel may be readable again, so each rejoins once
+ * (a refusal again waits for the next one). */
+function retryRefused(client: SupabaseClient) {
+  for (const entry of registry(client).open.values()) {
+    if (!entry.refused) continue;
+    entry.refused = false;
+    entry.connect();
+  }
+}
+
 /** Opens the channel `topic(uid)` (none when it returns null) once authorised, with the
- * events `bind` listens to; every (re)join calls onChange. */
+ * events `bind` listens to; every (re)join calls onChange. A join refused for
+ * authorisation is closed instead of retried (realtime-js would retry it every few
+ * seconds for as long as the screen is open). */
 function open(
   cfg: ResolvedCommunityConfig,
   client: SupabaseClient,
@@ -67,10 +107,12 @@ function open(
     listeners: new Set(),
     uid: null,
     joined: false,
+    refused: false,
     lastTypingAt: 0,
+    connect: () => void connect(),
   };
   const reg = registry(client);
-  void (async () => {
+  const connect = async () => {
     try {
       entry.uid = await requireUid(cfg);
       // A private channel joins with the session's JWT: set it first, a restored
@@ -87,13 +129,19 @@ function open(
     if (!name) return;
     const channel = client.channel(name, { config: { private: true } });
     entry.channel = channel;
-    bind(channel, entry).subscribe((status) => {
+    bind(channel, entry).subscribe((status, err) => {
+      if (entry.channel !== channel) return; // closed meanwhile
       entry.joined = status === "SUBSCRIBED";
       // Every (re)join refetches: what changed before the join, or while the socket was
       // down (a sleeping web tab, a lost network), never arrives as an event.
       if (entry.joined) changed(entry);
+      if (status === "CHANNEL_ERROR" && isRefused(err)) {
+        entry.refused = true;
+        close(client, key, entry);
+      }
     });
-  })();
+  };
+  entry.connect();
   return entry;
 }
 
@@ -135,6 +183,11 @@ function listen(
   const reg = registry(client);
   let entry = reg.open.get(key);
   if (!entry) reg.open.set(key, (entry = create()));
+  else if (entry.refused) {
+    // A screen opened again: ask once more.
+    entry.refused = false;
+    entry.connect();
+  }
   clearTimeout(entry.releaseTimer);
   const own = entry;
   own.listeners.add(handlers);
@@ -146,15 +199,7 @@ function listen(
       if (own.listeners.size > 0 || reg.open.get(key) !== own) return;
       reg.open.delete(key);
       clearTimeout(own.changeTimer);
-      own.joined = false;
-      if (!own.channel) return; // never opened
-      const closing = client
-        .removeChannel(own.channel)
-        .catch(() => {})
-        .finally(() => {
-          if (reg.closing.get(key) === closing) reg.closing.delete(key);
-        });
-      reg.closing.set(key, closing);
+      close(client, key, own);
     }, RELEASE_DELAY_MS);
   };
 }
@@ -205,7 +250,11 @@ export function subscribeDms(
         client,
         key,
         (sessionUid) => (sessionUid === uid ? key : null),
-        (channel, entry) => channel.on("broadcast", { event: "changed" }, () => changed(entry)),
+        (channel, entry) =>
+          channel.on("broadcast", { event: "changed" }, () => {
+            changed(entry);
+            retryRefused(client);
+          }),
       ),
     { onChange, onTyping: () => {} },
   );

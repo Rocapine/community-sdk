@@ -14,13 +14,13 @@ function fakeChannel(topic: string, opts: unknown) {
     topic,
     opts,
     bindings: [] as Binding[],
-    status: null as null | ((s: string) => void),
+    status: null as null | ((s: string, err?: Error) => void),
     send: vi.fn(async () => "ok"),
     on(type: string, filter: Record<string, unknown>, cb: (p: unknown) => void) {
       ch.bindings.push({ type, filter, cb });
       return ch;
     },
-    subscribe(cb: (s: string) => void) {
+    subscribe(cb: (s: string, err?: Error) => void) {
       ch.status = cb;
       return ch;
     },
@@ -297,4 +297,52 @@ it("dms/005: another signed-in member gets their own channel, never the previous
   expect(client.removeChannel).not.toHaveBeenCalled();
   stale();
   next();
+});
+
+const refusal = new Error(
+  "Unauthorized: You do not have permissions to read from this Channel topic: conversation:c1",
+);
+
+it("a join refused for authorisation is closed, not retried, until a DM changes", async () => {
+  const { cfg, client, channels } = setup({ dms: {} });
+  const h = handlers();
+  const stop = subscribeConversation(cfg, "c1", h); // a cold-opened blocked DM
+  const stopDms = subscribeDms(cfg, "uid1", vi.fn());
+  await vi.advanceTimersByTimeAsync(0);
+  const [conversation, mine] = channels;
+  conversation!.status!("CHANNEL_ERROR", refusal);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.removeChannel).toHaveBeenCalledWith(conversation);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(client.channel).toHaveBeenCalledTimes(2);
+  // An unblock: dms/006 says `changed` on my channel, so the DM asks once more.
+  mine!.fire("broadcast", { event: "changed", payload: { id: "c1" } });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(channels.map((c) => c.topic)).toEqual(["conversation:c1", "dms:uid1", "conversation:c1"]);
+  channels[2]!.status!("SUBSCRIBED");
+  await vi.advanceTimersByTimeAsync(150);
+  expect(h.onChange).toHaveBeenCalledTimes(1); // the rejoin refetches
+  // A later `changed` leaves a joined channel alone.
+  mine!.fire("broadcast", { event: "changed", payload: { id: "c2" } });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.channel).toHaveBeenCalledTimes(3);
+  stop();
+  stopDms();
+});
+
+it("a refused join asks again when the screen opens again; other errors keep retrying", async () => {
+  const { cfg, client, channels } = setup();
+  const stop = subscribeConversation(cfg, "c1", handlers());
+  await vi.advanceTimersByTimeAsync(0);
+  channels[0]!.status!("CHANNEL_ERROR", new Error("connection lost"));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.removeChannel).not.toHaveBeenCalled(); // realtime-js rejoins it
+  channels[0]!.status!("CHANNEL_ERROR", refusal);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.removeChannel).toHaveBeenCalledTimes(1);
+  const again = subscribeConversation(cfg, "c1", handlers());
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.channel).toHaveBeenCalledTimes(2);
+  stop();
+  again();
 });
