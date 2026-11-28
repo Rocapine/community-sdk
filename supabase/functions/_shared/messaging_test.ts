@@ -6,6 +6,7 @@ import {
   messageModerationInput,
   nextGroupState,
   readMessagingMode,
+  translationRefusal,
 } from "./messaging.ts";
 
 const newGroup = {
@@ -164,4 +165,13 @@ Deno.test("dmPushPayload: a message follows pushPreview, the sender as title", (
   const long = dmPushPayload(fr, "message", "full", "Jean", "a".repeat(300), false).body;
   assertEquals(long.length, 120);
   assertEquals(long.endsWith("..."), true);
+});
+
+Deno.test("translationRefusal: the author is refused, whatever the cache holds", () => {
+  const msg = { body: "hola", status: "visible", author_id: "u1" };
+  assertEquals(translationRefusal(msg, "u1"), "own message");
+  assertEquals(translationRefusal(msg, "u2"), null);
+  assertEquals(translationRefusal({ ...msg, status: "pending" }, "u2"), "not found");
+  assertEquals(translationRefusal({ ...msg, body: "  " }, "u2"), "not found");
+  assertEquals(translationRefusal(null, "u2"), "not found");
 });

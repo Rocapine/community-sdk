@@ -100,6 +100,17 @@ export function messageModerationInput(
   return mode === "reportOnly" ? "" : (row.body ?? "");
 }
 
+// Why translate-message won't answer the caller for this message (null: it will). Its
+// author is refused before the cache is read: an instant cached answer would tell them a
+// reader translated it, so that it was read (a DM request, read receipts off).
+export function translationRefusal(
+  msg: { body: string | null; status: string; author_id: string } | null,
+  callerId: string,
+): "not found" | "own message" | null {
+  if (!msg || msg.status !== "visible" || !msg.body?.trim()) return "not found";
+  return msg.author_id === callerId ? "own message" : null;
+}
+
 // Postgres' undefined_table (42P01) or PostgREST's "table not found" (PGRST205): the
 // install has no messaging / groups module.
 export const isMissingTable = (code: string | undefined) => code === "42P01" || code === "PGRST205";
