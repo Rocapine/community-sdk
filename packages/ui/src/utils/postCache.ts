@@ -37,6 +37,8 @@ export function findCachedPost(
   return null;
 }
 
+const POST_LIST_CACHES = new Set<unknown>(["feed", "userPosts", "search"]);
+
 /** Subscribes only to the caches `findCachedPost` actually reads (feed /
  * userPosts / search) — explicitly skipping `["community", "thread", ...]`
  * events, i.e. `ThreadSheet`'s own `useThread(postId)` query. That exclusion
@@ -66,9 +68,13 @@ export function subscribeToPostListCaches(
   // in the host app runs — for as long as the sheet has never been opened.
   if (!postId) return () => {};
   return queryClient.getQueryCache().subscribe((event) => {
+    // `added` comes synchronously while another component renders (its useQuery builds
+    // the query, e.g. an Avatar's presence lookup) and a new query has no data yet:
+    // notifying then makes React warn "Cannot update a component while rendering a
+    // different component".
+    if (event.type === "added") return;
     const key = event.query.queryKey;
-    if (key[0] !== "community") return;
-    if (key[1] === "thread") return;
+    if (key[0] !== "community" || !POST_LIST_CACHES.has(key[1])) return;
     onStoreChange();
   });
 }

@@ -26,6 +26,10 @@ export const MODULE_ORDER = [
   "badges",
   "presence",
   "accounts",
+  // Chat core; installed with groups or dms.
+  "messaging",
+  "groups",
+  "dms",
   // Deprecated: kept to move existing streaks onto badges (streaks/002). Implies badges.
   "streaks",
 ] as const;
@@ -51,7 +55,12 @@ export function functionsForModules(modules: readonly Module[]): string[] {
   if (modules.includes("push")) for (const f of PUSH_FUNCTIONS) set.add(f);
   if (modules.includes("reaction")) for (const f of REACTION_FUNCTIONS) set.add(f);
   if (modules.includes("translation")) for (const f of TRANSLATION_FUNCTIONS) set.add(f);
+  // On-demand message translation: needs the chat core and the translation module.
+  if (modules.includes("messaging") && modules.includes("translation"))
+    set.add("translate-message");
   if (modules.includes("accounts")) for (const f of ACCOUNTS_FUNCTIONS) set.add(f);
+  // Group message pushes: needs both the chat core and push.
+  if (modules.includes("messaging") && modules.includes("push")) set.add("notify-message");
   return [...set];
 }
 
@@ -79,9 +88,16 @@ export function resolveModules(
     }
   }
 
-  // core is always required/implied; streaks/002 moves the streak onto badges.
+  // core is always required/implied; streaks/002 moves the streak onto badges;
+  // groups are conversations of the messaging core, and their share card is a post
+  // attachment (posts.attachment); dms are conversations of the messaging core too.
   requestedSet.add("core");
   if (requestedSet.has("streaks")) requestedSet.add("badges");
+  if (requestedSet.has("groups")) {
+    requestedSet.add("messaging");
+    requestedSet.add("attachments");
+  }
+  if (requestedSet.has("dms")) requestedSet.add("messaging");
 
   const canonicalModules = MODULE_ORDER.filter((m) => requestedSet.has(m));
 

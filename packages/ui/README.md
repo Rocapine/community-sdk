@@ -271,7 +271,7 @@ you can wrap, replace, or ignore it:
   must wait; the author fields are already yours.
 - `NotificationInboxScreen`'s `renderInboxRow?: (item: InboxItem, defaults: ReactNode | null, meta) => ReactNode`
   — called for every row; `defaults` is a built-in row for a recognized kind
-  (`like`/`comment`/`reaction`/`admin_post`) or `null` for an
+  (`like`/`comment`/`reply`/`reaction`/`admin_post`, the `group_*` events) or `null` for an
   app-defined custom kind the SDK doesn't know how to render itself (e.g. a
   `support_reply` notification your own backend inserts). `meta` is
   `{ unread, open, parts }`: `open()` does what tapping the built-in row does
@@ -287,8 +287,12 @@ you can wrap, replace, or ignore it:
 | `ThreadSheet`             | `postId: string \| null`, `focusComment?: boolean` (open with the reply field focused), `onClose()`, `onOpenProfile(userId, source?)`, `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots`, `beforeSubmitComment?` — self-contained sheet, render it once and drive it by `postId`; gates the first comment behind `RulesSheet` like the composer does                                                                                                                  |
 | `ProfileScreen`           | `userId: string`, `source?: "post" \| "comment"` (hand back the `source` from `onOpenProfile`, for the `profileOpened` event), `onOpenThread(postId, focusComment?)`, `onBack?()`, `onOpenBlockedMembers?()` (adds the "…" menu to your own profile, with "Blocked members" calling it; open `BlockedMembersScreen`), `topInset?: number` (feed `useSafeAreaInsets().top` when mounting it as a full-screen route), `onPressTopic?(topicId)` (see Topics), `slots?: PostSlots` |
 | `ProfileEditSheet`        | `visible: boolean`, `onClose()`                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `renderInboxRow?(item, defaults, { unread, open, parts })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                                                                                                                                                             |
+| `NotificationInboxScreen` | `onOpenPost(postId)`, `onOpenCommunity?()` (row with no post attached), `onOpenMessages?({ groupId, preview? })` (groups module: the group a group event is about), `renderInboxRow?(item, defaults, { unread, open, parts })` (see Slots above); an announcement with no author reads `inbox.newsFromTeam` — override it with your app's name                                                                                                                                 |
 | `BlockedMembersScreen`    | `onBack?()` — the members I blocked, each with Unblock; mount it from `ProfileScreen`'s `onOpenBlockedMembers` or your settings (a block hides both members from each other, so this is the way back)                                                                                                                                                                                                                                                                          |
+
+The groups module's screens (`MessagesScreen`, `ConversationScreen`,
+`ExploreGroupsScreen`, `GroupDetailsScreen`, `GroupMembersScreen`) and their props are
+in [`docs/integration.md`](../../docs/integration.md#messaging-groups-module).
 
 Plus standalone components you can use directly: `PressableScale` (the
 package's press feedback for buttons with a visible surface — a 0.98 scale-down,

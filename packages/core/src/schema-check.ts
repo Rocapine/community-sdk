@@ -5,7 +5,12 @@
 // in production (RN's global `__DEV__` gate, same convention every host app
 // already relies on for dev-only logging).
 
-import type { ResolvedCommunityConfig } from "./config";
+import {
+  dmsSettings,
+  groupsSettings,
+  messagingSettings,
+  type ResolvedCommunityConfig,
+} from "./config";
 
 /** Bump whenever the SDK's expected `community_meta` shape changes. */
 export const REQUIRED_SCHEMA_VERSION = 1;
@@ -29,13 +34,80 @@ export async function checkSchemaVersionUnguarded(cfg: ResolvedCommunityConfig):
       .from("community_meta")
       .select("schema_version")
       .maybeSingle();
-    if (error) return; // e.g. table doesn't exist yet on this backend — silent
-
-    const version = (data as { schema_version?: number } | null)?.schema_version;
+    // error: e.g. table doesn't exist yet on this backend — silent
+    const version = error
+      ? undefined
+      : (data as { schema_version?: number } | null)?.schema_version;
     if (version !== undefined && version !== REQUIRED_SCHEMA_VERSION) {
       console.warn(
         `[@rocapine/community-core] community_meta.schema_version is ${version}, this SDK expects ${REQUIRED_SCHEMA_VERSION}. Run the latest backend migrations.`,
       );
+    }
+  } catch {
+    // network error or unexpected client shape — never throw from a dev diagnostic
+  }
+
+  await checkMessagingSettings(cfg);
+}
+
+/** Backend `messaging_settings` keys vs the resolved client config (client-only
+ * options are not compared; each module's keys only when it is on). `groupsRequireAccount` is a backend boolean: the
+ * client's `"feed"` means false. */
+function expectedMessagingSettings(cfg: ResolvedCommunityConfig): Record<string, unknown> | null {
+  const m = messagingSettings(cfg);
+  if (!m) return null;
+  const g = groupsSettings(cfg);
+  const d = dmsSettings(cfg);
+  return {
+    moderation: m.moderation,
+    translation: m.translation,
+    pushPreview: m.pushPreview,
+    onAccountDelete: m.onAccountDelete,
+    maxLength: m.maxLength,
+    ratePerMinute: m.ratePerMinute,
+    ...(g && {
+      groupsPreview: g.preview,
+      groupsRequireAccount: g.requireAccount === true,
+      groupsCreateRequiresAccount: g.createRequiresAccount,
+      maxCreatedPerMember: g.maxCreatedPerMember,
+      maxJoinedPerMember: g.maxJoinedPerMember,
+      maxMembers: g.maxMembers,
+      nameMaxLength: g.nameMaxLength,
+      descriptionMaxLength: g.descriptionMaxLength,
+    }),
+    ...(d && {
+      dmsFirstMessage: d.firstMessage,
+      dmsReadReceipts: d.readReceipts,
+      dmsRequireAccount: d.requireAccount,
+      dmsRequestsPerDay: d.requestsPerDay,
+      dmsDeclineCooldownDays: d.declineCooldownDays,
+    }),
+  };
+}
+
+async function checkMessagingSettings(cfg: ResolvedCommunityConfig): Promise<void> {
+  const expected = expectedMessagingSettings(cfg);
+  if (!expected) return;
+  try {
+    // Clients can't read the table: `messaging_client_settings()` (messaging/003) returns it.
+    const { data, error } = await cfg.requireClient().rpc("messaging_client_settings");
+    if (error) {
+      // Only a missing function means a missing migration; no session yet or a
+      // permission error says nothing about the backend.
+      const code = (error as { code?: string }).code;
+      if (code !== "42883" && code !== "PGRST202") return;
+      console.warn(
+        "[@rocapine/community-core] messaging_client_settings() is missing: run the messaging migrations (messaging/003_settings_read.sql).",
+      );
+      return;
+    }
+    const backend = (data ?? {}) as Record<string, unknown>;
+    for (const [key, client] of Object.entries(expected)) {
+      if (backend[key] !== client) {
+        console.warn(
+          `[@rocapine/community-core] messaging_settings.${key} is ${JSON.stringify(backend[key])} on the backend, ${JSON.stringify(client)} in the client config. Keep both equal.`,
+        );
+      }
     }
   } catch {
     // network error or unexpected client shape — never throw from a dev diagnostic

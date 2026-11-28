@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { excerptOrPhoto, pluralCategory, pushCopy } from "./copy.ts";
+import { excerptOrPhoto, groupMessageBody, pluralCategory, pushCopy } from "./copy.ts";
 
 // Mirrors packages/ui/src/__tests__/i18n.test.ts — the two rule sets must agree.
 Deno.test("pluralCategory: pl / uk / ro edge values", () => {
@@ -89,4 +89,70 @@ Deno.test("pushCopy: Slavic plurals and Norwegian", () => {
   );
   assertEquals(pushCopy("no").locale, "nb");
   assertEquals(pushCopy("fr-vous").text("reaction.one", { name: "Paul" }), "Paul pense à vous");
+});
+
+Deno.test("pushCopy: group message copy, every UI locale", () => {
+  assertEquals(
+    pushCopy("fr").text("message.groupBody", { sender: "Jean" }),
+    "Jean a envoyé un message",
+  );
+  assertEquals(pushCopy("en").text("message.neutral"), "You have a new message");
+  for (const locale of UI_LOCALES) {
+    const copy = pushCopy(locale);
+    const body = copy.text("message.groupBody", { sender: "Jean" });
+    assertEquals(body.includes("Jean"), true, locale);
+    assertEquals(copy.text("message.neutral").length > 0, true, locale);
+    if (locale !== "en" && locale !== "fr-vous") {
+      assertEquals(
+        body !== pushCopy("en").text("message.groupBody", { sender: "Jean" }),
+        true,
+        locale,
+      );
+      assertEquals(
+        copy.text("message.neutral") !== pushCopy("en").text("message.neutral"),
+        true,
+        locale,
+      );
+    }
+  }
+});
+
+Deno.test("pushCopy: DM copy, every UI locale", () => {
+  assertEquals(
+    pushCopy("fr").text("message.dmBody", { sender: "Jean" }),
+    "Jean t'a envoyé un message",
+  );
+  assertEquals(
+    pushCopy("fr-vous").text("message.dmBody", { sender: "Jean" }),
+    "Jean vous a envoyé un message",
+  );
+  assertEquals(pushCopy("en").text("message.request"), "You have a new message request");
+  const en = pushCopy("en");
+  for (const locale of UI_LOCALES) {
+    const copy = pushCopy(locale);
+    const body = copy.text("message.dmBody", { sender: "Jean" });
+    const request = copy.text("message.request");
+    assertEquals(body.includes("Jean"), true, locale);
+    assertEquals(request.length > 0 && !request.includes("{"), true, locale);
+    if (locale !== "en") {
+      assertEquals(body !== en.text("message.dmBody", { sender: "Jean" }), true, locale);
+      assertEquals(request !== en.text("message.request"), true, locale);
+    }
+  }
+  assertEquals(
+    pushCopy("fr").text("message.request") !== pushCopy("fr-vous").text("message.request"),
+    true,
+  );
+});
+
+Deno.test("groupMessageBody: no text leaves with sender or none", () => {
+  const fr = pushCopy("fr");
+  assertEquals(groupMessageBody(fr, "full", "Jean", "Salut", false), "Jean: Salut");
+  assertEquals(groupMessageBody(fr, "full", "Jean", null, true), "Jean: 📷 Photo");
+  assertEquals(groupMessageBody(fr, "full", "Jean", null, false), "Jean a envoyé un message");
+  assertEquals(groupMessageBody(fr, "sender", "Jean", "Secret", false), "Jean a envoyé un message");
+  assertEquals(groupMessageBody(fr, "none", "Jean", "Secret", true), "Tu as un nouveau message");
+  const long = groupMessageBody(fr, "full", "Jean", "a".repeat(300), false);
+  assertEquals(long.length, 120);
+  assertEquals(long.startsWith("Jean: aaa"), true);
 });

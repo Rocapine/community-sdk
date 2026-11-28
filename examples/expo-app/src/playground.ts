@@ -8,6 +8,7 @@ import {
   streakBadgeData,
   type BadgePlacement,
   type CommunityConfig,
+  type DmsEntryPoint,
   type MemberBadges,
 } from "@rocapine/community-core";
 import type { FeedHeaderConfig, FeedHeaderItem } from "@rocapine/community-ui";
@@ -33,6 +34,25 @@ export type PlaygroundSettings = {
   reaction: { label: string; chip: boolean };
   /** `card`: the example's own row, rebuilt from `renderInboxRow`'s parts. */
   inboxRow: "default" | "card";
+  /** Group chats (`modules.groups`, messaging defaults otherwise): the home's layout
+   * (`messaging.homeLayout`), the Messages page's (`messaging.hubLayout`), Explore's and
+   * the share card's. */
+  groups: {
+    enabled: boolean;
+    homeLayout: "header" | "segmented";
+    hubLayout: "tabs" | "unified";
+    exploreLayout: "list" | "cards";
+    shareCardLayout: "card" | "banner";
+  };
+  /** Direct messages (`modules.dms`): who a first message goes to (`firstMessage`), "Seen"
+   * (`readReceipts`) and where "Message" appears (`entryPoints`). The scratch backend's
+   * `messaging_settings` must hold the same values (dev builds warn otherwise). */
+  dms: {
+    enabled: boolean;
+    firstMessage: "direct" | "requests";
+    readReceipts: boolean;
+    entryPoints: DmsEntryPoint[];
+  };
   /** The attachments module, with the example's `recipe` and `session` types. */
   attachments: { enabled: boolean; membersCanAttach: boolean };
   colors: { accent: string; background: string };
@@ -65,12 +85,26 @@ export type BackgroundId = keyof typeof BACKGROUNDS;
 
 export const HEADER_ZONES = ["left", "center", "right"] as const;
 export type HeaderZone = (typeof HEADER_ZONES)[number];
-export const HEADER_ITEMS = ["title", "logo", "profile", "search", "inbox", "online"] as const;
+export const HEADER_ITEMS = [
+  "title",
+  "logo",
+  "profile",
+  "search",
+  "inbox",
+  "online",
+  "messages",
+  "groups",
+  "dms",
+] as const;
 export type HeaderItemId = (typeof HEADER_ITEMS)[number];
 
 /** The showcase's header layouts. */
 export const HEADER_PRESETS: Record<string, PlaygroundSettings["header"]> = {
-  Default: { left: ["profile", "online"], center: ["title"], right: ["search", "inbox"] },
+  Default: {
+    left: ["profile", "online"],
+    center: ["title"],
+    right: ["search", "messages", "inbox"],
+  },
   "Logo left": { left: ["logo", "online"], center: ["title"], right: ["search"] },
   "Centered logo": { left: ["profile"], center: ["logo", "title"], right: ["inbox"] },
   "Left title": { left: ["title", "online"], center: [], right: ["search", "inbox", "profile"] },
@@ -90,6 +124,14 @@ export const DEFAULT_SETTINGS: PlaygroundSettings = {
   badges: "streak",
   reaction: { label: "", chip: false },
   inboxRow: "default",
+  groups: {
+    enabled: true,
+    homeLayout: "header",
+    hubLayout: "tabs",
+    exploreLayout: "list",
+    shareCardLayout: "card",
+  },
+  dms: { enabled: true, firstMessage: "direct", readReceipts: false, entryPoints: ["profile"] },
   attachments: { enabled: true, membersCanAttach: true },
   colors: { accent: "#6C4DF6", background: "#F7F7F8" },
   typography: { titleFont: null, bodySize: 15 },
@@ -213,7 +255,21 @@ export function buildConfig(settings: PlaygroundSettings): CommunityConfig {
       attachments: settings.attachments.enabled
         ? { types: ["recipe", "session"], membersCanAttach: settings.attachments.membersCanAttach }
         : false,
+      groups: settings.groups.enabled
+        ? {
+            exploreLayout: settings.groups.exploreLayout,
+            shareCardLayout: settings.groups.shareCardLayout,
+          }
+        : false,
+      dms: settings.dms.enabled
+        ? {
+            firstMessage: settings.dms.firstMessage,
+            readReceipts: settings.dms.readReceipts,
+            entryPoints: settings.dms.entryPoints,
+          }
+        : false,
     },
+    messaging: { homeLayout: settings.groups.homeLayout, hubLayout: settings.groups.hubLayout },
     host: {
       getBadges: BADGE_PRESETS[settings.badges].mine,
       getLocale: () => settings.locale,

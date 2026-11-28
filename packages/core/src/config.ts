@@ -89,7 +89,117 @@ export type CommunityModules = {
   presence?:
     | { minCount?: number; collapseAfterMs?: number | false; appearance?: OnlineCountAppearance }
     | false;
+  /** Groups module (messaging): group chats. Needs the messaging migration. Absent
+   * or false ⇒ nothing changes. Values must equal the backend's `messaging_settings`
+   * (`schema-check` warns on a difference). */
+  groups?: Partial<GroupsConfig> | false;
+  /** DMs module (messaging): one-to-one conversations. Needs the messaging and dms
+   * migrations. Absent or false ⇒ nothing changes. Values must equal the backend's
+   * `messaging_settings` (`schema-check` warns on a difference). */
+  dms?: Partial<DmsConfig> | false;
 };
+
+/** Messaging options shared by group chats and DMs. Defaults in `messagingSettings`. */
+export type MessagingConfig = {
+  moderation: "pre" | "post" | "reportOnly";
+  translation: "off" | "onDemand";
+  typingIndicator: boolean;
+  badge: "followed" | "all" | "dot";
+  hubLayout: "tabs" | "unified";
+  homeLayout: "header" | "segmented";
+  pushPreview: "full" | "sender" | "none";
+  onAccountDelete: "keep" | "eraseDms" | "eraseAll";
+  maxLength: number;
+  ratePerMinute: number;
+};
+
+export type GroupsConfig = {
+  preview: "readOnly" | "none";
+  exploreLayout: "list" | "cards";
+  shareCardLayout: "card" | "banner";
+  /** `"feed"`: client-only, runs the feed's `beforeCompose` gate before joining or sending. */
+  requireAccount: boolean | "feed";
+  createRequiresAccount: boolean;
+  maxCreatedPerMember: number;
+  maxJoinedPerMember: number;
+  maxMembers: number | null;
+  nameMaxLength: number;
+  descriptionMaxLength: number;
+};
+
+/** Where a member can start a DM: a profile, the "new message" picker, a post or
+ * message's context menu. */
+export type DmsEntryPoint = "profile" | "newMessage" | "contextMenu";
+
+export type DmsConfig = {
+  /** `"requests"`: a first message waits in the recipient's requests until accepted. */
+  firstMessage: "direct" | "requests";
+  entryPoints: DmsEntryPoint[];
+  /** "Seen" under my last message once the peer read it. */
+  readReceipts: boolean;
+  /** Both members need a linked account (accounts module) to start a DM. */
+  requireAccount: boolean;
+  requestsPerDay: number;
+  declineCooldownDays: number;
+};
+
+export type ResolvedMessaging = MessagingConfig;
+export type ResolvedGroups = GroupsConfig;
+export type ResolvedDms = DmsConfig;
+
+/** The messaging options with defaults, or null when no messaging module (groups or
+ * dms) is on. */
+export function messagingSettings(cfg: {
+  modules: CommunityModules;
+  messaging?: Partial<MessagingConfig>;
+}): ResolvedMessaging | null {
+  if (!cfg.modules.groups && !cfg.modules.dms) return null;
+  const m = cfg.messaging ?? {};
+  return {
+    moderation: m.moderation ?? "post",
+    translation: m.translation ?? "onDemand",
+    typingIndicator: m.typingIndicator ?? true,
+    badge: m.badge ?? "followed",
+    hubLayout: m.hubLayout ?? "tabs",
+    homeLayout: m.homeLayout ?? "header",
+    pushPreview: m.pushPreview ?? "full",
+    onAccountDelete: m.onAccountDelete ?? "keep",
+    maxLength: m.maxLength ?? 2000,
+    ratePerMinute: m.ratePerMinute ?? 20,
+  };
+}
+
+/** The groups module's options with defaults, or null when it is off. */
+export function groupsSettings(cfg: { modules: CommunityModules }): ResolvedGroups | null {
+  const g = cfg.modules.groups;
+  if (!g) return null;
+  return {
+    preview: g.preview ?? "readOnly",
+    exploreLayout: g.exploreLayout ?? "list",
+    shareCardLayout: g.shareCardLayout ?? "card",
+    requireAccount: g.requireAccount ?? "feed",
+    createRequiresAccount: g.createRequiresAccount ?? true,
+    maxCreatedPerMember: g.maxCreatedPerMember ?? 3,
+    maxJoinedPerMember: g.maxJoinedPerMember ?? 50,
+    maxMembers: g.maxMembers ?? null,
+    nameMaxLength: g.nameMaxLength ?? 60,
+    descriptionMaxLength: g.descriptionMaxLength ?? 500,
+  };
+}
+
+/** The dms module's options with defaults, or null when it is off. */
+export function dmsSettings(cfg: { modules: CommunityModules }): ResolvedDms | null {
+  const d = cfg.modules.dms;
+  if (!d) return null;
+  return {
+    firstMessage: d.firstMessage ?? "direct",
+    entryPoints: d.entryPoints ?? ["profile"],
+    readReceipts: d.readReceipts ?? false,
+    requireAccount: d.requireAccount ?? false,
+    requestsPerDay: d.requestsPerDay ?? 5,
+    declineCooldownDays: d.declineCooldownDays ?? 30,
+  };
+}
 
 /** How the header's online count looks: a collapsing pill, or plain text. */
 export type OnlineCountAppearance = "pill" | "text";
@@ -160,6 +270,9 @@ export type CommunityHostAdapters = {
   /** A stable id for this install, keying this device's push row (`push_devices`).
    * `null` (default) skips the per-device push row. */
   getInstallId?: () => string | null;
+  /** Messaging: called when an action needs a signed-in host account (accounts
+   * module): `"dm"` to message, `"createGroup"` to create a group, `"joinGroup"` to join one. */
+  onAccountRequired?: (reason: "dm" | "createGroup" | "joinGroup") => void;
 };
 
 /**
@@ -206,6 +319,8 @@ export type CommunityConfig = {
   defaultName?: CommunityDefaultName;
   topics: CommunityTopicDef[];
   modules: CommunityModules;
+  /** Messaging options (group chats and DMs). Needs `modules.groups` or `modules.dms`. */
+  messaging?: Partial<MessagingConfig>;
   host?: CommunityHostAdapters;
   feed?: CommunityFeedConfig;
   /** Characters a post may hold (the composer's cap and ring). Defaults to
@@ -235,8 +350,10 @@ export class CommunityDisabledError extends Error {
 }
 
 // getAccountProof stays optional: its absence keeps the anonymous-only behaviour.
-type RequiredCommunityHostAdapters = Required<Omit<CommunityHostAdapters, "getAccountProof">> &
-  Pick<CommunityHostAdapters, "getAccountProof">;
+type RequiredCommunityHostAdapters = Required<
+  Omit<CommunityHostAdapters, "getAccountProof" | "onAccountRequired">
+> &
+  Pick<CommunityHostAdapters, "getAccountProof" | "onAccountRequired">;
 
 export type ResolvedCommunityConfig = CommunityConfig & {
   host: RequiredCommunityHostAdapters;
@@ -325,9 +442,22 @@ export function resolveConfig(config: CommunityConfig): ResolvedCommunityConfig 
   return Object.freeze(resolved);
 }
 
+/** The built-in "join the group" attachment's type (`{ type: "group", id: groupId }`). */
+export const GROUP_ATTACHMENT = "group";
+
+/** Whether a post or message may carry this attachment type: one the app enabled
+ * (`modules.attachments.types`), or the built-in `group` card with the groups module on,
+ * even when the attachments module is off. */
+export function attachmentTypeAllowed(cfg: ResolvedCommunityConfig, type: string): boolean {
+  if (type === GROUP_ATTACHMENT && cfg.modules.groups) return true;
+  return !!cfg.modules.attachments && cfg.modules.attachments.types.includes(type);
+}
+
 /** Whether this author may attach app content to a post: admin accounts always,
- * members when the app allows it. */
-export function canAttach(cfg: ResolvedCommunityConfig, admin: boolean): boolean {
+ * members when the app allows it. A group card (`type` "group", groups module on) any
+ * member may share. */
+export function canAttach(cfg: ResolvedCommunityConfig, admin: boolean, type?: string): boolean {
+  if (type === GROUP_ATTACHMENT && cfg.modules.groups) return true;
   if (!cfg.modules.attachments) return false;
   return admin || cfg.modules.attachments.membersCanAttach;
 }

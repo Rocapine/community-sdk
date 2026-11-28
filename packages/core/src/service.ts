@@ -10,7 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 
-import type { ResolvedCommunityConfig } from "./config";
+import { attachmentTypeAllowed, type ResolvedCommunityConfig } from "./config";
 import { ensureIdentity } from "./identity";
 import { readerLocale } from "./locale";
 import {
@@ -43,7 +43,7 @@ export const POST_IMAGES_BUCKET = "post-images";
  * don't have these columns and PostgREST would reject the whole select. */
 const IMAGE_COLUMNS = "image_path, image_width, image_height";
 
-async function requireUid(cfg: ResolvedCommunityConfig): Promise<string> {
+export async function requireUid(cfg: ResolvedCommunityConfig): Promise<string> {
   const uid = await ensureIdentity(cfg);
   if (!uid) throw new Error("You appear to be offline. Please try again.");
   return uid;
@@ -131,7 +131,8 @@ function postsSelect(cfg: ResolvedCommunityConfig): string {
     readerLocale(cfg) !== null,
     !!cfg.modules.images,
     !!cfg.modules.badges,
-    !!cfg.modules.attachments,
+    // Groups bring the built-in group card, even with the attachments module off.
+    !!cfg.modules.attachments || !!cfg.modules.groups,
   );
 }
 
@@ -360,8 +361,11 @@ export async function fetchProfile(
     .from("profiles")
     .select(cfg.modules.badges ? `${PROFILE_SELECT}, ${PROFILE_BADGE_COLUMNS}` : PROFILE_SELECT)
     .eq("id", userId)
-    .single();
+    // Not .single(): a hidden row (blocked either way, or gone) would be a 406 request.
+    .maybeSingle();
   if (error) throw error;
+  // The error .single() gives, so isProfileUnavailable and the callers see no change.
+  if (!data) throw Object.assign(new Error("profile unavailable"), { code: "PGRST116" });
   return mapProfileRow(data as unknown as ProfileRow, cfg.authorFallback());
 }
 
@@ -508,9 +512,10 @@ export async function createPost(
   const { topic, body, pollOptions, image, attachment } = input;
   const hasPoll = !!pollOptions && pollOptions.length > 0;
   if (attachment) {
-    if (!cfg.modules.attachments) throw new Error("attachments module is not enabled");
-    if (!cfg.modules.attachments.types.includes(attachment.type))
+    if (!attachmentTypeAllowed(cfg, attachment.type)) {
+      if (!cfg.modules.attachments) throw new Error("attachments module is not enabled");
       throw new Error("attachment type not enabled");
+    }
     if (hasPoll || image)
       throw new Error("a post cannot have both an attachment and a poll or an image");
   }
@@ -595,10 +600,11 @@ export async function createComment(
   return data.id as string;
 }
 
-/** Run synchronous moderation on a just-created pending post/comment. */
+/** Run synchronous moderation on a just-created pending post/comment, a sent
+ * message or a created/edited group (messaging). */
 export async function moderateOne(
   cfg: ResolvedCommunityConfig,
-  input: { kind: "post" | "comment"; id: string },
+  input: { kind: "post" | "comment" | "message" | "group"; id: string },
 ): Promise<ModerationVerdict> {
   const client = cfg.requireClient();
   const { data, error } = await client.functions.invoke("moderate-one", { body: input });
@@ -678,6 +684,10 @@ export interface ReportInput {
   reportedUserId: string;
   postId?: string;
   commentId?: string;
+  /** Groups module: a message, its author as `reportedUserId`. */
+  messageId?: string;
+  /** Groups module: a group, its creator as `reportedUserId`. */
+  groupId?: string;
   reason: ReportReason;
   details?: string;
 }
@@ -693,6 +703,9 @@ export async function reportContent(
     reported_user_id: input.reportedUserId,
     post_id: input.postId ?? null,
     comment_id: input.commentId ?? null,
+    // Only when set: backends without the messaging migrations lack the columns.
+    ...(input.messageId ? { message_id: input.messageId } : {}),
+    ...(input.groupId ? { group_id: input.groupId } : {}),
     reason: input.reason,
     details: input.details?.trim() || null,
   });
@@ -735,13 +748,34 @@ export function isProfileUnavailable(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === "PGRST116";
 }
 
+/** `notify_group_messages` / `notify_dms`: the member-wide switches for group and DM
+ * pushes (messaging/002, dms/002), read and written only with the groups / dms module
+ * on: other backends lack the column. */
 export const NOTIFICATION_PREFERENCE_KEYS = [
   "notify_likes",
   "notify_comments",
   "notify_reactions",
+  "notify_group_messages",
+  "notify_dms",
 ] as const;
 export type NotificationPreferenceKey = (typeof NOTIFICATION_PREFERENCE_KEYS)[number];
-export type NotificationPreferences = Record<NotificationPreferenceKey, boolean>;
+type ModuleKey = "notify_group_messages" | "notify_dms";
+export type NotificationPreferences = Record<
+  Exclude<NotificationPreferenceKey, ModuleKey>,
+  boolean
+> &
+  Partial<Record<ModuleKey, boolean>>;
+
+/** The preference columns this config's backend has. */
+export function notificationPreferenceKeys(cfg: {
+  modules: { groups?: unknown; dms?: unknown };
+}): NotificationPreferenceKey[] {
+  return NOTIFICATION_PREFERENCE_KEYS.filter(
+    (k) =>
+      (k !== "notify_group_messages" || !!cfg.modules.groups) &&
+      (k !== "notify_dms" || !!cfg.modules.dms),
+  );
+}
 
 /** The caller's `push_tokens` preferences (push module); `null` while the device has no push row. */
 export async function fetchNotificationPreferences(
@@ -751,7 +785,7 @@ export async function fetchNotificationPreferences(
   const uid = await requireUid(cfg);
   const { data, error } = await client
     .from("push_tokens")
-    .select(NOTIFICATION_PREFERENCE_KEYS.join(","))
+    .select(notificationPreferenceKeys(cfg).join(","))
     .eq("user_id", uid)
     .maybeSingle();
   if (error) throw error;
@@ -763,6 +797,8 @@ export async function setNotificationPreference(
   key: NotificationPreferenceKey,
   enabled: boolean,
 ): Promise<void> {
+  if (!notificationPreferenceKeys(cfg).includes(key))
+    throw new Error(`${key} needs the ${key === "notify_dms" ? "dms" : "groups"} module`);
   const client = cfg.requireClient();
   const uid = await requireUid(cfg);
   const { error } = await client

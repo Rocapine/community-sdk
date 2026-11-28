@@ -3,7 +3,7 @@ import { makeT } from "../i18n";
 
 // The built core pulls in JSX; only the time decomposition is needed here.
 vi.mock("@rocapine/community-core", async () => import("../../../core/src/time"));
-const { inboxRowText } = await import("../utils/inboxRow");
+const { inboxRowText, inboxRowTarget } = await import("../utils/inboxRow");
 
 const t = makeT("en");
 const now = Date.parse("2026-11-04T12:00:00Z");
@@ -41,5 +41,50 @@ describe("inboxRowText", () => {
 
   it("has no title for a kind the SDK doesn't know", () => {
     expect(inboxRowText(t, item({ kind: "badge_earned" }), now).title).toBe("");
+  });
+});
+
+describe("group events", () => {
+  it("reads an approved group and opens it", () => {
+    const row = item({ kind: "group_approved", actorName: null, postId: null, groupId: "g1" });
+    expect(inboxRowText(t, row, now).title).toBe(
+      "Your group was approved. Everyone can find it now.",
+    );
+    expect(inboxRowTarget(row, "readOnly")).toEqual({ groupId: "g1" });
+  });
+
+  it("opens a rejected group to fix it", () => {
+    const row = item({ kind: "group_field_rejected", postId: null, groupId: "g1" });
+    expect(inboxRowText(t, row, now).title).toBe(
+      "Part of your group wasn't accepted. Tap to change it.",
+    );
+    expect(inboxRowTarget(row, "none")).toEqual({ groupId: "g1" });
+  });
+
+  it("opens a removed member's group as a preview, or nothing without previews", () => {
+    const row = item({ kind: "group_member_removed", postId: null, groupId: "g1" });
+    expect(inboxRowText(t, row, now).title).toBe("You were removed from a group.");
+    expect(inboxRowTarget(row, "readOnly")).toEqual({ groupId: "g1", preview: true });
+    expect(inboxRowTarget(row, "none")).toBeNull();
+  });
+
+  it("has no target without a group id (an inbox older than the column)", () => {
+    expect(inboxRowTarget(item({ kind: "group_approved", postId: null }), "readOnly")).toBeNull();
+  });
+
+  it("opens a post row's post", () => {
+    expect(inboxRowTarget(item({}), "readOnly")).toEqual({ postId: "p1" });
+  });
+});
+
+describe("dm_request_accepted", () => {
+  it("names who accepted and opens the DM", () => {
+    const row = item({ kind: "dm_request_accepted", postId: null, groupId: "c1" });
+    expect(inboxRowText(t, row, now).title).toBe("Marie accepted your message request");
+    expect(inboxRowTarget(row, "none")).toEqual({ conversationId: "c1" });
+  });
+
+  it("has no target without the conversation id", () => {
+    expect(inboxRowTarget(item({ kind: "dm_request_accepted", postId: null }), "none")).toBeNull();
   });
 });

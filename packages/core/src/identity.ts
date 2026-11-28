@@ -1,6 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 import type { AccountProof, ResolvedCommunityConfig } from "./config";
 import { unregisterPushDevice } from "./push-devices";
+import { clearSignedUrls } from "./signed-urls";
 
 // One anonymous Supabase identity per install. signInAnonymously() runs once;
 // afterwards getSession() restores the same user (and uuid) from AsyncStorage.
@@ -106,6 +107,7 @@ export function ensureIdentity(cfg: ResolvedCommunityConfig): Promise<string | n
  */
 export function resetIdentity(): void {
   epoch += 1;
+  clearSignedUrls(); // another member's signed URLs must never be served
   inFlight = null;
   accountCheck = null;
   retryAfter = 0;
@@ -381,6 +383,7 @@ async function openAccount(cfg: ResolvedCommunityConfig): Promise<void> {
   // Any bootstrap still running is stale from here on.
   const start = ++epoch;
   inFlight = null;
+  clearSignedUrls();
   await adoptionSettled();
   const proof = await cfg.host.getAccountProof?.();
   if (!proof) throw new Error("accountSignedIn: the host gave no account proof");

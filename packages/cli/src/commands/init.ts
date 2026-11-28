@@ -94,6 +94,8 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
     let fileIndex = 0;
     for (const moduleName of canonicalModules) {
       const moduleSrcDir = path.join(migrationsSrcRoot, moduleName);
+      // A module may ship no migration of its own yet (as upgrade already allows).
+      if (!fs.existsSync(moduleSrcDir)) continue;
       const filenames = fs
         .readdirSync(moduleSrcDir)
         .filter((f) => f.endsWith(".sql"))

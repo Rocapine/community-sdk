@@ -1,6 +1,6 @@
-/** Only members shown in content get a presence lookup (and a dot): not the header,
+/** Only members shown in content (and a DM's peer) get a presence lookup (and a dot): not the header,
  * composer, reply bar, edit preview or the blocked list (the server answers false). */
-const ONLINE_PLACEMENTS: readonly string[] = ["post", "comment", "profile"];
+const ONLINE_PLACEMENTS: readonly string[] = ["post", "comment", "profile", "dm"];
 
 /** The id to look up for this placement, or null for no lookup. */
 export function onlineLookupId(placement: string, userId: string | null): string | null {

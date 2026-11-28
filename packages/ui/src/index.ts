@@ -43,6 +43,7 @@ export {
   type CommunityTopicStyle,
   useCommunityBackground,
   type AttachmentPlacement,
+  type AttachmentVariant,
   type RenderAttachment,
   useCommunityTheme,
   useT,
@@ -69,6 +70,13 @@ export type { ReportTarget } from "./components/ReportSheet";
 export { ReportSheet } from "./components/ReportSheet";
 
 export { CommunityFeedScreen } from "./screens/CommunityFeedScreen";
+export { ConversationScreen, type ConversationScreenProps } from "./screens/ConversationScreen";
+export { MessagesScreen, type MessagesScreenProps } from "./screens/MessagesScreen";
+export { RequestsScreen, type RequestsScreenProps } from "./screens/RequestsScreen";
+export { ExploreGroupsScreen, type ExploreGroupsScreenProps } from "./screens/ExploreGroupsScreen";
+export { GroupDetailsScreen, type GroupDetailsScreenProps } from "./screens/GroupDetailsScreen";
+export { GroupMembersScreen, type GroupMembersScreenProps } from "./screens/GroupMembersScreen";
+export { GroupFormSheet } from "./components/GroupFormSheet";
 export {
   DEFAULT_FEED_HEADER,
   type FeedHeaderBackground,

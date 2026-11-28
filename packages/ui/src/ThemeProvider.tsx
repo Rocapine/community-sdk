@@ -38,11 +38,14 @@ export type CommunityTopicStyle = {
 const TopicStylesContext = createContext<Record<string, CommunityTopicStyle>>({});
 
 /** Where an attachment card is drawn: under a post in the feed or a profile, under
- * the post atop its thread, in the composer. */
-export type AttachmentPlacement = "post" | "thread" | "composer";
+ * the post atop its thread, in the composer, in a chat message. */
+export type AttachmentPlacement = "post" | "thread" | "composer" | "message";
+/** How much room the card has: `"card"` (default), `"banner"`, or `"compact"` (a
+ * chat bubble). */
+export type AttachmentVariant = "card" | "banner" | "compact";
 export type RenderAttachment = (
   attachment: PostAttachment,
-  ctx: { placement: AttachmentPlacement; open(): void },
+  ctx: { placement: AttachmentPlacement; variant: AttachmentVariant; open(): void },
 ) => ReactNode;
 type AttachmentHandlers = {
   render: RenderAttachment | null;

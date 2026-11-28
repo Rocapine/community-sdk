@@ -7,7 +7,7 @@ describe("resolveHeaderZones", () => {
   it("drops the inbox when the inbox module is off", () => {
     const zones = resolveHeaderZones(
       { left: ["profile"], right: ["search", "inbox"] },
-      { inbox: false, online: true },
+      { inbox: false, online: true, messaging: true, groups: true, dms: true },
     );
     expect(zones.right).toEqual(["search"]);
   });
@@ -15,7 +15,7 @@ describe("resolveHeaderZones", () => {
   it("keeps logos and the order of each zone", () => {
     const zones = resolveHeaderZones(
       { left: [logo], center: ["title"], right: ["inbox", "search"] },
-      { inbox: true, online: true },
+      { inbox: true, online: true, messaging: true, groups: true, dms: true },
     );
     expect(zones).toEqual({
       left: [logo],
@@ -26,10 +26,18 @@ describe("resolveHeaderZones", () => {
   });
 
   it("hides the row when every zone ends up empty", () => {
-    expect(resolveHeaderZones({ right: ["inbox"] }, { inbox: false, online: true }).visible).toBe(
-      false,
-    );
-    expect(resolveHeaderZones({ left: [] }, { inbox: true, online: true })).toEqual({
+    expect(
+      resolveHeaderZones(
+        { right: ["inbox"] },
+        { inbox: false, online: true, messaging: true, groups: true, dms: true },
+      ).visible,
+    ).toBe(false);
+    expect(
+      resolveHeaderZones(
+        { left: [] },
+        { inbox: true, online: true, messaging: true, groups: true, dms: true },
+      ),
+    ).toEqual({
       left: [],
       center: [],
       right: [],
@@ -40,7 +48,7 @@ describe("resolveHeaderZones", () => {
   it("keeps the default zones when the config sets none (only a background, say)", () => {
     const zones = resolveHeaderZones(
       { background: { color: "#000" }, topInset: 47 },
-      { inbox: true, online: true },
+      { inbox: true, online: true, messaging: true, groups: true, dms: true },
     );
     expect(zones).toEqual({
       left: ["profile"],
@@ -51,7 +59,15 @@ describe("resolveHeaderZones", () => {
   });
 
   it("defaults to profile, title, search and inbox", () => {
-    expect(resolveHeaderZones(DEFAULT_FEED_HEADER, { inbox: true, online: true })).toMatchObject({
+    expect(
+      resolveHeaderZones(DEFAULT_FEED_HEADER, {
+        inbox: true,
+        online: true,
+        messaging: true,
+        groups: true,
+        dms: true,
+      }),
+    ).toMatchObject({
       left: ["profile"],
       center: ["title"],
       right: ["search", "inbox"],
@@ -61,14 +77,32 @@ describe("resolveHeaderZones", () => {
   it("drops online when the presence module is off", () => {
     const z = resolveHeaderZones(
       { left: ["online"], right: ["inbox"] },
-      { inbox: true, online: false },
+      { inbox: true, online: false, messaging: true, groups: true, dms: true },
     );
     expect(z.left).toEqual([]);
   });
 
   it("keeps online when the module is on", () => {
-    expect(resolveHeaderZones({ left: ["online"] }, { inbox: false, online: true }).left).toEqual([
-      "online",
-    ]);
+    expect(
+      resolveHeaderZones(
+        { left: ["online"] },
+        { inbox: false, online: true, messaging: true, groups: true, dms: true },
+      ).left,
+    ).toEqual(["online"]);
+  });
+
+  it("keeps each messaging item only with its module on", () => {
+    const config = { left: ["messages" as const], right: ["groups" as const, "dms" as const] };
+    const on = { inbox: true, online: true };
+    expect(
+      resolveHeaderZones(config, { ...on, messaging: true, groups: true, dms: false }),
+    ).toMatchObject({ left: ["messages"], right: ["groups"] });
+    // Dms only: messages and dms, never a Groups tab that isn't there.
+    expect(
+      resolveHeaderZones(config, { ...on, messaging: true, groups: false, dms: true }),
+    ).toMatchObject({ left: ["messages"], right: ["dms"] });
+    expect(
+      resolveHeaderZones(config, { ...on, messaging: false, groups: false, dms: false }),
+    ).toMatchObject({ left: [], right: [], visible: false });
   });
 });

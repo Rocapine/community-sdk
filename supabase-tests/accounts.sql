@@ -1,6 +1,6 @@
 -- Account links and profile merge (accounts/001_accounts.sql, accounts/002_merge_and_delete.sql,
--- accounts/003_markers_and_bans.sql).
--- Run against a backend with core applied, after accounts/001, 002 and 003:
+-- accounts/003_markers_and_bans.sql, accounts/004_merge_hooks.sql).
+-- Run against a backend with core applied, after accounts/001, 002, 003 and 004:
 --   npx supabase db query --linked --yes -f supabase-tests/accounts.sql
 -- It creates two auth users (so two profiles), merges them and always rolls back by raising at the
 -- end: the run passed when the error message is exactly ACCOUNTS_TESTS_PASSED.
@@ -28,7 +28,25 @@ declare
     'post_drafts.author_id', 'notifications.user_id', 'notifications.actor_id',
     'notification_seen.user_id', 'notification_reads.user_id', 'poll_votes.user_id',
     'post_reactions.user_id', 'member_presence.user_id', 'push_tokens.user_id', 'push_devices.user_id',
-    'profiles.merged_into']; -- repointed by account_link_and_merge, not merge_profiles
+    'profiles.merged_into', -- repointed by account_link_and_merge, not merge_profiles
+    -- merge_messaging (groups module), called by merge_profiles since accounts/004.
+    'conversation_members.user_id', 'messages.author_id', 'message_likes.user_id', 'groups.created_by',
+    'group_removals.user_id',
+    -- merge_messaging as the dms module redefines it (dms/001, 006).
+    'dm_pairs.user_a', 'dm_pairs.user_b', 'dm_declines.sender_id', 'dm_declines.recipient_id',
+    'dm_request_log.sender_id', 'dm_request_log.recipient_id'];
+  -- Every table the SDK's migrations create (a CLI test keeps this list complete). The FK check
+  -- covers these only: a host's own table referencing profiles is the host's to merge.
+  sdk_tables text[] := array[
+    'account_ban_key', 'account_bans', 'account_links', 'account_session_calls', 'admin_users',
+    'blocks', 'comment_likes', 'comment_translations', 'comments', 'community_meta',
+    'conversation_members', 'conversations', 'dm_declines', 'dm_pairs', 'dm_request_log',
+    'group_edits', 'group_removals', 'group_translations', 'groups', 'likes', 'member_presence',
+    'message_likes', 'message_translations', 'message_versions', 'messages', 'messaging_settings',
+    'moderation_actions', 'notification_reads', 'notification_seen', 'notifications',
+    'poll_option_translations', 'poll_options', 'poll_settings', 'poll_votes', 'post_drafts',
+    'post_reactions', 'post_translations', 'posts', 'presence_settings', 'profiles', 'push_devices',
+    'push_tokens', 'reports'];
 begin
   insert into auth.users (id) values (m), (o), (x), (y);
   assert exists (select 1 from public.profiles where id = m), 'the auth trigger creates the profile';
@@ -151,7 +169,8 @@ begin
     join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
     where c.contype = 'f' and c.confrelid = 'public.profiles'::regclass
       and c.conrelid <> 'public.account_links'::regclass -- not moved: deleting `other` cascades its link
-      and c.connamespace = 'public'::regnamespace -- the SDK's own tables; a host's tables are its business
+      and c.connamespace = 'public'::regnamespace
+      and replace(c.conrelid::regclass::text, 'public.', '') = any (sdk_tables)
   loop
     assert (replace(rec.tbl, 'public.', '') || '.' || rec.col) = any (handled),
       'merge_profiles does not handle ' || rec.tbl || '.' || rec.col;
@@ -208,7 +227,10 @@ begin
   assert (select bio from public.profiles where id = m) is null, 'bio cleared';
   assert not (select username_set_by_user from public.profiles where id = m), 'flag cleared';
 
-  -- Hooks.
+  -- Hooks. A host's own on_account_linked is dropped for this run (the final raise restores it).
+  if public.account_hook_exists('on_account_linked') then
+    drop function public.on_account_linked(uuid, text, text, jsonb);
+  end if;
   assert not public.account_hook_exists('on_account_linked'), 'no hook installed';
   assert not public.account_hook_exists('nonsense'), 'unknown hook name is false';
 

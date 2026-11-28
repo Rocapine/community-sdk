@@ -77,6 +77,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "rea
 import type { TextInputInstance } from "react-native";
 import { CommunitySheet, SHEET_GUTTER, SheetScrollView, SheetTextInput } from "../Sheet";
 import { usePinMenu } from "../utils/pinMenu";
+import { useMessageMember, usePrefetchDmFlags, type OpenDm } from "../utils/messageMember";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
@@ -84,6 +85,7 @@ import { Avatar, MyAvatar } from "../components/Avatar";
 import { MemberBadgeRow } from "../components/MemberBadge";
 import { ClampedBody } from "../components/ClampedBody";
 import { NoticeCard } from "../components/NoticeCard";
+import { useActionMenu } from "../components/chat/MessageMenu";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { ImageViewerContext, useImageViewerOverlay } from "../components/ImageViewer";
 import { PostImage } from "../components/PostImage";
@@ -136,6 +138,7 @@ export function ThreadSheet({
   onClose,
   onOpenProfile,
   onPressTopic,
+  onOpenMessages,
   slots,
   beforeSubmitComment,
 }: {
@@ -148,6 +151,9 @@ export function ThreadSheet({
    * feed selects that tab; elsewhere a host routes back to its feed). Absent:
    * the topic is not tappable. */
   onPressTopic?(topicId: string): void;
+  /** Dms module: opens a DM started from the post or a comment menu ("Message", with
+   * `"contextMenu"` in `dms.entryPoints`); the sheet closes first. Absent: no item. */
+  onOpenMessages?: OpenDm;
   slots?: PostSlots;
   /** Awaited before the comment is actually created (`useCreateComment().mutate`).
    * Absent ⇒ byte-identical behavior. Resolving/returning `false` (or
@@ -168,6 +174,15 @@ export function ThreadSheet({
   const blockUser = useBlockUser();
   const deleteContent = useDeleteContent();
   const pinMenu = usePinMenu();
+  const { show: showMenu, sheet: menuSheet } = useActionMenu();
+  // The sheet is a Modal: close it before the host pushes the conversation.
+  const messageMember = useMessageMember(
+    onOpenMessages &&
+      ((target) => {
+        onClose();
+        onOpenMessages(target);
+      }),
+  );
 
   // Keep the last opened post's id through the close animation so content
   // doesn't flash empty while the sheet slides down (mirrors the mold's own
@@ -183,6 +198,10 @@ export function ThreadSheet({
   usePost(shownId, post === null);
   const thread = useThread(shownId);
   const comments = thread.data ?? [];
+  // "Message" in the post and comment menus reads these flags from the cache.
+  usePrefetchDmFlags(
+    onOpenMessages && shownId ? [post?.authorId ?? "", ...comments.map((c) => c.authorId)] : [],
+  );
   const rows = useMemo(() => threadRows(comments), [comments]);
   // @handle → member, for tappable mentions (only people in this thread).
   const handles = useMemo(() => {
@@ -416,28 +435,34 @@ export function ThreadSheet({
   const openPostMenu = (p: FeedPost) => {
     if (p.isOwn) {
       const askDelete = () =>
-        Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
-          { text: t("menu.cancel"), style: "cancel" },
-          {
-            text: t("menu.delete"),
-            style: "destructive",
-            onPress: () => {
-              onClose();
-              deleteContent.mutate({ kind: "post", id: p.id, postId: p.id });
+        Alert.alert(
+          t("menu.deletePostTitle"),
+          t("menu.deletePostBody"),
+          [
+            { text: t("menu.cancel"), style: "cancel" },
+            {
+              text: t("menu.delete"),
+              style: "destructive",
+              onPress: () => {
+                onClose();
+                deleteContent.mutate({ kind: "post", id: p.id, postId: p.id });
+              },
             },
-          },
-        ]);
+          ],
+          { cancelable: true },
+        );
       const pin = pinMenu(p);
       if (pin.length === 0) return askDelete();
-      Alert.alert(p.authorName, undefined, [
+      showMenu(p.authorName, [
         ...pin,
         { text: t("menu.delete"), style: "destructive", onPress: askDelete },
         { text: t("menu.cancel"), style: "cancel" },
       ]);
       return;
     }
-    Alert.alert(p.authorName, undefined, [
+    showMenu(p.authorName, [
       ...pinMenu(p),
+      ...messageMember.menuItems(p.authorId),
       {
         text: t("menu.reportPost"),
         onPress: () =>
@@ -479,7 +504,7 @@ export function ThreadSheet({
 
   const openCommentMenu = (c: ThreadComment) => {
     if (c.isOwn) {
-      Alert.alert(t("menu.deleteCommentTitle"), undefined, [
+      showMenu(t("menu.deleteCommentTitle"), [
         { text: t("menu.cancel"), style: "cancel" },
         {
           text: t("menu.delete"),
@@ -489,7 +514,8 @@ export function ThreadSheet({
       ]);
       return;
     }
-    Alert.alert(c.authorName, undefined, [
+    showMenu(c.authorName, [
+      ...messageMember.menuItems(c.authorId),
       {
         text: t("menu.reportComment"),
         onPress: () =>
@@ -692,6 +718,7 @@ export function ThreadSheet({
         target={reportTarget}
         onClose={() => setReportTarget(null)}
       />
+      {menuSheet}
     </>
   );
 }

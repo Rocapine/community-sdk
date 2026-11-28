@@ -42,6 +42,8 @@ export type CommunityIconProps = {
  *  - `reply`          — reply to a comment (thread)
  *  - `markAllRead`    — notification center "mark all as read"
  *  - `streak`         — streak pill on a post and a profile (streaks module)
+ *  - `messages`       — feed header entry to the Messages page (groups module)
+ *  - `groups`         — feed header entry to the groups, and a deleted group's card
  */
 export type CommunityIconName =
   | "like"
@@ -64,6 +66,8 @@ export type CommunityIconName =
   | "image"
   | "reply"
   | "markAllRead"
-  | "streak";
+  | "streak"
+  | "messages"
+  | "groups";
 
 export type CommunityIconSet = Record<CommunityIconName, ComponentType<CommunityIconProps>>;

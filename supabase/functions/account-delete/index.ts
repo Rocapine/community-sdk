@@ -15,14 +15,29 @@ import {
 import { adminClient, isServiceCaller, json, preflight, SUPABASE_URL } from "../_shared/client.ts";
 
 const env = readAccountEnv((k) => Deno.env.get(k));
-const deps = supabaseAccountDeps(
-  adminClient(),
+const admin = adminClient();
+const base = supabaseAccountDeps(
+  admin,
   () =>
     createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
       auth: { persistSession: false, autoRefreshToken: false },
     }),
   env.secret,
 );
+const deps = {
+  ...base,
+  db: {
+    ...base.db,
+    deleteProfileData: async (profile: string) => {
+      // messaging.onAccountDelete (groups module) first; PGRST202 = the module isn't installed.
+      const { error } = await admin.rpc("messaging_on_account_delete", { p_uid: profile });
+      if (error && error.code !== "PGRST202") {
+        throw new Error(`messaging_on_account_delete: ${error.message}`);
+      }
+      await base.db.deleteProfileData(profile);
+    },
+  },
+};
 
 Deno.serve(async (req) => {
   const pre = preflight(req);

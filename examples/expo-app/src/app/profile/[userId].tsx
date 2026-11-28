@@ -4,6 +4,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePlayground } from "@/PlaygroundProvider";
+import { openMessages } from "@/routes";
 
 export default function ProfileRoute() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
@@ -16,11 +17,17 @@ export default function ProfileRoute() {
   };
   return (
     <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: settings.colors.background }}>
-      <ProfileScreen userId={userId} onOpenThread={setThreadPostId} onBack={router.back} />
+      <ProfileScreen
+        userId={userId}
+        onOpenThread={setThreadPostId}
+        onOpenMessages={openMessages}
+        onBack={router.back}
+      />
       <ThreadSheet
         postId={threadPostId}
         onClose={() => setThreadPostId(null)}
         onOpenProfile={openProfile}
+        onOpenMessages={openMessages}
       />
     </View>
   );

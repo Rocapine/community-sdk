@@ -5,6 +5,7 @@ import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePlayground } from "@/PlaygroundProvider";
 import { CardInboxRow } from "@/components/CardInboxRow";
+import { openMessages } from "@/routes";
 
 export default function InboxRoute() {
   const insets = useSafeAreaInsets();
@@ -16,6 +17,7 @@ export default function InboxRoute() {
         onOpenPost={setThreadPostId}
         onBack={router.back}
         onOpenCommunity={router.back}
+        onOpenMessages={openMessages}
         renderInboxRow={
           settings.inboxRow === "card"
             ? (_item, defaults, meta) => (defaults ? <CardInboxRow meta={meta} /> : null)

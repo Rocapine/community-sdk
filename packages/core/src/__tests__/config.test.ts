@@ -3,6 +3,9 @@ import {
   type CommunityConfig,
   CommunityDisabledError,
   DEFAULT_NAME,
+  dmsSettings,
+  groupsSettings,
+  messagingSettings,
   isEventTopic,
   pollLimits,
   resolveConfig,
@@ -159,5 +162,71 @@ describe("pollLimits", () => {
       maxOptions: 7,
       optionMaxLength: 100,
     });
+  });
+});
+
+describe("groupsSettings / messagingSettings", () => {
+  it("resolves every default", () => {
+    expect(groupsSettings({ modules: { ...base.modules, groups: {} } })).toEqual({
+      preview: "readOnly",
+      exploreLayout: "list",
+      shareCardLayout: "card",
+      requireAccount: "feed",
+      createRequiresAccount: true,
+      maxCreatedPerMember: 3,
+      maxJoinedPerMember: 50,
+      maxMembers: null,
+      nameMaxLength: 60,
+      descriptionMaxLength: 500,
+    });
+  });
+
+  it("is null when groups is off or absent", () => {
+    expect(groupsSettings({ modules: { ...base.modules, groups: false } })).toBeNull();
+    expect(groupsSettings({ modules: base.modules })).toBeNull();
+    expect(messagingSettings({ modules: base.modules })).toBeNull();
+  });
+
+  it("keeps overrides", () => {
+    const g = groupsSettings({ modules: { ...base.modules, groups: { maxMembers: 10 } } });
+    expect(g?.maxMembers).toBe(10);
+  });
+
+  it("resolves the messaging defaults", () => {
+    expect(messagingSettings({ modules: { ...base.modules, groups: {} } })).toEqual({
+      moderation: "post",
+      translation: "onDemand",
+      typingIndicator: true,
+      badge: "followed",
+      hubLayout: "tabs",
+      homeLayout: "header",
+      pushPreview: "full",
+      onAccountDelete: "keep",
+      maxLength: 2000,
+      ratePerMinute: 20,
+    });
+  });
+});
+
+describe("dmsSettings", () => {
+  it("resolves every default", () => {
+    expect(dmsSettings({ modules: { ...base.modules, dms: {} } })).toEqual({
+      firstMessage: "direct",
+      entryPoints: ["profile"],
+      readReceipts: false,
+      requireAccount: false,
+      requestsPerDay: 5,
+      declineCooldownDays: 30,
+    });
+  });
+
+  it("is null when dms is off or absent", () => {
+    expect(dmsSettings({ modules: { ...base.modules, dms: false } })).toBeNull();
+    expect(dmsSettings({ modules: base.modules })).toBeNull();
+  });
+
+  it("turns messaging on with dms alone", () => {
+    expect(messagingSettings({ modules: { ...base.modules, dms: {} } })?.moderation).toBe("post");
+    expect(groupsSettings({ modules: { ...base.modules, dms: {} } })).toBeNull();
   });
 });

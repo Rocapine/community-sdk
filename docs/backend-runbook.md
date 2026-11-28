@@ -85,27 +85,27 @@ supabase secrets set OPENAI_API_KEY=sk-... SLACK_WEBHOOK_URL=https://hooks.slack
 supabase functions deploy
 ```
 
-| Secret                                                                                   | Default                               | Required?                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Used by                                                                                                       |
-| ---------------------------------------------------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `OPENAI_API_KEY`                                                                         | none                                  | **Required.** Missing ⇒ the affected function throws at module load (`assertModerationConfigured()`) — a hard, immediate failure, not a silent degrade. With the translation module on, the key needs Moderation **and** Responses (write) access: a restricted key with only moderation makes every translation fail with 401 `Missing scopes: api.responses.write` in the function logs.                                                                                                                                                                                                                                                    | `moderate-one`, `daily-moderation`, `update-profile`                                                          |
-| `SLACK_WEBHOOK_URL`                                                                      | none                                  | Optional. Unset ⇒ `report-to-slack` and `daily-moderation`'s summary post become logged no-ops (`_shared/slack.ts` logs and returns instead of posting).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `report-to-slack`, `daily-moderation`                                                                         |
-| `COMMUNITY_APP_NAME`                                                                     | `"Community"`                         | Optional.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `broadcast-post` — push title fallback for an admin post whose author has no username set                     |
-| `COMMUNITY_PUSH_COPY`                                                                    | _(built-in neutral copy, 23 locales)_ | Optional JSON: per-locale, per-key override of every push string — `fallbackName`, `comment.title`, `like.one`, `like.many`, `reaction.one`, `reaction.many`, `photo` (the excerpt of an image-only post or comment, default "📷 Photo" localized) — with `{name}`/`{count}` placeholders; a `*.many` value can be a `{one, few, many, other}` object picked by the recipient locale's CLDR plural category. This is how an app keeps its own voice ("prayed for you 🙏", a gendered fallback name…) without forking the functions. See `supabase/functions/_shared/copy.ts`.                                                                 | `notify-comment`, `notify-like`, `notify-reaction`                                                            |
-| `COMMUNITY_FALLBACK_NAME`                                                                | `"Someone"`                           | Optional legacy single string (every locale); `COMMUNITY_PUSH_COPY.fallbackName` wins over it. Rarely used since every profile gets a default name (core/009).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `notify-comment`, `notify-like`, `notify-reaction` — actor-name fallback when the acting user has no username |
-| `COMMUNITY_REACTION_PUSH_TEXT`                                                           | `"{name} is thinking of you"`         | Optional legacy single string for the single-reactor case (every locale); `COMMUNITY_PUSH_COPY["reaction.one"]` wins over it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `notify-reaction`                                                                                             |
-| `MODERATION_SCORE_THRESHOLD`                                                             | `0.5`                                 | Optional. Raw OpenAI moderation score at or above which a category is hidden even when OpenAI's own boolean flag is false (catches under-scored insults/harassment, including other languages).                                                                                                                                                                                                                                                                                                                                                                                                                                               | `_shared/moderation.ts` (all moderating functions)                                                            |
-| `MODERATION_EXCLUDED_CATEGORIES`                                                         | `""` (none excluded)                  | Optional, comma-separated. Removes listed categories from the score-threshold check only — OpenAI's own boolean flag for that category still applies regardless. **Example (a menstrual-health app):** `MODERATION_EXCLUDED_CATEGORIES=sexual` lets legitimate intimacy/fertility discussion through the score check, while OpenAI's own `sexual`/`sexual/minors` boolean flags still hide clearly explicit content. **Never applies to images:** a post/comment image and an avatar are judged strictly (every category, score threshold included), whatever this secret says — so avatars of apps that set it are now stricter than before. | `_shared/moderation.ts`                                                                                       |
-| `EXPO_ACCESS_TOKEN`                                                                      | none                                  | Optional — only needed for an Expo project with Enhanced Security.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `_shared/push.ts` (push module)                                                                               |
-| `COMMUNITY_TRANSLATION_LOCALES`                                                          | none                                  | **Required with the translation module.** Comma-separated target locales, e.g. `en,es-ES,es-419,it,pl,pt-PT,pt-BR` — must equal the client's `modules.translation.locales`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `translate-one`, `daily-translation`, `notify-comment`, `broadcast-post`                                      |
-| `COMMUNITY_TRANSLATION_MODEL`                                                            | `gpt-5-mini`                          | Optional.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `translate-one`, `daily-translation`                                                                          |
-| `COMMUNITY_TRANSLATION_STYLE`                                                            | none                                  | Optional per-app voice instruction appended to the translation prompt.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `translate-one`, `daily-translation`                                                                          |
-| `COMMUNITY_TRANSLATION_SWEEP_BATCH`                                                      | `250`                                 | Optional test/cost knob: items fetched per kind (post/comment) per `daily-translation` run. A small value (e.g. `2`) forces the self-chain on a small backlog, which is how the chain is exercised on a scratch project.                                                                                                                                                                                                                                                                                                                                                                                                                      | `daily-translation`                                                                                           |
-| `COMMUNITY_ACCOUNT_PROVIDER`                                                             | none                                  | **Required with the accounts module.** `appwrite` or `jwks`: how `account-session` checks the app's account proof.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `account-session`, `account-delete`                                                                           |
-| `COMMUNITY_ACCOUNT_SECRET`                                                               | none                                  | **Required with the accounts module.** Random, 32 bytes or more (`openssl rand -hex 32`). Keys the synthetic email of each account profile. **Never rotate it once accounts are linked:** every synthetic email would change, and each linked profile's next sign-in would fail until fixed by hand.                                                                                                                                                                                                                                                                                                                                          | `account-session`, `account-delete`                                                                           |
-| `COMMUNITY_APPWRITE_ENDPOINT` / `COMMUNITY_APPWRITE_PROJECT`                             | none                                  | **Required with `COMMUNITY_ACCOUNT_PROVIDER=appwrite`.** The Appwrite endpoint (e.g. `https://<region>.cloud.appwrite.io/v1`) and project id. The proof is an Appwrite JWT (`account.createJWT()`), checked against `GET /account`.                                                                                                                                                                                                                                                                                                                                                                                                           | `account-session`, `account-delete`                                                                           |
-| `COMMUNITY_ACCOUNT_JWKS_URL` / `COMMUNITY_ACCOUNT_ISSUER` / `COMMUNITY_ACCOUNT_AUDIENCE` | none                                  | **Required with `COMMUNITY_ACCOUNT_PROVIDER=jwks`.** Any provider that signs JWTs with a published key set (Supabase Auth, Firebase, Clerk, Auth0, OIDC): the key set URL, and the `iss` and `aud` the token must carry. Asymmetric algorithms only.                                                                                                                                                                                                                                                                                                                                                                                          | `account-session`, `account-delete`                                                                           |
-| `COMMUNITY_ACCOUNT_SUBJECT_CLAIM`                                                        | `sub`                                 | Optional, `jwks` only: the claim that holds the account id.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `account-session`, `account-delete`                                                                           |
-| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY`                       | —                                     | Platform-provided automatically; never set these yourself.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | all functions via `_shared/client.ts`                                                                         |
+| Secret                                                                                   | Default                               | Required?                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Used by                                                                                                       |
+| ---------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `OPENAI_API_KEY`                                                                         | none                                  | **Required.** Missing ⇒ the affected function throws at module load (`assertModerationConfigured()`) — a hard, immediate failure, not a silent degrade. With the translation module on, the key needs Moderation **and** Responses (write) access: a restricted key with only moderation makes every translation fail with 401 `Missing scopes: api.responses.write` in the function logs.                                                                                                                                                                                                                                                                                                                                      | `moderate-one`, `daily-moderation`, `update-profile`                                                          |
+| `SLACK_WEBHOOK_URL`                                                                      | none                                  | Optional. Unset ⇒ `report-to-slack` and `daily-moderation`'s summary post become logged no-ops (`_shared/slack.ts` logs and returns instead of posting).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `report-to-slack`, `daily-moderation`                                                                         |
+| `COMMUNITY_APP_NAME`                                                                     | `"Community"`                         | Optional.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `broadcast-post` — push title fallback for an admin post whose author has no username set                     |
+| `COMMUNITY_PUSH_COPY`                                                                    | _(built-in neutral copy, 23 locales)_ | Optional JSON: per-locale, per-key override of every push string — `fallbackName`, `comment.title`, `like.one`, `like.many`, `reaction.one`, `reaction.many`, `photo` (the excerpt of an image-only post or comment, default "📷 Photo" localized), `message.groupBody` (`{sender}` sent a message: group pushes with `pushPreview: "sender"`), `message.neutral` (`pushPreview: "none"`) — with `{name}`/`{sender}`/`{count}` placeholders; a `*.many` value can be a `{one, few, many, other}` object picked by the recipient locale's CLDR plural category. This is how an app keeps its own voice ("prayed for you 🙏", a gendered fallback name…) without forking the functions. See `supabase/functions/_shared/copy.ts`. | `notify-comment`, `notify-like`, `notify-reaction`, `notify-message`                                          |
+| `COMMUNITY_FALLBACK_NAME`                                                                | `"Someone"`                           | Optional legacy single string (every locale); `COMMUNITY_PUSH_COPY.fallbackName` wins over it. Rarely used since every profile gets a default name (core/009).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `notify-comment`, `notify-like`, `notify-reaction` — actor-name fallback when the acting user has no username |
+| `COMMUNITY_REACTION_PUSH_TEXT`                                                           | `"{name} is thinking of you"`         | Optional legacy single string for the single-reactor case (every locale); `COMMUNITY_PUSH_COPY["reaction.one"]` wins over it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `notify-reaction`                                                                                             |
+| `MODERATION_SCORE_THRESHOLD`                                                             | `0.5`                                 | Optional. Raw OpenAI moderation score at or above which a category is hidden even when OpenAI's own boolean flag is false (catches under-scored insults/harassment, including other languages).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `_shared/moderation.ts` (all moderating functions)                                                            |
+| `MODERATION_EXCLUDED_CATEGORIES`                                                         | `""` (none excluded)                  | Optional, comma-separated. Removes listed categories from the score-threshold check only — OpenAI's own boolean flag for that category still applies regardless. **Example (a menstrual-health app):** `MODERATION_EXCLUDED_CATEGORIES=sexual` lets legitimate intimacy/fertility discussion through the score check, while OpenAI's own `sexual`/`sexual/minors` boolean flags still hide clearly explicit content. **Never applies to images:** a post/comment image and an avatar are judged strictly (every category, score threshold included), whatever this secret says — so avatars of apps that set it are now stricter than before.                                                                                   | `_shared/moderation.ts`                                                                                       |
+| `EXPO_ACCESS_TOKEN`                                                                      | none                                  | Optional — only needed for an Expo project with Enhanced Security.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `_shared/push.ts` (push module)                                                                               |
+| `COMMUNITY_TRANSLATION_LOCALES`                                                          | none                                  | **Required with the translation module.** Comma-separated target locales, e.g. `en,es-ES,es-419,it,pl,pt-PT,pt-BR` — must equal the client's `modules.translation.locales`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `translate-one`, `daily-translation`, `notify-comment`, `broadcast-post`                                      |
+| `COMMUNITY_TRANSLATION_MODEL`                                                            | `gpt-5-mini`                          | Optional.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `translate-one`, `daily-translation`                                                                          |
+| `COMMUNITY_TRANSLATION_STYLE`                                                            | none                                  | Optional per-app voice instruction appended to the translation prompt.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `translate-one`, `daily-translation`                                                                          |
+| `COMMUNITY_TRANSLATION_SWEEP_BATCH`                                                      | `250`                                 | Optional test/cost knob: items fetched per kind (post/comment) per `daily-translation` run. A small value (e.g. `2`) forces the self-chain on a small backlog, which is how the chain is exercised on a scratch project.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `daily-translation`                                                                                           |
+| `COMMUNITY_ACCOUNT_PROVIDER`                                                             | none                                  | **Required with the accounts module.** `appwrite` or `jwks`: how `account-session` checks the app's account proof.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `account-session`, `account-delete`                                                                           |
+| `COMMUNITY_ACCOUNT_SECRET`                                                               | none                                  | **Required with the accounts module.** Random, 32 bytes or more (`openssl rand -hex 32`). Keys the synthetic email of each account profile. **Never rotate it once accounts are linked:** every synthetic email would change, and each linked profile's next sign-in would fail until fixed by hand.                                                                                                                                                                                                                                                                                                                                                                                                                            | `account-session`, `account-delete`                                                                           |
+| `COMMUNITY_APPWRITE_ENDPOINT` / `COMMUNITY_APPWRITE_PROJECT`                             | none                                  | **Required with `COMMUNITY_ACCOUNT_PROVIDER=appwrite`.** The Appwrite endpoint (e.g. `https://<region>.cloud.appwrite.io/v1`) and project id. The proof is an Appwrite JWT (`account.createJWT()`), checked against `GET /account`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `account-session`, `account-delete`                                                                           |
+| `COMMUNITY_ACCOUNT_JWKS_URL` / `COMMUNITY_ACCOUNT_ISSUER` / `COMMUNITY_ACCOUNT_AUDIENCE` | none                                  | **Required with `COMMUNITY_ACCOUNT_PROVIDER=jwks`.** Any provider that signs JWTs with a published key set (Supabase Auth, Firebase, Clerk, Auth0, OIDC): the key set URL, and the `iss` and `aud` the token must carry. Asymmetric algorithms only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `account-session`, `account-delete`                                                                           |
+| `COMMUNITY_ACCOUNT_SUBJECT_CLAIM`                                                        | `sub`                                 | Optional, `jwks` only: the claim that holds the account id.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `account-session`, `account-delete`                                                                           |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY`                       | —                                     | Platform-provided automatically; never set these yourself.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | all functions via `_shared/client.ts`                                                                         |
 
 Deploy after setting secrets (`supabase functions deploy`, or scope it to
 just the functions a module added — see `packages/cli/README.md`'s `init`
@@ -333,7 +333,7 @@ least the public anon key. On top of that:
 - `broadcast-post` accepts the service role (a dashboard), or the trigger
   (`push/005_broadcast_trigger.sql`, anon key) for a post its admin author asked to send
   ("Notify everyone" in the app's composer, `request_post_broadcast`); anything else gets 403. It stamps `posts.broadcast_at` before sending, so a post goes out once.
-- `notify-comment` / `report-to-slack` / `notify-like` / `notify-reaction`
+- `notify-comment` / `report-to-slack` / `notify-like` / `notify-reaction` / `notify-message`
   are invoked by database triggers with the anon key and therefore treat the
   request body as untrusted: only the row `id` (or `post_id`) is read and
   everything else is re-read from the database.
@@ -345,6 +345,10 @@ least the public anon key. On top of that:
   row; both only ever translate visible items that still miss a locale, and
   paid calls are bounded by the `attempt` claim row (one API call per item per
   6 h, whoever calls).
+- `translate-message` (messaging + translation) needs a member's JWT and reads the
+  message with that member's own client first, so RLS decides who may translate what;
+  `moderate-one` with `kind: "message"` accepts the author or the service role, with
+  `kind: "group"` the creator, an in-app admin or the service role.
 - `account-session` accepts anyone with a valid account proof; the device's
   own session, when sent as the bearer, only decides which anonymous profile
   is converted or merged. `account-delete` accepts a valid proof, or the
@@ -470,7 +474,9 @@ merged profile's refresh token is signed out instead of acting as the empty
 profile. The caller's new session is minted after the merge, so the device that
 signs in stays signed in (`accounts/002_merge_and_delete.sql`). The merged
 profile's `merged_into` points at the account profile (`accounts/003`): the
-dashboard leaves it out of every count and list.
+dashboard leaves it out of every count and list. With the messaging module, its
+group memberships, messages, likes, created groups and removals move to the
+account profile too (`accounts/004_merge_hooks.sql`).
 
 Core `021` builds the author indexes on `posts` and `comments` before it alters `profiles`, in one transaction. On a large production database, build them beforehand with `create index concurrently if not exists` (check they are valid: a failed concurrent build leaves an invalid index that `if not exists` skips), or push at low traffic with a `lock_timeout`.
 
@@ -516,6 +522,7 @@ AW=<appwrite endpoint>; AWP=<appwrite project id>; AWK=<appwrite server key>
 supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_accounts.sql
 supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_merge_and_delete.sql
 supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_markers_and_bans.sql
+supabase db query --linked --project-ref $REF --yes -f supabase/migrations/<ts>_community_accounts_merge_hooks.sql
 supabase functions deploy account-session account-delete --project-ref $REF
 
 # A throwaway account and its proof.
@@ -553,3 +560,233 @@ Expect, in order (wait 10 s between two calls for the same account that open a s
 8. **Clean up:** delete every test auth user (`auth.admin.deleteUser`, which
    also removes their profiles and posts) and the Appwrite user
    (`DELETE $AW/users/$U`).
+
+## 8. Messaging, groups and direct messages
+
+Group chats (`modules.groups` in the app) and direct messages (`modules.dms`). `messaging` is
+the chat core (conversations, members, messages, likes, edit history, the translation cache
+and the settings), shared by both; `groups` adds public groups on it, `dms` one-to-one
+conversations (see [Direct messages](#direct-messages-dms)).
+
+### Install and order
+
+```bash
+npx @rocapine/community upgrade --add-modules groups   # or init --modules …,groups
+supabase db push
+supabase db query --linked "select public.messaging_set_settings('{\"moderation\": \"post\"}');"  # your values, see below
+supabase functions deploy
+```
+
+- `groups` brings `messaging` and `attachments` with it (a group's share card is a post
+  attachment, `posts.attachment`): the CLI adds both.
+- Migrations, in the CLI's order: `messaging/001_messaging`, `002_push`,
+  `003_settings_read`, `004_realtime_changed`, `005_review_fixes`,
+  `006_rate_and_lock_order`, then `groups/001_groups`, `002_translation`,
+  `003_list_conversations`, `004_members_changed`, `005_storage_sweep`,
+  `006_review_fixes`, `007_online_others`. Each is applied once: re-running `messaging/001` after
+  `groups/003`, or `inbox/004` after `inbox/005`, fails (a changed return type). With the inbox module,
+  `inbox/005_group_events` adds `notifications.conversation_id` and returns it from
+  `list_notifications` (the center's group rows); inbox before or after groups both work.
+- **Push first.** Install `push` before (or with) messaging. `messaging/002_push` creates
+  the group-push trigger, `claim_message_push` and `push_tokens.notify_group_messages`
+  only when `push_tokens` exists. **A host that adds push after messaging must re-run
+  `messaging/002_push.sql`** (`supabase db query --linked -f supabase/migrations/<ts>_community_messaging_push.sql`)
+  once push is in; until then there are no group pushes.
+- **Apply `messaging/002` before deploying `notify-message`**: the function calls
+  `claim_message_push`, which that file creates. `db push` then `functions deploy`, in
+  that order.
+- **Functions.** No new secret: `OPENAI_API_KEY` moderates messages and groups, the
+  translation secrets translate them. Deploy everything (`_shared/` changed under all of
+  them): `moderate-one` and `daily-moderation` (messages and group fields),
+  `translate-one` (group names and descriptions), `report-to-slack` (message and group
+  reports), `account-delete` (`onAccountDelete`), the `notify-*` senders and
+  `broadcast-post` (the badge adds followed messages), plus the new `notify-message`
+  (messaging + push) and `translate-message` (messaging + translation). Keep
+  `verify_jwt` as for the other functions (on): `notify-message` is called by its trigger
+  with the anon key from Vault and re-reads the message; `translate-message` takes the
+  member's JWT and reads the message with the caller's own client (RLS proves access).
+
+### Settings (`messaging_set_settings`)
+
+The backend enforces only its own copy, one row in `messaging_settings`, which clients
+can't read or write. Set it from the SQL editor or the service role (a dashboard):
+
+```sql
+select public.messaging_set_settings('{"moderation": "pre", "maxMembers": 200}');
+```
+
+It merges the keys given; an unknown key or a bad value raises `invalid_setting:<key>`.
+**Keep it equal to the app's config**: dev builds warn at startup when they differ
+(`messaging_client_settings()`). Keys and defaults:
+
+| Backend key                   | App option                             | Default      |
+| ----------------------------- | -------------------------------------- | ------------ |
+| `moderation`                  | `messaging.moderation`                 | `"post"`     |
+| `translation`                 | `messaging.translation`                | `"onDemand"` |
+| `pushPreview`                 | `messaging.pushPreview`                | `"full"`     |
+| `onAccountDelete`             | `messaging.onAccountDelete`            | `"keep"`     |
+| `maxLength`                   | `messaging.maxLength` (≤ 4000)         | `2000`       |
+| `ratePerMinute`               | `messaging.ratePerMinute`              | `20`         |
+| `groupsPreview`               | `groups.preview`                       | `"readOnly"` |
+| `groupsRequireAccount`        | `groups.requireAccount === true`       | `false`      |
+| `groupsCreateRequiresAccount` | `groups.createRequiresAccount`         | `true`       |
+| `maxCreatedPerMember`         | `groups.maxCreatedPerMember`           | `3`          |
+| `maxJoinedPerMember`          | `groups.maxJoinedPerMember`            | `50`         |
+| `maxMembers`                  | `groups.maxMembers` (`null`: any)      | `null`       |
+| `nameMaxLength`               | `groups.nameMaxLength` (≤ 120)         | `60`         |
+| `descriptionMaxLength`        | `groups.descriptionMaxLength` (≤ 1000) | `500`        |
+| `dmsFirstMessage`             | `dms.firstMessage`                     | `"direct"`   |
+| `dmsReadReceipts`             | `dms.readReceipts`                     | `false`      |
+| `dmsRequireAccount`           | `dms.requireAccount`                   | `false`      |
+| `dmsRequestsPerDay`           | `dms.requestsPerDay` (≥ 1)             | `5`          |
+| `dmsDeclineCooldownDays`      | `dms.declineCooldownDays` (≥ 0)        | `30`         |
+
+The account rules (`groupsRequireAccount`, `groupsCreateRequiresAccount`, `dmsRequireAccount`)
+read `account_links` only when the accounts module is installed; without it they don't apply. `groups.requireAccount: "feed"` is client only (`false` here).
+
+### Realtime, storage, moderation
+
+- **Realtime.** `messaging/001` adds `messages` to the `supabase_realtime` publication
+  (new and changed messages, filtered by the read policies; a like is an `UPDATE` of
+  `messages.like_count`, and `message_likes` stays out). `messaging/004` broadcasts
+  `changed` on the private channel `conversation:<id>` when a message is hidden, since
+  readers who lost access get no `postgres_changes`; typing uses the same channel.
+  `groups/004` broadcasts `members` there when a group's member count changes (a join, a
+  leave, a removal): open chats refresh their header, and a member just removed sees the
+  removed line at once (Realtime checks a private channel's policies when it is joined,
+  so they still get it). Its policies on `realtime.messages`: readers (previewers
+  included) listen, members send (typing; any event, but a forged `read`, `changed` or
+  `members` only makes the others refetch what the server computes; with dms, `dms/006`
+  also requires reading the conversation, so not across a block). With dms, `dms/005` gives each member a
+  private channel `dms:<their id>` that only they can join and nobody can send on: the
+  server broadcasts `changed` (the conversation id only) there when a DM message becomes
+  visible to them (a new DM, a new request, a later message) and when their request is
+  accepted, so the Requests row, the conversation list and the badge update without a
+  refresh. Never for what they may not read (a declined request, a block, a pending
+  message), and a decline is never broadcast to its sender.
+- **Storage.** `message-images` (private, 2 MB, JPEG/PNG/WebP,
+  `<conversation>/<uid>/<uuid>.<ext>`; readers get signed URLs), `group-images` (public,
+  approved images only, written by moderation) and `group-images-pending` (private,
+  `<uid>/<uuid>.<ext>`, copied to `group-images` on approval). `daily-moderation`
+  removes, through `messaging_images_unreferenced()` (`groups/005`, or `dms/009` without
+  groups; service role only),
+  every file of a deleted group (its picture and its messages' images) and any upload
+  no row points at after a day (an image picked and never sent, an abandoned group form).
+  A file a group or message that isn't deleted still points at, or that a message's edit
+  history (`message_versions`) holds, is kept, and so is anything an open report points
+  at (`groups/006`: the reported message's image, now or in its history; a reported
+  group's pictures, even once deleted) until the report is resolved.
+- **Moderation.** The app calls `moderate-one` (`kind: "message"` or `"group"`) right
+  after a send, a creation or an edit. `"post"` shows a message at once and hides it if
+  flagged; `"pre"` and any image keep it pending until passed; `"reportOnly"` skips the
+  AI. A group stays pending (visible to its creator only) until its name, description and
+  image pass; then the creator gets `group_approved` in the center, or
+  `group_field_rejected` (its details screen says which field to change). Edits keep
+  their history in `message_versions`.
+- **Limits on writes.** A member's sends and message edits share `ratePerMinute`
+  (`messaging/005`: an edit re-runs moderation); a group takes at most 5 edits per hour
+  from its creator (`groups/006`, in-app admins exempt; the app says "try again later").
+  A pending group takes messages from its creator only, and a hidden or deleted one from
+  nobody (`not_found`); `notify-message` pushes only for visible groups. A banned creator
+  no longer deletes other members' messages.
+- **Daily sweep.** `daily-moderation` (08:00 UTC) also runs the messages and groups left
+  unmoderated for 5 minutes (the app's call failed), oldest first, in what remains of its
+  2-minute budget, and adds the counts to its Slack summary. A `"pre"` message whose call
+  failed therefore waits for it. `notifications-purge` drops group events with the rest
+  after 90 days.
+- **Pushes.** `notify-message` pushes each member who follows the group (bell off by
+  default per group) and has `notify_group_messages` on, at most once a minute per group
+  unless they read it since, never to blocked members. A message pushes at most once
+  (`messages.pushed_at`, stamped before sending): a failed Expo send is not retried. `COMMUNITY_PUSH_COPY` keys:
+  `message.groupBody` (`pushPreview: "sender"`), `message.neutral` (`"none"`).
+
+### Direct messages (dms)
+
+`modules.dms` in the app. `npx @rocapine/community upgrade --add-modules dms` (or
+`init --modules …,dms`) also installs `messaging`; `groups` and `attachments` are not needed.
+Then `supabase db push`, `messaging_set_settings` with the `dms*` keys above, and
+`supabase functions deploy`.
+
+- **Migrations**, after `messaging/001–006` (and `groups/*` when installed, the CLI's order):
+  `dms/001_dms` (the `dm_pairs`, `dm_declines` and `dm_request_log` tables, the DM
+  settings keys, the start / accept / decline / block-and-report RPCs, the read rules, a
+  recipient's `visible_from`, `profile_dm_flags`, `list_dm_requests`, `dm_peer_read`,
+  and replacements of `send_message`, `can_read_conversation`, `list_conversations`,
+  `unread_followed_messages`, `messaging_on_account_delete` and `merge_messaging`),
+  `dms/002_push` (DM pushes, `push_tokens.notify_dms`, `claim_message_push` with a `kind`),
+  `dms/003_flags_search_read` (`search_dm_members`, `has_dm` in `profile_dm_flags`, the
+  live "Seen" broadcast) and `dms/004_block_broadcast` (a block between two members of a DM
+  broadcasts `members` on its channel, so an open DM closes its composer at once) and
+  `dms/005_requests_sent_live` (a request counts against `dmsRequestsPerDay` when its
+  first message is sent: `dm_request_refusal` only reads the budget, `dm_log_request`
+  spends it from `send_message`; the member's own Realtime channel `dms:<id>`, below) and
+  `dms/006_first_message` (the recipient's row comes with the first message: `start_dm`
+  makes the opener's row only, `send_message` runs a new DM's checks and makes the
+  recipient's; `dm_peers` from `dm_pairs`; `has_dm` and the picker count a DM once the other
+  member has a row; `merge_messaging` moves a one-sided row; the author of a DM message
+  can't read its translations; sending on `conversation:<id>` needs `can_read_conversation`;
+  a block also sends `changed` on both members' `dms:<id>`. It deletes the recipient rows the
+  old `start_dm` made that nobody wrote to) and `dms/007_empty_dm_checks` (a DM nothing was
+  ever written in, `conversations.last_message_at` null, is gated like a new one even when
+  both members opened it: `send_message` runs the checks and makes a request in requests
+  mode, `start_dm` refuses on opening, `has_dm` and the picker need a DM written in; a
+  block tells the blocked member's `dms:<id>` only when they have a row) and
+  `dms/008_send_recheck` (`send_message` checks the caller's own row again under the pair
+  lock: of two first messages sent at once in requests mode, the second is refused
+  `not_a_member` instead of landing in the request its row just became) and
+  `dms/009_storage_sweep` (`messaging_images_unreferenced()` for installs without groups:
+  the daily sweep of `message-images`, below; created only when groups hasn't made it). All
+  idempotent; `dms/002` needs the push module (skipped with a notice when `push_tokens`
+  is missing).
+- **Functions.** No new secret and no new function: `notify-message` (messaging + push)
+  now pushes DMs, `report-to-slack` names a reported DM's two members and never quotes
+  it, and `account-delete` applies `eraseDms`. Redeploy `notify-message` and
+  `report-to-slack` after `db push` (`dms/002` first: `notify-message` reads
+  `claim_message_push`'s `kind`), and `translate-message`, which now refuses a message's
+  author (403) before its cache: the cache's timing would tell a DM's sender it was read.
+- **Traps.**
+  - **Adding `push` after `dms`:** re-run `messaging/002_push.sql`, **then** `dms/002_push.sql`.
+    `messaging/002` alone after `dms/002` fails on `claim_message_push`'s return type;
+    run `dms/002` again after it.
+  - **Adding `groups` after `dms`:** `groups/003` recreates `list_conversations` without the
+    DM rules, so `dms/001` must run again once groups is in (`upgrade --add-modules groups`
+    copies the dms templates again; apply them, `db push`). Until then a declined request's
+    last message can leak into the conversation list. Fresh installs are fine: the CLI
+    orders `groups` before `dms`.
+  - **Config must match the backend.** With `modules.dms` on and `dms/001` missing, the
+    conversation list breaks (`dm_peers` fails and takes the whole list with it). Run
+    `db push` before shipping an app build that sets `modules.dms`.
+  - **The storage sweep on a DM-only install** comes from `dms/009`:
+    `messaging_images_unreferenced()` (called by `daily-moderation`) lists the
+    `message-images` files no message nor message version holds after a day (an erased DM
+    message's image, `eraseDms` / `eraseAll`; an image uploaded for a first message the server
+    refused), never one an open report points at. `dms/009` creates it only when groups
+    hasn't; adding groups later replaces it with `groups/005–006`'s, which also sweeps the
+    group buckets, and re-running `dms/009` never undoes that.
+  - **The Slack report path for a DM was not run live.** `report-to-slack`'s DM branch is
+    unit-tested only (running it would post to the real channel): report one DM message from a
+    sandbox first and check the line reads "Direct message from _a_ to _b_ (text not shown)".
+- **Profile merge.** Two DMs with the same member become one. Messages that member never
+  saw are deleted first, not merged: a declined request's messages and what its sender wrote
+  silently during the cooldown (or after a re-request the checks refused). Merging them in
+  would show them, so the history loses them on purpose (a report on one keeps its text in
+  `details`).
+- **Privacy at the dashboard.** A DM's text never appears in Slack. The dashboard reads a
+  message only through `admin_message_context(message, before, after)`, and that answers
+  only for a message that was reported or AI-hidden, with up to 50 messages around it each
+  way (a pair that was never flagged stays unreadable). In-app admins can't read DMs.
+- **Pushes.** `notify-message` pushes the other member of a DM unless `push_tokens.notify_dms`
+  is off (default on; `useNotificationPreferences()` in the app), at most once a minute per
+  DM unless they read it since, never across a block, never for a message before their
+  `visible_from`. A new request pushes once, on its first message, with `message.request`
+  (a neutral line that names no one, whatever `pushPreview` says). `pushPreview: "none"`
+  also drops the sender's title on a DM message push. New `COMMUNITY_PUSH_COPY` keys:
+  `message.dmBody` (`pushPreview: "sender"`) and `message.request`.
+
+### Dashboard functions
+
+`admin_message_context(message, before, after)` (a flagged message and its neighbours; in a
+DM only for a reported or AI-hidden message),
+`admin_edit_group`, `admin_transfer_group` and `messaging_set_settings` answer only the
+service role or the SQL editor (`messaging_is_dashboard_admin()`, fail-closed); in-app
+admin powers stay `profiles.is_admin`. Reports carry `message_id` or `group_id`.

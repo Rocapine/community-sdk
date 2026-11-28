@@ -37,7 +37,8 @@ const REASONS: ReportReason[] = ["spam", "harassment", "hate", "inappropriate", 
  * `ThreadSheet`, …) share one type instead of each redeclaring an identical
  * inline shape. */
 export type ReportTarget = {
-  kind: "post" | "comment";
+  /** `group`: `authorId` is its creator. */
+  kind: "post" | "comment" | "message" | "group";
   id: string;
   authorId: string;
   /** With a name, a harassment report offers to block the author too (never an admin). */
@@ -49,10 +50,14 @@ export function ReportSheet({
   visible,
   target,
   onClose,
+  onSubmitReason,
 }: {
   visible: boolean;
   target: ReportTarget | null;
   onClose: () => void;
+  /** Sends the report through the caller's own call instead (a DM request's "Block and
+   * report": the reason only, no details field). Resolving closes the sheet. */
+  onSubmitReason?: (reason: ReportReason) => Promise<void>;
 }) {
   const theme = useCommunityTheme();
   const t = useT();
@@ -62,12 +67,21 @@ export function ReportSheet({
 
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [details, setDetails] = useState("");
+  // Inline as well as in the alert: react-native-web shows no system alert.
+  const [failed, setFailed] = useState(false);
+  // The confirmation shows in the sheet (no system alert: react-native-web has none).
+  const [sent, setSent] = useState<{ blockable: ReportTarget | null } | null>(null);
 
   // A new target (report a different post/comment) starts from a clean form,
   // even if the host reuses the same sheet instance without a close in between.
   useEffect(() => {
     setReason(null);
     setDetails("");
+    setFailed(false);
+    // A host clearing `target` as it closes keeps the confirmation while the sheet slides away.
+    if (target) setSent(null);
+    // Keyed on the target's identity only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target?.kind, target?.id]);
 
   const close = () => {
@@ -75,9 +89,26 @@ export function ReportSheet({
     setDetails("");
     onClose();
   };
+  // Cleared on the next opening, not on close: the sheet keeps "sent" while it slides away.
+  useEffect(() => {
+    if (visible) setSent(null);
+  }, [visible]);
 
+  const [submitting, setSubmitting] = useState(false);
+  const pending = report.isPending || submitting;
   const submit = () => {
-    if (!target || !reason || report.isPending) return;
+    if (!target || !reason || pending) return;
+    setFailed(false);
+    if (onSubmitReason) {
+      setSubmitting(true);
+      onSubmitReason(reason)
+        .then(close, () => {
+          setFailed(true);
+          Alert.alert(t("report.errorTitle"), t("report.errorBody"));
+        })
+        .finally(() => setSubmitting(false));
+      return;
+    }
     const reported = target;
     const offerBlock = reason === "harassment" && !!reported.authorName && !reported.authorAdmin;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
@@ -86,27 +117,17 @@ export function ReportSheet({
         reportedUserId: target.authorId,
         postId: target.kind === "post" ? target.id : undefined,
         commentId: target.kind === "comment" ? target.id : undefined,
+        messageId: target.kind === "message" ? target.id : undefined,
+        groupId: target.kind === "group" ? target.id : undefined,
         reason,
         details,
       },
       {
-        onSuccess: () => {
-          close();
-          if (!offerBlock) return Alert.alert(t("report.sentTitle"), t("report.sentBody"));
-          Alert.alert(
-            t("report.sentTitle"),
-            t("report.blockOfferBody", { name: reported.authorName! }),
-            [
-              { text: t("menu.notNow"), style: "cancel" },
-              {
-                text: t("menu.block"),
-                style: "destructive",
-                onPress: () => blockUser.mutate({ userId: reported.authorId }),
-              },
-            ],
-          );
+        onSuccess: () => setSent({ blockable: offerBlock ? reported : null }),
+        onError: () => {
+          setFailed(true);
+          Alert.alert(t("report.errorTitle"), t("report.errorBody"));
         },
-        onError: () => Alert.alert(t("report.errorTitle"), t("report.errorBody")),
       },
     );
   };
@@ -118,41 +139,76 @@ export function ReportSheet({
           as-is — see that file's own note on why "handled" is not enough
           inside a Modal + reanimated sheet). */}
       <SheetScrollView keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>{t("report.title")}</Text>
-        <View style={styles.reasonRow}>
-          {REASONS.map((r) => {
-            const on = reason === r;
-            return (
+        {sent ? (
+          <View accessibilityLiveRegion="polite">
+            <Text style={styles.title} accessibilityRole="header">
+              {t("report.sentTitle")}
+            </Text>
+            <Text style={styles.body}>
+              {sent.blockable
+                ? t("report.blockOfferBody", { name: sent.blockable.authorName! })
+                : t("report.sentBody")}
+            </Text>
+            {sent.blockable && (
               <PressableScale
-                key={r}
-                haptic="selection"
-                onPress={() => setReason(r)}
-                style={[styles.chip, on && styles.chipOn]}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: on }}
+                onPress={() => {
+                  blockUser.mutate({ userId: sent.blockable!.authorId });
+                  close();
+                }}
+                style={[styles.cta, styles.ctaDanger]}
+                accessibilityRole="button"
               >
-                <Text style={[styles.chipText, on && styles.chipTextOn]}>
-                  {t(`report.reasons.${r}`)}
-                </Text>
+                <Text style={styles.ctaLabel}>{t("menu.block")}</Text>
               </PressableScale>
-            );
-          })}
-        </View>
-        <SheetTextInput
-          value={details}
-          onChangeText={setDetails}
-          placeholder={t("report.detailsPlaceholder")}
-          placeholderTextColor={theme.colors.textFaint}
-          multiline
-          style={styles.input}
-        />
-        <PressableScale
-          onPress={submit}
-          disabled={!reason || report.isPending}
-          style={[styles.cta, (!reason || report.isPending) && styles.ctaDisabled]}
-        >
-          <Text style={styles.ctaLabel}>{t("report.send")}</Text>
-        </PressableScale>
+            )}
+            <PressableScale onPress={close} style={styles.cta} accessibilityRole="button">
+              <Text style={styles.ctaLabel}>
+                {t(sent.blockable ? "menu.notNow" : "report.done")}
+              </Text>
+            </PressableScale>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.title}>{t("report.title")}</Text>
+            <View style={styles.reasonRow}>
+              {REASONS.map((r) => {
+                const on = reason === r;
+                return (
+                  <PressableScale
+                    key={r}
+                    haptic="selection"
+                    onPress={() => setReason(r)}
+                    style={[styles.chip, on && styles.chipOn]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                  >
+                    <Text style={[styles.chipText, on && styles.chipTextOn]}>
+                      {t(`report.reasons.${r}`)}
+                    </Text>
+                  </PressableScale>
+                );
+              })}
+            </View>
+            {!onSubmitReason && (
+              <SheetTextInput
+                value={details}
+                onChangeText={setDetails}
+                placeholder={t("report.detailsPlaceholder")}
+                placeholderTextColor={theme.colors.textFaint}
+                multiline
+                style={styles.input}
+              />
+            )}
+            <PressableScale
+              onPress={submit}
+              disabled={!reason || pending}
+              style={[styles.cta, (!reason || pending) && styles.ctaDisabled]}
+            >
+              <Text style={styles.ctaLabel}>{t("report.send")}</Text>
+            </PressableScale>
+            {failed && <Text style={styles.error}>{t("report.errorBody")}</Text>}
+          </>
+        )}
       </SheetScrollView>
     </CommunitySheet>
   );
@@ -208,6 +264,14 @@ function makeStyles(theme: CommunityTheme) {
       marginTop: theme.spacing(4),
     },
     ctaDisabled: { opacity: 0.5 },
+    ctaDanger: { backgroundColor: theme.colors.danger },
+    body: { ...theme.typography.body, color: theme.colors.textSecondary },
+    error: {
+      ...theme.typography.caption,
+      color: theme.colors.danger,
+      textAlign: "center",
+      marginTop: theme.spacing(2),
+    },
     ctaLabel: {
       ...theme.typography.label,
       fontFamily: theme.fonts.bold,

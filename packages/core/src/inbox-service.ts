@@ -17,10 +17,23 @@ import { readerLocale } from "./locale";
 
 export type InboxItem = {
   id: string;
-  kind: "like" | "comment" | "reply" | "reaction" | "admin_post" | (string & {});
+  kind:
+    | "like"
+    | "comment"
+    | "reply"
+    | "reaction"
+    | "admin_post"
+    | "group_approved"
+    | "group_field_rejected"
+    | "group_member_removed"
+    | "dm_request_accepted"
+    | (string & {});
   createdAt: string;
   actorName: string | null;
   postId: string | null;
+  /** The conversation a `group_*` item (its group) or a `dm_request_accepted` item (the
+   * DM) is about (inbox/005); absent on older backends. */
+  groupId?: string | null;
   payload: Record<string, unknown>;
 };
 
@@ -41,6 +54,8 @@ interface NotificationRow {
   post_id: string | null;
   post_excerpt: string | null;
   created_at: string;
+  /** inbox/005_group_events.sql; absent before it. */
+  conversation_id?: string | null;
 }
 
 const INBOX_PAGE_SIZE = 50;
@@ -80,6 +95,7 @@ function mapNotificationRow(row: NotificationRow): InboxItem {
     createdAt: row.created_at,
     actorName: row.actor_username,
     postId: row.post_id,
+    groupId: row.conversation_id ?? null,
     payload: { actorId: row.actor_id, postExcerpt: row.post_excerpt },
   };
 }

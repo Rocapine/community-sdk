@@ -5,8 +5,13 @@
 // to keep going until the backlog is drained or MAX_CHAIN is hit. Quiet
 // unless something failed.
 
-import { adminClient, json } from "../_shared/client.ts";
-import { ensureTranslations, runPool, TARGET_LOCALES } from "../_shared/translation.ts";
+import { adminClient, fetchAllRows, json } from "../_shared/client.ts";
+import {
+  ensureTranslations,
+  groupsMissingLocales,
+  runPool,
+  TARGET_LOCALES,
+} from "../_shared/translation.ts";
 import { postToSlack } from "../_shared/slack.ts";
 
 const supabase = adminClient();
@@ -20,20 +25,60 @@ const CONCURRENCY = 4;
 const TIME_BUDGET_MS = 60_000;
 const MAX_CHAIN = 200;
 
+/** Visible groups missing a target locale (a hidden group edited by an admin, a failed call). */
+async function groupIdsMissing(): Promise<string[] | null> {
+  const probe = await supabase.from("groups").select("conversation_id").limit(1);
+  // No groups module: nothing to sweep.
+  if (probe.error)
+    return probe.error.code === "42P01" || probe.error.code === "PGRST205" ? [] : null;
+  const groups = await fetchAllRows<{ conversation_id: string }>((from, to) =>
+    supabase
+      .from("groups")
+      .select("conversation_id")
+      .eq("status", "visible")
+      .not("name", "is", null)
+      .order("conversation_id")
+      .range(from, to),
+  );
+  const rows = await fetchAllRows<{ group_id: string; locale: string }>((from, to) =>
+    supabase
+      .from("group_translations")
+      .select("group_id, locale")
+      .order("group_id")
+      .order("locale")
+      .range(from, to),
+  );
+  return groupsMissingLocales(
+    groups.map((g) => g.conversation_id),
+    rows,
+    TARGET_LOCALES,
+  ).slice(0, MAX_ITEMS_PER_KIND);
+}
+
 async function sweep(
-  kind: "post" | "comment",
+  kind: "post" | "comment" | "group",
   withinBudget: () => boolean,
 ): Promise<{ done: number; failed: number; remaining: number }> {
-  const { data, error } = await supabase.rpc("items_missing_translations", {
-    kind,
-    target_locales: TARGET_LOCALES,
-    max_items: MAX_ITEMS_PER_KIND,
-  });
-  if (error) {
-    console.error("items_missing_translations failed", error.message);
-    return { done: 0, failed: 1, remaining: 0 };
+  let ids: string[];
+  if (kind === "group") {
+    const found = await groupIdsMissing();
+    if (!found) {
+      console.error("group translation sweep lookup failed");
+      return { done: 0, failed: 1, remaining: 0 };
+    }
+    ids = found;
+  } else {
+    const { data, error } = await supabase.rpc("items_missing_translations", {
+      kind,
+      target_locales: TARGET_LOCALES,
+      max_items: MAX_ITEMS_PER_KIND,
+    });
+    if (error) {
+      console.error("items_missing_translations failed", error.message);
+      return { done: 0, failed: 1, remaining: 0 };
+    }
+    ids = ((data ?? []) as { id: string }[]).map((row) => row.id);
   }
-  const ids = ((data ?? []) as { id: string }[]).map((row) => row.id);
   const { results, processed } = await runPool(
     ids,
     CONCURRENCY,
@@ -60,9 +105,10 @@ Deno.serve(async (req) => {
 
   const posts = await sweep("post", withinBudget);
   const comments = await sweep("comment", withinBudget);
-  const done = posts.done + comments.done;
-  const failed = posts.failed + comments.failed;
-  const remaining = posts.remaining + comments.remaining;
+  const groups = await sweep("group", withinBudget);
+  const done = posts.done + comments.done + groups.done;
+  const failed = posts.failed + comments.failed + groups.failed;
+  const remaining = posts.remaining + comments.remaining + groups.remaining;
 
   // The endpoint only needs the public anon key, so the caller controls this
   // header: clamp to a non-negative integer so a malicious/garbage value (a
@@ -116,5 +162,13 @@ Deno.serve(async (req) => {
       text: `Translation sweep stopped with ${remaining} items remaining (chain not started: ${chainFailure}); the daily cron continues tomorrow.`,
     });
   }
-  return json({ posts: posts.done, comments: comments.done, failed, remaining, chained, depth });
+  return json({
+    posts: posts.done,
+    comments: comments.done,
+    groups: groups.done,
+    failed,
+    remaining,
+    chained,
+    depth,
+  });
 });

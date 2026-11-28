@@ -41,8 +41,15 @@
 //    given and `cfg.modules.inbox` is on — a host wires it to Task 13's
 //    `NotificationInboxScreen`.
 //  - The header row is configured by the `header` prop: three zones (left,
-//    center, right) of title / logo / profile / search / inbox items, and an
-//    optional background (see `utils/headerZones.ts`).
+//    center, right) of title / logo / profile / search / inbox / messages items, and
+//    an optional background (see `utils/headerZones.ts`).
+//  - Groups module: the `messages` / `groups` header items, the group cards in posts
+//    (opened through `onOpenMessages`), and with `messaging.homeLayout: "segmented"`
+//    a "Feed | Groups" selector under the header (validated mockup A) whose Groups side
+//    is `GroupsHome`.
+//  - Dms module: the `dms` header item (Messages on its Conversations tab), and
+//    "Message" in post menus and in this screen's thread (`dms.entryPoints` has
+//    `"contextMenu"`), opened through `onOpenMessages({ conversationId })`.
 
 import {
   COMMUNITY_EVENTS,
@@ -61,6 +68,11 @@ import {
   type PostAttachment,
   useUnreadNotificationCount,
   presenceSettings,
+  dmsSettings,
+  groupsSettings,
+  messagingSettings,
+  useConversations,
+  useMessagingBadge,
 } from "@rocapine/community-core";
 import {
   useCallback,
@@ -111,12 +123,19 @@ import { ComposerSheet } from "../components/ComposerSheet";
 import { RulesSheet } from "../components/RulesSheet";
 import { openComposerGuarded, type CommentGate } from "../utils/gate";
 import { useRulesAccepted } from "../utils/rulesAcceptance";
+import { useActionMenu } from "../components/chat/MessageMenu";
 import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { NoticeCard } from "../components/NoticeCard";
 import { MyAvatar } from "../components/Avatar";
 import { firstTabLabelInset, TABS_ROW_HEIGHT, TopicTabs } from "../components/TopicTabs";
 import { OnlinePill } from "../components/OnlinePill";
 import { PressableScale } from "../components/PressableScale";
+import { SegmentedTabs } from "../components/SegmentedTabs";
+import { GroupLinkContext, type GroupLink } from "../components/GroupAttachment";
+import { GroupsHome } from "../components/GroupsHome";
+import { joinGate } from "../utils/groups";
+import { useMessageMember, usePrefetchDmFlags } from "../utils/messageMember";
+import { homeSegment, rememberHomeSegment, type HomeSegment } from "../utils/homeSegment";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
 import { ThreadSheet } from "./ThreadSheet";
@@ -142,9 +161,30 @@ export function CommunityFeedScreen({
   postRequest,
   composeRequest,
   bottomChrome,
+  onOpenMessages,
+  onOpenExplore,
+  beforeJoinGroup,
 }: {
   onOpenProfile(userId: string, source?: ProfileSource): void;
   onOpenInbox?: () => void;
+  /** Groups or dms module: opens the Messages page (the `messages` / `groups` / `dms`
+   * header items, `tab` saying which), a group (`groupId`; `preview`: read-only, I'm not
+   * a member) from a group card or the Groups home, or a DM (`conversationId`) started
+   * from a post or comment menu. Absent ⇒ no messages header items, no Groups home, no
+   * "Message" in menus, and group cards only join. */
+  onOpenMessages?: (target?: {
+    conversationId?: string;
+    groupId?: string;
+    preview?: boolean;
+    tab?: "conversations" | "groups";
+  }) => void;
+  /** Groups module: opens `ExploreGroupsScreen` (the Groups home's search and "See all").
+   * The Groups home (`messaging.homeLayout: "segmented"`) needs it and `onOpenMessages`. */
+  onOpenExplore?: () => void;
+  /** Groups module: host gate before joining from a group card or the Groups home, after
+   * the SDK's account check (same contract as `beforeCompose`). Absent ⇒ the feed's
+   * `beforeCompose` with `requireAccount: "feed"`, else none. */
+  beforeJoinGroup?: () => Promise<boolean>;
   /** Whether this screen is the one on display. A host whose navigator keeps
    * it mounted while hidden (tabs) passes its focus state, so new-post
    * polling stops while the user is on another tab. Defaults to `true`. */
@@ -198,10 +238,43 @@ export function CommunityFeedScreen({
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [notice, setNotice] = useState<"rejected" | "network" | null>(null);
 
+  // Groups module: the "Feed | Groups" home, its segment kept for the session.
+  const groups = groupsSettings(cfg);
+  const segmented =
+    !!groups &&
+    messagingSettings(cfg)?.homeLayout === "segmented" &&
+    !!onOpenMessages &&
+    !!onOpenExplore;
+  const [segment, setSegment] = useState<HomeSegment>(homeSegment);
+  const onGroups = segmented && segment === "groups";
+  // The SDK's account check, then this gate (see `joinGate`), then the join.
+  const gate = groups ? joinGate(beforeJoinGroup, groups.requireAccount, beforeCompose) : undefined;
+  // Stable against inline host callbacks: the cards below re-render only when one
+  // appears or goes away.
+  const latest = useRef({ onOpenMessages, gate });
+  latest.current = { onOpenMessages, gate };
+  const linked = !!groups && !!onOpenMessages;
+  const hasGate = !!gate;
+  const groupLink = useMemo<GroupLink | null>(
+    () =>
+      linked
+        ? {
+            openGroup: (groupId, preview) => latest.current.onOpenMessages?.({ groupId, preview }),
+            beforeJoinGroup: hasGate ? () => latest.current.gate!() : undefined,
+          }
+        : null,
+    [linked, hasGate],
+  );
+
   const blockUser = useBlockUser();
   const deleteContent = useDeleteContent();
   const pinMenu = usePinMenu();
+  const { show: showMenu, sheet: menuSheet } = useActionMenu();
   const topicStyles = useTopicStyles();
+  // Read through a ref: the post menu stays memoized (see `renderItem`).
+  const messageMenuItems = useMessageMember(onOpenMessages).menuItems;
+  const messageMenu = useRef(messageMenuItems);
+  messageMenu.current = messageMenuItems;
 
   useEffect(() => {
     emitEvent(cfg, COMMUNITY_EVENTS.opened);
@@ -235,6 +308,8 @@ export function CommunityFeedScreen({
       searchActive ? uniqueById(searchFeed.data?.pages) : uniqueById(categoryFeed.data?.pages),
     [searchActive, searchFeed.data, categoryFeed.data],
   );
+  // "Message" in a post's menu reads its author's flag from the cache.
+  usePrefetchDmFlags(onOpenMessages ? posts.map((p) => p.authorId) : []);
   // `isPending` alone (TanStack Query v5: `status === "pending"`) stays true
   // forever for a query that never runs — both `useCommunityFeed` and
   // `useSearchPosts` set `enabled: cfg.supabase !== null && ...`, so in
@@ -272,7 +347,7 @@ export function CommunityFeedScreen({
     const sub = AppState.addEventListener("change", (s) => setAppActive(s === "active"));
     return () => sub.remove();
   }, []);
-  const polling = isFocused && appActive && !searchActive;
+  const polling = isFocused && appActive && !searchActive && !onGroups;
   const sinceIso = newestCreatedAt(posts);
   const newCount = useNewPostsCount(sinceIso, topicFilter, polling);
 
@@ -283,6 +358,8 @@ export function CommunityFeedScreen({
   // iOS offsets the content with `contentInset`, so the pull-to-refresh
   // spinner sits under the top bar; Android pads the content instead.
   const [topHeight, setTopHeight] = useState(0);
+  // The bar's height on the Groups side (no topic tabs there).
+  const [groupsTop, setGroupsTop] = useState(0);
   const topH = useSharedValue(0);
   const hidden = useSharedValue(0);
   const lastY = useSharedValue(0);
@@ -342,6 +419,14 @@ export function CommunityFeedScreen({
   const pillStyle = useAnimatedStyle(() => ({ top: topH.value - hidden.value + 8 }));
   const myUid = useMyUid();
 
+  const chooseSegment = (next: HomeSegment) => {
+    if (next === segment) return;
+    hidden.value = 0;
+    rememberHomeSegment(next);
+    setSegment(next);
+    emitEvent(cfg, COMMUNITY_EVENTS.homeSegment, { segment: next });
+  };
+
   // `+`: the rules, then the host gate, then the composer (see
   // `openComposerGuarded`). The rules sheet resolves once it has fully
   // dismissed, so a host gate that opens its own modal never overlaps it.
@@ -376,6 +461,8 @@ export function CommunityFeedScreen({
       attachment: allowedAttachment(cfg, myAdmin, composeRequest.attachment),
       text: composeRequest.text,
     });
+    // The new post shows in the feed.
+    if (onGroups) chooseSegment("feed");
     openComposer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composeRequestedAt, profileSettled]);
@@ -422,12 +509,16 @@ export function CommunityFeedScreen({
   const requestedTopic = topicRequest?.topicId;
   const requestedAt = topicRequest?.requestedAt;
   useEffect(() => {
-    if (requestedTopic) selectTopic(requestedTopic);
+    if (!requestedTopic) return;
+    if (onGroups) chooseSegment("feed");
+    selectTopic(requestedTopic);
     // Keyed on `requestedAt`: the same topic can be asked for twice.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedAt]);
 
   const toggleSearch = () => {
+    // Search is the feed's: from the Groups side, it brings the feed back.
+    if (onGroups) chooseSegment("feed");
     hidden.value = 0;
     setSearchOpen((open) => {
       if (open) setSearchTerm("");
@@ -462,25 +553,31 @@ export function CommunityFeedScreen({
     (post: FeedPost) => {
       if (post.isOwn) {
         const askDelete = () =>
-          Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
-            { text: t("menu.cancel"), style: "cancel" },
-            {
-              text: t("menu.delete"),
-              style: "destructive",
-              onPress: () => deleteContent.mutate({ kind: "post", id: post.id, postId: post.id }),
-            },
-          ]);
+          Alert.alert(
+            t("menu.deletePostTitle"),
+            t("menu.deletePostBody"),
+            [
+              { text: t("menu.cancel"), style: "cancel" },
+              {
+                text: t("menu.delete"),
+                style: "destructive",
+                onPress: () => deleteContent.mutate({ kind: "post", id: post.id, postId: post.id }),
+              },
+            ],
+            { cancelable: true },
+          );
         const pin = pinMenu(post);
         if (pin.length === 0) return askDelete();
-        Alert.alert(post.authorName, undefined, [
+        showMenu(post.authorName, [
           ...pin,
           { text: t("menu.delete"), style: "destructive", onPress: askDelete },
           { text: t("menu.cancel"), style: "cancel" },
         ]);
         return;
       }
-      Alert.alert(post.authorName, undefined, [
+      showMenu(post.authorName, [
         ...pinMenu(post),
+        ...messageMenu.current(post.authorId),
         {
           text: t("menu.reportPost"),
           onPress: () =>
@@ -516,7 +613,7 @@ export function CommunityFeedScreen({
         { text: t("menu.cancel"), style: "cancel" },
       ]);
     },
-    [t, deleteContent, blockUser, pinMenu],
+    [t, deleteContent, blockUser, pinMenu, showMenu],
   );
 
   // Memoized so `FlatList` only reconciles the visible window when one of
@@ -542,6 +639,9 @@ export function CommunityFeedScreen({
   const zones = resolveHeaderZones(header, {
     inbox: !!cfg.modules.inbox && !!onOpenInbox,
     online: !!presenceSettings(cfg),
+    messaging: !!messagingSettings(cfg) && !!onOpenMessages,
+    groups: !!groups && !!onOpenMessages,
+    dms: !!dmsSettings(cfg) && !!onOpenMessages,
   });
   // The row bleeds out so icon glyphs sit flush with the content edge. A logo or the
   // online count first on the left lines up with the first topic tab's label instead;
@@ -590,6 +690,24 @@ export function CommunityFeedScreen({
         );
       case "inbox":
         return <InboxBell key={index} onPress={onOpenInbox!} />;
+      case "messages":
+        return <MessagesButton key={index} kind="messages" onPress={() => onOpenMessages!()} />;
+      case "groups":
+        return (
+          <MessagesButton
+            key={index}
+            kind="groups"
+            onPress={() => onOpenMessages!({ tab: "groups" })}
+          />
+        );
+      case "dms":
+        return (
+          <MessagesButton
+            key={index}
+            kind="dms"
+            onPress={() => onOpenMessages!({ tab: "conversations" })}
+          />
+        );
       case "online":
         return <OnlinePill key={index} style={inset} />;
       case "search":
@@ -638,260 +756,281 @@ export function CommunityFeedScreen({
   const canCompose = !adminTopic || myAdmin;
 
   return (
-    <ImageViewerHost>
-      <View
-        style={styles.root}
-        onLayout={
-          sharedBackground
-            ? (e) => {
-                const { width, height } = e.nativeEvent.layout;
-                setScreenSize({ width, height });
-              }
-            : undefined
-        }
-      >
-        <ScreenBackground />
-        <Animated.View
-          style={[
-            styles.top,
-            ownBackground?.color != null && { backgroundColor: ownBackground.color },
-            sharedBackground && styles.topClipped,
-            topStyle,
-          ]}
-          onLayout={(e) => {
-            const h = e.nativeEvent.layout.height;
-            if (h === topH.value) return;
-            const first = topH.value === 0;
-            topH.value = h;
-            setTopHeight(h);
-            // iOS: the inset only starts applying now; land on the first post.
-            if (first && insetsTop)
-              listRef.current?.scrollToOffset({ offset: -h, animated: false });
-          }}
+    <GroupLinkContext.Provider value={groupLink}>
+      <ImageViewerHost>
+        <View
+          style={styles.root}
+          onLayout={
+            sharedBackground
+              ? (e) => {
+                  const { width, height } = e.nativeEvent.layout;
+                  setScreenSize({ width, height });
+                }
+              : undefined
+          }
         >
-          {sharedBackground && screenSize && (
-            <Animated.View
-              style={[styles.stillBackground, screenSize, stillStyle]}
-              pointerEvents="none"
-            >
-              <ScreenBackground />
-            </Animated.View>
-          )}
-          {ownBackground?.image != null && (
-            <Image
-              source={ownBackground.image}
-              style={StyleSheet.absoluteFill}
-              contentFit={ownBackground.contentFit ?? "cover"}
-              pointerEvents="none"
-            />
-          )}
-          {statusInset > 0 && <View style={{ height: statusInset }} />}
-          <View style={styles.controls}>
-            {zones.visible && (
-              <View style={styles.headerRow}>
-                <View style={styles.headerSide}>
-                  {zones.left.map((item, i) =>
-                    renderHeaderItem(item, i, i === 0 ? "start" : undefined),
-                  )}
-                </View>
-                {zones.center.length > 0 && (
-                  <View style={styles.headerCenter}>
-                    {zones.center.map((item, i) => renderHeaderItem(item, i))}
-                  </View>
-                )}
-                <View style={[styles.headerSide, styles.headerSideRight]}>
-                  {zones.right.map((item, i) =>
-                    renderHeaderItem(item, i, i === zones.right.length - 1 ? "end" : undefined),
-                  )}
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* Search bar and topic tabs share one fixed-height slot, so toggling
-          between them never shifts the feed. */}
-          <View style={styles.switchRow}>
-            {searchOpen ? (
-              <View style={styles.searchSlot}>
-                <View style={styles.searchBar}>
-                  <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
-                  <TextInput
-                    ref={searchInputRef}
-                    value={searchTerm}
-                    onChangeText={setSearchTerm}
-                    placeholder={t("feed.searchPlaceholder")}
-                    placeholderTextColor={theme.colors.textFaint}
-                    autoFocus
-                    returnKeyType="search"
-                    style={styles.searchInput}
-                  />
-                  {searchTerm.length > 0 && (
-                    <Pressable
-                      hitSlop={10}
-                      onPress={clearSearch}
-                      style={styles.clearButton}
-                      accessibilityRole="button"
-                      accessibilityLabel={t("a11y.clearSearch")}
-                    >
-                      <icons.close size={12} color={theme.colors.surface} weight="bold" />
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-            ) : (
-              <TopicTabs tabs={topicTabs} selected={filter} onSelect={setFilter} />
-            )}
-          </View>
-        </Animated.View>
-        {/* `header.topInset`: the status bar strip stays put; the bar slides under it. */}
-        {statusInset > 0 && (
-          <View
-            pointerEvents="none"
+          <ScreenBackground />
+          <Animated.View
             style={[
-              styles.statusCap,
-              { height: statusInset },
+              styles.top,
               ownBackground?.color != null && { backgroundColor: ownBackground.color },
+              sharedBackground && styles.topClipped,
+              topStyle,
             ]}
+            onLayout={(e) => {
+              const h = e.nativeEvent.layout.height;
+              // The Groups side's shorter bar (no topic tabs) leaves the hidden feed's
+              // inset alone, so the feed comes back exactly where it was.
+              if (onGroups) return setGroupsTop(h);
+              if (h === topH.value) return;
+              const first = topH.value === 0;
+              topH.value = h;
+              setTopHeight(h);
+              // iOS: the inset only starts applying now; land on the first post.
+              if (first && insetsTop)
+                listRef.current?.scrollToOffset({ offset: -h, animated: false });
+            }}
           >
             {sharedBackground && screenSize && (
-              <View style={[styles.stillBackground, screenSize]}>
+              <Animated.View
+                style={[styles.stillBackground, screenSize, stillStyle]}
+                pointerEvents="none"
+              >
                 <ScreenBackground />
-              </View>
+              </Animated.View>
             )}
             {ownBackground?.image != null && (
               <Image
                 source={ownBackground.image}
-                style={[styles.stillBackground, { right: 0, height: topHeight }]}
+                style={StyleSheet.absoluteFill}
                 contentFit={ownBackground.contentFit ?? "cover"}
+                pointerEvents="none"
               />
             )}
-          </View>
-        )}
+            {statusInset > 0 && <View style={{ height: statusInset }} />}
+            <View style={styles.controls}>
+              {zones.visible && (
+                <View style={styles.headerRow}>
+                  <View style={styles.headerSide}>
+                    {zones.left.map((item, i) =>
+                      renderHeaderItem(item, i, i === 0 ? "start" : undefined),
+                    )}
+                  </View>
+                  {zones.center.length > 0 && (
+                    <View style={styles.headerCenter}>
+                      {zones.center.map((item, i) => renderHeaderItem(item, i))}
+                    </View>
+                  )}
+                  <View style={[styles.headerSide, styles.headerSideRight]}>
+                    {zones.right.map((item, i) =>
+                      renderHeaderItem(item, i, i === zones.right.length - 1 ? "end" : undefined),
+                    )}
+                  </View>
+                </View>
+              )}
+              {segmented && <HomeSegments segment={segment} onSelect={chooseSegment} />}
+            </View>
 
-        <View style={styles.listWrap}>
-          {newCount > 0 && (
-            <Animated.View style={[styles.newPill, pillStyle]}>
-              <PressableScale onPress={showNewPosts} style={styles.newPillButton}>
-                <Text style={styles.newPillText}>{t("feed.newPosts", { count: newCount })}</Text>
-              </PressableScale>
-            </Animated.View>
+            {/* Search bar and topic tabs share one fixed-height slot, so toggling
+          between them never shifts the feed. The Groups side has neither. */}
+            {!onGroups && (
+              <View style={styles.switchRow}>
+                {searchOpen ? (
+                  <View style={styles.searchSlot}>
+                    <View style={styles.searchBar}>
+                      <icons.search size={16} color={theme.colors.textFaint} weight="regular" />
+                      <TextInput
+                        ref={searchInputRef}
+                        value={searchTerm}
+                        onChangeText={setSearchTerm}
+                        placeholder={t("feed.searchPlaceholder")}
+                        placeholderTextColor={theme.colors.textFaint}
+                        autoFocus
+                        returnKeyType="search"
+                        style={styles.searchInput}
+                      />
+                      {searchTerm.length > 0 && (
+                        <Pressable
+                          hitSlop={10}
+                          onPress={clearSearch}
+                          style={styles.clearButton}
+                          accessibilityRole="button"
+                          accessibilityLabel={t("a11y.clearSearch")}
+                        >
+                          <icons.close size={12} color={theme.colors.surface} weight="bold" />
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                ) : (
+                  <TopicTabs tabs={topicTabs} selected={filter} onSelect={setFilter} />
+                )}
+              </View>
+            )}
+          </Animated.View>
+          {/* `header.topInset`: the status bar strip stays put; the bar slides under it. */}
+          {statusInset > 0 && (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.statusCap,
+                { height: statusInset },
+                ownBackground?.color != null && { backgroundColor: ownBackground.color },
+              ]}
+            >
+              {sharedBackground && screenSize && (
+                <View style={[styles.stillBackground, screenSize]}>
+                  <ScreenBackground />
+                </View>
+              )}
+              {ownBackground?.image != null && (
+                <Image
+                  source={ownBackground.image}
+                  style={[styles.stillBackground, { right: 0, height: topHeight }]}
+                  contentFit={ownBackground.contentFit ?? "cover"}
+                />
+              )}
+            </View>
           )}
 
-          <Animated.FlatList
-            ref={listRef}
-            onScroll={onListScroll}
-            scrollEventThrottle={16}
-            contentInset={insetsTop ? { top: topHeight } : undefined}
-            scrollIndicatorInsets={
-              insetsTop ? { top: topHeight, bottom: chromeH } : { bottom: chromeH }
-            }
-            automaticallyAdjustContentInsets={false}
-            data={posts}
-            keyExtractor={(p: FeedPost) => p.id}
-            renderItem={renderItem}
-            ItemSeparatorComponent={RowSeparator}
-            ListEmptyComponent={
-              isPending ? (
-                <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
-              ) : isError ? (
-                <Text style={styles.stateText}>{t("feed.unreachableRetry")}</Text>
-              ) : (
-                <Text style={styles.stateText}>
-                  {searchActive
-                    ? t("feed.noSearchResults")
-                    : adminTopic
-                      ? t("feed.adminTopicEmpty")
-                      : t("feed.empty")}
-                </Text>
-              )
-            }
-            ListFooterComponent={
-              hasNextPage ? (
-                <PressableScale onPress={loadMore} style={styles.loadMore}>
-                  {isFetchingNextPage ? (
-                    <ActivityIndicator size="small" color={theme.colors.accent} />
-                  ) : (
-                    <Text style={styles.loadMoreText}>{t("feed.loadMore")}</Text>
-                  )}
+          {onGroups && (
+            <GroupsHome
+              topInset={groupsTop}
+              bottomInset={chromeH}
+              onOpenGroup={(groupId, preview) => onOpenMessages!({ groupId, preview })}
+              onOpenExplore={onOpenExplore!}
+              beforeJoinGroup={gate}
+              beforeCreate={beforeCompose}
+            />
+          )}
+          {/* Kept mounted (hidden) on the Groups side: the feed keeps its place. */}
+          <View style={[styles.listWrap, onGroups && styles.gone]}>
+            {newCount > 0 && (
+              <Animated.View style={[styles.newPill, pillStyle]}>
+                <PressableScale onPress={showNewPosts} style={styles.newPillButton}>
+                  <Text style={styles.newPillText}>{t("feed.newPosts", { count: newCount })}</Text>
                 </PressableScale>
-              ) : null
-            }
-            onEndReached={loadMore}
-            onEndReachedThreshold={0.4}
-            refreshControl={
-              <RefreshControl
-                refreshing={pulling}
-                onRefresh={pullToRefresh}
-                tintColor={theme.colors.accent}
-                progressViewOffset={topHeight}
-              />
-            }
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            // Room for the `+` button under the last post. The host's
-            // container clears the bottom safe area (and its tab bar).
-            contentContainerStyle={{
-              paddingTop: insetsTop ? 0 : topHeight,
-              paddingBottom: chromeH + FAB_SIZE + theme.spacing(8),
+              </Animated.View>
+            )}
+
+            <Animated.FlatList
+              ref={listRef}
+              onScroll={onListScroll}
+              scrollEventThrottle={16}
+              contentInset={insetsTop ? { top: topHeight } : undefined}
+              scrollIndicatorInsets={
+                insetsTop ? { top: topHeight, bottom: chromeH } : { bottom: chromeH }
+              }
+              automaticallyAdjustContentInsets={false}
+              data={posts}
+              keyExtractor={(p: FeedPost) => p.id}
+              renderItem={renderItem}
+              ItemSeparatorComponent={RowSeparator}
+              ListEmptyComponent={
+                isPending ? (
+                  <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />
+                ) : isError ? (
+                  <Text style={styles.stateText}>{t("feed.unreachableRetry")}</Text>
+                ) : (
+                  <Text style={styles.stateText}>
+                    {searchActive
+                      ? t("feed.noSearchResults")
+                      : adminTopic
+                        ? t("feed.adminTopicEmpty")
+                        : t("feed.empty")}
+                  </Text>
+                )
+              }
+              ListFooterComponent={
+                hasNextPage ? (
+                  <PressableScale onPress={loadMore} style={styles.loadMore}>
+                    {isFetchingNextPage ? (
+                      <ActivityIndicator size="small" color={theme.colors.accent} />
+                    ) : (
+                      <Text style={styles.loadMoreText}>{t("feed.loadMore")}</Text>
+                    )}
+                  </PressableScale>
+                ) : null
+              }
+              onEndReached={loadMore}
+              onEndReachedThreshold={0.4}
+              refreshControl={
+                <RefreshControl
+                  refreshing={pulling}
+                  onRefresh={pullToRefresh}
+                  tintColor={theme.colors.accent}
+                  progressViewOffset={topHeight}
+                />
+              }
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              // Room for the `+` button under the last post. The host's
+              // container clears the bottom safe area (and its tab bar).
+              contentContainerStyle={{
+                paddingTop: insetsTop ? 0 : topHeight,
+                paddingBottom: chromeH + FAB_SIZE + theme.spacing(8),
+              }}
+            />
+
+            {!searchOpen && canCompose && (
+              <Animated.View style={[styles.fab, { bottom: chromeH + theme.spacing(4) }, fabStyle]}>
+                <PressableScale
+                  onPress={openComposer}
+                  style={styles.fabButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("feed.compose")}
+                >
+                  <icons.add size={26} color={theme.colors.textInverse} weight="bold" />
+                </PressableScale>
+              </Animated.View>
+            )}
+          </View>
+
+          <ThreadSheet
+            postId={activePostId}
+            focusComment={focusComment}
+            onClose={() => setActivePostId(null)}
+            onOpenProfile={onOpenProfile}
+            onPressTopic={selectTopic}
+            onOpenMessages={onOpenMessages}
+            slots={slots}
+            beforeSubmitComment={beforeSubmitComment}
+          />
+          <ComposerSheet
+            visible={composerOpen}
+            defaultTopic={canCompose ? topicFilter : undefined}
+            onClose={() => {
+              setComposerOpen(false);
+              setComposeSeed(null);
+            }}
+            initialAttachment={composeSeed?.attachment}
+            initialText={composeSeed?.text}
+            onModerationRejected={() => setNotice("rejected")}
+            onPublishFailed={() => setNotice("network")}
+          />
+          <RulesSheet
+            visible={rulesVisible}
+            onAccepted={() => {
+              if (rulesAnswer.current) rulesAnswer.current.accepted = true;
+              setRulesVisible(false);
+            }}
+            onClose={() => setRulesVisible(false)}
+            onDismissed={() => {
+              const answer = rulesAnswer.current;
+              rulesAnswer.current = null;
+              answer?.resolve(answer.accepted);
             }}
           />
-
-          {!searchOpen && canCompose && (
-            <Animated.View style={[styles.fab, { bottom: chromeH + theme.spacing(4) }, fabStyle]}>
-              <PressableScale
-                onPress={openComposer}
-                style={styles.fabButton}
-                accessibilityRole="button"
-                accessibilityLabel={t("feed.compose")}
-              >
-                <icons.add size={26} color={theme.colors.textInverse} weight="bold" />
-              </PressableScale>
-            </Animated.View>
-          )}
+          <ReportSheet
+            visible={reportTarget !== null}
+            target={reportTarget}
+            onClose={() => setReportTarget(null)}
+          />
+          {notice && <NoticeCard kind={notice} onDismiss={() => setNotice(null)} />}
+          {menuSheet}
         </View>
-
-        <ThreadSheet
-          postId={activePostId}
-          focusComment={focusComment}
-          onClose={() => setActivePostId(null)}
-          onOpenProfile={onOpenProfile}
-          onPressTopic={selectTopic}
-          slots={slots}
-          beforeSubmitComment={beforeSubmitComment}
-        />
-        <ComposerSheet
-          visible={composerOpen}
-          defaultTopic={canCompose ? topicFilter : undefined}
-          onClose={() => {
-            setComposerOpen(false);
-            setComposeSeed(null);
-          }}
-          initialAttachment={composeSeed?.attachment}
-          initialText={composeSeed?.text}
-          onModerationRejected={() => setNotice("rejected")}
-          onPublishFailed={() => setNotice("network")}
-        />
-        <RulesSheet
-          visible={rulesVisible}
-          onAccepted={() => {
-            if (rulesAnswer.current) rulesAnswer.current.accepted = true;
-            setRulesVisible(false);
-          }}
-          onClose={() => setRulesVisible(false)}
-          onDismissed={() => {
-            const answer = rulesAnswer.current;
-            rulesAnswer.current = null;
-            answer?.resolve(answer.accepted);
-          }}
-        />
-        <ReportSheet
-          visible={reportTarget !== null}
-          target={reportTarget}
-          onClose={() => setReportTarget(null)}
-        />
-        {notice && <NoticeCard kind={notice} onDismiss={() => setNotice(null)} />}
-      </View>
-    </ImageViewerHost>
+      </ImageViewerHost>
+    </GroupLinkContext.Provider>
   );
 }
 
@@ -922,6 +1061,73 @@ function InboxBell({ onPress }: { onPress: () => void }) {
       <icons.bell size={22} color={theme.colors.headerText} weight="regular" />
       {unread > 0 && <View style={styles.bellDot} />}
     </PressableScale>
+  );
+}
+
+/** A `messages` / `groups` header item, with the unread badge per `messaging.badge`. Its
+ * own component so the badge query only runs when the item shows. */
+function MessagesButton({
+  kind,
+  onPress,
+}: {
+  kind: "messages" | "groups" | "dms";
+  onPress: () => void;
+}) {
+  const theme = useCommunityTheme();
+  const t = useT();
+  const icons = useCommunityIcons();
+  const styles = useThemedStyles(makeStyles);
+  const badge = useMessagingBadge();
+  const Icon = kind === "groups" ? icons.groups : icons.messages;
+  const label = t(
+    kind === "groups" ? "groups.home.groups" : kind === "dms" ? "a11y.dms" : "messages.title",
+  );
+  return (
+    <PressableScale
+      onPress={onPress}
+      style={styles.iconButton}
+      accessibilityRole="button"
+      accessibilityLabel={
+        badge.count > 0 ? `${label}, ${t("messages.unread", { count: badge.count })}` : label
+      }
+    >
+      <Icon size={22} color={theme.colors.headerText} weight="regular" />
+      {badge.count > 0 ? (
+        <View style={styles.countBadge}>
+          <Text style={styles.countBadgeText}>{badge.count > 99 ? "99+" : badge.count}</Text>
+        </View>
+      ) : (
+        badge.dot && <View style={styles.bellDot} />
+      )}
+    </PressableScale>
+  );
+}
+
+/** The "Feed | Groups" selector (validated mockup A): full width under the header, the
+ * Groups side carrying the unread count of the groups I follow. */
+function HomeSegments({
+  segment,
+  onSelect,
+}: {
+  segment: HomeSegment;
+  onSelect: (segment: HomeSegment) => void;
+}) {
+  const t = useT();
+  const styles = useThemedStyles(makeStyles);
+  const conversations = useConversations().data;
+  const unread = (conversations ?? [])
+    .filter((c) => c.kind === "group" && c.notify)
+    .reduce((n, c) => n + c.unread, 0);
+  return (
+    <SegmentedTabs
+      items={[
+        { key: "feed", label: t("groups.home.feed"), count: 0 },
+        { key: "groups", label: t("groups.home.groups"), count: unread },
+      ]}
+      selected={segment}
+      onSelect={onSelect}
+      style={styles.segments}
+    />
   );
 }
 
@@ -999,6 +1205,29 @@ function makeStyles(theme: CommunityTheme) {
       borderWidth: 1.5,
       borderColor: theme.colors.background,
     },
+    countBadge: {
+      position: "absolute",
+      top: 6,
+      right: 4,
+      minWidth: 17,
+      height: 17,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      backgroundColor: theme.colors.danger,
+      borderWidth: 1.5,
+      borderColor: theme.colors.background,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    countBadgeText: {
+      ...theme.typography.caption,
+      fontSize: 10,
+      lineHeight: 12,
+      fontFamily: theme.fonts.bold,
+      fontWeight: theme.fontWeights.bold,
+      color: theme.colors.textInverse,
+    },
+    segments: { marginTop: theme.spacing(1), marginBottom: theme.spacing(2.5) },
     switchRow: {
       // The border sits inside the height: without its share the tab row
       // overflows by a hairline and scrolls vertically.
@@ -1034,6 +1263,7 @@ function makeStyles(theme: CommunityTheme) {
       justifyContent: "center",
     },
     listWrap: { flex: 1, position: "relative" },
+    gone: { display: "none" },
     rowSeparator: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.hairline },
     spinner: { marginTop: theme.spacing(8) },
     stateText: {

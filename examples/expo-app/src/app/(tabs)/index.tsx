@@ -6,12 +6,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePlayground } from "@/PlaygroundProvider";
 import { headerConfig } from "@/playground";
 import { ReactionChip } from "@/components/ReactionChip";
+import { openMessages } from "@/routes";
 
 export default function CommunityTab() {
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const { settings } = usePlayground();
-  // A "Share" from the catalog lands here with the item in the params.
+  // A "Share" from the catalog or a group's details lands here with the item in the params.
   const { shareType, shareId, at } = useLocalSearchParams<{
     shareType?: string;
     shareId?: string;
@@ -50,6 +51,8 @@ export default function CommunityTab() {
           router.push({ pathname: "/profile/[userId]", params: { userId } })
         }
         onOpenInbox={() => router.push("/inbox")}
+        onOpenMessages={openMessages}
+        onOpenExplore={() => router.push("/explore")}
       />
     </View>
   );
