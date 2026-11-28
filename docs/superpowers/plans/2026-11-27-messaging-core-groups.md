@@ -8,9 +8,9 @@
 
 **Tech Stack:** Supabase Postgres (SQL migrations, RLS, security-definer RPCs, Realtime, Storage), Deno Edge Functions, TypeScript, TanStack Query v5, React Native (+ react-native-web), Vitest, `@rocapine/community` CLI, changesets.
 
-**Spec:** `docs/superpowers/specs/2026-11-27-messaging-design.md` (slices 1 and 2). Mockups: Unchaind repo, `docs/superpowers/specs/messaging-mockups/` (private; ask for them if you can't read that repo).
+**Spec:** `docs/superpowers/specs/2026-11-27-messaging-design.md` (slices 1 and 2). Mockups: the host app's repo, `docs/superpowers/specs/messaging-mockups/` (private; ask for them if you can't read that repo).
 
-**Follow-up plans (not this one):** part 2 = DMs (`dms` module, requests, read receipts); part 3 = Unchaind integration; the dashboard is a separate session in `Rocapine/community-dashboard`.
+**Follow-up plans (not this one):** part 2 = DMs (`dms` module, requests, read receipts); part 3 = integration in the first host app; the dashboard is a separate session in `Rocapine/community-dashboard`.
 
 ## Global Constraints
 
