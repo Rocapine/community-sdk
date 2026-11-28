@@ -8,7 +8,7 @@
 
 **Tech Stack:** as part 1 (Supabase SQL/RLS/RPC, Realtime, Deno Edge Functions, TypeScript, TanStack Query v5, React Native + web, Vitest, CLI, changesets).
 
-**Spec:** `docs/superpowers/specs/2026-11-27-messaging-design.md` (sections Config › `DmsConfig`, Data model › `dms`, Behaviour › DMs, Notifications and push, Blocking, Account deletion, Profile merge). Part 1 plan and ledger: `docs/superpowers/plans/2026-11-27-messaging-core-groups.md`, `.superpowers/sdd/2026-11-27-messaging-core-groups/progress.md` (rulings R1–R20 still hold). Validated mockup: Unchaind repo `docs/superpowers/specs/messaging-mockups/dm-requests.html` option B (list, then the conversation with Accept / Decline / Block-and-report bar and the sender's context).
+**Spec:** `docs/superpowers/specs/2026-11-27-messaging-design.md` (sections Config › `DmsConfig`, Data model › `dms`, Behaviour › DMs, Notifications and push, Blocking, Account deletion, Profile merge). Part 1 plan and ledger: `docs/superpowers/plans/2026-11-27-messaging-core-groups.md`, `.superpowers/sdd/2026-11-27-messaging-core-groups/progress.md` (rulings R1–R20 still hold). Validated mockup: the host app's repo (private) `docs/superpowers/specs/messaging-mockups/dm-requests.html` option B (list, then the conversation with Accept / Decline / Block-and-report bar and the sender's context).
 
 ## Global Constraints
 
@@ -18,7 +18,7 @@
 - Privacy anti-goals (spec): a DM is readable only by its two members, except an app admin through `admin_message_context` on a reported or AI-hidden message; a blocked pair can never reach each other; a request never tells its sender it was read; a request push names no one and quotes nothing, whatever `pushPreview` says; a declined request's messages are never shown to the recipient again.
 - Account rule on the server when `dmsRequireAccount` and the accounts module is installed: BOTH the sender and the recipient need a linked account to start a DM (the recipient side keeps the "Message" button hidden; the server refuses `account_required`).
 - In-app admin = `profiles.is_admin` (R6). Existing DMs keep working if a member later turns off "Receive direct messages" (the switch only blocks new DMs). _(Our call.)_
-- Copy in all 23 locales, theme tokens only, iOS + Android + web, events ids-only, migrations append-only/idempotent, docs + roadmap + changeset in the same PR, commits `feat: …`/`fix: …` + `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, sandbox `vjcdpodsrpemanfvrshh` only, production never. Gesture worklets follow `utils/chatGestures.ts` (export const arrows).
+- Copy in all 23 locales, theme tokens only, iOS + Android + web, events ids-only, migrations append-only/idempotent, docs + roadmap + changeset in the same PR, commits `feat: …`/`fix: …` + `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, the sandbox project only, production never. Gesture worklets follow `utils/chatGestures.ts` (export const arrows).
 
 ## Review Focus
 
