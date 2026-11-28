@@ -14,6 +14,7 @@ import {
   replyPreview,
   runFlags,
   sendErrorKey,
+  shouldSendOnKey,
   shownInList,
 } from "../utils/chat";
 import {
@@ -347,5 +348,21 @@ describe("composerBottomSpace", () => {
     expect(at(null)).toEqual({ keyboard: 0, inset: 34 });
     // Measured mid-transition (off screen): never more than the inset.
     expect(at(H * 2)).toEqual({ keyboard: 0, inset: 34 });
+  });
+});
+
+describe("shouldSendOnKey", () => {
+  const web = { key: "Enter", platform: "web" };
+  it("sends on Enter on web", () => expect(shouldSendOnKey(web)).toBe(true));
+  it("adds a line on Shift+Enter", () =>
+    expect(shouldSendOnKey({ ...web, shiftKey: true })).toBe(false));
+  it("never sends while an IME composes", () => {
+    expect(shouldSendOnKey({ ...web, isComposing: true })).toBe(false);
+    expect(shouldSendOnKey({ ...web, keyCode: 229 })).toBe(false);
+  });
+  it("ignores other keys", () => expect(shouldSendOnKey({ ...web, key: "a" })).toBe(false));
+  it("keeps native's return key a newline", () => {
+    expect(shouldSendOnKey({ ...web, platform: "ios" })).toBe(false);
+    expect(shouldSendOnKey({ ...web, platform: "android" })).toBe(false);
   });
 });

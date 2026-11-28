@@ -6,15 +6,18 @@ import { Image } from "expo-image";
 import type { Ref } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
   type TextInputInstance,
+  type TextInputKeyPressEvent,
 } from "react-native";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../../ThemeProvider";
 import type { CommunityTheme } from "../../theme";
+import { shouldSendOnKey } from "../../utils/chat";
 import { noFocusRingMultiline } from "../../utils/noFocusRing";
 
 const THUMB = 56;
@@ -57,6 +60,20 @@ export function ChatComposer({
   const theme = useCommunityTheme();
   const icons = useCommunityIcons();
   const styles = useThemedStyles(makeStyles);
+  // On web the event is React DOM's keydown: `shiftKey`, `isComposing` and `keyCode`
+  // live on its native event, outside RN's type.
+  const onKeyPress = (e: TextInputKeyPressEvent) => {
+    const native = e.nativeEvent as TextInputKeyPressEvent["nativeEvent"] & {
+      shiftKey?: boolean;
+      isComposing?: boolean;
+      keyCode?: number;
+    };
+    // Named fields: a DOM event's are prototype getters, which a spread would drop.
+    const { key, shiftKey, isComposing, keyCode } = native;
+    if (!shouldSendOnKey({ key, shiftKey, isComposing, keyCode, platform: Platform.OS })) return;
+    e.preventDefault();
+    if (canSend) onSend();
+  };
   return (
     <View style={styles.root}>
       {banner && (
@@ -129,6 +146,7 @@ export function ChatComposer({
           placeholderTextColor={theme.colors.textFaint}
           maxLength={maxLength}
           multiline
+          onKeyPress={onKeyPress}
           // iOS keeps a cleared multiline field at its last height: empty is one line.
           style={[styles.input, text === "" && styles.inputEmpty]}
         />

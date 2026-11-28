@@ -8,6 +8,21 @@ import type { TFn } from "../i18n";
 const QUOTE_LINES = 2;
 const QUOTE_MAX = 120;
 
+/** Web only: Enter sends, Shift+Enter adds a line, and a key that ends an IME
+ * composition (`isComposing`, or keyCode 229) never sends. Native keeps its return key
+ * as a newline; the Send button sends. */
+export function shouldSendOnKey(e: {
+  key: string;
+  shiftKey?: boolean;
+  isComposing?: boolean;
+  keyCode?: number;
+  platform: string;
+}): boolean {
+  return (
+    e.platform === "web" && e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229
+  );
+}
+
 /** A reply's quote: the first two lines, at most 120 characters, "…" when cut. */
 export function quoteExcerpt(body: string | null, deleted: boolean, t: TFn): string {
   if (deleted) return t("chat.deleted");
