@@ -187,5 +187,29 @@ begin
   from public.claim_message_push(m.id);
   assert n = 1 and total = 1, 'the first direct message pushes C, kind message';
 
+  -- dms/007, requests mode: B and C both open a DM and nobody writes; B's first message
+  -- is a request for C, pushed once, kind request.
+  delete from public.conversations where id = bc;
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"dmsFirstMessage": "requests"}');
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  bc := public.start_dm(c);
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.start_dm(b);
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  m := public.send_message(bc, 'request after a mutual open');
+  reset role;
+  update public.messages set moderated_at = now() where id = m.id;
+  assert (select state from public.conversation_members where conversation_id = bc and user_id = c) = 'request',
+    'C has a request';
+  select count(*) filter (where user_id = c and kind = 'request'), count(*) into n, total
+  from public.claim_message_push(m.id);
+  assert n = 1 and total = 1, 'the request pushes C once, kind request';
+
   raise exception 'DMS_PUSH_TESTS_PASSED';
 end $$;

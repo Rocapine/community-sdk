@@ -879,6 +879,57 @@ begin
   reset role;
   update public.profiles set accepts_dms = true where id = b;
 
+  -- dms/007, direct mode: X and A2 both open their DM, nobody writes; X writes: A2 gets it.
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  xa2 := public.start_dm(a2);
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.start_dm(x) = xa2, 'one DM';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  perform public.send_message(xa2, 'hello a2');
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  select * into r from public.list_conversations() l where l.conversation_id = xa2;
+  assert r.last_body = 'hello a2' and r.unread = 1, 'direct: delivered to A2, unread';
+  reset role;
+  -- A2 and C both open their DM, then C turns DMs off: A2's first message is refused, so
+  -- is a new "Message", and C's flags show no DM that outlives the switch.
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  a2c := public.start_dm(c);
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  assert public.start_dm(a2) = a2c, 'C opened it too';
+  reset role;
+  update public.profiles set accepts_dms = false where id = c;
+  perform set_config('request.jwt.claims', json_build_object('sub', a2, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  select * into r from public.profile_dm_flags(array[c]) f;
+  assert not r.has_dm, 'a DM nobody wrote in doesn''t outlive the switch';
+  assert not exists (select 1 from public.search_dm_members((select username from public.profiles where id = c)) s
+                     where s.user_id = c), 'nor keeps C in the picker';
+  begin
+    perform public.send_message(a2c, 'are you there?');
+    assert false, 'C turned DMs off before anything was written';
+  exception when raise_exception then
+    assert sqlerrm = 'dms_off', 'got ' || sqlerrm;
+  end;
+  begin
+    perform public.start_dm(c);
+    assert false, 'opening it again says so';
+  exception when raise_exception then
+    assert sqlerrm = 'dms_off', 'got ' || sqlerrm;
+  end;
+  reset role;
+  assert not exists (select 1 from public.messages where conversation_id = a2c), 'nothing stored, nothing to push';
+  update public.profiles set accepts_dms = true where id = c;
+
   -- Requests mode, both open the DM without writing: one DM, both active, nobody told.
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
   perform public.messaging_set_settings('{"dmsFirstMessage": "requests"}');
@@ -903,21 +954,31 @@ begin
                        where topic in ('dms:' || c, 'dms:' || x) and payload ->> 'id' = cx::text),
       'nobody is told of an empty DM';
   end if;
-  -- C writes first: X opened it too, so it is a conversation, not a request.
+  -- dms/007: C writes first: nothing was written yet, so it is a new DM for X, a request
+  -- (one from C's budget), though X opened it too.
   perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
   set local role authenticated;
   perform public.send_message(cx, 'hello x');
   reset role;
-  assert (select state from public.conversation_members where conversation_id = cx and user_id = x) = 'active',
-    'a mutual start stays active';
-  assert not exists (select 1 from public.dm_request_log where sender_id = c and recipient_id = x),
-    'and spends no request';
+  assert (select state from public.conversation_members where conversation_id = cx and user_id = x) = 'request',
+    'the first message of a DM both opened is a request';
+  assert (select count(*) from public.dm_request_log where sender_id = c and recipient_id = x) = 1,
+    'and spends one request';
   perform set_config('request.jwt.claims', json_build_object('sub', x, 'role', 'authenticated')::text, true);
   set local role authenticated;
-  assert exists (select 1 from public.list_conversations() l where l.conversation_id = cx and l.last_body = 'hello x'),
-    'X reads it in their list';
+  assert exists (select 1 from public.list_dm_requests() l where l.conversation_id = cx and l.last_body = 'hello x'),
+    'X finds it in their Requests';
+  begin
+    perform public.send_message(cx, 'hello c, at the same moment');
+    assert false, 'a request is answered before writing';
+  exception when raise_exception then
+    assert sqlerrm = 'not_a_member', 'got ' || sqlerrm;
+  end;
+  assert public.start_dm(c) = cx, 'X opens it again: accepted';
   perform public.send_message(cx, 'hello c');
   reset role;
+  assert (select count(*) from public.conversation_members where conversation_id = cx and state = 'active') = 2,
+    'one DM, both active once both wrote';
 
   -- A real request, then its recipient taps "Message": accepted, the sender told.
   if to_regclass('public.notifications') is not null then
@@ -987,6 +1048,8 @@ begin
 
   -- Merge with a row on one side only: C opened a DM with B alone (the older), A2 wrote
   -- to B. One DM survives with both members, and B still reads A2's message.
+  delete from public.conversations where id in (
+    select conversation_id from public.dm_pairs where a2 in (user_a, user_b));
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
   perform public.messaging_set_settings('{"dmsFirstMessage": "direct"}');
   perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
