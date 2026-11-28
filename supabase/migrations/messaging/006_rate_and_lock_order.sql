@@ -6,6 +6,9 @@
 --    the order send_message uses, so an edit and a concurrent reply to the edited
 --    message can't deadlock.
 -- Requires messaging/005. Idempotent.
+-- With the dms module, the dms migrations own later versions of send_message: a new
+-- migration that replaces it must keep their DM rules (visible_from, blocks, the first
+-- message's checks), then re-run supabase-tests/dms.sql.
 
 create or replace function public.send_message(
   p_conversation uuid,

@@ -23,7 +23,9 @@
 -- change (the first already skips a request, the second runs the function above).
 --
 -- dm_pairs, dm_declines and dm_request_log have no client access: the RPCs below read
--- and write them. Pushes and the inbox row on a new request are dms/002's.
+-- and write them. Pushes are dms/002's; the inbox gets no row for a new request, only
+-- the sender's "request accepted" (dm_accept below). dms/006 moves the recipient's row
+-- to the first message (start_dm below makes both rows at once).
 -- Requires core and messaging/001–006. Idempotent.
 
 -- ============ TABLES ============

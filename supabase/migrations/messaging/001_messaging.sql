@@ -16,6 +16,10 @@
 -- (called by account-delete) live here: they serve groups and, later, DMs.
 -- Requires core. Idempotent on its own; re-running it after groups/003 (which changes
 -- list_conversations()' return type) is not supported: the CLI applies each template once.
+-- With the dms module, the dms migrations own later versions of send_message, the
+-- messages read policy and list_conversations: a new migration that replaces one of
+-- them must keep their DM rules (visible_from, blocks, the first message's checks),
+-- then re-run supabase-tests/dms.sql.
 
 -- ============ TABLES ============
 create table if not exists public.conversations (

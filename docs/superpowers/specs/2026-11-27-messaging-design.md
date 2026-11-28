@@ -413,6 +413,17 @@ description, member count, "X online" (above 0), and "Join" or "Open".
     declined and the message is stored silently: the sender is never told.
   - A DM request's first message pushes once; a request accepted gives the sender a center
     item (`dm_request_accepted`, inbox module).
+  - "Message" (`start_dm`) creates the conversation with the opener's row only, so their
+    screen works; the recipient's row comes with the first message, which runs a new DM's
+    checks at that moment (their switch, blocks, the account rule, a recent decline, the
+    day's budget in requests mode) and is refused otherwise. Until then the recipient has
+    nothing: no row, no list entry, no request, no push. A DM nobody wrote in is left out
+    of the opener's Messages page too. When both open it without writing (a mutual start),
+    both rows are active and the first message lands as a conversation (no request, no
+    budget, no "request accepted"); `start_dm` accepts a request only when its sender wrote.
+    "Keeps working after the switch" means the other member has a row in the DM.
+  - The author of a DM message can't read its cached translations: one would tell them the
+    other member read it (a request, or read receipts off).
 
 ### Notifications and push
 
@@ -454,7 +465,9 @@ to this member.
 _(Our call.)_ A blocked DM's history is readable by neither side (the server refuses): the
 screen shows what it had cached and the "can't write" line, and a cold open of it shows only
 the line. A block or unblock made while the DM is open closes or reopens its composer at once
-(the server broadcasts it on the DM's channel).
+(the server broadcasts it on the DM's channel), and both members' lists and Requests refetch
+(`changed` on their own channels): a pending request leaves at once. A member of a DM across a
+block can't send typing on its channel either.
 
 ### Account deletion
 
@@ -471,7 +484,9 @@ Groups the member created stay; their management falls to the admins.
 When the accounts module merges two profiles (`merge_profiles`), the kept profile takes
 over the merged one's DMs, group memberships, created groups, likes, notification
 preferences and declines. Two DMs with the same member become one conversation. _(Our
-call.)_
+call.)_ The messages that member never saw (before their `visible_from`, or any while
+their row was declined, the sender's silent messages after a decline included) are deleted,
+not merged in: keeping them would show them. _(Our call: privacy over history.)_
 
 ### Analytics (`host.onEvent`)
 

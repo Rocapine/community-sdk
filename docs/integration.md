@@ -438,6 +438,14 @@ With `requireAccount` it is hidden on the profile of a member without an account
 without an account of my own it calls `host.onAccountRequired("dm")`. The server enforces
 the same rule for both sides and refuses `account_required`.
 
+"Message" opens the DM for me only: the other member hears of it with my first message
+(backend `dms/006`), which runs the checks again at that moment. If they turned DMs off in
+between, the send is refused with a "doesn't take direct messages" line (`account_required`
+calls `host.onAccountRequired("dm")`). A DM nobody wrote in stays out of the Messages page,
+mine included. When we both open it without writing, my first message lands in their
+conversations, not their Requests: they opened it too. "Already has a DM" (the button kept
+for a member who turned DMs off later) means something was written to them in it.
+
 **Requests** (`firstMessage: "requests"`). The Messages page shows a Requests row while
 requests wait. A request opens read-only with the sender's context (groups in common, member
 since) and an Accept / Decline / Block and report bar; accepting turns it into the live
@@ -487,17 +495,22 @@ Requests row update live: a new DM or request for me, or my request accepted, ar
 own private Realtime channel (`dms:<my id>`, ids only, backend `dms/005`). With `messaging.homeLayout: "segmented"` the
 groups live on the home, so put `"dms"` in the header there rather than `"groups"`
 (`resolveHeaderZones` drops a `"groups"` item in a dms-only app, which has no Groups tab).
-`"messages"` remains available in either layout.
+`"messages"` remains available in either layout. Screen readers call the `"dms"` item
+"Direct messages" (`a11y.dms`), the `"messages"` one "Messages".
 
 **Blocking.** A blocked pair never reaches each other: no new DM, no request, no "Message"
 button, and neither side can read the DM's history (the screen shows what it cached and a
 "can't write to this member" line; a block made while a DM is open closes its composer at
-once). In-app admins can't be blocked out of DMs, as in the feed.
+once, and a pending request leaves the recipient's Requests at once). In-app admins can't be
+blocked out of DMs, as in the feed.
 
 **Privacy.** Only the two members read a DM. A dashboard reads a message only through
 `admin_message_context`, and only one that was reported or AI-hidden. Account deletion
 follows `messaging.onAccountDelete` (`"eraseDms"` deletes the member's DM messages).
-Merging two profiles merges their DMs with one member into a single conversation.
+Merging two profiles merges their DMs with one member into a single conversation; the
+messages that member never saw (a declined request, what was written during its cooldown)
+are deleted, not merged in. The author of a DM message never reads its cached translations
+(that would tell them it was read).
 
 **Analytics.** New `COMMUNITY_EVENTS`: `dmStarted`, `dmRequestAccepted`, `dmRequestDeclined`,
 `dmRequestBlocked`. Ids only.

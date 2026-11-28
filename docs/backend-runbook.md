@@ -636,7 +636,9 @@ read `account_links` only when the accounts module is installed; without it they
   leave, a removal): open chats refresh their header, and a member just removed sees the
   removed line at once (Realtime checks a private channel's policies when it is joined,
   so they still get it). Its policies on `realtime.messages`: readers (previewers
-  included) listen, only members send typing. With dms, `dms/005` gives each member a
+  included) listen, members send (typing; any event, but a forged `read`, `changed` or
+  `members` only makes the others refetch what the server computes; with dms, `dms/006`
+  also requires reading the conversation, so not across a block). With dms, `dms/005` gives each member a
   private channel `dms:<their id>` that only they can join and nobody can send on: the
   server broadcasts `changed` (the conversation id only) there when a DM message becomes
   visible to them (a new DM, a new request, a later message) and when their request is
@@ -697,7 +699,14 @@ Then `supabase db push`, `messaging_set_settings` with the `dms*` keys above, an
   broadcasts `members` on its channel, so an open DM closes its composer at once) and
   `dms/005_requests_sent_live` (a request counts against `dmsRequestsPerDay` when its
   first message is sent: `dm_request_refusal` only reads the budget, `dm_log_request`
-  spends it from `send_message`; the member's own Realtime channel `dms:<id>`, below). All
+  spends it from `send_message`; the member's own Realtime channel `dms:<id>`, below) and
+  `dms/006_first_message` (the recipient's row comes with the first message: `start_dm`
+  makes the opener's row only, `send_message` runs a new DM's checks and makes the
+  recipient's; `dm_peers` from `dm_pairs`; `has_dm` and the picker count a DM once the other
+  member has a row; `merge_messaging` moves a one-sided row; the author of a DM message
+  can't read its translations; sending on `conversation:<id>` needs `can_read_conversation`;
+  a block also sends `changed` on both members' `dms:<id>`. It deletes the recipient rows the
+  old `start_dm` made that nobody wrote to). All
   idempotent; `dms/002` needs the push module (skipped with a notice when `push_tokens`
   is missing).
 - **Functions.** No new secret and no new function: `notify-message` (messaging + push)
@@ -726,6 +735,11 @@ Then `supabase db push`, `messaging_set_settings` with the `dms*` keys above, an
   - **The Slack report path for a DM was not run live.** `report-to-slack`'s DM branch is
     unit-tested only (running it would post to the real channel): report one DM message from a
     sandbox first and check the line reads "Direct message from _a_ to _b_ (text not shown)".
+- **Profile merge.** Two DMs with the same member become one. Messages that member never
+  saw are deleted first, not merged: a declined request's messages and what its sender wrote
+  silently during the cooldown (or after a re-request the checks refused). Merging them in
+  would show them, so the history loses them on purpose (a report on one keeps its text in
+  `details`).
 - **Privacy at the dashboard.** A DM's text never appears in Slack. The dashboard reads a
   message only through `admin_message_context(message, before, after)`, and that answers
   only for a message that was reported or AI-hidden, with up to 50 messages around it each
