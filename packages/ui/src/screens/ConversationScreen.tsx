@@ -143,12 +143,12 @@ type Row = {
   last?: boolean;
 };
 
-/** The space under the composer (see composerBottomSpace): the screen's bottom edge
- * in the window, measured at layout and again on each keyboard move (a modal may have
- * been mid-animation at layout). */
 /** How often a removed member's screen checks whether they were readmitted. */
 const REMOVED_RECHECK_MS = 30_000;
 
+/** The space under the composer (see composerBottomSpace): the screen's bottom edge
+ * in the window, measured at layout and again on each keyboard move (a modal may have
+ * been mid-animation at layout). */
 function useBottomSpace(insetBottom: number) {
   const ref = useRef<ViewInstance>(null);
   const windowHeight = useWindowDimensions().height;
