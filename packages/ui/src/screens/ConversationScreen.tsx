@@ -344,8 +344,12 @@ function Conversation({
   };
 
   const listRef = useRef<FlatList<Row>>(null);
-  const fail = (action: ChatAction) => (e: unknown) =>
-    setErrorCode(screenErrorCode(action, e instanceof MessagingError ? e.code : "unknown"));
+  const fail = (action: ChatAction) => (e: unknown) => {
+    const code = e instanceof MessagingError ? e.code : "unknown";
+    // A DM's first message with `requireAccount` and no account of mine (or theirs).
+    if (action === "send" && code === "account_required") cfg.host.onAccountRequired?.("dm");
+    else setErrorCode(screenErrorCode(action, code));
+  };
   const gate = async (hostGate = beforeSend) => {
     if (!hostGate) return true;
     setGating(true);

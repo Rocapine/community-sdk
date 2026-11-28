@@ -237,6 +237,7 @@ describe("sendErrorKey", () => {
     expect(sendErrorKey("message_too_long")).toBe("chat.error.tooLong");
     expect(sendErrorKey("rate_limited")).toBe("chat.error.rateLimited");
     expect(sendErrorKey("too_many_requests")).toBe("dms.error.tooManyRequests");
+    expect(sendErrorKey("dms_off")).toBe("dms.error.dmsOff");
     expect(sendErrorKey("unknown")).toBe("chat.error.generic");
   });
 });

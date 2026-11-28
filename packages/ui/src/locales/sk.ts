@@ -390,6 +390,7 @@ export const sk: Record<string, string> = {
   "dms.new.empty": "Nikoho sme nenašli.",
   "dms.new.hint": "Napíš meno člena, ktorého hľadáš.",
   "dms.error.tooManyRequests": "Dnes už nemôžeš začať ďalšiu konverzáciu. Skús to zajtra.",
+  "dms.error.dmsOff": "Táto osoba neprijíma súkromné správy.",
   "profile.receiveDms": "Prijímať súkromné správy",
   "profile.receiveDmsHelper":
     "Keď je to vypnuté, nikto s tebou nezačne novú konverzáciu. Tie existujúce pokračujú.",

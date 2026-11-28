@@ -49,7 +49,13 @@ export function useMessageMember(onOpen: OpenDm | undefined) {
           if (code === "account_required") cfg.host.onAccountRequired?.("dm");
           else
             Alert.alert(
-              t(code === "too_many_requests" ? "dms.error.tooManyRequests" : "dms.request.error"),
+              t(
+                code === "too_many_requests"
+                  ? "dms.error.tooManyRequests"
+                  : code === "dms_off"
+                    ? "dms.error.dmsOff"
+                    : "dms.request.error",
+              ),
             );
         },
       },

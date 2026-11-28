@@ -391,6 +391,7 @@ export const en: Record<string, string> = {
   "dms.new.empty": "No one found.",
   "dms.new.hint": "Type a name to find a member.",
   "dms.error.tooManyRequests": "You can't start more conversations today. Try again tomorrow.",
+  "dms.error.dmsOff": "This member doesn't take direct messages.",
   "profile.receiveDms": "Receive direct messages",
   "profile.receiveDmsHelper":
     "When it's off, no one can start a new conversation with you. Ongoing ones carry on.",

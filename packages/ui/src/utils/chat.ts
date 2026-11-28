@@ -172,12 +172,14 @@ export function closedReason(
   return null;
 }
 
-/** The copy for a failed send. */
+/** The copy for a failed send (`account_required` asks the host for an account instead). */
 export function sendErrorKey(code: MessagingErrorCode): string {
   if (code === "message_too_long") return "chat.error.tooLong";
   if (code === "rate_limited") return "chat.error.rateLimited";
   // dms/005: a request's first message spends the day's request budget.
   if (code === "too_many_requests") return "dms.error.tooManyRequests";
+  // dms/006: the first message of a DM to a member who turned DMs off since "Message".
+  if (code === "dms_off") return "dms.error.dmsOff";
   return "chat.error.generic";
 }
 

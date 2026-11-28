@@ -369,6 +369,7 @@ export const da: Record<string, string> = {
   "dms.new.empty": "Ingen fundet.",
   "dms.new.hint": "Skriv et navn for at finde et medlem.",
   "dms.error.tooManyRequests": "Du kan ikke starte flere samtaler i dag. Prøv igen i morgen.",
+  "dms.error.dmsOff": "Dette medlem modtager ikke private beskeder.",
   "profile.receiveDms": "Modtag private beskeder",
   "profile.receiveDmsHelper":
     "Når den er slået fra, kan ingen starte en ny samtale med dig. Dine nuværende samtaler fortsætter.",

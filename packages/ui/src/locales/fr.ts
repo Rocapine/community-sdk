@@ -408,6 +408,7 @@ export const fr: Record<string, string> = {
   "dms.new.hint": "Tape un nom pour trouver un membre.",
   "dms.error.tooManyRequests":
     "Tu ne peux plus démarrer de conversation aujourd'hui. Réessaie demain.",
+  "dms.error.dmsOff": "Ce membre ne reçoit pas de messages privés.",
   "profile.receiveDms": "Recevoir des messages privés",
   "profile.receiveDmsHelper":
     "Désactivé, personne ne peut démarrer de nouvelle conversation avec toi. Celles en cours continuent.",

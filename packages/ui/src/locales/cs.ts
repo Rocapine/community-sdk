@@ -389,6 +389,7 @@ export const cs: Record<string, string> = {
   "dms.new.empty": "Nikoho jsme nenašli.",
   "dms.new.hint": "Napiš jméno člena, kterého hledáš.",
   "dms.error.tooManyRequests": "Dnes už nemůžeš začít další konverzaci. Zkus to zítra.",
+  "dms.error.dmsOff": "Tato osoba nepřijímá soukromé zprávy.",
   "profile.receiveDms": "Přijímat soukromé zprávy",
   "profile.receiveDmsHelper":
     "Když je to vypnuté, nikdo s tebou nezačne novou konverzaci. Ty stávající pokračují.",

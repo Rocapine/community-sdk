@@ -373,6 +373,7 @@ export const hu: Record<string, string> = {
   "dms.new.empty": "Nincs találat.",
   "dms.new.hint": "Írj be egy nevet, hogy megtalálj egy tagot.",
   "dms.error.tooManyRequests": "Ma már nem kezdhetsz több beszélgetést. Próbáld újra holnap.",
+  "dms.error.dmsOff": "Ez a tag nem fogad közvetlen üzeneteket.",
   "profile.receiveDms": "Közvetlen üzenetek fogadása",
   "profile.receiveDmsHelper":
     "Ha ki van kapcsolva, senki sem kezdhet veled új beszélgetést. A meglévők folytatódnak.",

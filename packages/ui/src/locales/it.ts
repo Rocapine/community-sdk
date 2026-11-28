@@ -381,6 +381,7 @@ export const it: Record<string, string> = {
   "dms.new.empty": "Nessun risultato.",
   "dms.new.hint": "Scrivi un nome per trovare un membro.",
   "dms.error.tooManyRequests": "Oggi non puoi iniziare altre conversazioni. Riprova domani.",
+  "dms.error.dmsOff": "Questo membro non riceve messaggi diretti.",
   "profile.receiveDms": "Ricevi messaggi diretti",
   "profile.receiveDmsHelper":
     "Se è disattivato, nessuno può iniziare una nuova conversazione con te. Quelle in corso continuano.",
