@@ -18,7 +18,7 @@ declare
   q uuid := gen_random_uuid(); q2 uuid := gen_random_uuid(); q3 uuid := gen_random_uuid();
   q4 uuid := gen_random_uuid(); q5 uuid := gen_random_uuid();
   r1 uuid := gen_random_uuid(); r2 uuid := gen_random_uuid();
-  ban_hash text := encode(sha256(convert_to('test:subject-ban', 'UTF8')), 'hex');
+  ban_hash text := public.account_ban_hash('test', 'subject-ban');
   failed boolean;
   -- Every "table.column" that merge_profiles moves; a new foreign key to profiles must be added to
   -- merge_profiles AND here.
@@ -324,9 +324,11 @@ begin
   assert exists (select 1 from public.account_bans where provider = 'test' and subject_hash = ban_hash),
     'a banned deleted account keeps its ban as a hash';
   assert not exists (select 1 from public.account_bans b where b::text like '%subject-ban%'), 'never the subject in clear';
+  assert ban_hash <> encode(sha256(convert_to('test:subject-ban', 'UTF8')), 'hex'), 'a keyed hash, not a plain sha256';
+  assert (select count(*) from public.account_ban_key) = 1, 'one key';
   perform public.account_link_and_merge('test', 'subject-free', u, '{}');
   perform public.account_delete_profile(u);
-  assert not exists (select 1 from public.account_bans where subject_hash = encode(sha256(convert_to('test:subject-free', 'UTF8')), 'hex')),
+  assert not exists (select 1 from public.account_bans where subject_hash = public.account_ban_hash('test', 'subject-free')),
     'a deleted account that was not banned leaves no ban';
 
   -- The account comes back on a fresh profile: banned, with one moderation action, once.
@@ -395,6 +397,25 @@ begin
     end;
     reset role;
     assert failed, r || ' must not execute account_unban';
+  end loop;
+  -- The key and the hash: no API role, the service role included.
+  foreach r in array array['authenticated', 'anon', 'service_role'] loop
+    execute format('set local role %I', r);
+    failed := false;
+    begin
+      perform 1 from public.account_ban_key;
+    exception when insufficient_privilege then failed := true;
+    end;
+    reset role;
+    assert failed, r || ' must not read account_ban_key';
+    execute format('set local role %I', r);
+    failed := false;
+    begin
+      perform public.account_ban_hash('test', 'guess');
+    exception when insufficient_privilege then failed := true;
+    end;
+    reset role;
+    assert failed, r || ' must not execute account_ban_hash';
   end loop;
 
   raise exception 'ACCOUNTS_TESTS_PASSED';

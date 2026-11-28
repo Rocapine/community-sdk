@@ -1,8 +1,10 @@
 -- community-sdk accounts/003_markers_and_bans.sql (schema v1)
 -- Patch of accounts/001 and 002, which stay as released. Sets core/021's profile markers and keeps a
 -- ban across account deletion:
---   account_bans           (provider, hash of the subject) of each banned account that was deleted, and
---                          the profile it was deleted from. Never the subject in clear.
+--   account_bans           (provider, keyed hash of the subject) of each banned account that was
+--                          deleted, and the profile it was deleted from. Never the subject in clear.
+--   account_ban_key        the hash's secret, made once per database, readable by no API role, so a
+--                          copy of account_bans can't be matched against a list of known subjects.
 --   account_link_and_merge also sets merged_into = p_main on each merged profile (and on any profile
 --                          already merged into one of them), clears both markers on p_main (a
 --                          merged or deleted profile can be adopted again), and, when the link is
@@ -33,14 +35,28 @@ create index if not exists account_bans_profile_idx on public.account_bans (prof
 alter table public.account_bans enable row level security;
 revoke all on table public.account_bans from public, anon, authenticated;
 
--- The ban key of an account: sha256 of 'provider:subject' (UTF-8), hex. Postgres's built-in sha256,
--- no pgcrypto.
+-- The secret of account_ban_hash: 32 bytes from two random uuids (244 random bits; gen_random_uuid is
+-- built in, no pgcrypto). Made once and never changed: a new key would orphan every stored ban.
+create table if not exists public.account_ban_key (
+  id boolean primary key default true check (id),
+  key bytea not null
+);
+alter table public.account_ban_key enable row level security;
+revoke all on table public.account_ban_key from public, anon, authenticated, service_role;
+insert into public.account_ban_key (key)
+values (decode(replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), 'hex'))
+on conflict (id) do nothing;
+
+-- The ban key of an account: sha256 of the secret followed by 'provider:subject' (UTF-8), hex.
+-- shortcut: a secret-prefix hash, not HMAC (Postgres has no built-in hmac without pgcrypto); it only
+-- has to resist guessing subjects without the key, which it does. Called by the functions below only.
 create or replace function public.account_ban_hash(p_provider text, p_subject text)
 returns text
-language sql immutable
+language sql stable security definer
 set search_path = public
 as $$
-  select encode(sha256(convert_to(p_provider || ':' || p_subject, 'UTF8')), 'hex');
+  select encode(sha256(k.key || convert_to(p_provider || ':' || p_subject, 'UTF8')), 'hex')
+    from public.account_ban_key k;
 $$;
 
 -- Links (provider, subject) to p_main if the link is missing, then merges each p_merge profile into
@@ -159,7 +175,6 @@ as $$
                    and public.account_ban_hash(l.provider, l.subject) = b.subject_hash);
 $$;
 
-revoke execute on function public.account_ban_hash(text, text) from public, anon, authenticated;
-grant execute on function public.account_ban_hash(text, text) to service_role;
+revoke execute on function public.account_ban_hash(text, text) from public, anon, authenticated, service_role;
 revoke execute on function public.account_unban(uuid) from public, anon, authenticated;
 grant execute on function public.account_unban(uuid) to service_role;

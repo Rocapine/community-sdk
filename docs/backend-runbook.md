@@ -483,8 +483,9 @@ Core `021` builds the author indexes on `posts` and `comments` before it alters 
 every session (all devices drop it), moves the synthetic email off and
 deletes the link. The profile becomes an ordinary orphan, stamped
 `account_deleted_at` (it counts as a member until then; its posts always count).
-A banned profile's ban outlives the deletion: `account_bans` keeps a sha256 of
-the account's `provider:subject` (never the subject itself), and the next
+A banned profile's ban outlives the deletion: `account_bans` keeps a keyed sha256 of
+the account's `provider:subject` (never the subject itself; the key, `account_ban_key`, is made once per
+database and readable by no API role), and the next
 profile that account links is banned, with a `ban` moderation action by
 `account ban`. `account_unban(profile)` (service role; the dashboard's unban
 calls it) lifts it (`accounts/003_markers_and_bans.sql`); a ban lifted
