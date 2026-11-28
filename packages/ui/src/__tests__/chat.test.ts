@@ -13,6 +13,7 @@ import {
   replyPreview,
   runFlags,
   sendErrorKey,
+  shownInList,
 } from "../utils/chat";
 import {
   SWIPE_ARMED_OFFSET,
@@ -237,6 +238,14 @@ describe("sendErrorKey", () => {
     expect(sendErrorKey("rate_limited")).toBe("chat.error.rateLimited");
     expect(sendErrorKey("too_many_requests")).toBe("dms.error.tooManyRequests");
     expect(sendErrorKey("unknown")).toBe("chat.error.generic");
+  });
+});
+
+describe("shownInList", () => {
+  it("leaves out a DM nothing was written in yet, never a group", () => {
+    expect(shownInList({ kind: "dm", lastMessage: null })).toBe(false);
+    expect(shownInList({ kind: "dm", lastMessage: { id: "m" } })).toBe(true);
+    expect(shownInList({ kind: "group", lastMessage: null })).toBe(true);
   });
 });
 

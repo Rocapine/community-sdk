@@ -39,7 +39,7 @@ import { ScreenBackground } from "../components/ScreenBackground";
 import { SegmentedTabs } from "../components/SegmentedTabs";
 import { NewMessageSheet } from "../components/NewMessageSheet";
 import { RequestsScreen } from "./RequestsScreen";
-import { hubView, showRequestsRow } from "../utils/chat";
+import { hubView, shownInList, showRequestsRow } from "../utils/chat";
 import { lastMessagePreview } from "../utils/groups";
 import { useMessageMember } from "../utils/messageMember";
 import { isQueryLoading } from "../utils/query";
@@ -110,7 +110,10 @@ function Messages({
   // change) must not show it, or iOS leaves the list pushed down under a stuck spinner.
   const [pulling, setPulling] = useState(false);
 
-  const all = useMemo(() => [...(conversations.data ?? [])].sort(byLatest), [conversations.data]);
+  const all = useMemo(
+    () => (conversations.data ?? []).filter(shownInList).sort(byLatest),
+    [conversations.data],
+  );
   const groups = useMemo(() => all.filter((c) => c.kind === "group"), [all]);
   const dms = useMemo(() => all.filter((c) => c.kind === "dm"), [all]);
   const showGroups = view === "groups" || (view === "tabs" && tab === "groups");

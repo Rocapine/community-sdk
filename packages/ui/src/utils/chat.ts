@@ -181,6 +181,12 @@ export function sendErrorKey(code: MessagingErrorCode): string {
   return "chat.error.generic";
 }
 
+/** What the Messages page lists: a DM nothing was written in yet (opened from "Message"
+ * without writing) stays out until its first message. */
+export function shownInList(c: { kind: "dm" | "group"; lastMessage: unknown }): boolean {
+  return c.kind === "group" || c.lastMessage !== null;
+}
+
 // ============ DMS ============
 
 type Listed = {

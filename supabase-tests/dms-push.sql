@@ -10,7 +10,7 @@ do $$
 declare
   ids uuid[];
   a uuid; b uuid; c uuid;
-  ab uuid; ac uuid; g uuid;
+  ab uuid; ac uuid; bc uuid; g uuid;
   m public.messages;
   r record;
   n int;
@@ -42,11 +42,14 @@ begin
   ab := public.start_dm(b);
   reset role;
   update public.conversation_members set joined_at = now() - interval '1 hour' where conversation_id = ab;
-  assert (select state = 'request' and not notify from public.conversation_members
-          where conversation_id = ab and user_id = b), 'B has a request, not followed';
+  assert not exists (select 1 from public.conversation_members where conversation_id = ab and user_id = b),
+    'opening the DM gives B nothing';
   set local role authenticated;
   m := public.send_message(ab, 'hello b');
   reset role;
+  -- dms/006: B's row comes with the first message, joined just before it.
+  assert (select state = 'request' and not notify from public.conversation_members
+          where conversation_id = ab and user_id = b), 'B has a request, not followed';
   update public.messages set moderated_at = now() where id = m.id;
   select count(*) filter (where user_id = b and kind = 'request'), count(*) into n, total
   from public.claim_message_push(m.id);
@@ -170,6 +173,19 @@ begin
   insert into public.messages (conversation_id, author_id, body, status, moderated_at)
   values (g, a, 'group again', 'visible', now()) returning * into m;
   assert not exists (select 1 from public.claim_message_push(m.id)), 'the group switch still applies';
+
+  -- dms/006: in direct mode the first message pushes its recipient, whose row it made.
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform public.messaging_set_settings('{"dmsFirstMessage": "direct"}');
+  perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  bc := public.start_dm(c);
+  m := public.send_message(bc, 'direct hi');
+  reset role;
+  update public.messages set moderated_at = now() where id = m.id;
+  select count(*) filter (where user_id = c and kind = 'message'), count(*) into n, total
+  from public.claim_message_push(m.id);
+  assert n = 1 and total = 1, 'the first direct message pushes C, kind message';
 
   raise exception 'DMS_PUSH_TESTS_PASSED';
 end $$;

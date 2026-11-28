@@ -489,6 +489,11 @@ describe("runUpgrade", () => {
     const dms = result.addedMigrations.findIndex((f) => f.includes("_community_dms_dms"));
     expect(lastGroups).toBeGreaterThan(-1);
     expect(dms).toBeGreaterThan(lastGroups);
+    // Every dms file again, in order, the last (dms/006) after dms/001.
+    const firstMessage = result.addedMigrations.findIndex((f) =>
+      f.includes("_community_dms_first_message"),
+    );
+    expect(firstMessage).toBeGreaterThan(dms);
     expect(readManifest(cwd)!.modules).toEqual([
       "core",
       "attachments",
