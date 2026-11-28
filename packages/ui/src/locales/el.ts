@@ -373,4 +373,14 @@ export const el: Record<string, string> = {
   "dms.blockedMember": "Αποκλεισμένο μέλος",
   "chat.unavailable": "Αυτή η συζήτηση δεν είναι πια διαθέσιμη.",
   "dms.request.error": "Κάτι πήγε στραβά. Δοκίμασε ξανά.",
+  "dms.message": "Μήνυμα",
+  "dms.new.title": "Νέο μήνυμα",
+  "dms.new.search": "Αναζήτηση μέλους…",
+  "dms.new.empty": "Δεν βρέθηκε κανείς.",
+  "dms.error.tooManyRequests":
+    "Δεν μπορείς να ξεκινήσεις άλλες συζητήσεις σήμερα. Δοκίμασε ξανά αύριο.",
+  "profile.receiveDms": "Λήψη προσωπικών μηνυμάτων",
+  "profile.receiveDmsHelper":
+    "Όταν είναι απενεργοποιημένο, κανείς δεν μπορεί να ξεκινήσει νέα συζήτηση μαζί σου. Οι τρέχουσες συνεχίζονται.",
+  "inbox.dmAccepted": "{name} αποδέχτηκε το αίτημα μηνύματός σου",
 };

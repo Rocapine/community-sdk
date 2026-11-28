@@ -401,4 +401,14 @@ export const fr: Record<string, string> = {
   "dms.blockedMember": "Membre bloqué",
   "chat.unavailable": "Cette discussion n'est plus disponible.",
   "dms.request.error": "Une erreur est survenue. Réessaie.",
+  "dms.message": "Envoyer un message",
+  "dms.new.title": "Nouveau message",
+  "dms.new.search": "Rechercher un membre…",
+  "dms.new.empty": "Aucun résultat.",
+  "dms.error.tooManyRequests":
+    "Tu ne peux plus démarrer de conversation aujourd'hui. Réessaie demain.",
+  "profile.receiveDms": "Recevoir des messages privés",
+  "profile.receiveDmsHelper":
+    "Désactivé, personne ne peut démarrer de nouvelle conversation avec toi. Celles en cours continuent.",
+  "inbox.dmAccepted": "{name} a accepté ta demande de message",
 };

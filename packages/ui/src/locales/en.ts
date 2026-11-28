@@ -385,4 +385,13 @@ export const en: Record<string, string> = {
   "dms.blockedMember": "Blocked member",
   "chat.unavailable": "This conversation is no longer available.",
   "dms.request.error": "Something went wrong. Try again.",
+  "dms.message": "Message",
+  "dms.new.title": "New message",
+  "dms.new.search": "Search for a member…",
+  "dms.new.empty": "No one found.",
+  "dms.error.tooManyRequests": "You can't start more conversations today. Try again tomorrow.",
+  "profile.receiveDms": "Receive direct messages",
+  "profile.receiveDmsHelper":
+    "When it's off, no one can start a new conversation with you. Ongoing ones carry on.",
+  "inbox.dmAccepted": "{name} accepted your message request",
 };

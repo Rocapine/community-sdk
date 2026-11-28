@@ -360,12 +360,12 @@ linked. Show the app's sign-in there.
 `examples/expo-app` wires all of them (`src/routes.ts`, `src/app/messages.tsx`,
 `conversation/[id].tsx`, `explore.tsx`, `group/[id]/`).
 
-**Header and home.** Header items `"messages"` (the Messages page) and `"groups"` (on its
-Groups tab) carry the unread badge (`messaging.badge`; `useMessagingBadge()` for your own
-entry point). With `homeLayout: "segmented"` the groups live in the home's Groups segment,
-so the header needs no `"groups"` item; once direct messages exist, put `"dms"` in the
-header there instead of `"messages"`. The SDK doesn't switch it for you: the header is your
-config.
+**Header and home.** Header items `"messages"` (the Messages page), `"groups"` (on its
+Groups tab, groups module) and `"dms"` (on its Conversations tab, dms module) carry the
+unread badge (`messaging.badge`; `useMessagingBadge()` for your own entry point). With
+`homeLayout: "segmented"` the groups live in the home's Groups segment, so the header needs
+no `"groups"` item: with DMs on, put `"dms"` in the header there instead of `"messages"`.
+The SDK doesn't switch it for you: the header is your config.
 
 **Pushes and badge.** Group pushes need the push module. A member follows a group with the
 bell in its conversation (off by default per group). The member-wide "Groups" switch for

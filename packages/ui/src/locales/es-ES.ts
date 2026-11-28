@@ -374,4 +374,13 @@ export const esES: Record<string, string> = {
   "dms.blockedMember": "Miembro bloqueado",
   "chat.unavailable": "Esta conversación ya no está disponible.",
   "dms.request.error": "Algo salió mal. Inténtalo de nuevo.",
+  "dms.message": "Enviar mensaje",
+  "dms.new.title": "Nuevo mensaje",
+  "dms.new.search": "Buscar un miembro…",
+  "dms.new.empty": "No hemos encontrado a nadie.",
+  "dms.error.tooManyRequests": "Hoy ya no puedes iniciar más conversaciones. Inténtalo mañana.",
+  "profile.receiveDms": "Recibir mensajes directos",
+  "profile.receiveDmsHelper":
+    "Si está desactivado, nadie puede iniciar una conversación nueva contigo. Las que ya tienes siguen.",
+  "inbox.dmAccepted": "{name} ha aceptado tu solicitud de mensaje",
 };

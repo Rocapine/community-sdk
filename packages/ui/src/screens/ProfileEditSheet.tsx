@@ -24,11 +24,14 @@
 //  - No analytics calls here: `useUpdateProfile` emits `profileUpdated` itself.
 
 import {
+  dmsSettings,
   presenceSettings,
+  useAcceptsDms,
   useCommunityConfig,
   useMyUid,
   useProfile,
   usePresenceVisible,
+  useSetAcceptsDms,
   useSetBadgeVisibility,
   useSetPresenceVisible,
   useUpdateProfile,
@@ -79,6 +82,8 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   const badgeVisibility = useSetBadgeVisibility();
   const presenceVisible = usePresenceVisible();
   const setPresenceVisible = useSetPresenceVisible();
+  const acceptsDms = useAcceptsDms();
+  const setAcceptsDms = useSetAcceptsDms();
 
   const [base, setBase] = useState<Saved>({ name: "", handle: "", bio: "" });
   const [name, setName] = useState("");
@@ -467,6 +472,18 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
                 />
               </View>
             )}
+
+            {dmsSettings(cfg) && acceptsDms !== null && (
+              <View style={styles.section}>
+                <Text style={styles.label}>{t("messages.title")}</Text>
+                <ToggleRow
+                  label={t("profile.receiveDms")}
+                  value={acceptsDms}
+                  onChange={(on) => setAcceptsDms.mutateAsync({ on })}
+                />
+                <Text style={styles.helper}>{t("profile.receiveDmsHelper")}</Text>
+              </View>
+            )}
           </>
         )}
       </SheetScrollView>
@@ -474,7 +491,7 @@ export function ProfileEditSheet({ visible, onClose }: { visible: boolean; onClo
   );
 }
 
-/** One switch row (a badge, presence, a group's notifications), applied at once (not
+/** One switch row (a badge, presence, DMs, a group's notifications), applied at once (not
  * by Save). Local state keeps the switch where the finger left it while the change
  * lands; a failure puts it back. */
 export function ToggleRow({

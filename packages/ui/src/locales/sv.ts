@@ -364,4 +364,14 @@ export const sv: Record<string, string> = {
   "dms.blockedMember": "Blockerad medlem",
   "chat.unavailable": "Den här konversationen är inte längre tillgänglig.",
   "dms.request.error": "Något gick fel. Försök igen.",
+  "dms.message": "Skicka meddelande",
+  "dms.new.title": "Nytt meddelande",
+  "dms.new.search": "Sök efter en medlem…",
+  "dms.new.empty": "Ingen hittades.",
+  "dms.error.tooManyRequests":
+    "Du kan inte starta fler konversationer i dag. Försök igen i morgon.",
+  "profile.receiveDms": "Ta emot direktmeddelanden",
+  "profile.receiveDmsHelper":
+    "När det är av kan ingen starta en ny konversation med dig. Pågående fortsätter.",
+  "inbox.dmAccepted": "{name} godkände din meddelandeförfrågan",
 };

@@ -367,4 +367,14 @@ export const nl: Record<string, string> = {
   "dms.blockedMember": "Geblokkeerd lid",
   "chat.unavailable": "Dit gesprek is niet meer beschikbaar.",
   "dms.request.error": "Er ging iets mis. Probeer het opnieuw.",
+  "dms.message": "Bericht sturen",
+  "dms.new.title": "Nieuw bericht",
+  "dms.new.search": "Zoek een lid…",
+  "dms.new.empty": "Niemand gevonden.",
+  "dms.error.tooManyRequests":
+    "Je kunt vandaag geen gesprekken meer beginnen. Probeer het morgen opnieuw.",
+  "profile.receiveDms": "Directe berichten ontvangen",
+  "profile.receiveDmsHelper":
+    "Als dit uit staat, kan niemand een nieuw gesprek met je beginnen. Lopende gesprekken gaan door.",
+  "inbox.dmAccepted": "{name} heeft je berichtverzoek geaccepteerd",
 };

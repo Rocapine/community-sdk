@@ -386,4 +386,13 @@ export const ro: Record<string, string> = {
   "dms.blockedMember": "Persoană blocată",
   "chat.unavailable": "Această conversație nu mai este disponibilă.",
   "dms.request.error": "Ceva n-a mers. Încearcă din nou.",
+  "dms.message": "Trimite mesaj",
+  "dms.new.title": "Mesaj nou",
+  "dms.new.search": "Caută un membru…",
+  "dms.new.empty": "Niciun rezultat.",
+  "dms.error.tooManyRequests": "Azi nu mai poți începe alte conversații. Încearcă mâine.",
+  "profile.receiveDms": "Primește mesaje directe",
+  "profile.receiveDmsHelper":
+    "Dacă e oprit, nimeni nu poate începe o conversație nouă cu tine. Cele în curs continuă.",
+  "inbox.dmAccepted": "{name} ți-a acceptat cererea de mesaj",
 };

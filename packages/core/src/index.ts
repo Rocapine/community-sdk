@@ -301,6 +301,7 @@ export {
   useAcceptsDms,
   useBlockAndReportRequest,
   useDeclineRequest,
+  dmFlagQueryOptions,
   useDmFlags,
   useDmRequests,
   useMemberSearch,

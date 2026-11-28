@@ -6,7 +6,8 @@
 // when the group is muted; "Explore groups" on top). `unified` mixes both, Requests on
 // top and "Explore groups" at the bottom. With one module, that half without tabs (and
 // with dms and the home's "Feed | Groups" selector, groups live there). A plain screen:
-// the host pads the top. Renders nothing when no messaging module is on.
+// the host pads the top. Renders nothing when no messaging module is on. With
+// `dms.entryPoints` holding `"newMessage"`, a pencil over the DMs opens `NewMessageSheet`.
 import {
   COMMUNITY_EVENTS,
   dmsSettings,
@@ -36,16 +37,18 @@ import type { CommunityTheme } from "../theme";
 import { Avatar } from "../components/Avatar";
 import { ScreenBackground } from "../components/ScreenBackground";
 import { SegmentedTabs } from "../components/SegmentedTabs";
+import { NewMessageSheet } from "../components/NewMessageSheet";
 import { RequestsScreen } from "./RequestsScreen";
 import { hubView, showRequestsRow } from "../utils/chat";
 import { lastMessagePreview } from "../utils/groups";
+import { useMessageMember } from "../utils/messageMember";
 import { isQueryLoading } from "../utils/query";
 import { formatTimeAgo, useNow } from "../utils/time";
 
 export type MessagesScreenProps = {
   /** The tab to open on (tabs layout, both modules on). Default `"conversations"`. */
   initialTab?: "conversations" | "groups";
-  /** Opens a conversation: a group or a DM. */
+  /** Opens a conversation: a group or a DM (also one just started from the pencil). */
   onOpenConversation(id: string): void;
   onOpenExplore(): void;
   /** Opens the DM requests on the host's own route (`RequestsScreen`). Without it, the
@@ -92,6 +95,10 @@ function Messages({
   const [tab, setTab] = useState<Tab>(initialTab);
   // The requests shown inside this screen (no `onOpenRequests`).
   const [nested, setNested] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const messageMember = useMessageMember(({ conversationId }) =>
+    onOpenConversation(conversationId),
+  );
 
   useEffect(() => {
     emitEvent(cfg, COMMUNITY_EVENTS.messagesOpened);
@@ -144,6 +151,7 @@ function Messages({
   ) : null;
 
   const header = showGroups ? (exploreAtBottom ? null : explore) : requestsRow;
+  const newMessage = !showGroups && !!dmsSettings(cfg)?.entryPoints.includes("newMessage");
 
   if (nested)
     return (
@@ -171,6 +179,19 @@ function Messages({
         <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
           {t("messages.title")}
         </Text>
+        {newMessage && (
+          <Pressable
+            onPress={() =>
+              messageMember.accountMissing ? cfg.host.onAccountRequired?.("dm") : setPicking(true)
+            }
+            disabled={messageMember.pending}
+            style={styles.headerButton}
+            accessibilityRole="button"
+            accessibilityLabel={t("dms.new.title")}
+          >
+            <icons.compose size={22} color={theme.colors.textPrimary} weight="regular" />
+          </Pressable>
+        )}
       </View>
 
       {view === "tabs" && (
@@ -230,6 +251,13 @@ function Messages({
               tintColor={theme.colors.accent}
             />
           }
+        />
+      )}
+      {newMessage && (
+        <NewMessageSheet
+          visible={picking}
+          onClose={() => setPicking(false)}
+          onPick={(memberId) => messageMember.message(memberId, "newMessage")}
         />
       )}
     </View>

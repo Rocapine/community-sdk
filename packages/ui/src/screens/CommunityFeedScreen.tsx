@@ -47,6 +47,9 @@
 //    (opened through `onOpenMessages`), and with `messaging.homeLayout: "segmented"`
 //    a "Feed | Groups" selector under the header (validated mockup A) whose Groups side
 //    is `GroupsHome`.
+//  - Dms module: the `dms` header item (Messages on its Conversations tab), and
+//    "Message" in post menus and in this screen's thread (`dms.entryPoints` has
+//    `"contextMenu"`), opened through `onOpenMessages({ conversationId })`.
 
 import {
   COMMUNITY_EVENTS,
@@ -65,6 +68,7 @@ import {
   type PostAttachment,
   useUnreadNotificationCount,
   presenceSettings,
+  dmsSettings,
   groupsSettings,
   messagingSettings,
   useConversations,
@@ -129,6 +133,7 @@ import { SegmentedTabs } from "../components/SegmentedTabs";
 import { GroupLinkContext, type GroupLink } from "../components/GroupAttachment";
 import { GroupsHome } from "../components/GroupsHome";
 import { joinGate } from "../utils/groups";
+import { useMessageMember } from "../utils/messageMember";
 import { homeSegment, rememberHomeSegment, type HomeSegment } from "../utils/homeSegment";
 import { isQueryLoading } from "../utils/query";
 import { uniqueById } from "../utils/pages";
@@ -161,10 +166,11 @@ export function CommunityFeedScreen({
 }: {
   onOpenProfile(userId: string, source?: ProfileSource): void;
   onOpenInbox?: () => void;
-  /** Groups module: opens the Messages page (the `messages` / `groups` header items), or
-   * a group (`groupId`; `preview`: read-only, I'm not a member) from a group card or the
-   * Groups home. `conversationId` is for direct messages, later. Absent ⇒ no messages
-   * header items, no Groups home, and group cards only join. */
+  /** Groups or dms module: opens the Messages page (the `messages` / `groups` / `dms`
+   * header items, `tab` saying which), a group (`groupId`; `preview`: read-only, I'm not
+   * a member) from a group card or the Groups home, or a DM (`conversationId`) started
+   * from a post or comment menu. Absent ⇒ no messages header items, no Groups home, no
+   * "Message" in menus, and group cards only join. */
   onOpenMessages?: (target?: {
     conversationId?: string;
     groupId?: string;
@@ -263,6 +269,10 @@ export function CommunityFeedScreen({
   const deleteContent = useDeleteContent();
   const pinMenu = usePinMenu();
   const topicStyles = useTopicStyles();
+  // Read through a ref: the post menu stays memoized (see `renderItem`).
+  const messageMenuItems = useMessageMember(onOpenMessages).menuItems;
+  const messageMenu = useRef(messageMenuItems);
+  messageMenu.current = messageMenuItems;
 
   useEffect(() => {
     emitEvent(cfg, COMMUNITY_EVENTS.opened);
@@ -536,7 +546,7 @@ export function CommunityFeedScreen({
   }, [postRequestedAt]);
 
   const openPostMenu = useCallback(
-    (post: FeedPost) => {
+    async (post: FeedPost) => {
       if (post.isOwn) {
         const askDelete = () =>
           Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
@@ -556,8 +566,10 @@ export function CommunityFeedScreen({
         ]);
         return;
       }
+      const message = await messageMenu.current(post.authorId);
       Alert.alert(post.authorName, undefined, [
         ...pinMenu(post),
+        ...message,
         {
           text: t("menu.reportPost"),
           onPress: () =>
@@ -619,9 +631,9 @@ export function CommunityFeedScreen({
   const zones = resolveHeaderZones(header, {
     inbox: !!cfg.modules.inbox && !!onOpenInbox,
     online: !!presenceSettings(cfg),
-    messaging: !!groups && !!onOpenMessages,
-    // Direct messages don't exist yet.
-    dms: false,
+    messaging: !!messagingSettings(cfg) && !!onOpenMessages,
+    groups: !!groups && !!onOpenMessages,
+    dms: !!dmsSettings(cfg) && !!onOpenMessages,
   });
   // The row bleeds out so icon glyphs sit flush with the content edge. A logo or the
   // online count first on the left lines up with the first topic tab's label instead;
@@ -681,7 +693,13 @@ export function CommunityFeedScreen({
           />
         );
       case "dms":
-        return null;
+        return (
+          <MessagesButton
+            key={index}
+            kind="messages"
+            onPress={() => onOpenMessages!({ tab: "conversations" })}
+          />
+        );
       case "online":
         return <OnlinePill key={index} style={inset} />;
       case "search":
@@ -966,6 +984,7 @@ export function CommunityFeedScreen({
             onClose={() => setActivePostId(null)}
             onOpenProfile={onOpenProfile}
             onPressTopic={selectTopic}
+            onOpenMessages={onOpenMessages}
             slots={slots}
             beforeSubmitComment={beforeSubmitComment}
           />

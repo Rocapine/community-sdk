@@ -42,6 +42,7 @@
 
 import {
   COMMUNITY_EVENTS,
+  dmsSettings,
   emitEvent,
   isProfileUnavailable,
   useBlockedMembers,
@@ -50,12 +51,13 @@ import {
   useCommunityConfig,
   type MemberBadges,
   useDeleteContent,
+  useDmFlags,
   useMyUid,
   useProfile,
   useUserPosts,
   type FeedPost,
 } from "@rocapine/community-core";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -76,6 +78,8 @@ import { ReportSheet, type ReportTarget } from "../components/ReportSheet";
 import { PressableScale } from "../components/PressableScale";
 import { useRenderMemberBadge } from "../components/MemberBadge";
 import { badgesFor } from "../utils/badges";
+import { canMessage } from "../utils/dms";
+import { useMessageMember, type OpenDm } from "../utils/messageMember";
 import { isQueryLoading } from "../utils/query";
 import { ScreenBackground } from "../components/ScreenBackground";
 import { ProfileEditSheet } from "./ProfileEditSheet";
@@ -91,6 +95,7 @@ export function ProfileScreen({
   onBack,
   onOpenBlockedMembers,
   onPressTopic,
+  onOpenMessages,
   slots,
   topInset = 0,
 }: {
@@ -110,6 +115,9 @@ export function ProfileScreen({
    * that topic (see `CommunityFeedScreen`'s `topicRequest`). Absent: topics
    * are not tappable here. */
   onPressTopic?(topicId: string): void;
+  /** Dms module: opens a DM started from this profile (the "Message" button, per
+   * `dms.entryPoints`; the feed's `onOpenMessages` fits). Absent: no "Message". */
+  onOpenMessages?: OpenDm;
   slots?: PostSlots;
   // Top safe-area inset in px. This screen owns its back button and is meant
   // to be mounted as a full-screen route, so on a notched device the host
@@ -137,6 +145,18 @@ export function ProfileScreen({
   );
   const deleteContent = useDeleteContent();
   const pinMenu = usePinMenu();
+  const messageMember = useMessageMember(onOpenMessages);
+  const dmFlag = useDmFlags(useMemo(() => [userId], [userId]))[userId] === true;
+  const showMessage =
+    !!onOpenMessages &&
+    canMessage({
+      memberId: userId,
+      me: myUid,
+      dms: dmsSettings(cfg),
+      entryPoint: "profile",
+      flag: dmFlag,
+      blocked: unavailable,
+    });
 
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -164,7 +184,7 @@ export function ProfileScreen({
     if (userPosts.hasNextPage && !userPosts.isFetchingNextPage) userPosts.fetchNextPage();
   };
 
-  const openPostMenu = (post: FeedPost) => {
+  const openPostMenu = async (post: FeedPost) => {
     if (post.isOwn) {
       const askDelete = () =>
         Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
@@ -184,8 +204,10 @@ export function ProfileScreen({
       ]);
       return;
     }
+    const message = await messageMember.menuItems(post.authorId);
     Alert.alert(post.authorName, undefined, [
       ...pinMenu(post),
+      ...message,
       {
         text: t("menu.reportPost"),
         onPress: () =>
@@ -360,6 +382,18 @@ export function ProfileScreen({
                 )}
                 {profile.data.bio ? <Text style={styles.bio}>{profile.data.bio}</Text> : null}
                 <ProfileBadges badges={profile.data.badges} />
+                {showMessage && (
+                  <PressableScale
+                    onPress={() => messageMember.message(userId, "profile")}
+                    disabled={messageMember.pending}
+                    style={[styles.editPill, styles.messagePill]}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("dms.message")}
+                  >
+                    <icons.messages size={16} color={theme.colors.textPrimary} weight="bold" />
+                    <Text style={styles.editPillLabel}>{t("dms.message")}</Text>
+                  </PressableScale>
+                )}
                 {isMe && (
                   <PressableScale onPress={() => setEditOpen(true)} style={styles.editPill}>
                     <Text style={styles.editPillLabel}>{t("profile.editProfile")}</Text>
@@ -492,6 +526,7 @@ function makeStyles(theme: CommunityTheme) {
       paddingVertical: theme.spacing(2.5),
       paddingHorizontal: theme.spacing(5),
     },
+    messagePill: { flexDirection: "row", alignItems: "center", gap: theme.spacing(2) },
     editPillLabel: {
       ...theme.typography.meta,
       fontFamily: theme.fonts.medium,

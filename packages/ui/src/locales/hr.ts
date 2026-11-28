@@ -385,4 +385,13 @@ export const hr: Record<string, string> = {
   "dms.blockedMember": "Blokirana osoba",
   "chat.unavailable": "Ovaj razgovor više nije dostupan.",
   "dms.request.error": "Nešto je pošlo po zlu. Pokušaj ponovno.",
+  "dms.message": "Pošalji poruku",
+  "dms.new.title": "Nova poruka",
+  "dms.new.search": "Traži člana…",
+  "dms.new.empty": "Nitko nije pronađen.",
+  "dms.error.tooManyRequests": "Danas ne možeš započeti više razgovora. Pokušaj sutra.",
+  "profile.receiveDms": "Primaj privatne poruke",
+  "profile.receiveDmsHelper":
+    "Kad je isključeno, nitko ne može započeti novi razgovor s tobom. Postojeći se nastavljaju.",
+  "inbox.dmAccepted": "{name} je prihvatio/la tvoj zahtjev za poruku",
 };

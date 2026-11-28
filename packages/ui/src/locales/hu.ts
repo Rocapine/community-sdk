@@ -367,4 +367,13 @@ export const hu: Record<string, string> = {
   "dms.blockedMember": "Letiltott tag",
   "chat.unavailable": "Ez a beszélgetés már nem érhető el.",
   "dms.request.error": "Hiba történt. Próbáld újra.",
+  "dms.message": "Üzenet",
+  "dms.new.title": "Új üzenet",
+  "dms.new.search": "Tag keresése…",
+  "dms.new.empty": "Nincs találat.",
+  "dms.error.tooManyRequests": "Ma már nem kezdhetsz több beszélgetést. Próbáld újra holnap.",
+  "profile.receiveDms": "Közvetlen üzenetek fogadása",
+  "profile.receiveDmsHelper":
+    "Ha ki van kapcsolva, senki sem kezdhet veled új beszélgetést. A meglévők folytatódnak.",
+  "inbox.dmAccepted": "{name} elfogadta az üzenetkérésedet",
 };

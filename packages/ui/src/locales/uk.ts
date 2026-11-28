@@ -387,4 +387,13 @@ export const uk: Record<string, string> = {
   "dms.blockedMember": "Заблокований учасник",
   "chat.unavailable": "Ця розмова більше недоступна.",
   "dms.request.error": "Щось пішло не так. Спробуй ще раз.",
+  "dms.message": "Написати",
+  "dms.new.title": "Нове повідомлення",
+  "dms.new.search": "Знайти учасника…",
+  "dms.new.empty": "Нікого не знайдено.",
+  "dms.error.tooManyRequests": "Сьогодні вже не можна почати нове листування. Спробуй завтра.",
+  "profile.receiveDms": "Отримувати особисті повідомлення",
+  "profile.receiveDmsHelper":
+    "Якщо вимкнено, ніхто не зможе почати з тобою нове листування. Поточні тривають.",
+  "inbox.dmAccepted": "{name} прийняв(ла) твій запит на листування",
 };

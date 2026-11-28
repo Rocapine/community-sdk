@@ -25,8 +25,9 @@
 //  - Groups module: `group_approved` / `group_field_rejected` open the group and
 //    `group_member_removed` its preview (nothing with `groups.preview: "none"`), through
 //    `onOpenMessages`, the feed's own prop (see `inboxRowTarget`).
-//  - Only the standard kinds (`like`/`comment`/`reply`/`reaction`/`admin_post` and
-//    the three group events) get a built-in row; anything else calls `renderInboxRow?.(item, null)`
+//  - Dms module: `dm_request_accepted` opens the DM, through `onOpenMessages` too.
+//  - Only the standard kinds (`like`/`comment`/`reply`/`reaction`/`admin_post`, the
+//    three group events and `dm_request_accepted`) get a built-in row; anything else calls `renderInboxRow?.(item, null)`
 //    (mirrors `PostSlots`' `renderPostFooter?.(post, defaults) ?? defaults`
 //    pattern from `CommunityPost`, except the fallback here is `null` since
 //    there is no built-in row for an unknown kind to fall back to).
@@ -73,6 +74,7 @@ const KNOWN_KINDS = new Set<InboxItem["kind"]>([
   "reaction",
   "admin_post",
   ...GROUP_INBOX_KINDS,
+  "dm_request_accepted",
 ]);
 
 export function NotificationInboxScreen({
@@ -84,8 +86,11 @@ export function NotificationInboxScreen({
 }: {
   onOpenPost(postId: string): void;
   /** Groups module: opens a group a `group_*` row is about (`preview`: read-only, for a
-   * removed member). Same callback as the feed's `onOpenMessages`. */
-  onOpenMessages?: (target: { groupId: string; preview?: boolean }) => void;
+   * removed member); dms module: the DM a `dm_request_accepted` row is about. Same
+   * callback as the feed's `onOpenMessages`. */
+  onOpenMessages?: (
+    target: { groupId: string; preview?: boolean } | { conversationId: string },
+  ) => void;
   /** Shows a back button left of the centred title. */
   onBack?: () => void;
   /** Tapped row with no post attached (e.g. a deleted announcement). */
@@ -154,8 +159,9 @@ export function NotificationInboxScreen({
     const target = inboxRowTarget(item, groupsPreview);
     if (target && "postId" in target) onOpenPost(target.postId);
     else if (target) onOpenMessages?.(target);
-    // A group row with nothing to open stays put.
-    else if (!GROUP_INBOX_KINDS.includes(item.kind)) onOpenCommunity?.();
+    // A group or DM row with nothing to open stays put.
+    else if (!GROUP_INBOX_KINDS.includes(item.kind) && item.kind !== "dm_request_accepted")
+      onOpenCommunity?.();
   };
 
   return (
@@ -245,6 +251,8 @@ function KindIcon({ kind }: { kind: InboxItem["kind"] }) {
     case "group_field_rejected":
     case "group_member_removed":
       return <icons.groups size={19} color={color} weight="fill" />;
+    case "dm_request_accepted":
+      return <icons.messages size={19} color={color} weight="fill" />;
     default:
       return null;
   }

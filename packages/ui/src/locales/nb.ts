@@ -364,4 +364,13 @@ export const nb: Record<string, string> = {
   "dms.blockedMember": "Blokkert medlem",
   "chat.unavailable": "Denne samtalen er ikke lenger tilgjengelig.",
   "dms.request.error": "Noe gikk galt. Prøv igjen.",
+  "dms.message": "Send melding",
+  "dms.new.title": "Ny melding",
+  "dms.new.search": "Søk etter et medlem…",
+  "dms.new.empty": "Fant ingen.",
+  "dms.error.tooManyRequests": "Du kan ikke starte flere samtaler i dag. Prøv igjen i morgen.",
+  "profile.receiveDms": "Motta private meldinger",
+  "profile.receiveDmsHelper":
+    "Når den er av, kan ingen starte en ny samtale med deg. Samtalene du har, fortsetter.",
+  "inbox.dmAccepted": "{name} godtok meldingsforespørselen din",
 };

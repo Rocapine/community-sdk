@@ -9,8 +9,9 @@ import type { ImageProps } from "expo-image";
  *  - `inbox`: the notification bell (only with the inbox module and `onOpenInbox`)
  *  - `online`: the live online count (presence module)
  *  - `messages`: the Messages page; `groups`: that page on its Groups tab; `dms`: on its
- *    direct messages (groups module and `onOpenMessages`; `dms` waits for direct messages).
- *    Each shows the unread badge per `messaging.badge`
+ *    Conversations tab (`onOpenMessages`, and the groups or dms module; `groups` needs
+ *    groups, `dms` needs dms). Each shows the unread badge per `messaging.badge`. With
+ *    `messaging.homeLayout: "segmented"`, groups live on the home: use `dms` here
  *  - `{ logo }`: an image, e.g. the app's logo (pass the source matching your theme) */
 export type FeedHeaderItem =
   | "title"
@@ -64,7 +65,7 @@ export const DEFAULT_FEED_HEADER: FeedHeaderConfig = {
 
 export function resolveHeaderZones(
   config: FeedHeaderConfig,
-  opts: { inbox: boolean; online: boolean; messaging: boolean; dms: boolean },
+  opts: { inbox: boolean; online: boolean; messaging: boolean; groups: boolean; dms: boolean },
 ): { left: FeedHeaderItem[]; center: FeedHeaderItem[]; right: FeedHeaderItem[]; visible: boolean } {
   if (!config.left && !config.center && !config.right) config = { ...DEFAULT_FEED_HEADER };
   const keep = (items: FeedHeaderItem[] = []) =>
@@ -72,7 +73,8 @@ export function resolveHeaderZones(
       (item) =>
         (item !== "inbox" || opts.inbox) &&
         (item !== "online" || opts.online) &&
-        ((item !== "messages" && item !== "groups") || opts.messaging) &&
+        (item !== "messages" || opts.messaging) &&
+        (item !== "groups" || opts.groups) &&
         (item !== "dms" || opts.dms),
     );
   const left = keep(config.left);

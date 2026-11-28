@@ -33,6 +33,7 @@ import {
   showRequestsRow,
 } from "../utils/chat";
 import { lastMessagePreview } from "../utils/groups";
+import { canMessage } from "../utils/dms";
 
 const t = makeT("en");
 
@@ -237,6 +238,30 @@ describe("lastMessagePreview in a DM", () => {
   });
 });
 
+describe("canMessage", () => {
+  const base = {
+    memberId: "m",
+    me: "me",
+    dms: { entryPoints: ["profile" as const, "contextMenu" as const] },
+    entryPoint: "profile" as const,
+    flag: true,
+  };
+  it("shows on someone else's profile I may message", () => {
+    expect(canMessage(base)).toBe(true);
+    expect(canMessage({ ...base, entryPoint: "contextMenu" })).toBe(true);
+  });
+  it.each([
+    ["my own profile", { memberId: "me" }],
+    ["identity unknown", { me: null }],
+    ["dms off", { dms: null }],
+    ["entry point off", { entryPoint: "newMessage" as const }],
+    ["they refuse DMs, or have no account the app requires (flag false)", { flag: false }],
+    ["a block either way", { blocked: true }],
+  ])("hides on %s", (_label, change) => {
+    expect(canMessage({ ...base, ...change })).toBe(false);
+  });
+});
+
 describe("DM copy", () => {
   const keys = [
     "messages.tabs.conversations",
@@ -260,6 +285,14 @@ describe("DM copy", () => {
     "chat.unavailable",
     "dms.blockedMember",
     "dms.request.error",
+    "dms.message",
+    "dms.new.title",
+    "dms.new.search",
+    "dms.new.empty",
+    "dms.error.tooManyRequests",
+    "profile.receiveDms",
+    "profile.receiveDmsHelper",
+    "inbox.dmAccepted",
   ];
   const catalogs = {
     en,

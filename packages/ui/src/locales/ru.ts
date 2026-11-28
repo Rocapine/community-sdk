@@ -383,4 +383,13 @@ export const ru: Record<string, string> = {
   "dms.blockedMember": "Заблокированный участник",
   "chat.unavailable": "Эта переписка больше недоступна.",
   "dms.request.error": "Что-то пошло не так. Попробуй ещё раз.",
+  "dms.message": "Написать",
+  "dms.new.title": "Новое сообщение",
+  "dms.new.search": "Найти участника…",
+  "dms.new.empty": "Никого не нашлось.",
+  "dms.error.tooManyRequests": "Сегодня больше нельзя начать новую переписку. Попробуй завтра.",
+  "profile.receiveDms": "Получать личные сообщения",
+  "profile.receiveDmsHelper":
+    "Если выключено, никто не сможет начать с тобой новую переписку. Текущие продолжатся.",
+  "inbox.dmAccepted": "{name} принял(а) твой запрос на переписку",
 };

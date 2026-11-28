@@ -400,4 +400,14 @@ export const de: Record<string, string> = {
   "dms.blockedMember": "Blockiertes Mitglied",
   "chat.unavailable": "Diese Unterhaltung ist nicht mehr verfügbar.",
   "dms.request.error": "Etwas ist schiefgelaufen. Versuch es noch einmal.",
+  "dms.message": "Nachricht schreiben",
+  "dms.new.title": "Neue Nachricht",
+  "dms.new.search": "Mitglied suchen…",
+  "dms.new.empty": "Niemanden gefunden.",
+  "dms.error.tooManyRequests":
+    "Du kannst heute keine weiteren Unterhaltungen beginnen. Versuch es morgen noch einmal.",
+  "profile.receiveDms": "Direktnachrichten empfangen",
+  "profile.receiveDmsHelper":
+    "Wenn das aus ist, kann niemand eine neue Unterhaltung mit dir beginnen. Bestehende laufen weiter.",
+  "inbox.dmAccepted": "{name} hat deine Nachrichtenanfrage angenommen",
 };

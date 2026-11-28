@@ -370,4 +370,13 @@ export const ptPT: Record<string, string> = {
   "dms.blockedMember": "Membro bloqueado",
   "chat.unavailable": "Esta conversa já não está disponível.",
   "dms.request.error": "Algo correu mal. Tenta de novo.",
+  "dms.message": "Enviar mensagem",
+  "dms.new.title": "Nova mensagem",
+  "dms.new.search": "Procurar um membro…",
+  "dms.new.empty": "Nenhum resultado.",
+  "dms.error.tooManyRequests": "Hoje já não podes começar mais conversas. Tenta de novo amanhã.",
+  "profile.receiveDms": "Receber mensagens diretas",
+  "profile.receiveDmsHelper":
+    "Desativado, ninguém pode começar uma conversa nova contigo. As que já existem continuam.",
+  "inbox.dmAccepted": "{name} aceitou o teu pedido de mensagem",
 };

@@ -77,6 +77,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "rea
 import type { TextInputInstance } from "react-native";
 import { CommunitySheet, SHEET_GUTTER, SheetScrollView, SheetTextInput } from "../Sheet";
 import { usePinMenu } from "../utils/pinMenu";
+import { useMessageMember, type OpenDm } from "../utils/messageMember";
 import { useCommunityIcons, useCommunityTheme, useT, useThemedStyles } from "../ThemeProvider";
 import type { CommunityTheme } from "../theme";
 import { CommunityPost, type PostSlots, type ProfileSource } from "../components/CommunityPost";
@@ -136,6 +137,7 @@ export function ThreadSheet({
   onClose,
   onOpenProfile,
   onPressTopic,
+  onOpenMessages,
   slots,
   beforeSubmitComment,
 }: {
@@ -148,6 +150,9 @@ export function ThreadSheet({
    * feed selects that tab; elsewhere a host routes back to its feed). Absent:
    * the topic is not tappable. */
   onPressTopic?(topicId: string): void;
+  /** Dms module: opens a DM started from the post or a comment menu ("Message", with
+   * `"contextMenu"` in `dms.entryPoints`); the sheet closes first. Absent: no item. */
+  onOpenMessages?: OpenDm;
   slots?: PostSlots;
   /** Awaited before the comment is actually created (`useCreateComment().mutate`).
    * Absent ⇒ byte-identical behavior. Resolving/returning `false` (or
@@ -168,6 +173,14 @@ export function ThreadSheet({
   const blockUser = useBlockUser();
   const deleteContent = useDeleteContent();
   const pinMenu = usePinMenu();
+  // The sheet is a Modal: close it before the host pushes the conversation.
+  const messageMember = useMessageMember(
+    onOpenMessages &&
+      ((target) => {
+        onClose();
+        onOpenMessages(target);
+      }),
+  );
 
   // Keep the last opened post's id through the close animation so content
   // doesn't flash empty while the sheet slides down (mirrors the mold's own
@@ -413,7 +426,7 @@ export function ThreadSheet({
     pendingReport.current = null;
   };
 
-  const openPostMenu = (p: FeedPost) => {
+  const openPostMenu = async (p: FeedPost) => {
     if (p.isOwn) {
       const askDelete = () =>
         Alert.alert(t("menu.deletePostTitle"), t("menu.deletePostBody"), [
@@ -436,8 +449,10 @@ export function ThreadSheet({
       ]);
       return;
     }
+    const message = await messageMember.menuItems(p.authorId);
     Alert.alert(p.authorName, undefined, [
       ...pinMenu(p),
+      ...message,
       {
         text: t("menu.reportPost"),
         onPress: () =>
@@ -477,7 +492,7 @@ export function ThreadSheet({
     ]);
   };
 
-  const openCommentMenu = (c: ThreadComment) => {
+  const openCommentMenu = async (c: ThreadComment) => {
     if (c.isOwn) {
       Alert.alert(t("menu.deleteCommentTitle"), undefined, [
         { text: t("menu.cancel"), style: "cancel" },
@@ -489,7 +504,9 @@ export function ThreadSheet({
       ]);
       return;
     }
+    const message = await messageMember.menuItems(c.authorId);
     Alert.alert(c.authorName, undefined, [
+      ...message,
       {
         text: t("menu.reportComment"),
         onPress: () =>

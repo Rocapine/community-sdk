@@ -363,4 +363,13 @@ export const da: Record<string, string> = {
   "dms.blockedMember": "Blokeret medlem",
   "chat.unavailable": "Denne samtale er ikke længere tilgængelig.",
   "dms.request.error": "Noget gik galt. Prøv igen.",
+  "dms.message": "Send besked",
+  "dms.new.title": "Ny besked",
+  "dms.new.search": "Søg efter et medlem…",
+  "dms.new.empty": "Ingen fundet.",
+  "dms.error.tooManyRequests": "Du kan ikke starte flere samtaler i dag. Prøv igen i morgen.",
+  "profile.receiveDms": "Modtag private beskeder",
+  "profile.receiveDmsHelper":
+    "Når den er slået fra, kan ingen starte en ny samtale med dig. Dine nuværende samtaler fortsætter.",
+  "inbox.dmAccepted": "{name} accepterede din beskedanmodning",
 };

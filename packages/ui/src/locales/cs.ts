@@ -383,4 +383,13 @@ export const cs: Record<string, string> = {
   "dms.blockedMember": "Zablokovaná osoba",
   "chat.unavailable": "Tato konverzace už není dostupná.",
   "dms.request.error": "Něco se pokazilo. Zkus to znovu.",
+  "dms.message": "Napsat zprávu",
+  "dms.new.title": "Nová zpráva",
+  "dms.new.search": "Hledat člena…",
+  "dms.new.empty": "Nikoho jsme nenašli.",
+  "dms.error.tooManyRequests": "Dnes už nemůžeš začít další konverzaci. Zkus to zítra.",
+  "profile.receiveDms": "Přijímat soukromé zprávy",
+  "profile.receiveDmsHelper":
+    "Když je to vypnuté, nikdo s tebou nezačne novou konverzaci. Ty stávající pokračují.",
+  "inbox.dmAccepted": "{name} přijal(a) tvou žádost o zprávu",
 };

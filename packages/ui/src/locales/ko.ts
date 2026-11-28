@@ -365,4 +365,13 @@ export const ko: Record<string, string> = {
   "dms.blockedMember": "차단된 멤버",
   "chat.unavailable": "더 이상 이용할 수 없는 대화예요.",
   "dms.request.error": "문제가 생겼어요. 다시 시도해 주세요.",
+  "dms.message": "메시지 보내기",
+  "dms.new.title": "새 메시지",
+  "dms.new.search": "멤버 검색…",
+  "dms.new.empty": "찾는 멤버가 없어요.",
+  "dms.error.tooManyRequests":
+    "오늘은 더 이상 새 대화를 시작할 수 없어요. 내일 다시 시도해 주세요.",
+  "profile.receiveDms": "다이렉트 메시지 받기",
+  "profile.receiveDmsHelper": "끄면 아무도 새 대화를 시작할 수 없어요. 진행 중인 대화는 계속돼요.",
+  "inbox.dmAccepted": "{name}님이 메시지 요청을 수락했어요",
 };

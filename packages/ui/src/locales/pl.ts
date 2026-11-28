@@ -413,4 +413,13 @@ export const pl: Record<string, string> = {
   "dms.blockedMember": "Zablokowana osoba",
   "chat.unavailable": "Ta rozmowa nie jest już dostępna.",
   "dms.request.error": "Coś poszło nie tak. Spróbuj ponownie.",
+  "dms.message": "Napisz wiadomość",
+  "dms.new.title": "Nowa wiadomość",
+  "dms.new.search": "Szukaj członka…",
+  "dms.new.empty": "Nikogo nie znaleziono.",
+  "dms.error.tooManyRequests": "Dziś nie możesz już zacząć kolejnej rozmowy. Spróbuj jutro.",
+  "profile.receiveDms": "Odbieraj prywatne wiadomości",
+  "profile.receiveDmsHelper":
+    "Gdy to jest wyłączone, nikt nie może zacząć z tobą nowej rozmowy. Obecne trwają dalej.",
+  "inbox.dmAccepted": "{name} zaakceptował(a) twoją prośbę o wiadomość",
 };

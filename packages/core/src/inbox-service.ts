@@ -26,11 +26,13 @@ export type InboxItem = {
     | "group_approved"
     | "group_field_rejected"
     | "group_member_removed"
+    | "dm_request_accepted"
     | (string & {});
   createdAt: string;
   actorName: string | null;
   postId: string | null;
-  /** The group a `group_*` item is about (inbox/005); absent on older backends. */
+  /** The conversation a `group_*` item (its group) or a `dm_request_accepted` item (the
+   * DM) is about (inbox/005); absent on older backends. */
   groupId?: string | null;
   payload: Record<string, unknown>;
 };
