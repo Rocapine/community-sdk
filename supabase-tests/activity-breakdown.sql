@@ -89,7 +89,8 @@ begin
     ('a@example.com', 'hide', pa, '2001-04-03 12:00Z'), ('a@example.com', 'restore', pa, '2001-04-07 12:00Z'),  -- previous: 2
     ('a@example.com', 'hide', pa, '2001-05-01 12:00Z'),                                     -- outside both
     ('a@example.com', 'publish_post', pa, '2001-04-12 12:00Z'),                             -- not moderation: out (both periods)
-    ('a@example.com', 'publish_post', pa, '2001-04-06 12:00Z');
+    ('a@example.com', 'publish_post', pa, '2001-04-06 12:00Z'),
+    ('account ban', 'ban', pa, '2001-04-11 12:00Z');                                        -- automatic (accounts/003): out
 
   j := public.admin_activity_breakdown('2001-04-09', '2001-04-15', 'Europe/Paris');
   assert (select array_agg(k order by k) from jsonb_object_keys(j) k)

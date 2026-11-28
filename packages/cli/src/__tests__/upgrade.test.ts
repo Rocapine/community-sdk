@@ -148,7 +148,7 @@ describe("runUpgrade", () => {
 
     const migrationsDir = path.join(cwd, "supabase", "migrations");
     const before = fs.readdirSync(migrationsDir).sort();
-    expect(before).toHaveLength(21);
+    expect(before).toHaveLength(22);
 
     // Simulate a newer SDK version shipping one additional core migration.
     fs.writeFileSync(
@@ -159,7 +159,7 @@ describe("runUpgrade", () => {
     const result = await runUpgrade(baseOptions());
 
     const after = fs.readdirSync(migrationsDir).sort();
-    expect(after).toHaveLength(22);
+    expect(after).toHaveLength(23);
 
     const newFiles = after.filter((f) => !before.includes(f));
     expect(newFiles).toHaveLength(1);
@@ -487,6 +487,7 @@ describe("runUpgrade", () => {
     expect(manifest.modules).toContain("accounts");
     expect(manifest.installedTemplates).toContain("accounts/accounts");
     expect(manifest.installedTemplates).toContain("accounts/merge_and_delete");
+    expect(manifest.installedTemplates).toContain("accounts/markers_and_bans");
     const fnDirs = fs.readdirSync(path.join(cwd, "supabase", "functions"));
     expect(fnDirs).toContain("account-session");
   });

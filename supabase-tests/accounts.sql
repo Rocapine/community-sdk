@@ -1,5 +1,6 @@
--- Account links and profile merge (accounts/001_accounts.sql, 002_merge_and_delete.sql, 003_merge_hooks.sql).
--- Run against a backend with core applied, after accounts/001, 002 and 003:
+-- Account links and profile merge (accounts/001_accounts.sql, accounts/002_merge_and_delete.sql,
+-- accounts/003_markers_and_bans.sql, accounts/003_merge_hooks.sql).
+-- Run against a backend with core applied, after accounts/001, 002 and both 003:
 --   npx supabase db query --linked --yes -f supabase-tests/accounts.sql
 -- It creates two auth users (so two profiles), merges them and always rolls back by raising at the
 -- end: the run passed when the error message is exactly ACCOUNTS_TESTS_PASSED.
@@ -13,6 +14,11 @@ declare
   s_m uuid := gen_random_uuid(); s_o uuid := gen_random_uuid();
   rec record;
   n int;
+  z uuid := gen_random_uuid(); w uuid := gen_random_uuid(); v uuid := gen_random_uuid(); u uuid := gen_random_uuid();
+  q uuid := gen_random_uuid(); q2 uuid := gen_random_uuid(); q3 uuid := gen_random_uuid();
+  q4 uuid := gen_random_uuid(); q5 uuid := gen_random_uuid();
+  r1 uuid := gen_random_uuid(); r2 uuid := gen_random_uuid();
+  ban_hash text := public.account_ban_hash('test', 'subject-ban');
   failed boolean;
   -- Every "table.column" that merge_profiles moves; a new foreign key to profiles must be added to
   -- merge_profiles AND here.
@@ -22,7 +28,8 @@ declare
     'post_drafts.author_id', 'notifications.user_id', 'notifications.actor_id',
     'notification_seen.user_id', 'notification_reads.user_id', 'poll_votes.user_id',
     'post_reactions.user_id', 'member_presence.user_id', 'push_tokens.user_id', 'push_devices.user_id',
-    -- merge_messaging (groups module), called by merge_profiles since accounts/003.
+    'profiles.merged_into', -- repointed by account_link_and_merge, not merge_profiles
+    -- merge_messaging (groups module), called by merge_profiles since accounts/003_merge_hooks.
     'conversation_members.user_id', 'messages.author_id', 'message_likes.user_id', 'groups.created_by',
     'group_removals.user_id'];
 begin
@@ -290,6 +297,129 @@ begin
   if to_regclass('public.push_devices') is not null then
     assert not exists (select 1 from public.push_devices where user_id = o), 'delete drops the push devices';
   end if;
+
+  -- Markers (accounts/003): account_link_and_merge marks each merged profile with its main, and a
+  -- profile already merged into it follows. account_delete_profile stamps account_deleted_at.
+  insert into auth.users (id) values (z), (w), (v), (u), (q), (q2), (q3), (q4), (q5);
+  update public.profiles set merged_into = z where id = w;
+  perform public.account_link_and_merge('test', 'subject-1', m, array[z, m]);
+  assert (select merged_into from public.profiles where id = z) = m, 'a merged profile points at its main';
+  assert (select merged_into from public.profiles where id = w) = m, 'a profile merged into it follows to main';
+  assert (select merged_into from public.profiles where id = m) is null, 'main is never marked, even in its own merge list';
+  assert (select account_deleted_at is not null from public.profiles where id = o), 'delete stamps account_deleted_at';
+
+  -- A profile merged away or deleted earlier, adopted again as main (candidates hook): both markers
+  -- cleared, even when the profile it was merged into is in its own merge list; nobody points at itself.
+  insert into auth.users (id) values (r1), (r2);
+  update public.profiles set merged_into = r2, account_deleted_at = now() where id = r1;
+  perform public.account_link_and_merge('test', 'subject-readopt', r1, array[r2]);
+  assert (select merged_into is null and account_deleted_at is null from public.profiles where id = r1),
+    're-adopted main loses both markers';
+  assert (select merged_into from public.profiles where id = r2) = r1, 'the merged profile points at main';
+  assert not exists (select 1 from public.profiles where merged_into = id), 'no profile is merged into itself';
+
+  -- A ban survives account deletion: v is linked and banned, then deleted as account-delete does
+  -- (account_delete_profile, then the link goes). Only the hash is kept, never the subject.
+  perform public.account_link_and_merge('test', 'subject-ban', v, '{}');
+  update public.profiles set is_banned = true where id = v;
+  perform public.account_delete_profile(v);
+  delete from public.account_links where profile_id = v;
+  assert exists (select 1 from public.account_bans where provider = 'test' and subject_hash = ban_hash),
+    'a banned deleted account keeps its ban as a hash';
+  assert not exists (select 1 from public.account_bans b where b::text like '%subject-ban%'), 'never the subject in clear';
+  assert ban_hash <> encode(sha256(convert_to('test:subject-ban', 'UTF8')), 'hex'), 'a keyed hash, not a plain sha256';
+  assert (select count(*) from public.account_ban_key) = 1, 'one key';
+  perform public.account_link_and_merge('test', 'subject-free', u, '{}');
+  perform public.account_delete_profile(u);
+  assert not exists (select 1 from public.account_bans where subject_hash = public.account_ban_hash('test', 'subject-free')),
+    'a deleted account that was not banned leaves no ban';
+
+  -- The account comes back on a fresh profile: banned, with one moderation action, once.
+  assert public.account_link_and_merge('test', 'subject-ban', q, '{}'), 'the account links again';
+  assert (select is_banned from public.profiles where id = q), 'a banned account that comes back is banned';
+  perform public.account_link_and_merge('test', 'subject-ban', q, '{}');
+  assert (select count(*) from public.moderation_actions where target_user_id = q) = 1, 'one moderation action, not one per sign-in';
+  assert exists (select 1 from public.moderation_actions where target_user_id = q and action = 'ban'
+                   and actor_email = 'account ban' and note = 'banned account came back'), 'the action says why';
+
+  -- Unbanned without account_unban (a plain is_banned = false): a later sign-in does not ban it again.
+  update public.profiles set is_banned = false where id = q;
+  assert not public.account_link_and_merge('test', 'subject-ban', q, '{}'), 'a later sign-in is not a new link';
+  assert not (select is_banned from public.profiles where id = q), 'a later sign-in never undoes an unban';
+  assert (select count(*) from public.moderation_actions where target_user_id = q) = 1, 'and writes no new ban action';
+
+  -- Unbanned while linked: the hash goes, the next profile of the account is not banned.
+  perform public.account_unban(q);
+  assert not exists (select 1 from public.account_bans where subject_hash = ban_hash), 'account_unban drops the hash';
+  update public.profiles set is_banned = false where id = q;
+  delete from public.account_links where profile_id = q;
+  perform public.account_link_and_merge('test', 'subject-ban', q2, '{}');
+  assert not (select is_banned from public.profiles where id = q2), 'an unbanned account comes back unbanned';
+
+  -- Banned, deleted, then unbanned from the dashboard (no link left), then back: not banned.
+  update public.profiles set is_banned = true where id = q2;
+  perform public.account_delete_profile(q2);
+  delete from public.account_links where profile_id = q2;
+  assert exists (select 1 from public.account_bans where subject_hash = ban_hash), 'banned again on deletion';
+  perform public.account_unban(q2);
+  assert not exists (select 1 from public.account_bans where subject_hash = ban_hash), 'account_unban finds a deleted profile''s ban';
+  perform public.account_link_and_merge('test', 'subject-ban', q3, '{}');
+  assert not (select is_banned from public.profiles where id = q3), 'unbanned after deletion, it comes back unbanned';
+
+  -- A stale ban heals: banned and deleted (a row), back banned on q4, unbanned with a plain
+  -- is_banned = false (no account_unban), deleted again: the row goes, the next return is not banned.
+  update public.profiles set is_banned = true where id = q3;
+  perform public.account_delete_profile(q3);
+  delete from public.account_links where profile_id = q3;
+  perform public.account_link_and_merge('test', 'subject-ban', q4, '{}');
+  assert (select is_banned from public.profiles where id = q4), 'back banned on q4';
+  update public.profiles set is_banned = false where id = q4;
+  assert exists (select 1 from public.account_bans where subject_hash = ban_hash), 'a plain unban leaves the row';
+  perform public.account_delete_profile(q4);
+  delete from public.account_links where profile_id = q4;
+  assert not exists (select 1 from public.account_bans where subject_hash = ban_hash),
+    'deleting the unbanned profile drops the stale row';
+  perform public.account_link_and_merge('test', 'subject-ban', q5, '{}');
+  assert not (select is_banned from public.profiles where id = q5), 'and the account comes back unbanned';
+
+  -- Service role only.
+  foreach r in array array['authenticated', 'anon'] loop
+    execute format('set local role %I', r);
+    failed := false;
+    begin
+      perform 1 from public.account_bans;
+    exception when insufficient_privilege then failed := true;
+    end;
+    reset role;
+    assert failed, r || ' must not read account_bans';
+    execute format('set local role %I', r);
+    failed := false;
+    begin
+      perform public.account_unban(gen_random_uuid());
+    exception when insufficient_privilege then failed := true;
+    end;
+    reset role;
+    assert failed, r || ' must not execute account_unban';
+  end loop;
+  -- The key and the hash: no API role, the service role included.
+  foreach r in array array['authenticated', 'anon', 'service_role'] loop
+    execute format('set local role %I', r);
+    failed := false;
+    begin
+      perform 1 from public.account_ban_key;
+    exception when insufficient_privilege then failed := true;
+    end;
+    reset role;
+    assert failed, r || ' must not read account_ban_key';
+    execute format('set local role %I', r);
+    failed := false;
+    begin
+      perform public.account_ban_hash('test', 'guess');
+    exception when insufficient_privilege then failed := true;
+    end;
+    reset role;
+    assert failed, r || ' must not execute account_ban_hash';
+  end loop;
 
   raise exception 'ACCOUNTS_TESTS_PASSED';
 end $$;
