@@ -467,3 +467,25 @@ it("a DM change on my own channel refetches my requests, conversations and badge
   watchDms(on(), qc)(); // groups only: no DM channel
   expect(realtime.subscribeDms).not.toHaveBeenCalled();
 });
+
+it("watchDms: the badge, the list and the requests share one subscription", () => {
+  const qc = new QueryClient();
+  const cfg = dmsCfg();
+  const unsubscribe = vi.fn();
+  vi.mocked(realtime.subscribeDms).mockClear();
+  vi.mocked(realtime.subscribeDms).mockReturnValue(unsubscribe);
+  const invalidate = vi.spyOn(qc, "invalidateQueries");
+  const stops = [watchDms(cfg, qc), watchDms(cfg, qc), watchDms(cfg, qc)];
+  expect(realtime.subscribeDms).toHaveBeenCalledTimes(1);
+  vi.mocked(realtime.subscribeDms).mock.calls[0]![1]();
+  expect(invalidate).toHaveBeenCalledTimes(3); // the three keys, once
+  stops[0]!();
+  stops[0]!(); // a second call is a no-op
+  stops[1]!();
+  expect(unsubscribe).not.toHaveBeenCalled();
+  stops[2]!();
+  expect(unsubscribe).toHaveBeenCalledTimes(1);
+  watchDms(cfg, qc)(); // a later watcher subscribes again
+  expect(realtime.subscribeDms).toHaveBeenCalledTimes(2);
+  vi.mocked(realtime.subscribeDms).mockReturnValue(() => {});
+});

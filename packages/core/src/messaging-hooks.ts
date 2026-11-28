@@ -144,12 +144,30 @@ const invalidateDms = (queryClient: QueryClient) =>
     ),
   );
 
+/** One DM subscription per query client, however many hooks watch it. */
+const dmsWatchers = new WeakMap<QueryClient, { users: number; stop(): void }>();
+
 /** The subscription behind `useDmsLive`, split out so it can be driven without React:
  * the server's `changed` on my own channel (dms/005) refetches my pending requests, my
- * conversations and the badge. Nothing with dms off. Returns the unsubscribe. */
+ * conversations and the badge, once per event however many watchers (the badge, the
+ * list, the requests) are mounted. Nothing with dms off. Returns the unsubscribe. */
 export function watchDms(cfg: ResolvedCommunityConfig, queryClient: QueryClient): () => void {
   if (!dmsEnabled(cfg)) return () => {};
-  return subscribeDms(cfg, () => void invalidateDms(queryClient));
+  let w = dmsWatchers.get(queryClient);
+  if (!w) {
+    w = { users: 0, stop: subscribeDms(cfg, () => void invalidateDms(queryClient)) };
+    dmsWatchers.set(queryClient, w);
+  }
+  const own = w;
+  own.users++;
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    if (--own.users > 0) return;
+    if (dmsWatchers.get(queryClient) === own) dmsWatchers.delete(queryClient);
+    own.stop();
+  };
 }
 
 /** Keeps my DM requests, conversations and badge live while mounted (`watchDms`). */
