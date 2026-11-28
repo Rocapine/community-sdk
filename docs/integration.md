@@ -439,12 +439,14 @@ without an account of my own it calls `host.onAccountRequired("dm")`. The server
 the same rule for both sides and refuses `account_required`.
 
 "Message" opens the DM for me only: the other member hears of it with my first message
-(backend `dms/006`), which runs the checks again at that moment. If they turned DMs off in
-between, the send is refused with a "doesn't take direct messages" line (`account_required`
-calls `host.onAccountRequired("dm")`). A DM nobody wrote in stays out of the Messages page,
-mine included. When we both open it without writing, my first message lands in their
-conversations, not their Requests: they opened it too. "Already has a DM" (the button kept
-for a member who turned DMs off later) means something was written to them in it.
+(backend `dms/006`–`007`), which runs the checks again at that moment. If they turned DMs off
+in between, the send is refused with a "doesn't take direct messages" line (`account_required`
+calls `host.onAccountRequired("dm")`, or shows the line without it). A DM nobody wrote in
+stays out of the Messages page, mine included; a host that renders `useConversations()`
+itself should drop the DMs whose `lastMessage` is `null` the same way. Until something is
+written, a DM we both opened is still a new DM: my first message runs the checks and, with
+`firstMessage: "requests"`, lands in their Requests. "Already has a DM" (the button kept for
+a member who turned DMs off later) means something was written in it.
 
 **Requests** (`firstMessage: "requests"`). The Messages page shows a Requests row while
 requests wait. A request opens read-only with the sender's context (groups in common, member

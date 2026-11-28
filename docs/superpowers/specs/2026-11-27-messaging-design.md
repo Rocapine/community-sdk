@@ -418,12 +418,17 @@ description, member count, "X online" (above 0), and "Join" or "Open".
     checks at that moment (their switch, blocks, the account rule, a recent decline, the
     day's budget in requests mode) and is refused otherwise. Until then the recipient has
     nothing: no row, no list entry, no request, no push. A DM nobody wrote in is left out
-    of the opener's Messages page too. When both open it without writing (a mutual start),
-    both rows are active and the first message lands as a conversation (no request, no
-    budget, no "request accepted"); `start_dm` accepts a request only when its sender wrote.
-    "Keeps working after the switch" means the other member has a row in the DM.
+    of the opener's Messages page too. Until something is written, a DM both opened is
+    still new: the first message runs the checks and, in requests mode, makes a request
+    (one from the budget); opening it again runs them too. Two first messages at the same
+    moment stay one conversation: in requests mode the second sender finds a request to
+    answer. `start_dm` accepts a request only when its sender wrote, and no "request
+    accepted" goes out for a DM nobody wrote in. "Keeps working after the switch" means
+    something was written in the DM (`last_message_at`).
   - The author of a DM message can't read its cached translations: one would tell them the
-    other member read it (a request, or read receipts off).
+    other member read it (a request, or read receipts off). `translate-message` refuses a
+    message's author before reading its cache, so an instant cached answer can't say it
+    either (the app offers Translate on others' messages only).
 
 ### Notifications and push
 

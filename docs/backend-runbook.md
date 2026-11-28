@@ -706,14 +706,19 @@ Then `supabase db push`, `messaging_set_settings` with the `dms*` keys above, an
   member has a row; `merge_messaging` moves a one-sided row; the author of a DM message
   can't read its translations; sending on `conversation:<id>` needs `can_read_conversation`;
   a block also sends `changed` on both members' `dms:<id>`. It deletes the recipient rows the
-  old `start_dm` made that nobody wrote to). All
+  old `start_dm` made that nobody wrote to) and `dms/007_empty_dm_checks` (a DM nothing was
+  ever written in, `conversations.last_message_at` null, is gated like a new one even when
+  both members opened it: `send_message` runs the checks and makes a request in requests
+  mode, `start_dm` refuses on opening, `has_dm` and the picker need a DM written in; a
+  block tells the blocked member's `dms:<id>` only when they have a row). All
   idempotent; `dms/002` needs the push module (skipped with a notice when `push_tokens`
   is missing).
 - **Functions.** No new secret and no new function: `notify-message` (messaging + push)
   now pushes DMs, `report-to-slack` names a reported DM's two members and never quotes
   it, and `account-delete` applies `eraseDms`. Redeploy `notify-message` and
   `report-to-slack` after `db push` (`dms/002` first: `notify-message` reads
-  `claim_message_push`'s `kind`).
+  `claim_message_push`'s `kind`), and `translate-message`, which now refuses a message's
+  author (403) before its cache: the cache's timing would tell a DM's sender it was read.
 - **Traps.**
   - **Adding `push` after `dms`:** re-run `messaging/002_push.sql`, **then** `dms/002_push.sql`.
     `messaging/002` alone after `dms/002` fails on `claim_message_push`'s return type;
